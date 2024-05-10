@@ -82,31 +82,6 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
         }
     }
 
-    public void testDeleteAllPitWithBody() {
-        SetOnce<Boolean> pitCalled = new SetOnce<>();
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
-            @Override
-            public void deletePits(DeletePitRequest request, ActionListener<DeletePitResponse> listener) {
-                pitCalled.set(true);
-                assertThat(request.getPitIds(), hasSize(1));
-                assertThat(request.getPitIds().get(0), equalTo("_all"));
-            }
-        }) {
-            RestDeletePitAction action = new RestDeletePitAction();
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
-                new BytesArray("{\"pit_id\": [\"BODY\"]}"),
-                MediaTypeRegistry.JSON
-            ).withPath("/_all").build();
-            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
-
-            IllegalArgumentException ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> action.handleRequest(request, channel, nodeClient)
-            );
-            assertTrue(ex.getMessage().contains("request [GET /_all] does not support having a body"));
-        }
-    }
-
     public void testDeletePitQueryStringParamsShouldThrowException() {
         SetOnce<Boolean> pitCalled = new SetOnce<>();
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {

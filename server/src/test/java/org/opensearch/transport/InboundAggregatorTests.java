@@ -42,6 +42,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -107,7 +108,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         }
 
         // Signal EOS
-        InboundMessage aggregated = aggregator.finishAggregation();
+        NativeInboundMessage aggregated = aggregator.finishAggregation();
 
         assertThat(aggregated, notNullValue());
         assertFalse(aggregated.isPing());
@@ -138,7 +139,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         assertEquals(0, content.refCount());
 
         // Signal EOS
-        InboundMessage aggregated = aggregator.finishAggregation();
+        NativeInboundMessage aggregated = aggregator.finishAggregation();
 
         assertThat(aggregated, notNullValue());
         assertTrue(aggregated.isShortCircuit());
@@ -161,7 +162,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         content1.close();
 
         // Signal EOS
-        InboundMessage aggregated1 = aggregator.finishAggregation();
+        NativeInboundMessage aggregated1 = aggregator.finishAggregation();
 
         assertEquals(0, content1.refCount());
         assertThat(aggregated1, notNullValue());
@@ -180,7 +181,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         content2.close();
 
         // Signal EOS
-        InboundMessage aggregated2 = aggregator.finishAggregation();
+        NativeInboundMessage aggregated2 = aggregator.finishAggregation();
 
         assertEquals(1, content2.refCount());
         assertThat(aggregated2, notNullValue());
@@ -199,7 +200,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
         content3.close();
 
         // Signal EOS
-        InboundMessage aggregated3 = aggregator.finishAggregation();
+        NativeInboundMessage aggregated3 = aggregator.finishAggregation();
 
         assertEquals(1, content3.refCount());
         assertThat(aggregated3, notNullValue());
@@ -263,7 +264,7 @@ public class InboundAggregatorTests extends OpenSearchTestCase {
             content.close();
 
             // Signal EOS
-            InboundMessage aggregated = aggregator.finishAggregation();
+            NativeInboundMessage aggregated = aggregator.finishAggregation();
 
             assertThat(aggregated, notNullValue());
             assertFalse(header.needsToReadVariableHeader());

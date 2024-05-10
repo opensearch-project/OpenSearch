@@ -31,6 +31,7 @@
 
 package org.opensearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
@@ -57,6 +58,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -66,6 +68,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.MIXED;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode.STRICT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 
@@ -78,7 +81,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     private final AllocationService allocationService;
 
-    private final Logger logger;
+    private static Logger logger = LogManager.getLogger(JoinTaskExecutor.class);
     private final RerouteService rerouteService;
 
     private final RemoteStoreNodeService remoteStoreNodeService;
@@ -142,7 +145,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         RemoteStoreNodeService remoteStoreNodeService
     ) {
         this.allocationService = allocationService;
-        this.logger = logger;
+        JoinTaskExecutor.logger = logger;
         this.rerouteService = rerouteService;
         this.remoteStoreNodeService = remoteStoreNodeService;
     }
@@ -521,7 +524,18 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 }
             }
         } else {
-            if (remoteStoreCompatibilityMode == CompatibilityMode.MIXED) {
+            if (MIXED.equals(remoteStoreCompatibilityMode)) {
+                if (joiningNode.getVersion().after(currentNodes.getMaxNodeVersion())) {
+                    String reason = String.format(
+                        Locale.ROOT,
+                        "remote migration : a node [%s] of higher version [%s] is not allowed to join a cluster with maximum version [%s]",
+                        joiningNode,
+                        joiningNode.getVersion(),
+                        currentNodes.getMaxNodeVersion()
+                    );
+                    logger.warn(reason);
+                    throw new IllegalStateException(reason);
+                }
                 if (joiningNode.isRemoteStoreNode()) {
                     Optional<DiscoveryNode> remoteDN = existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
                     remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode));

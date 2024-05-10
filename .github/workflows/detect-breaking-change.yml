@@ -1,6 +1,8 @@
 name: "Detect Breaking Changes"
 on:
-  pull_request
+  pull_request:
+    branches-ignore:
+      - main # This branch represents a to-be-released version of OpenSearch where breaking changes are allowed
 
 jobs:
   detect-breaking-change:

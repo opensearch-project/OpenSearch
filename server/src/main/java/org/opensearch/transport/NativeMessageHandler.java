@@ -51,6 +51,7 @@ import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.channels.TraceableTcpTransportChannel;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -111,7 +112,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
         long slowLogThresholdMs,
         TransportMessageListener messageListener
     ) throws IOException {
-        InboundMessage inboundMessage = (InboundMessage) message;
+        NativeInboundMessage inboundMessage = (NativeInboundMessage) message;
         TransportLogger.logInboundMessage(channel, inboundMessage);
         if (inboundMessage.isPing()) {
             keepAlive.receiveKeepAlive(channel);
@@ -122,7 +123,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
 
     private void handleMessage(
         TcpChannel channel,
-        InboundMessage message,
+        NativeInboundMessage message,
         long startTime,
         long slowLogThresholdMs,
         TransportMessageListener messageListener
@@ -194,7 +195,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
     private <T extends TransportRequest> void handleRequest(
         TcpChannel channel,
         Header header,
-        InboundMessage message,
+        NativeInboundMessage message,
         TransportMessageListener messageListener
     ) throws IOException {
         final String action = header.getActionName();

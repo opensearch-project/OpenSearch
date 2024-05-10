@@ -93,7 +93,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 String value = ehcacheTest.get(getICacheKey(entry.getKey()));
                 assertEquals(entry.getValue(), value);
             }
-            assertEquals(randomKeys, ehcacheTest.stats().getTotalEntries());
+            assertEquals(randomKeys, ehcacheTest.stats().getTotalItems());
             assertEquals(randomKeys, ehcacheTest.stats().getTotalHits());
             assertEquals(expectedSize, ehcacheTest.stats().getTotalSizeInBytes());
             assertEquals(randomKeys, ehcacheTest.count());
@@ -217,7 +217,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(entry.getValue(), value);
             }
             assertEquals(randomKeys, ehcacheTest.count());
-            assertEquals(randomKeys, ehcacheTest.stats().getTotalEntries());
+            assertEquals(randomKeys, ehcacheTest.stats().getTotalItems());
             ehcacheTest.close();
         }
     }
@@ -416,7 +416,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals(1, numberOfTimesValueLoaded);
             assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
             assertEquals(1, ehcacheTest.stats().getTotalMisses());
-            assertEquals(1, ehcacheTest.stats().getTotalEntries());
+            assertEquals(1, ehcacheTest.stats().getTotalItems());
             assertEquals(numberOfRequest - 1, ehcacheTest.stats().getTotalHits());
             assertEquals(1, ehcacheTest.count());
             ehcacheTest.close();
@@ -829,7 +829,8 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             ICacheKey<String> keyToDrop = keysAdded.get(0);
 
-            ImmutableCacheStats snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyToDrop.dimensions);
+            String[] levels = dimensionNames.toArray(new String[0]);
+            ImmutableCacheStats snapshot = ehCacheDiskCachingTier.stats(levels).getStatsForDimensionValues(keyToDrop.dimensions);
             assertNotNull(snapshot);
 
             keyToDrop.setDropStatsForDimensions(true);
@@ -837,7 +838,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             // Now assert the stats are gone for any key that has this combination of dimensions, but still there otherwise
             for (ICacheKey<String> keyAdded : keysAdded) {
-                snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyAdded.dimensions);
+                snapshot = ehCacheDiskCachingTier.stats(levels).getStatsForDimensionValues(keyAdded.dimensions);
                 if (keyAdded.dimensions.equals(keyToDrop.dimensions)) {
                     assertNull(snapshot);
                 } else {
@@ -846,6 +847,38 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             }
 
             ehCacheDiskCachingTier.close();
+        }
+    }
+
+    public void testStatsTrackingDisabled() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            for (int i = 0; i < randomKeys; i++) {
+                ICacheKey<String> iCacheKey = getICacheKey(UUID.randomUUID().toString());
+                ehcacheTest.put(iCacheKey, UUID.randomUUID().toString());
+                assertEquals(0, ehcacheTest.count()); // Expect count of 0 if NoopCacheStatsHolder is used
+                assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
+            }
+            ehcacheTest.close();
         }
     }
 

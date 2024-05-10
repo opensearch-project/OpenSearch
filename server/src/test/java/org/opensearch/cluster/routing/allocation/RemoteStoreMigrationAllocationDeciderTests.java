@@ -70,6 +70,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.NONE;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.hamcrest.core.Is.is;
@@ -89,7 +91,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         .build();
 
     private final Settings remoteStoreDirectionSettings = Settings.builder()
-        .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
+        .put(MIGRATION_DIRECTION_SETTING.getKey(), REMOTE_STORE)
         .build();
     private final Settings docrepDirectionSettings = Settings.builder()
         .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.DOCREP)
@@ -106,7 +108,9 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
     private Metadata metadata;
     private RoutingTable routingTable = null;
 
-    private void beforeAllocation() {
+    private ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
+
+    private void beforeAllocation(String direction) {
         FeatureFlags.initializeFeatureFlags(directionEnabledNodeSettings);
         if (isRemoteStoreBackedIndex == null) {
             isRemoteStoreBackedIndex = randomBoolean();
@@ -116,11 +120,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         String compatibilityMode = isMixedMode
             ? RemoteStoreNodeService.CompatibilityMode.MIXED.mode
             : RemoteStoreNodeService.CompatibilityMode.STRICT.mode;
-        customSettings = getCustomSettings(
-            RemoteStoreNodeService.Direction.REMOTE_STORE.direction,
-            compatibilityMode,
-            indexMetadataBuilder
-        );
+        customSettings = getCustomSettings(direction, compatibilityMode, indexMetadataBuilder);
 
         if (routingTable != null) {
             metadata = Metadata.builder().put(indexMetadataBuilder).build();
@@ -149,6 +149,35 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         routingAllocation.debugDecision(true);
     }
 
+    private void prepareRoutingTable(boolean isReplicaAllocation, String primaryShardNodeId) {
+        routingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(shardId.getIndex())
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(shardId).addShard(
+                            TestShardRouting.newShardRouting(
+                                shardId.getIndexName(),
+                                shardId.getId(),
+                                (isReplicaAllocation ? primaryShardNodeId : null),
+                                true,
+                                (isReplicaAllocation ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED)
+                            )
+                        )
+                            .addShard(
+                                TestShardRouting.newShardRouting(
+                                    shardId.getIndexName(),
+                                    shardId.getId(),
+                                    null,
+                                    false,
+                                    ShardRoutingState.UNASSIGNED
+                                )
+                            )
+                            .build()
+                    )
+            )
+            .build();
+    }
+
     // tests for primary shard copy allocation with MIXED mode and REMOTE_STORE direction
 
     public void testDontAllocateNewPrimaryShardOnNonRemoteNodeForMixedModeAndRemoteStoreDirection() {
@@ -166,7 +195,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
             .localNodeId(remoteNode.getId())
             .build();
 
-        beforeAllocation();
+        beforeAllocation(REMOTE_STORE.direction);
 
         ShardRouting primaryShardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
         RoutingNode nonRemoteRoutingNode = clusterState.getRoutingNodes().node(nonRemoteNode.getId());
@@ -196,7 +225,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
             .localNodeId(remoteNode.getId())
             .build();
 
-        beforeAllocation();
+        beforeAllocation(REMOTE_STORE.direction);
 
         ShardRouting primaryShardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
         RoutingNode remoteRoutingNode = clusterState.getRoutingNodes().node(remoteNode.getId());
@@ -216,39 +245,11 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         replicaCount = 1;
         isMixedMode = true;
 
-        ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-
         DiscoveryNode nonRemoteNode = getNonRemoteNode();
         DiscoveryNode remoteNode = getRemoteNode();
 
-        routingTable = RoutingTable.builder()
-            .add(
-                IndexRoutingTable.builder(shardId.getIndex())
-                    .addIndexShard(
-                        new IndexShardRoutingTable.Builder(shardId).addShard(
-                            // primary on non-remote node
-                            TestShardRouting.newShardRouting(
-                                shardId.getIndexName(),
-                                shardId.getId(),
-                                nonRemoteNode.getId(),
-                                true,
-                                ShardRoutingState.STARTED
-                            )
-                        )
-                            .addShard(
-                                // new replica's allocation
-                                TestShardRouting.newShardRouting(
-                                    shardId.getIndexName(),
-                                    shardId.getId(),
-                                    null,
-                                    false,
-                                    ShardRoutingState.UNASSIGNED
-                                )
-                            )
-                            .build()
-                    )
-            )
-            .build();
+        // primary on non-remote node, new replica's allocation
+        prepareRoutingTable(true, nonRemoteNode.getId());
 
         discoveryNodes = DiscoveryNodes.builder()
             .add(nonRemoteNode)
@@ -257,7 +258,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
             .localNodeId(remoteNode.getId())
             .build();
 
-        beforeAllocation();
+        beforeAllocation(REMOTE_STORE.direction);
 
         assertEquals(2, clusterState.getRoutingTable().allShards().size());
         ShardRouting replicaShardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).replicaShards().get(0);
@@ -278,40 +279,12 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         replicaCount = 1;
         isMixedMode = true;
 
-        ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-
         DiscoveryNode remoteNode1 = getRemoteNode();
         DiscoveryNode remoteNode2 = getRemoteNode();
         DiscoveryNode nonRemoteNode = getNonRemoteNode();
 
-        routingTable = RoutingTable.builder()
-            .add(
-                IndexRoutingTable.builder(shardId.getIndex())
-                    .addIndexShard(
-                        new IndexShardRoutingTable.Builder(shardId).addShard(
-                            // primary on remote node
-                            TestShardRouting.newShardRouting(
-                                shardId.getIndexName(),
-                                shardId.getId(),
-                                remoteNode1.getId(),
-                                true,
-                                ShardRoutingState.STARTED
-                            )
-                        )
-                            .addShard(
-                                // new replica's allocation
-                                TestShardRouting.newShardRouting(
-                                    shardId.getIndexName(),
-                                    shardId.getId(),
-                                    null,
-                                    false,
-                                    ShardRoutingState.UNASSIGNED
-                                )
-                            )
-                            .build()
-                    )
-            )
-            .build();
+        // primary on remote node, new replica's allocation
+        prepareRoutingTable(true, remoteNode1.getId());
 
         discoveryNodes = DiscoveryNodes.builder()
             .add(remoteNode1)
@@ -322,7 +295,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
             .localNodeId(nonRemoteNode.getId())
             .build();
 
-        beforeAllocation();
+        beforeAllocation(REMOTE_STORE.direction);
 
         assertEquals(2, clusterState.getRoutingTable().allShards().size());
         ShardRouting replicaShardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).replicaShards().get(0);
@@ -343,40 +316,12 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         replicaCount = 1;
         isMixedMode = true;
 
-        ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-
         DiscoveryNode remoteNode = getRemoteNode();
         DiscoveryNode nonRemoteNode1 = getNonRemoteNode();
         DiscoveryNode nonRemoteNode2 = getNonRemoteNode();
 
-        routingTable = RoutingTable.builder()
-            .add(
-                IndexRoutingTable.builder(shardId.getIndex())
-                    .addIndexShard(
-                        new IndexShardRoutingTable.Builder(shardId).addShard(
-                            // primary shard on non-remote node
-                            TestShardRouting.newShardRouting(
-                                shardId.getIndexName(),
-                                shardId.getId(),
-                                nonRemoteNode1.getId(),
-                                true,
-                                ShardRoutingState.STARTED
-                            )
-                        )
-                            .addShard(
-                                // new replica's allocation
-                                TestShardRouting.newShardRouting(
-                                    shardId.getIndexName(),
-                                    shardId.getId(),
-                                    null,
-                                    false,
-                                    ShardRoutingState.UNASSIGNED
-                                )
-                            )
-                            .build()
-                    )
-            )
-            .build();
+        // primary shard on non-remote node, new replica's allocation
+        prepareRoutingTable(true, nonRemoteNode1.getId());
 
         discoveryNodes = DiscoveryNodes.builder()
             .add(remoteNode)
@@ -387,7 +332,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
             .localNodeId(nonRemoteNode2.getId())
             .build();
 
-        beforeAllocation();
+        beforeAllocation(REMOTE_STORE.direction);
 
         assertEquals(2, clusterState.getRoutingTable().allShards().size());
 
@@ -411,39 +356,11 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         replicaCount = 1;
         isMixedMode = true;
 
-        ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-
         DiscoveryNode nonRemoteNode = getNonRemoteNode();
         DiscoveryNode remoteNode = getRemoteNode();
 
-        routingTable = RoutingTable.builder()
-            .add(
-                IndexRoutingTable.builder(shardId.getIndex())
-                    .addIndexShard(
-                        new IndexShardRoutingTable.Builder(shardId).addShard(
-                            // primary shard on non-remote node
-                            TestShardRouting.newShardRouting(
-                                shardId.getIndexName(),
-                                shardId.getId(),
-                                remoteNode.getId(),
-                                true,
-                                ShardRoutingState.STARTED
-                            )
-                        )
-                            .addShard(
-                                // new replica's allocation
-                                TestShardRouting.newShardRouting(
-                                    shardId.getIndexName(),
-                                    shardId.getId(),
-                                    null,
-                                    false,
-                                    ShardRoutingState.UNASSIGNED
-                                )
-                            )
-                            .build()
-                    )
-            )
-            .build();
+        // primary shard on remote node, new replica's allocation
+        prepareRoutingTable(true, remoteNode.getId());
 
         discoveryNodes = DiscoveryNodes.builder()
             .add(nonRemoteNode)
@@ -452,7 +369,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
             .localNodeId(remoteNode.getId())
             .build();
 
-        beforeAllocation();
+        beforeAllocation(REMOTE_STORE.direction);
 
         assertEquals(2, clusterState.getRoutingTable().allShards().size());
         ShardRouting replicaShardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).replicaShards().get(0);
@@ -478,39 +395,12 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         isMixedMode = false;
         isRemoteStoreBackedIndex = false;
 
-        ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
-
         DiscoveryNode nonRemoteNode1 = getNonRemoteNode();
         DiscoveryNode nonRemoteNode2 = getNonRemoteNode();
 
         boolean isReplicaAllocation = randomBoolean();
 
-        routingTable = RoutingTable.builder()
-            .add(
-                IndexRoutingTable.builder(shardId.getIndex())
-                    .addIndexShard(
-                        new IndexShardRoutingTable.Builder(shardId).addShard(
-                            TestShardRouting.newShardRouting(
-                                shardId.getIndexName(),
-                                shardId.getId(),
-                                (isReplicaAllocation ? nonRemoteNode1.getId() : null),
-                                true,
-                                (isReplicaAllocation ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED)
-                            )
-                        )
-                            .addShard(
-                                TestShardRouting.newShardRouting(
-                                    shardId.getIndexName(),
-                                    shardId.getId(),
-                                    null,
-                                    false,
-                                    ShardRoutingState.UNASSIGNED
-                                )
-                            )
-                            .build()
-                    )
-            )
-            .build();
+        prepareRoutingTable(isReplicaAllocation, nonRemoteNode1.getId());
 
         discoveryNodes = DiscoveryNodes.builder()
             .add(nonRemoteNode1)
@@ -519,7 +409,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
             .localNodeId(nonRemoteNode2.getId())
             .build();
 
-        beforeAllocation();
+        beforeAllocation(REMOTE_STORE.direction);
 
         assertEquals(2, clusterState.getRoutingTable().allShards().size());
 
@@ -543,33 +433,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         DiscoveryNode remoteNode1 = getRemoteNode();
         DiscoveryNode remoteNode2 = getRemoteNode();
 
-        routingTable = RoutingTable.builder()
-            .add(
-                IndexRoutingTable.builder(shardId.getIndex())
-                    .addIndexShard(
-                        new IndexShardRoutingTable.Builder(shardId).addShard(
-                            TestShardRouting.newShardRouting(
-                                shardId.getIndexName(),
-                                shardId.getId(),
-                                (isReplicaAllocation ? remoteNode1.getId() : null),
-                                true,
-                                (isReplicaAllocation ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED)
-                            )
-                        )
-                            .addShard(
-                                // new replica's allocation
-                                TestShardRouting.newShardRouting(
-                                    shardId.getIndexName(),
-                                    shardId.getId(),
-                                    null,
-                                    false,
-                                    ShardRoutingState.UNASSIGNED
-                                )
-                            )
-                            .build()
-                    )
-            )
-            .build();
+        prepareRoutingTable(isReplicaAllocation, remoteNode1.getId());
 
         discoveryNodes = DiscoveryNodes.builder()
             .add(remoteNode1)
@@ -578,7 +442,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
             .localNodeId(remoteNode2.getId())
             .build();
 
-        beforeAllocation();
+        beforeAllocation(REMOTE_STORE.direction);
 
         assertEquals(2, clusterState.getRoutingTable().allShards().size());
 
@@ -593,6 +457,97 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
         reason = String.format(
             Locale.ROOT,
             "[remote_store migration_direction]: %s shard copy can be allocated to a remote node for strict compatibility mode",
+            (isReplicaAllocation ? "replica" : "primary")
+        );
+        assertThat(decision.getExplanation().toLowerCase(Locale.ROOT), is(reason));
+    }
+
+    // test for NONE direction
+    public void testAllocationForNoneDirection() {
+        shardCount = 1;
+        replicaCount = 1;
+        isMixedMode = true;
+        isRemoteStoreBackedIndex = false; // non-remote store backed index
+
+        DiscoveryNode remoteNode1 = getRemoteNode();
+        DiscoveryNode remoteNode2 = getRemoteNode();
+        DiscoveryNode nonRemoteNode1 = getNonRemoteNode();
+        DiscoveryNode nonRemoteNode2 = getNonRemoteNode();
+
+        boolean isReplicaAllocation = randomBoolean();
+
+        prepareRoutingTable(isReplicaAllocation, nonRemoteNode1.getId());
+
+        discoveryNodes = DiscoveryNodes.builder()
+            .add(remoteNode1)
+            .localNodeId(remoteNode1.getId())
+            .add(remoteNode2)
+            .localNodeId(remoteNode2.getId())
+            .add(nonRemoteNode1)
+            .localNodeId(nonRemoteNode1.getId())
+            .add(nonRemoteNode2)
+            .localNodeId(nonRemoteNode2.getId())
+            .build();
+
+        beforeAllocation(NONE.direction);
+        assertEquals(2, clusterState.getRoutingTable().allShards().size());
+
+        ShardRouting shardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
+        if (isReplicaAllocation) {
+            shardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).replicaShards().get(0);
+        }
+        RoutingNode nonRemoteRoutingNode = clusterState.getRoutingNodes().node(nonRemoteNode2.getId());
+        RoutingNode remoteRoutingNode = clusterState.getRoutingNodes().node(remoteNode2.getId());
+
+        // allocation decision for non-remote node for non-remote store backed index
+        Decision decision = remoteStoreMigrationAllocationDecider.canAllocate(shardRouting, nonRemoteRoutingNode, routingAllocation);
+        assertThat(decision.type(), is(Decision.Type.YES));
+        String reason = String.format(
+            Locale.ROOT,
+            "[none migration_direction]: %s shard copy can be allocated to a non-remote node for non remote store backed index",
+            (isReplicaAllocation ? "replica" : "primary")
+        );
+        assertThat(decision.getExplanation().toLowerCase(Locale.ROOT), is(reason));
+
+        // allocation decision for remote node for non-remote store backed index
+        decision = remoteStoreMigrationAllocationDecider.canAllocate(shardRouting, remoteRoutingNode, routingAllocation);
+        assertThat(decision.type(), is(Decision.Type.NO));
+        reason = String.format(
+            Locale.ROOT,
+            "[none migration_direction]: %s shard copy can not be allocated to a remote node for non remote store backed index",
+            (isReplicaAllocation ? "replica" : "primary")
+        );
+        assertThat(decision.getExplanation().toLowerCase(Locale.ROOT), is(reason));
+
+        isRemoteStoreBackedIndex = true; // remote store backed index
+        prepareRoutingTable(isReplicaAllocation, remoteNode1.getId());
+
+        beforeAllocation(NONE.direction);
+        assertEquals(2, clusterState.getRoutingTable().allShards().size());
+
+        shardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).primaryShard();
+        if (isReplicaAllocation) {
+            shardRouting = clusterState.getRoutingTable().shardRoutingTable(TEST_INDEX, 0).replicaShards().get(0);
+        }
+        nonRemoteRoutingNode = clusterState.getRoutingNodes().node(nonRemoteNode2.getId());
+        remoteRoutingNode = clusterState.getRoutingNodes().node(remoteNode2.getId());
+
+        // allocation decision for non-remote node for remote store backed index
+        decision = remoteStoreMigrationAllocationDecider.canAllocate(shardRouting, nonRemoteRoutingNode, routingAllocation);
+        assertThat(decision.type(), is(Decision.Type.NO));
+        reason = String.format(
+            Locale.ROOT,
+            "[none migration_direction]: %s shard copy can not be allocated to a non-remote node for remote store backed index",
+            (isReplicaAllocation ? "replica" : "primary")
+        );
+        assertThat(decision.getExplanation().toLowerCase(Locale.ROOT), is(reason));
+
+        // allocation decision for remote node for remote store backed index
+        decision = remoteStoreMigrationAllocationDecider.canAllocate(shardRouting, remoteRoutingNode, routingAllocation);
+        assertThat(decision.type(), is(Decision.Type.YES));
+        reason = String.format(
+            Locale.ROOT,
+            "[none migration_direction]: %s shard copy can be allocated to a remote node for remote store backed index",
             (isReplicaAllocation ? "replica" : "primary")
         );
         assertThat(decision.getExplanation().toLowerCase(Locale.ROOT), is(reason));
@@ -614,7 +569,7 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
     private Settings getCustomSettings(String direction, String compatibilityMode, IndexMetadata.Builder indexMetadataBuilder) {
         Settings.Builder builder = Settings.builder();
         // direction settings
-        if (direction.toLowerCase(Locale.ROOT).equals(RemoteStoreNodeService.Direction.REMOTE_STORE.direction)) {
+        if (direction.toLowerCase(Locale.ROOT).equals(REMOTE_STORE.direction)) {
             builder.put(remoteStoreDirectionSettings);
         } else if (direction.toLowerCase(Locale.ROOT).equals(RemoteStoreNodeService.Direction.DOCREP.direction)) {
             builder.put(docrepDirectionSettings);

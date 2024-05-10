@@ -77,6 +77,19 @@ public class RenameProcessorFactoryTests extends OpenSearchTestCase {
         assertThat(renameProcessor.isIgnoreMissing(), equalTo(true));
     }
 
+    public void testCreateWithOverrideTarget() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "old_field");
+        config.put("target_field", "new_field");
+        config.put("override_target", true);
+        String processorTag = randomAlphaOfLength(10);
+        RenameProcessor renameProcessor = factory.create(null, processorTag, null, config);
+        assertThat(renameProcessor.getTag(), equalTo(processorTag));
+        assertThat(renameProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("old_field"));
+        assertThat(renameProcessor.getTargetField().newInstance(Collections.emptyMap()).execute(), equalTo("new_field"));
+        assertThat(renameProcessor.isOverrideTarget(), equalTo(true));
+    }
+
     public void testCreateNoFieldPresent() throws Exception {
         Map<String, Object> config = new HashMap<>();
         config.put("target_field", "new_field");

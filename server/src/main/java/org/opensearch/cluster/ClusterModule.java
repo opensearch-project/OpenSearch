@@ -93,6 +93,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry.Entry;
 import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.GatewayAllocator;
+import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.ingest.IngestMetadata;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
 import org.opensearch.persistent.PersistentTasksNodeService;
@@ -153,7 +154,13 @@ public class ClusterModule extends AbstractModule {
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
-        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this.allocationService = new AllocationService(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            settings
+        );
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -423,6 +430,7 @@ public class ClusterModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(GatewayAllocator.class).asEagerSingleton();
+        bind(ShardsBatchGatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
@@ -442,10 +450,10 @@ public class ClusterModule extends AbstractModule {
         bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
 
-    public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator) {
+    public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator, ShardsBatchGatewayAllocator shardsBatchGatewayAllocator) {
         final Map<String, ExistingShardsAllocator> existingShardsAllocators = new HashMap<>();
         existingShardsAllocators.put(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator);
-
+        existingShardsAllocators.put(ShardsBatchGatewayAllocator.ALLOCATOR_NAME, shardsBatchGatewayAllocator);
         for (ClusterPlugin clusterPlugin : clusterPlugins) {
             for (Map.Entry<String, ExistingShardsAllocator> existingShardsAllocatorEntry : clusterPlugin.getExistingShardsAllocators()
                 .entrySet()) {

@@ -275,7 +275,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     // value 0 means rewrite filters optimization in aggregations will be disabled
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
         "search.max_aggregation_rewrite_filters",
-        72,
+        3000,
         0,
         Property.Dynamic,
         Property.NodeScope

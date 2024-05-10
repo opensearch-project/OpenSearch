@@ -39,12 +39,13 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.gateway.GatewayAllocator;
+import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 
 import java.util.List;
 
 /**
  * Searches for, and allocates, shards for which there is an existing on-disk copy somewhere in the cluster. The default implementation is
- * {@link GatewayAllocator}, but plugins can supply their own implementations too.
+ * {@link GatewayAllocator} and {@link ShardsBatchGatewayAllocator}, but plugins can supply their own implementations too.
  *
  * @opensearch.internal
  */
@@ -58,6 +59,26 @@ public interface ExistingShardsAllocator {
         GatewayAllocator.ALLOCATOR_NAME,
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex
+    );
+
+    /**
+     * Boolean setting to enable/disable batch allocation of unassigned shards already existing on disk.
+     * This will allow sending all Unassigned Shards to the ExistingShard Allocator to  make decision to allocate
+     * in one or more go.
+     *
+     * Enable this setting if your ExistingShardAllocator is implementing the
+     * {@link ExistingShardsAllocator#allocateAllUnassignedShards(RoutingAllocation, boolean)} method.
+     * The default implementation of this method is not optimized and assigns shards one by one.
+     *
+     * If no plugin overrides {@link ExistingShardsAllocator} then default implementation will be use for it , i.e,
+     * {@link ShardsBatchGatewayAllocator}.
+     *
+     * This setting is experimental at this point.
+     */
+    Setting<Boolean> EXISTING_SHARDS_ALLOCATOR_BATCH_MODE = Setting.boolSetting(
+        "cluster.allocator.existing_shards_allocator.batch_enabled",
+        false,
+        Setting.Property.NodeScope
     );
 
     /**
@@ -79,6 +100,23 @@ public interface ExistingShardsAllocator {
         RoutingAllocation allocation,
         UnassignedAllocationHandler unassignedAllocationHandler
     );
+
+    /**
+     * Allocate all unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.
+     * Default implementation calls {@link #allocateUnassigned(ShardRouting, RoutingAllocation, UnassignedAllocationHandler)} for each Unassigned shard
+     * and is kept here for backward compatibility.
+     *
+     * Allocation service will currently run the default implementation of it implemented by {@link ShardsBatchGatewayAllocator}
+     */
+    default void allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        while (iterator.hasNext()) {
+            ShardRouting shardRouting = iterator.next();
+            if (shardRouting.primary() == primary) {
+                allocateUnassigned(shardRouting, allocation, iterator);
+            }
+        }
+    }
 
     /**
      * Returns an explanation for a single unassigned shard.

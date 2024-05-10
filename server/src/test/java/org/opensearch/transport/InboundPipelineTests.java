@@ -49,6 +49,7 @@ import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,7 +75,7 @@ public class InboundPipelineTests extends OpenSearchTestCase {
         final List<ReleasableBytesReference> toRelease = new ArrayList<>();
         final BiConsumer<TcpChannel, ProtocolInboundMessage> messageHandler = (c, m) -> {
             try {
-                InboundMessage message = (InboundMessage) m;
+                NativeInboundMessage message = (NativeInboundMessage) m;
                 final Header header = message.getHeader();
                 final MessageData actualData;
                 final Version version = header.getVersion();

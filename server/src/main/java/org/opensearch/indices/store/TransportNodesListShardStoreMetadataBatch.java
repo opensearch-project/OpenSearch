@@ -276,7 +276,7 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
             }
         }
 
-        boolean isEmpty(NodeStoreFilesMetadata response) {
+        public static boolean isEmpty(NodeStoreFilesMetadata response) {
             return response.storeFilesMetadata() == null
                 || response.storeFilesMetadata().isEmpty() && response.getStoreFileFetchException() == null;
         }
@@ -329,7 +329,13 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
 
         protected NodeStoreFilesMetadataBatch(StreamInput in) throws IOException {
             super(in);
-            this.nodeStoreFilesMetadataBatch = in.readMap(ShardId::new, NodeStoreFilesMetadata::new);
+            this.nodeStoreFilesMetadataBatch = in.readMap(ShardId::new, i -> {
+                if (i.readBoolean()) {
+                    return new NodeStoreFilesMetadata(i);
+                } else {
+                    return null;
+                }
+            });
         }
 
         public NodeStoreFilesMetadataBatch(DiscoveryNode node, Map<ShardId, NodeStoreFilesMetadata> nodeStoreFilesMetadataBatch) {
@@ -344,7 +350,14 @@ public class TransportNodesListShardStoreMetadataBatch extends TransportNodesAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(nodeStoreFilesMetadataBatch, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+            out.writeMap(nodeStoreFilesMetadataBatch, (o, k) -> k.writeTo(o), (o, v) -> {
+                if (v != null) {
+                    o.writeBoolean(true);
+                    v.writeTo(o);
+                } else {
+                    o.writeBoolean(false);
+                }
+            });
         }
     }
 

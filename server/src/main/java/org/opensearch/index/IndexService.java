@@ -132,6 +132,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 
 /**
  * The main OpenSearch index service
@@ -500,13 +501,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
-                    if (sourceNode != null && sourceNode.isRemoteStoreNode() == false) {
+                    if (sourceNode == null || sourceNode.isRemoteStoreNode() == false) {
                         if (routing.primary() == false) {
                             throw new IllegalStateException("Can't migrate a remote shard to replica before primary " + routing.shardId());
                         }
                         logger.info("DocRep shard {} is migrating to remote", shardId);
                         seedRemote = true;
                     }
+
                     remoteDirectory = ((RemoteSegmentStoreDirectoryFactory) remoteDirectoryFactory).newDirectory(
                         RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
                         this.indexSettings.getUUID(),
@@ -515,6 +517,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     );
                 }
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
+            } else {
+                // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
+                // Even though we have `RemoteStoreMigrationAllocationDecider` in place to prevent something like this from happening at the
+                // allocation level,
+                // keeping this defensive check in place
+                // TODO: Remove this once remote to docrep migration is supported
+                if (indexHasRemoteStoreSettings(indexSettings)) {
+                    throw new IllegalStateException(
+                        "[{" + routing.shardId() + "}] Cannot initialize shards with remote store index settings on non-remote store nodes"
+                    );
+                }
             }
 
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);

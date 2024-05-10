@@ -425,6 +425,121 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
         }, 1, TimeUnit.SECONDS);
     }
 
+    public void testWithDynamicDiskCacheSetting() throws Exception {
+        int onHeapCacheSizeInBytes = 10; // Keep it low so that all items are cached onto disk.
+        internalCluster().startNode(
+            Settings.builder()
+                .put(defaultSettings(onHeapCacheSizeInBytes + "b"))
+                .put(INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), new TimeValue(1))
+                .build()
+        );
+        Client client = client();
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate("index")
+                .setMapping("k", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.refresh_interval", -1)
+                )
+                .get()
+        );
+        // Update took time policy to zero so that all entries are eligible to be cached on disk.
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
+            Settings.builder()
+                .put(
+                    TieredSpilloverCacheSettings.TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                    new TimeValue(0, TimeUnit.MILLISECONDS)
+                )
+                .build()
+        );
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).get());
+        int numberOfIndexedItems = randomIntBetween(5, 10);
+        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
+            indexRandom(true, client.prepareIndex("index").setSource("k" + iterator, "hello" + iterator));
+        }
+        ensureSearchable("index");
+        refreshAndWaitForReplication();
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
+        long perQuerySizeInCacheInBytes = -1;
+        // Step 1: Hit some queries. We will see misses and queries will be cached(onto disk cache) for subsequent
+        // requests.
+        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
+            SearchResponse resp = client.prepareSearch("index")
+                .setRequestCache(true)
+                .setQuery(QueryBuilders.termQuery("k" + iterator, "hello" + iterator))
+                .get();
+            if (perQuerySizeInCacheInBytes == -1) {
+                RequestCacheStats requestCacheStats = getRequestCacheStats(client, "index");
+                perQuerySizeInCacheInBytes = requestCacheStats.getMemorySizeInBytes();
+            }
+            assertSearchResponse(resp);
+        }
+
+        RequestCacheStats requestCacheStats = getRequestCacheStats(client, "index");
+        assertEquals(numberOfIndexedItems * perQuerySizeInCacheInBytes, requestCacheStats.getMemorySizeInBytes());
+        assertEquals(numberOfIndexedItems, requestCacheStats.getMissCount());
+        assertEquals(0, requestCacheStats.getHitCount());
+        assertEquals(0, requestCacheStats.getEvictions());
+
+        // Step 2: Hit same queries again. We will see hits now.
+        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
+            SearchResponse resp = client.prepareSearch("index")
+                .setRequestCache(true)
+                .setQuery(QueryBuilders.termQuery("k" + iterator, "hello" + iterator))
+                .get();
+            assertSearchResponse(resp);
+        }
+        requestCacheStats = getRequestCacheStats(client, "index");
+        assertEquals(numberOfIndexedItems * perQuerySizeInCacheInBytes, requestCacheStats.getMemorySizeInBytes());
+        assertEquals(numberOfIndexedItems, requestCacheStats.getMissCount());
+        assertEquals(numberOfIndexedItems, requestCacheStats.getHitCount());
+        assertEquals(0, requestCacheStats.getEvictions());
+        long lastKnownHitCount = requestCacheStats.getHitCount();
+        long lastKnownMissCount = requestCacheStats.getMissCount();
+
+        // Step 3: Turn off disk cache now. And hit same queries again. We should not see hits now as all queries
+        // were cached onto disk cache.
+        updateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
+            Settings.builder()
+                .put(TieredSpilloverCacheSettings.DISK_CACHE_ENABLED_SETTING_MAP.get(CacheType.INDICES_REQUEST_CACHE).getKey(), false)
+                .build()
+        );
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).get());
+
+        for (int iterator = 0; iterator < numberOfIndexedItems; iterator++) {
+            SearchResponse resp = client.prepareSearch("index")
+                .setRequestCache(true)
+                .setQuery(QueryBuilders.termQuery("k" + iterator, "hello" + iterator))
+                .get();
+            assertSearchResponse(resp);
+        }
+        requestCacheStats = getRequestCacheStats(client, "index");
+        assertEquals(numberOfIndexedItems * perQuerySizeInCacheInBytes, requestCacheStats.getMemorySizeInBytes()); //
+        // Still shows disk cache entries as explicit clear or invalidation is required to clean up disk cache.
+        assertEquals(lastKnownMissCount + numberOfIndexedItems, requestCacheStats.getMissCount());
+        assertEquals(0, lastKnownHitCount - requestCacheStats.getHitCount()); // No new hits being seen.
+        lastKnownMissCount = requestCacheStats.getMissCount();
+        lastKnownHitCount = requestCacheStats.getHitCount();
+
+        // Step 4: Invalidate entries via refresh.
+        // Explicit refresh would invalidate cache entries.
+        refreshAndWaitForReplication();
+        assertBusy(() -> {
+            // Explicit refresh should clear up cache entries
+            assertTrue(getRequestCacheStats(client, "index").getMemorySizeInBytes() == 0);
+        }, 1, TimeUnit.SECONDS);
+        requestCacheStats = getRequestCacheStats(client, "index");
+        assertEquals(0, lastKnownMissCount - requestCacheStats.getMissCount());
+        assertEquals(0, lastKnownHitCount - requestCacheStats.getHitCount());
+    }
+
     private RequestCacheStats getRequestCacheStats(Client client, String indexName) {
         return client.admin().indices().prepareStats(indexName).setRequestCache(true).get().getTotal().getRequestCache();
     }
@@ -435,7 +550,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
 
         @Override
         public Map<String, ICache.Factory> getCacheFactoryMap() {
-            return Map.of(MockDiskCache.MockDiskCacheFactory.NAME, new MockDiskCache.MockDiskCacheFactory(0, 1000));
+            return Map.of(MockDiskCache.MockDiskCacheFactory.NAME, new MockDiskCache.MockDiskCacheFactory(0, 1000, false));
         }
 
         @Override

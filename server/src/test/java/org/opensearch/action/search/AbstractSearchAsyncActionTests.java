@@ -70,6 +70,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -440,6 +441,24 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
         assertEquals("test", searchPhaseExecutionException.getPhaseName());
         assertEquals(0, searchPhaseExecutionException.shardFailures().length);
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
+    }
+
+    public void testShardNotAvailableWithIgnoreUnavailable() {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .indicesOptions(new IndicesOptions(EnumSet.of(IndicesOptions.Option.IGNORE_UNAVAILABLE), IndicesOptions.WildcardStates.NONE));
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> {}, exception::set);
+        int numShards = randomIntBetween(2, 10);
+        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numShards);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
+        // skip one to avoid the "all shards failed" failure.
+        SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
+        skipIterator.resetAndSkip();
+        action.skipShard(skipIterator);
+
+        // Validate no exception is thrown
+        action.executeNextPhase(action, createFetchSearchPhase());
+        action.sendSearchResponse(InternalSearchResponse.empty(), phaseResults.results);
     }
 
     private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(

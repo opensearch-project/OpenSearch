@@ -84,6 +84,7 @@ This will instruct all JVMs (including any that run cli tools such as creating t
 -   In order to remotely attach a debugger to the process: `--debug-jvm`
 -   In order to set a different keystore password: `--keystore-password yourpassword`
 -   In order to set an OpenSearch setting, provide a setting with the following prefix: `-Dtests.opensearch.`
+-   In order to enable stack trace of the MockSpanData during testing, add: `-Dtests.telemetry.span.stack_traces=true` (Storing stack traces alongside span data can be useful for comprehensive debugging and performance optimization during testing, as it provides insights into the exact code paths and execution sequences, facilitating efficient issue identification and resolution. Note: Enabling this might lead to OOM issues while running ITs)
 
 ## Test case filtering
 
@@ -412,8 +413,8 @@ Say you need to make a change to `main` and have a BWC layer in `5.x`. You will 
 You may want to run BWC tests for a secure OpenSearch cluster. In order to do this, you will need to follow a few additional steps:
 
 1. Clone the OpenSearch Security repository from https://github.com/opensearch-project/security.
-2. Get both the old version of the Security plugin (the version you wish to come from) and the new version of the Security plugin (the version you wish to go to). This can be done either by fetching the maven artifact with a command like `wget https://repo1.maven.org/maven2/org/opensearch/plugin/opensearch-security/<TARGET_VERSION>.0/opensearch-security-<TARGET_VERSION>.0.zip` or by running `./gradlew assemble` from the base of the Security repository. 
-3. Move both of the Security artifacts into new directories at the path `/security/bwc-test/src/test/resources/<TARGET_VERSION>.0`. You should end up with two different directories in `/security/bwc-test/src/test/resources/`, one named the old version and one the new version. 
+2. Get both the old version of the Security plugin (the version you wish to come from) and the new version of the Security plugin (the version you wish to go to). This can be done either by fetching the maven artifact with a command like `wget https://repo1.maven.org/maven2/org/opensearch/plugin/opensearch-security/<TARGET_VERSION>.0/opensearch-security-<TARGET_VERSION>.0.zip` or by running `./gradlew assemble` from the base of the Security repository.
+3. Move both of the Security artifacts into new directories at the path `/security/bwc-test/src/test/resources/<TARGET_VERSION>.0`. You should end up with two different directories in `/security/bwc-test/src/test/resources/`, one named the old version and one the new version.
 4. Run the following command from the base of the Security repository:
 
 ```
@@ -428,7 +429,7 @@ You may want to run BWC tests for a secure OpenSearch cluster. In order to do th
 
 `-Dtests.security.manager=false` handles access issues when attempting to read the certificates from the file system.
 `-Dtests.opensearch.http.protocol=https` tells the wait for cluster startup task to do the right thing.
-`-PcustomDistributionUrl=...` uses a custom build of the distribution of OpenSearch. This is unnecessary when running against standard/unmodified OpenSearch core distributions. 
+`-PcustomDistributionUrl=...` uses a custom build of the distribution of OpenSearch. This is unnecessary when running against standard/unmodified OpenSearch core distributions.
 
 ### Skip fetching latest
 

@@ -76,6 +76,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
+import static org.opensearch.test.VersionUtils.allOpenSearchVersions;
 import static org.opensearch.test.VersionUtils.allVersions;
 import static org.opensearch.test.VersionUtils.maxCompatibleVersion;
 import static org.opensearch.test.VersionUtils.randomCompatibleVersion;
@@ -883,6 +884,64 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
         assertTrue(taskResult.isSuccess());
         validateRepositoryMetadata(result.resultingState, clusterManagerNode, 2);
+    }
+
+    public void testNodeJoinInMixedMode() {
+        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
+        FeatureFlags.initializeFeatureFlags(nodeSettings);
+
+        List<Version> versions = allOpenSearchVersions();
+        assert versions.size() >= 2 : "test requires at least two open search versions";
+        Version baseVersion = versions.get(versions.size() - 2);
+        Version higherVersion = versions.get(versions.size() - 1);
+
+        DiscoveryNode currentNode1 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), baseVersion);
+        DiscoveryNode currentNode2 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), baseVersion);
+        DiscoveryNodes currentNodes = DiscoveryNodes.builder()
+            .add(currentNode1)
+            .localNodeId(currentNode1.getId())
+            .add(currentNode2)
+            .localNodeId(currentNode2.getId())
+            .build();
+
+        Settings mixedModeCompatibilitySettings = Settings.builder()
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
+            .build();
+
+        Metadata metadata = Metadata.builder().persistentSettings(mixedModeCompatibilitySettings).build();
+
+        // joining node of a higher version than the current nodes
+        DiscoveryNode joiningNode1 = new DiscoveryNode(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            higherVersion
+        );
+        final IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> JoinTaskExecutor.ensureNodesCompatibility(joiningNode1, currentNodes, metadata)
+        );
+        String reason = String.format(
+            Locale.ROOT,
+            "remote migration : a node [%s] of higher version [%s] is not allowed to join a cluster with maximum version [%s]",
+            joiningNode1,
+            joiningNode1.getVersion(),
+            currentNodes.getMaxNodeVersion()
+        );
+        assertEquals(reason, exception.getMessage());
+
+        // joining node of the same version as the current nodes
+        DiscoveryNode joiningNode2 = new DiscoveryNode(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO),
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            baseVersion
+        );
+        JoinTaskExecutor.ensureNodesCompatibility(joiningNode2, currentNodes, metadata);
     }
 
     private void validateRepositoryMetadata(ClusterState updatedState, DiscoveryNode existingNode, int expectedRepositories)

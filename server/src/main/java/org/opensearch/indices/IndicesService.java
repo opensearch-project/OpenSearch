@@ -62,7 +62,6 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.service.CacheService;
@@ -125,8 +124,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
-import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
-import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -219,10 +216,11 @@ public class IndicesService extends AbstractLifecycleComponent
         IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>,
         IndexService.ShardStoreDeleter {
     private static final Logger logger = LogManager.getLogger(IndicesService.class);
+    public static final String INDICES_CACHE_CLEANUP_INTERVAL_SETTING_KEY = "indices.cache.cleanup_interval";
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "indices.cache.cleanup_interval",
+        INDICES_CACHE_CLEANUP_INTERVAL_SETTING_KEY,
         TimeValue.timeValueMinutes(1),
         Property.NodeScope
     );
@@ -276,8 +274,8 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public static final Setting<TimeValue> CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.minimum.index.refresh_interval",
-        IndexSettings.MINIMUM_REFRESH_INTERVAL,
-        IndexSettings.MINIMUM_REFRESH_INTERVAL,
+        TimeValue.ZERO,
+        TimeValue.ZERO,
         new ClusterMinimumRefreshIntervalValidator(),
         Property.NodeScope,
         Property.Dynamic
@@ -306,33 +304,6 @@ public class IndicesService extends AbstractLifecycleComponent
         false,
         Property.NodeScope,
         Property.Final
-    );
-
-    /**
-     * This setting is used to set the remote store blob store path type strategy. This setting is effective only for
-     * remote store enabled cluster.
-     */
-    @ExperimentalApi
-    public static final Setting<PathType> CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING = new Setting<>(
-        "cluster.remote_store.index.path.type",
-        PathType.FIXED.toString(),
-        PathType::parseString,
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
-    /**
-     * This setting is used to set the remote store blob store path hash algorithm strategy. This setting is effective only for
-     * remote store enabled cluster. This setting will come to effect if the {@link #CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING}
-     * is either {@code HASHED_PREFIX} or {@code HASHED_INFIX}.
-     */
-    @ExperimentalApi
-    public static final Setting<PathHashAlgorithm> CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING = new Setting<>(
-        "cluster.remote_store.index.path.hash_algorithm",
-        PathHashAlgorithm.FNV_1A_COMPOSITE_1.toString(),
-        PathHashAlgorithm::parseString,
-        Property.NodeScope,
-        Property.Dynamic
     );
 
     /**
@@ -2039,6 +2010,9 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param defaultRefreshInterval value of cluster default index refresh interval setting
      */
     private static void validateRefreshIntervalSettings(TimeValue minimumRefreshInterval, TimeValue defaultRefreshInterval) {
+        if (defaultRefreshInterval.millis() < 0) {
+            return;
+        }
         if (minimumRefreshInterval.compareTo(defaultRefreshInterval) > 0) {
             throw new IllegalArgumentException(
                 "cluster minimum index refresh interval ["

@@ -47,11 +47,13 @@ import org.opensearch.common.cache.ICacheKey;
 import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.policy.CachedQueryResult;
 import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
@@ -111,6 +113,10 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      * A setting to enable or disable request caching on an index level. Its dynamic by default
      * since we are checking on the cluster state IndexMetadata always.
      */
+    public static final String INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY =
+        "indices.requests.cache.cleanup.staleness_threshold";
+    public static final String INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY = "indices.requests.cache.cleanup.interval";
+
     public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING = Setting.boolSetting(
         "index.requests.cache.enable",
         true,
@@ -127,15 +133,16 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         new TimeValue(0),
         Property.NodeScope
     );
-    public static final Setting<TimeValue> INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "indices.requests.cache.cleanup.interval",
+    public static final Setting<TimeValue> INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING = Setting.positiveTimeSetting(
+        INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY,
         INDICES_CACHE_CLEAN_INTERVAL_SETTING,
         Property.NodeScope
     );
     public static final Setting<String> INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING = new Setting<>(
-        "indices.requests.cache.cleanup.staleness_threshold",
+        INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY,
         "0%",
         IndicesRequestCache::validateStalenessSetting,
+        Property.Dynamic,
         Property.NodeScope
     );
 
@@ -145,6 +152,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     private final ByteSizeValue size;
     private final TimeValue expire;
     private final ICache<Key, BytesReference> cache;
+    private final ClusterService clusterService;
     private final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
     // pkg-private for testing
     final IndicesRequestCacheCleanupManager cacheCleanupManager;
@@ -166,10 +174,13 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         ToLongBiFunction<ICacheKey<Key>, BytesReference> weigher = (k, v) -> k.ramBytesUsed(k.key.ramBytesUsed()) + v.ramBytesUsed();
         this.cacheCleanupManager = new IndicesRequestCacheCleanupManager(
             threadPool,
-            INDICES_REQUEST_CACHE_CLEAN_INTERVAL_SETTING.get(settings),
+            INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING.get(settings),
             getStalenessThreshold(settings)
         );
         this.cacheEntityLookup = cacheEntityFunction;
+        this.clusterService = clusterService;
+        this.clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING, this::setStalenessThreshold);
         this.cache = cacheService.createCache(
             new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
                 .setWeigher(weigher)
@@ -195,6 +206,11 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         );
     }
 
+    // package private for testing
+    void invalidateAll() {
+        cache.invalidateAll();
+    }
+
     @Override
     public void close() throws IOException {
         cache.invalidateAll();
@@ -207,6 +223,11 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         return RatioValue.parseRatioValue(threshold).getAsRatio();
     }
 
+    // pkg-private for testing
+    void setStalenessThreshold(String threshold) {
+        this.cacheCleanupManager.updateStalenessThreshold(RatioValue.parseRatioValue(threshold).getAsRatio());
+    }
+
     void clear(CacheEntity entity) {
         cacheCleanupManager.enqueueCleanupKey(new CleanupKey(entity, null));
         cacheCleanupManager.forceCleanCache();
@@ -216,19 +237,20 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     public void onRemoval(RemovalNotification<ICacheKey<Key>, BytesReference> notification) {
         // In case this event happens for an old shard, we can safely ignore this as we don't keep track for old
         // shards as part of request cache.
-
         // Pass a new removal notification containing Key rather than ICacheKey<Key> to the CacheEntity for backwards compatibility.
         Key key = notification.getKey().key;
-        RemovalNotification<Key, BytesReference> newNotification = new RemovalNotification<>(
-            key,
-            notification.getValue(),
-            notification.getRemovalReason()
-        );
-
-        cacheEntityLookup.apply(key.shardId).ifPresent(entity -> entity.onRemoval(newNotification));
-        cacheCleanupManager.updateCleanupKeyToCountMapOnCacheEviction(
-            new CleanupKey(cacheEntityLookup.apply(key.shardId).orElse(null), key.readerCacheKeyId)
-        );
+        IndicesService.IndexShardCacheEntity indexShardCacheEntity = (IndicesService.IndexShardCacheEntity) cacheEntityLookup.apply(
+            key.shardId
+        ).orElse(null);
+        if (indexShardCacheEntity != null) {
+            // Here we match the hashcode to avoid scenario where we deduct stats of older IndexShard(with same
+            // shardId) from current IndexShard.
+            if (key.indexShardHashCode == System.identityHashCode(indexShardCacheEntity.getCacheIdentity())) {
+                indexShardCacheEntity.onRemoval(notification);
+            }
+        }
+        CleanupKey cleanupKey = new CleanupKey(indexShardCacheEntity, key.readerCacheKeyId);
+        cacheCleanupManager.updateStaleCountOnEntryRemoval(cleanupKey, notification);
     }
 
     private ICacheKey<Key> getICacheKey(Key key) {
@@ -259,7 +281,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             .getReaderCacheHelper();
         String readerCacheKeyId = delegatingCacheHelper.getDelegatingCacheKey().getId();
         assert readerCacheKeyId != null;
-        final Key key = new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId);
+        IndexShard indexShard = ((IndexShard) cacheEntity.getCacheIdentity());
+        final Key key = new Key(indexShard.shardId(), cacheKey, readerCacheKeyId, System.identityHashCode(indexShard));
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(getICacheKey(key), cacheLoader);
         if (cacheLoader.isLoaded()) {
@@ -272,7 +295,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                     OpenSearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
                 }
             }
-            cacheCleanupManager.updateCleanupKeyToCountMapOnCacheInsertion(cleanupKey);
+            cacheCleanupManager.updateStaleCountOnCacheInsert(cleanupKey);
         } else {
             cacheEntity.onHit();
         }
@@ -292,7 +315,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             IndexReader.CacheHelper cacheHelper = ((OpenSearchDirectoryReader) reader).getDelegatingCacheHelper();
             readerCacheKeyId = ((OpenSearchDirectoryReader.DelegatingCacheHelper) cacheHelper).getDelegatingCacheKey().getId();
         }
-        cache.invalidate(getICacheKey(new Key(((IndexShard) cacheEntity.getCacheIdentity()).shardId(), cacheKey, readerCacheKeyId)));
+        IndexShard indexShard = (IndexShard) cacheEntity.getCacheIdentity();
+        cache.invalidate(getICacheKey(new Key(indexShard.shardId(), cacheKey, readerCacheKeyId, System.identityHashCode(indexShard))));
     }
 
     /**
@@ -318,7 +342,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         @Override
         public BytesReference load(ICacheKey<Key> key) throws Exception {
             BytesReference value = loader.get();
-            entity.onCached(key.key, value);
+            entity.onCached(key, value);
             loaded = true;
             return value;
         }
@@ -332,7 +356,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         /**
          * Called after the value was loaded.
          */
-        void onCached(Key key, BytesReference value);
+        void onCached(ICacheKey<Key> key, BytesReference value);
 
         /**
          * Returns <code>true</code> iff the resource behind this entity is still open ie.
@@ -359,7 +383,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         /**
          * Called when this entity instance is removed
          */
-        void onRemoval(RemovalNotification<Key, BytesReference> notification);
+        void onRemoval(RemovalNotification<ICacheKey<Key>, BytesReference> notification);
 
     }
 
@@ -370,19 +394,25 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      */
     static class Key implements Accountable, Writeable {
         public final ShardId shardId; // use as identity equality
+        public final int indexShardHashCode; // While ShardId is usually sufficient to uniquely identify an
+        // indexShard but in case where the same indexShard is deleted and reallocated on same node, we need the
+        // hashcode(default) to identify the older indexShard but with same shardId.
         public final String readerCacheKeyId;
         public final BytesReference value;
 
-        Key(ShardId shardId, BytesReference value, String readerCacheKeyId) {
+        Key(ShardId shardId, BytesReference value, String readerCacheKeyId, int indexShardHashCode) {
             this.shardId = shardId;
             this.value = value;
             this.readerCacheKeyId = Objects.requireNonNull(readerCacheKeyId);
+            this.indexShardHashCode = indexShardHashCode;
         }
 
         Key(StreamInput in) throws IOException {
             this.shardId = in.readOptionalWriteable(ShardId::new);
             this.readerCacheKeyId = in.readOptionalString();
             this.value = in.readBytesReference();
+            this.indexShardHashCode = in.readInt(); // We are serializing/de-serializing this as we need to store the
+            // key as part of tiered/disk cache. The key is not passed between nodes at this point.
         }
 
         @Override
@@ -404,6 +434,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             if (!Objects.equals(readerCacheKeyId, key.readerCacheKeyId)) return false;
             if (!shardId.equals(key.shardId)) return false;
             if (!value.equals(key.value)) return false;
+            if (indexShardHashCode != key.indexShardHashCode) return false;
             return true;
         }
 
@@ -412,6 +443,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             int result = shardId.hashCode();
             result = 31 * result + readerCacheKeyId.hashCode();
             result = 31 * result + value.hashCode();
+            result = 31 * result + indexShardHashCode;
             return result;
         }
 
@@ -420,6 +452,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             out.writeOptionalWriteable(shardId);
             out.writeOptionalString(readerCacheKeyId);
             out.writeBytesReference(value);
+            out.writeInt(indexShardHashCode); // We are serializing/de-serializing this as we need to store the
+            // key as part of tiered/disk cache. The key is not passed between nodes at this point.
         }
     }
 
@@ -474,7 +508,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         private final Set<CleanupKey> keysToClean;
         private final ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap;
         private final AtomicInteger staleKeysCount;
-        private final double stalenessThreshold;
+        private volatile double stalenessThreshold;
         private final IndicesRequestCacheCleaner cacheCleaner;
 
         IndicesRequestCacheCleanupManager(ThreadPool threadpool, TimeValue cleanInterval, double stalenessThreshold) {
@@ -484,6 +518,18 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             this.staleKeysCount = new AtomicInteger(0);
             this.cacheCleaner = new IndicesRequestCacheCleaner(this, threadpool, cleanInterval);
             threadpool.schedule(cacheCleaner, cleanInterval, ThreadPool.Names.SAME);
+        }
+
+        void updateStalenessThreshold(double stalenessThreshold) {
+            double oldStalenessThreshold = this.stalenessThreshold;
+            this.stalenessThreshold = stalenessThreshold;
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "Staleness threshold for indices request cache changed to {} from {}",
+                    this.stalenessThreshold,
+                    oldStalenessThreshold
+                );
+            }
         }
 
         /**
@@ -508,8 +554,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          *
          * @param cleanupKey the CleanupKey to be updated in the map
          */
-        private void updateCleanupKeyToCountMapOnCacheInsertion(CleanupKey cleanupKey) {
-            if (stalenessThreshold == 0.0 || cleanupKey.entity == null) {
+        private void updateStaleCountOnCacheInsert(CleanupKey cleanupKey) {
+            if (cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -524,8 +570,32 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             cleanupKeyToCountMap.computeIfAbsent(shardId, k -> new HashMap<>()).merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
         }
 
-        private void updateCleanupKeyToCountMapOnCacheEviction(CleanupKey cleanupKey) {
-            if (stalenessThreshold == 0.0 || cleanupKey.entity == null) {
+        /**
+         * Handles the eviction of a cache entry.
+         *
+         * <p>This method is called when an entry is evicted from the cache.
+         * We consider all removal notifications except with the reason Replaced
+         * {@link #incrementStaleKeysCount} would have removed the entries from the map and increment the {@link #staleKeysCount}
+         * Hence we decrement {@link #staleKeysCount} if we do not find the shardId or readerCacheKeyId in the map.
+         * Skip decrementing staleKeysCount if we find the shardId or readerCacheKeyId in the map since it would have not been accounted for in the staleKeysCount in
+         *
+         * @param cleanupKey   the CleanupKey that has been evicted from the cache
+         * @param notification RemovalNotification of the cache entry evicted
+         */
+        private void updateStaleCountOnEntryRemoval(
+            CleanupKey cleanupKey,
+            RemovalNotification<ICacheKey<Key>, BytesReference> notification
+        ) {
+            if (notification.getRemovalReason() == RemovalReason.REPLACED) {
+                // The reason of the notification is REPLACED when a cache entry's value is updated, since replacing an entry
+                // does not affect the staleness count, we skip such notifications.
+                return;
+            }
+            if (cleanupKey.entity == null) {
+                // entity will only be null when the shard is closed/deleted
+                // we would have accounted this in staleKeysCount when the closing/deletion of shard would have closed the associated
+                // readers
+                staleKeysCount.decrementAndGet();
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -535,15 +605,33 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             }
             ShardId shardId = indexShard.shardId();
 
-            cleanupKeyToCountMap.computeIfPresent(shardId, (shard, keyCountMap) -> {
-                keyCountMap.computeIfPresent(cleanupKey.readerCacheKeyId, (key, currentValue) -> {
-                    // decrement the stale key count
+            cleanupKeyToCountMap.compute(shardId, (key, readerCacheKeyMap) -> {
+                if (readerCacheKeyMap == null || !readerCacheKeyMap.containsKey(cleanupKey.readerCacheKeyId)) {
+                    // If ShardId is not present or readerCacheKeyId is not present
+                    // it should have already been accounted for and hence been removed from this map
+                    // so decrement staleKeysCount
                     staleKeysCount.decrementAndGet();
-                    int newValue = currentValue - 1;
-                    // Remove the key if the new value is zero by returning null; otherwise, update with the new value.
-                    return newValue == 0 ? null : newValue;
-                });
-                return keyCountMap;
+                    // Return the current map
+                    return readerCacheKeyMap;
+                } else {
+                    // If it is in the map, it is not stale yet.
+                    // Proceed to adjust the count for the readerCacheKeyId in the map
+                    // but do not decrement the staleKeysCount
+                    Integer count = readerCacheKeyMap.get(cleanupKey.readerCacheKeyId);
+                    // this should never be null
+                    assert (count != null && count >= 0);
+                    // Reduce the count by 1
+                    int newCount = count - 1;
+                    if (newCount > 0) {
+                        // Update the map with the new count
+                        readerCacheKeyMap.put(cleanupKey.readerCacheKeyId, newCount);
+                    } else {
+                        // Remove the readerCacheKeyId entry if new count is zero
+                        readerCacheKeyMap.remove(cleanupKey.readerCacheKeyId);
+                    }
+                    // If after modification, the readerCacheKeyMap is empty, we return null to remove the ShardId entry
+                    return readerCacheKeyMap.isEmpty() ? null : readerCacheKeyMap;
+                }
             });
         }
 
@@ -551,14 +639,14 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * Updates the count of stale keys in the cache.
          * This method is called when a CleanupKey is added to the keysToClean set.
          *
-         * It increments the staleKeysCount by the count of the CleanupKey in the cleanupKeyToCountMap.
+         * <p>It increments the staleKeysCount by the count of the CleanupKey in the cleanupKeyToCountMap.
          * If the CleanupKey's readerCacheKeyId is null or the CleanupKey's entity is not open, it increments the staleKeysCount
          * by the total count of keys associated with the CleanupKey's ShardId in the cleanupKeyToCountMap and removes the ShardId from the map.
          *
          * @param cleanupKey the CleanupKey that has been marked for cleanup
          */
         private void incrementStaleKeysCount(CleanupKey cleanupKey) {
-            if (stalenessThreshold == 0.0 || cleanupKey.entity == null) {
+            if (cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -569,7 +657,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             ShardId shardId = indexShard.shardId();
 
             // Using computeIfPresent to atomically operate on the countMap for a given shardId
-            cleanupKeyToCountMap.computeIfPresent(shardId, (key, countMap) -> {
+            cleanupKeyToCountMap.computeIfPresent(shardId, (currentShardId, countMap) -> {
                 if (cleanupKey.readerCacheKeyId == null) {
                     // Aggregate and add to staleKeysCount atomically if readerCacheKeyId is null
                     int totalSum = countMap.values().stream().mapToInt(Integer::intValue).sum();
@@ -578,18 +666,19 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                     return null;
                 } else {
                     // Update staleKeysCount based on specific readerCacheKeyId, then remove it from the countMap
-                    countMap.computeIfPresent(cleanupKey.readerCacheKeyId, (k, v) -> {
-                        staleKeysCount.addAndGet(v);
+                    countMap.computeIfPresent(cleanupKey.readerCacheKeyId, (readerCacheKey, count) -> {
+                        staleKeysCount.addAndGet(count);
                         // Return null to remove the key after updating staleKeysCount
                         return null;
                     });
-
                     // Check if countMap is empty after removal to decide if we need to remove the shardId entry
                     if (countMap.isEmpty()) {
-                        return null; // Returning null removes the entry for shardId
+                        // Returning null removes the entry for shardId
+                        return null;
                     }
                 }
-                return countMap; // Return the modified countMap to keep the mapping
+                // Return the modified countMap to retain updates
+                return countMap;
             });
         }
 
@@ -627,15 +716,16 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             // Contains CleanupKey objects with open shard but invalidated readerCacheKeyId.
             final Set<CleanupKey> cleanupKeysFromOutdatedReaders = new HashSet<>();
             // Contains CleanupKey objects of a closed shard.
-            final Set<Object> cleanupKeysFromClosedShards = new HashSet<>();
+            final Set<Tuple<ShardId, Integer>> cleanupKeysFromClosedShards = new HashSet<>();
 
             for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
                 CleanupKey cleanupKey = iterator.next();
                 iterator.remove();
                 if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
                     // null indicates full cleanup, as does a closed shard
-                    ShardId shardId = ((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId();
-                    cleanupKeysFromClosedShards.add(shardId);
+                    IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
+                    // Add both shardId and indexShardHashCode to uniquely identify an indexShard.
+                    cleanupKeysFromClosedShards.add(new Tuple<>(indexShard.shardId(), indexShard.hashCode()));
                 } else {
                     cleanupKeysFromOutdatedReaders.add(cleanupKey);
                 }
@@ -649,14 +739,22 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
             for (Iterator<ICacheKey<Key>> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 ICacheKey<Key> key = iterator.next();
-                if (cleanupKeysFromClosedShards.contains(key.key.shardId)) {
+                Key delegatingKey = key.key;
+                if (cleanupKeysFromClosedShards.contains(new Tuple<>(delegatingKey.shardId, delegatingKey.indexShardHashCode))) {
                     // Since the shard is closed, the cache should drop stats for this shard.
                     dimensionListsToDrop.add(key.dimensions);
                     iterator.remove();
                 } else {
-                    CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.key.shardId).orElse(null), key.key.readerCacheKeyId);
-                    if (cleanupKeysFromOutdatedReaders.contains(cleanupKey)) {
+                    CacheEntity cacheEntity = cacheEntityLookup.apply(delegatingKey.shardId).orElse(null);
+                    if (cacheEntity == null) {
+                        // If cache entity is null, it means that index or shard got deleted/closed meanwhile.
+                        // So we will delete this key.
                         iterator.remove();
+                    } else {
+                        CleanupKey cleanupKey = new CleanupKey(cacheEntity, delegatingKey.readerCacheKeyId);
+                        if (cleanupKeysFromOutdatedReaders.contains(cleanupKey)) {
+                            iterator.remove();
+                        }
                     }
                 }
             }
@@ -715,6 +813,11 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             this.cacheCleaner.close();
         }
 
+        // for testing
+        ConcurrentMap<ShardId, HashMap<String, Integer>> getCleanupKeyToCountMap() {
+            return cleanupKeyToCountMap;
+        }
+
         private final class IndicesRequestCacheCleaner implements Runnable, Releasable {
 
             private final IndicesRequestCacheCleanupManager cacheCleanupManager;
@@ -757,17 +860,10 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     }
 
     /**
-     * Returns the current size in bytes of the cache
-     */
-    long getSizeInBytes() {
-        return cache.stats().getTotalSizeInBytes();
-    }
-
-    /**
      * Returns the current cache stats. Pkg-private for testing.
      */
-    ImmutableCacheStatsHolder stats() {
-        return cache.stats();
+    ImmutableCacheStatsHolder stats(String[] levels) {
+        return cache.stats(levels);
     }
 
     int numRegisteredCloseListeners() { // for testing

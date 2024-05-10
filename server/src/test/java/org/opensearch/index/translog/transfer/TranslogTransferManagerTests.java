@@ -582,9 +582,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(0, remoteTranslogTransferTracker.getDownloadBytesSucceeded());
         assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadsSucceeded());
         assertEquals(0, remoteTranslogTransferTracker.getLastSuccessfulDownloadTimestamp());
-        if (nonZeroUploadTime) {
-            assertNotEquals(0, remoteTranslogTransferTracker.getTotalDownloadTimeInMillis());
-        } else {
+        if (nonZeroUploadTime == false) {
             assertEquals(0, remoteTranslogTransferTracker.getTotalDownloadTimeInMillis());
         }
     }

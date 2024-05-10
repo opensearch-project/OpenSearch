@@ -436,7 +436,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.getValue(IndexSettings.INDEX_CHECK_ON_STARTUP);
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays, nodeId);
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, bigArrays, nodeId, seedRemote);
         final String aId = shardRouting.allocationId().getId();
         final long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardId.id());
         this.pendingPrimaryTerm = primaryTerm;
@@ -2118,15 +2118,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return false;
     }
 
-    public void waitForRemoteStoreSync() {
+    public void waitForRemoteStoreSync() throws IOException {
         waitForRemoteStoreSync(() -> {});
     }
 
     /*
     Blocks the calling thread,  waiting for the remote store to get synced till internal Remote Upload Timeout
     Calls onProgress on seeing an increased file count on remote
+    Throws IOException if the remote store is not synced within the timeout
     */
-    public void waitForRemoteStoreSync(Runnable onProgress) {
+    public void waitForRemoteStoreSync(Runnable onProgress) throws IOException {
         assert indexSettings.isAssignedOnRemoteNode();
         RemoteSegmentStoreDirectory directory = getRemoteDirectory();
         int segmentUploadeCount = 0;
@@ -2138,7 +2139,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         while (System.nanoTime() - startNanos < getRecoverySettings().internalRemoteUploadTimeout().nanos()) {
             try {
                 if (isRemoteSegmentStoreInSync()) {
-                    break;
+                    return;
                 } else {
                     if (directory.getSegmentsUploadedToRemoteStore().size() > segmentUploadeCount) {
                         onProgress.run();
@@ -2156,6 +2157,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return;
             }
         }
+        throw new IOException(
+            "Failed to upload to remote segment store within remote upload timeout of "
+                + getRecoverySettings().internalRemoteUploadTimeout().getMinutes()
+                + " minutes"
+        );
     }
 
     public void preRecovery() {
@@ -2911,7 +2917,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return {@code true} if the engine should be flushed
      */
-    boolean shouldPeriodicallyFlush() {
+    public boolean shouldPeriodicallyFlush() {
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
@@ -4487,6 +4493,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Schedules a flush or translog generation roll if needed but will not schedule more than one concurrently. The operation will be
      * executed asynchronously on the flush thread pool.
+     * Can also schedule a flush if decided by translog manager
      */
     public void afterWriteOperation() {
         if (shouldPeriodicallyFlush() || shouldRollTranslogGeneration()) {
@@ -4993,7 +5000,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             shardPath().resolveTranslog(),
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
-            logger
+            logger,
+            shouldSeedRemoteStore()
         );
     }
 

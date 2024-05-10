@@ -16,7 +16,6 @@ import org.opensearch.transport.Header;
 import org.opensearch.transport.InboundAggregator;
 import org.opensearch.transport.InboundBytesHandler;
 import org.opensearch.transport.InboundDecoder;
-import org.opensearch.transport.InboundMessage;
 import org.opensearch.transport.ProtocolInboundMessage;
 import org.opensearch.transport.StatsTracker;
 import org.opensearch.transport.TcpChannel;
@@ -32,7 +31,7 @@ import java.util.function.BiConsumer;
 public class NativeInboundBytesHandler implements InboundBytesHandler {
 
     private static final ThreadLocal<ArrayList<Object>> fragmentList = ThreadLocal.withInitial(ArrayList::new);
-    private static final InboundMessage PING_MESSAGE = new InboundMessage(null, true);
+    private static final NativeInboundMessage PING_MESSAGE = new NativeInboundMessage(null, true);
 
     private final ArrayDeque<ReleasableBytesReference> pending;
     private final InboundDecoder decoder;
@@ -152,7 +151,7 @@ public class NativeInboundBytesHandler implements InboundBytesHandler {
                 messageHandler.accept(channel, PING_MESSAGE);
             } else if (fragment == InboundDecoder.END_CONTENT) {
                 assert aggregator.isAggregating();
-                try (InboundMessage aggregated = aggregator.finishAggregation()) {
+                try (NativeInboundMessage aggregated = aggregator.finishAggregation()) {
                     statsTracker.markMessageReceived();
                     messageHandler.accept(channel, aggregated);
                 }

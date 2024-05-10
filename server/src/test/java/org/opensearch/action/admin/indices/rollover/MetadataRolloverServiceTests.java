@@ -81,6 +81,7 @@ import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
@@ -738,7 +739,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 null,
                 systemIndices,
                 false,
-                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -876,7 +878,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 null,
                 systemIndices,
                 false,
-                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -1054,7 +1057,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             null,
             new SystemIndices(emptyMap()),
             false,
-            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+            DefaultRemoteStoreSettings.INSTANCE
         );
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
             clusterService,

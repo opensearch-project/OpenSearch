@@ -56,7 +56,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
                 if (shard != null && !shard.primary()) {
                     // need to iterate over all the nodes to find matching shard
                     if (shouldSkipFetchForRecovery(shard)) {
-                        ineligibleShards.add(shard);
+                        // shard should just be skipped for fetchData, no need to remove from batch
                         continue;
                     }
                     eligibleShards.add(shard);

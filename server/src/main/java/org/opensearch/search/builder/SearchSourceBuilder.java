@@ -418,7 +418,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder from(int from) {
         if (from < 0) {
-            throw new IllegalArgumentException("[from] parameter cannot be negative");
+            throw new IllegalArgumentException("[from] parameter cannot be negative, found [" + from + "]");
         }
         this.from = from;
         return this;
@@ -1215,9 +1215,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    from = parser.intValue();
+                    from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    size = parser.intValue();
+                    size(parser.intValue());
                 } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     timeout = TimeValue.parseTimeValue(parser.text(), null, TIMEOUT_FIELD.getPreferredName());
                 } else if (TERMINATE_AFTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

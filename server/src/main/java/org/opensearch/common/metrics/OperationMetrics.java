@@ -38,6 +38,14 @@ public class OperationMetrics {
     }
 
     /**
+     * Invoke before the given operation begins in multiple items at the same time.
+     * @param n number of items
+     */
+    public void beforeN(int n) {
+        current.addAndGet(n);
+    }
+
+    /**
      * Invoked upon completion (success or failure) of the given operation
      * @param currentTime elapsed time of the operation
      */
@@ -47,10 +55,32 @@ public class OperationMetrics {
     }
 
     /**
+     * Invoked upon completion (success or failure) of the given operation for multiple items.
+     * @param n number of items completed
+     * @param currentTime elapsed time of the operation
+     */
+    public void afterN(int n, long currentTime) {
+        current.addAndGet(-n);
+        for (int i = 0; i < n; ++i) {
+            time.inc(currentTime);
+        }
+    }
+
+    /**
      * Invoked upon failure of the operation.
      */
     public void failed() {
         failed.inc();
+    }
+
+    /**
+     * Invoked upon failure of the operation on multiple items.
+     * @param n number of items on operation.
+     */
+    public void failedN(int n) {
+        for (int i = 0; i < n; ++i) {
+            failed.inc();
+        }
     }
 
     public void add(OperationMetrics other) {

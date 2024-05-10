@@ -96,6 +96,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -142,10 +143,12 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
@@ -211,13 +214,14 @@ import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.XContentTestUtils.convertToMap;
 import static org.opensearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -2096,8 +2100,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * @return boolean.
      */
     protected boolean addMockTelemetryPlugin() {
-        // setting to false until https://github.com/opensearch-project/OpenSearch/issues/12615 is resolved
-        return false;
+        return true;
     }
 
     /**
@@ -2406,6 +2409,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
     }
 
+    protected String primaryNodeName(String indexName, int shardId) {
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String nodeId = clusterState.getRoutingTable().index(indexName).shard(shardId).primaryShard().currentNodeId();
+        return clusterState.getRoutingNodes().node(nodeId).node().getName();
+    }
+
     protected String replicaNodeName(String indexName) {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId();
@@ -2425,6 +2434,15 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         RefreshResponse refreshResponse = refresh(indices);
         waitForReplication();
         return refreshResponse;
+    }
+
+    public boolean isMigratingToRemoteStore() {
+        ClusterSettings clusterSettings = clusterService().getClusterSettings();
+        boolean isMixedMode = clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING)
+            .equals(RemoteStoreNodeService.CompatibilityMode.MIXED);
+        boolean isRemoteStoreMigrationDirection = clusterSettings.get(MIGRATION_DIRECTION_SETTING)
+            .equals(RemoteStoreNodeService.Direction.REMOTE_STORE);
+        return (isMixedMode && isRemoteStoreMigrationDirection);
     }
 
     /**
@@ -2451,11 +2469,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                                             for (ShardRouting replica : replicaRouting) {
                                                 if (replica.state().toString().equals("STARTED")) {
                                                     IndexShard replicaShard = getIndexShard(replica, index);
-                                                    assertEquals(
-                                                        "replica shards haven't caught up with primary",
-                                                        getLatestSegmentInfoVersion(primaryShard),
-                                                        getLatestSegmentInfoVersion(replicaShard)
-                                                    );
+                                                    if (replicaShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
+                                                        assertEquals(
+                                                            "replica shards haven't caught up with primary",
+                                                            getLatestSegmentInfoVersion(primaryShard),
+                                                            getLatestSegmentInfoVersion(replicaShard)
+                                                        );
+                                                    }
                                                 }
                                             }
                                         }
@@ -2479,7 +2499,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Checks if Segment Replication is enabled on Index.
      */
     protected boolean isSegmentReplicationEnabledForIndex(String index) {
-        return clusterService().state().getMetadata().isSegmentReplicationEnabled(index);
+        return clusterService().state().getMetadata().isSegmentReplicationEnabled(index) || isMigratingToRemoteStore();
     }
 
     protected IndexShard getIndexShard(ShardRouting routing, String indexName) {
@@ -2619,7 +2639,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             settings.put(segmentRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())
                 .put(segmentRepoSettingsAttributeKeyPrefix + "chunk_size", 200, ByteSizeUnit.BYTES);
         }
-        settings.put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), randomFrom(PathType.values()));
+        settings.put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), randomFrom(PathType.values()));
         return settings.build();
     }
 

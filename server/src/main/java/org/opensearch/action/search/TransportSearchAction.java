@@ -457,7 +457,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
             try {
-                searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest);
+                searchRequest = searchPipelineService.resolvePipeline(originalSearchRequest, indexNameExpressionResolver);
                 listener = searchRequest.transformResponseListener(updatedListener);
             } catch (Exception e) {
                 updatedListener.onFailure(e);

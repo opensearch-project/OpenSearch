@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -200,5 +201,29 @@ public final class Pipeline {
      */
     public OperationMetrics getMetrics() {
         return metrics;
+    }
+
+    /**
+     * Modifies the data of batched multiple documents to be indexed based on the processor this pipeline holds
+     * <p>
+     * If {@code null} is returned then this document will be dropped and not indexed, otherwise
+     * this document will be kept and indexed. Document and the exception happened during processing are kept in
+     * IngestDocumentWrapper and callback to upper level.
+     *
+     * @param ingestDocumentWrappers a list of wrapped IngestDocument to ingest.
+     * @param handler callback with IngestDocument result and exception wrapped in IngestDocumentWrapper.
+     */
+    public void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        int size = ingestDocumentWrappers.size();
+        metrics.beforeN(size);
+        compoundProcessor.batchExecute(ingestDocumentWrappers, results -> {
+            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
+            metrics.afterN(results.size(), ingestTimeInMillis);
+
+            int failedCount = (int) results.stream().filter(t -> t.getException() != null).count();
+            metrics.failedN(failedCount);
+            handler.accept(results);
+        });
     }
 }

@@ -71,6 +71,7 @@ import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.RemotePersistenceStats;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.recovery.RemoteStoreRestoreService.RemoteRestoreResult;
+import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.fs.FsRepository;
@@ -473,20 +474,23 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             );
             Supplier<RemoteClusterStateService> remoteClusterStateServiceSupplier = () -> {
                 if (isRemoteStoreClusterStateEnabled(settings)) {
+                    Supplier<RepositoriesService> repositoriesServiceSupplier = () -> new RepositoriesService(
+                        settings,
+                        clusterService,
+                        transportService,
+                        Collections.emptyMap(),
+                        Collections.emptyMap(),
+                        transportService.getThreadPool()
+                    );
+                    ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                     return new RemoteClusterStateService(
                         nodeEnvironment.nodeId(),
-                        () -> new RepositoriesService(
-                            settings,
-                            clusterService,
-                            transportService,
-                            Collections.emptyMap(),
-                            Collections.emptyMap(),
-                            transportService.getThreadPool()
-                        ),
+                        repositoriesServiceSupplier,
                         settings,
-                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                        clusterSettings,
                         () -> 0L,
-                        threadPool
+                        threadPool,
+                        List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings))
                     );
                 } else {
                     return null;

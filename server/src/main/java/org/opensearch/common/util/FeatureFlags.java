@@ -81,7 +81,7 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
         DATETIME_FORMATTER_CACHING,
-        true,
+        false,
         Property.NodeScope
     );
 

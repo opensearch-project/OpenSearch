@@ -167,3 +167,90 @@ teardown:
         index: test_index
         id: test_id3
   - match: { _source: {"f1": "v2", "f2": 47, "field1": "value1"}}
+
+---
+"Test bulk API with batch enabled happy case":
+  - skip:
+      version: " - 2.13.99"
+      reason: "Added in 2.14.0"
+
+  - do:
+      bulk:
+        refresh: true
+        batch_size: 2
+        pipeline: "pipeline1"
+        body:
+          - '{"index": {"_index": "test_index", "_id": "test_id1"}}'
+          - '{"text": "text1"}'
+          - '{"index": {"_index": "test_index", "_id": "test_id2"}}'
+          - '{"text": "text2"}'
+          - '{"index": {"_index": "test_index", "_id": "test_id3"}}'
+          - '{"text": "text3"}'
+          - '{"index": {"_index": "test_index", "_id": "test_id4"}}'
+          - '{"text": "text4"}'
+          - '{"index": {"_index": "test_index", "_id": "test_id5", "pipeline": "pipeline2"}}'
+          - '{"text": "text5"}'
+          - '{"index": {"_index": "test_index", "_id": "test_id6", "pipeline": "pipeline2"}}'
+          - '{"text": "text6"}'
+
+  - match: { errors: false }
+
+  - do:
+      get:
+        index: test_index
+        id: test_id5
+  - match: { _source: {"text": "text5", "field2": "value2"}}
+
+  - do:
+      get:
+        index: test_index
+        id: test_id3
+  - match: { _source: { "text": "text3", "field1": "value1" } }
+
+---
+"Test bulk API with batch_size missing":
+  - skip:
+      version: " - 2.13.99"
+      reason: "Added in 2.14.0"
+
+  - do:
+      bulk:
+        refresh: true
+        pipeline: "pipeline1"
+        body:
+          - '{"index": {"_index": "test_index", "_id": "test_id1"}}'
+          - '{"text": "text1"}'
+          - '{"index": {"_index": "test_index", "_id": "test_id2"}}'
+          - '{"text": "text2"}'
+
+  - match: { errors: false }
+
+  - do:
+      get:
+        index: test_index
+        id: test_id1
+  - match: { _source: { "text": "text1", "field1": "value1" } }
+
+  - do:
+      get:
+        index: test_index
+        id: test_id2
+  - match: { _source: { "text": "text2", "field1": "value1" } }
+
+---
+"Test bulk API with invalid batch_size":
+  - skip:
+      version: " - 2.13.99"
+      reason: "Added in 2.14.0"
+
+  - do:
+      catch: bad_request
+      bulk:
+        refresh: true
+        batch_size: -1
+        pipeline: "pipeline1"
+        body:
+          - '{"index": {"_index": "test_index", "_id": "test_id1"}}'
+          - '{"text": "text1"}'
+          - '{"index": {"_index": "test_index", "_id": "test_id2"}}'
+          - '{"text": "text2"}'
