@@ -66,10 +66,13 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
     private static String DERIVED_FIELD_SCRIPT_1 = "derived_field_script_1";
     private static String DERIVED_FIELD_SCRIPT_2 = "derived_field_script_2";
     private static String DERIVED_FIELD_SCRIPT_3 = "derived_field_script_3";
+    private static String DERIVED_FIELD_SCRIPT_4 = "derived_field_script_4";
 
     private static String DERIVED_FIELD_1 = "derived_1";
     private static String DERIVED_FIELD_2 = "derived_2";
     private static String DERIVED_FIELD_3 = "derived_3";
+    private static String DERIVED_FIELD_4 = "derived_4";
+    private static String NESTED_FIELD = "field";
 
     public void testDerivedFieldFromIndexMapping() throws IOException {
         // Create index and mapper service
@@ -99,6 +102,13 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
             .field("lang", "mockscript")
             .endObject()
             .endObject()
+            .startObject(DERIVED_FIELD_4)
+            .field("type", "object")
+            .startObject("script")
+            .field("source", DERIVED_FIELD_SCRIPT_4)
+            .field("lang", "mockscript")
+            .endObject()
+            .endObject()
             .endObject()
             .endObject();
 
@@ -109,6 +119,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
             .field("field1", "some_text_1")
             .field("field2", "some_text_2")
             .field("field3", 1710923445000L)
+            .field("field4", "{ \"field\": \"foo bar baz\"}")
             .endObject();
 
         int docId = 0;
@@ -133,16 +144,21 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
 
                 // Assert the fetch phase works for both of the derived fields
                 Map<String, DocumentField> fields = fetchFields(mockShardContext, context, "*");
+                Map<String, DocumentField> nestedFields = fetchFields(mockShardContext, context, DERIVED_FIELD_4 + "." + NESTED_FIELD);
 
                 // Validate FetchPhase
                 {
-                    assertEquals(fields.size(), 3);
+                    assertEquals(fields.size(), 4);
                     assertEquals(1, fields.get(DERIVED_FIELD_1).getValues().size());
                     assertEquals(1, fields.get(DERIVED_FIELD_2).getValues().size());
                     assertEquals(1, fields.get(DERIVED_FIELD_3).getValues().size());
+                    assertEquals(1, fields.get(DERIVED_FIELD_4).getValues().size());
                     assertEquals("some_text_1", fields.get(DERIVED_FIELD_1).getValue());
                     assertEquals("some_text_2", fields.get(DERIVED_FIELD_2).getValue());
                     assertEquals("2024-03-20", fields.get(DERIVED_FIELD_3).getValue());
+                    assertEquals("{ \"field\": \"foo bar baz\"}", fields.get(DERIVED_FIELD_4).getValue());
+                    assertEquals(1, nestedFields.get(DERIVED_FIELD_4 + "." + NESTED_FIELD).getValues().size());
+                    assertEquals("foo bar baz", nestedFields.get(DERIVED_FIELD_4 + "." + NESTED_FIELD).getValue());
                 }
 
                 // Create a HighlightBuilder of type unified, set its fields as derived_1 and derived_2
@@ -150,6 +166,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                 highlightBuilder.highlighterType("unified");
                 highlightBuilder.field(DERIVED_FIELD_1);
                 highlightBuilder.field(DERIVED_FIELD_2);
+                highlightBuilder.field(DERIVED_FIELD_4 + "." + NESTED_FIELD);
                 highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockShardContext);
                 SearchHighlightContext searchHighlightContext = highlightBuilder.build(mockShardContext);
 
@@ -172,30 +189,56 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                         null
                     )
                 );
+                {
+                    // The query used by FetchSubPhaseProcessor to highlight is a term query on DERIVED_FIELD_1
+                    FetchSubPhaseProcessor subPhaseProcessor = highlightPhase.getProcessor(
+                        fetchContext,
+                        searchHighlightContext,
+                        new TermQuery(new Term(DERIVED_FIELD_1, "some_text_1"))
+                    );
 
-                // The query used by FetchSubPhaseProcessor to highlight is a term query on DERIVED_FIELD_1
-                FetchSubPhaseProcessor subPhaseProcessor = highlightPhase.getProcessor(
-                    fetchContext,
-                    searchHighlightContext,
-                    new TermQuery(new Term(DERIVED_FIELD_1, "some_text_1"))
-                );
+                    // Create a search hit using the derived fields fetched above in fetch phase
+                    SearchHit searchHit = new SearchHit(docId, "0", null, fields, null);
 
-                // Create a search hit using the derived fields fetched above in fetch phase
-                SearchHit searchHit = new SearchHit(docId, "0", null, fields, null);
+                    // Create a HitContext of search hit
+                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
+                        searchHit,
+                        context,
+                        docId,
+                        mockShardContext.lookup().source()
+                    );
+                    hitContext.sourceLookup().loadSourceIfNeeded();
+                    // process the HitContext using the highlightPhase subPhaseProcessor
+                    subPhaseProcessor.process(hitContext);
 
-                // Create a HitContext of search hit
-                FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
-                    searchHit,
-                    context,
-                    docId,
-                    mockShardContext.lookup().source()
-                );
-                hitContext.sourceLookup().loadSourceIfNeeded();
-                // process the HitContext using the highlightPhase subPhaseProcessor
-                subPhaseProcessor.process(hitContext);
+                    // Validate that 1 highlight field is present
+                    assertEquals(hitContext.hit().getHighlightFields().size(), 1);
+                }
+                {
+                    // The query used by FetchSubPhaseProcessor to highlight is a term query on DERIVED_FIELD_1
+                    FetchSubPhaseProcessor subPhaseProcessor = highlightPhase.getProcessor(
+                        fetchContext,
+                        searchHighlightContext,
+                        new TermQuery(new Term(DERIVED_FIELD_4 + "." + NESTED_FIELD, "foo"))
+                    );
 
-                // Validate that 1 highlight field is present
-                assertEquals(hitContext.hit().getHighlightFields().size(), 1);
+                    // Create a search hit using the derived fields fetched above in fetch phase
+                    SearchHit searchHit = new SearchHit(docId, "0", null, nestedFields, null);
+
+                    // Create a HitContext of search hit
+                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
+                        searchHit,
+                        context,
+                        docId,
+                        mockShardContext.lookup().source()
+                    );
+                    hitContext.sourceLookup().loadSourceIfNeeded();
+                    // process the HitContext using the highlightPhase subPhaseProcessor
+                    subPhaseProcessor.process(hitContext);
+
+                    // Validate that 1 highlight field is present
+                    assertEquals(hitContext.hit().getHighlightFields().size(), 1);
+                }
             }
         }
     }
@@ -208,6 +251,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
             .field("field1", "some_text_1")
             .field("field2", "some_text_2")
             .field("field3", 1710923445000L)
+            .field("field4", "{ \"field\": \"foo bar baz\"}")
             .endObject();
 
         int docId = 0;
@@ -254,23 +298,33 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                                 "keyword",
                                 new Script(ScriptType.INLINE, "mockscript", DERIVED_FIELD_SCRIPT_2, emptyMap())
                             ),
-                            derivedField3
+                            derivedField3,
+                            new DerivedField(
+                                DERIVED_FIELD_4,
+                                "object",
+                                new Script(ScriptType.INLINE, "mockscript", DERIVED_FIELD_SCRIPT_4, emptyMap())
+                            )
                         )
                     )
                 );
 
                 // Assert the fetch phase works for both of the derived fields
                 Map<String, DocumentField> fields = fetchFields(mockShardContext, context, "derived_*");
+                Map<String, DocumentField> nestedFields = fetchFields(mockShardContext, context, DERIVED_FIELD_4 + "." + NESTED_FIELD);
 
                 // Validate FetchPhase
                 {
-                    assertEquals(fields.size(), 3);
+                    assertEquals(fields.size(), 4);
                     assertEquals(1, fields.get(DERIVED_FIELD_1).getValues().size());
                     assertEquals(1, fields.get(DERIVED_FIELD_2).getValues().size());
                     assertEquals(1, fields.get(DERIVED_FIELD_3).getValues().size());
+                    assertEquals(1, fields.get(DERIVED_FIELD_4).getValues().size());
                     assertEquals("some_text_1", fields.get(DERIVED_FIELD_1).getValue());
                     assertEquals("some_text_2", fields.get(DERIVED_FIELD_2).getValue());
                     assertEquals("20-03-2024", fields.get(DERIVED_FIELD_3).getValue());
+                    assertEquals("{ \"field\": \"foo bar baz\"}", fields.get(DERIVED_FIELD_4).getValue());
+                    assertEquals(1, nestedFields.get(DERIVED_FIELD_4 + "." + NESTED_FIELD).getValues().size());
+                    assertEquals("foo bar baz", nestedFields.get(DERIVED_FIELD_4 + "." + NESTED_FIELD).getValue());
                 }
 
                 // Create a HighlightBuilder of type unified, set its fields as derived_1 and derived_2
@@ -278,6 +332,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                 highlightBuilder.highlighterType("unified");
                 highlightBuilder.field(DERIVED_FIELD_1);
                 highlightBuilder.field(DERIVED_FIELD_2);
+                highlightBuilder.field(DERIVED_FIELD_4 + "." + NESTED_FIELD);
                 highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockShardContext);
                 SearchHighlightContext searchHighlightContext = highlightBuilder.build(mockShardContext);
 
@@ -300,30 +355,56 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                         null
                     )
                 );
+                {
+                    // The query used by FetchSubPhaseProcessor to highlight is a term query on DERIVED_FIELD_1
+                    FetchSubPhaseProcessor subPhaseProcessor = highlightPhase.getProcessor(
+                        fetchContext,
+                        searchHighlightContext,
+                        new TermQuery(new Term(DERIVED_FIELD_1, "some_text_1"))
+                    );
 
-                // The query used by FetchSubPhaseProcessor to highlight is a term query on DERIVED_FIELD_1
-                FetchSubPhaseProcessor subPhaseProcessor = highlightPhase.getProcessor(
-                    fetchContext,
-                    searchHighlightContext,
-                    new TermQuery(new Term(DERIVED_FIELD_1, "some_text_1"))
-                );
+                    // Create a search hit using the derived fields fetched above in fetch phase
+                    SearchHit searchHit = new SearchHit(docId, "0", null, fields, null);
 
-                // Create a search hit using the derived fields fetched above in fetch phase
-                SearchHit searchHit = new SearchHit(docId, "0", null, fields, null);
+                    // Create a HitContext of search hit
+                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
+                        searchHit,
+                        context,
+                        docId,
+                        mockShardContext.lookup().source()
+                    );
+                    hitContext.sourceLookup().loadSourceIfNeeded();
+                    // process the HitContext using the highlightPhase subPhaseProcessor
+                    subPhaseProcessor.process(hitContext);
 
-                // Create a HitContext of search hit
-                FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
-                    searchHit,
-                    context,
-                    docId,
-                    mockShardContext.lookup().source()
-                );
-                hitContext.sourceLookup().loadSourceIfNeeded();
-                // process the HitContext using the highlightPhase subPhaseProcessor
-                subPhaseProcessor.process(hitContext);
+                    // Validate that 1 highlight field is present
+                    assertEquals(hitContext.hit().getHighlightFields().size(), 1);
+                }
+                {
+                    // test highlighting nested field DERIVED_FIELD_4 + "." + NESTED_FIELD
+                    FetchSubPhaseProcessor subPhaseProcessor = highlightPhase.getProcessor(
+                        fetchContext,
+                        searchHighlightContext,
+                        new TermQuery(new Term(DERIVED_FIELD_4 + "." + NESTED_FIELD, "foo"))
+                    );
 
-                // Validate that 1 highlight field is present
-                assertEquals(hitContext.hit().getHighlightFields().size(), 1);
+                    // Create a search hit using the derived fields fetched above in fetch phase
+                    SearchHit searchHit = new SearchHit(docId, "0", null, nestedFields, null);
+
+                    // Create a HitContext of search hit
+                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
+                        searchHit,
+                        context,
+                        docId,
+                        mockShardContext.lookup().source()
+                    );
+                    hitContext.sourceLookup().loadSourceIfNeeded();
+                    // process the HitContext using the highlightPhase subPhaseProcessor
+                    subPhaseProcessor.process(hitContext);
+
+                    // Validate that 1 highlight field is present
+                    assertEquals(hitContext.hit().getHighlightFields().size(), 1);
+                }
             }
         }
     }
@@ -380,7 +461,9 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                 DERIVED_FIELD_SCRIPT_2,
                 (script) -> ((String) ((Map<String, Object>) script.get("_source")).get("field2")).replace(" ", "_"),
                 DERIVED_FIELD_SCRIPT_3,
-                (script) -> ((Map<String, Object>) script.get("_source")).get("field3")
+                (script) -> ((Map<String, Object>) script.get("_source")).get("field3"),
+                DERIVED_FIELD_SCRIPT_4,
+                (script) -> ((Map<String, Object>) script.get("_source")).get("field4")
             ),
             Collections.emptyMap()
         );

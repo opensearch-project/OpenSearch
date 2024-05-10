@@ -67,9 +67,11 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
     @Override
     public Set<String> resolvePattern(String pattern) {
         Set<String> derivedFields = new HashSet<>();
-        for (MappedFieldType fieldType : queryShardContext.getMapperService().fieldTypes()) {
-            if (Regex.simpleMatch(pattern, fieldType.name()) && fieldType instanceof DerivedFieldType) {
-                derivedFields.add(fieldType.name());
+        if (queryShardContext != null && queryShardContext.getMapperService() != null) {
+            for (MappedFieldType fieldType : queryShardContext.getMapperService().fieldTypes()) {
+                if (Regex.simpleMatch(pattern, fieldType.name()) && fieldType instanceof DerivedFieldType) {
+                    derivedFields.add(fieldType.name());
+                }
             }
         }
         for (String fieldName : derivedFieldTypeMap.keySet()) {
@@ -88,8 +90,7 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
      */
     @Override
     public DerivedFieldType resolve(String fieldName) {
-        return Optional.ofNullable(resolveUsingSearchDefinitions(fieldName))
-            .orElseGet(() -> (DerivedFieldType) queryShardContext.getMapperService().fieldType(fieldName));
+        return Optional.ofNullable(resolveUsingSearchDefinitions(fieldName)).orElseGet(() -> resolveUsingMappings(fieldName));
     }
 
     private DerivedFieldType resolveUsingSearchDefinitions(String fieldName) {
@@ -113,7 +114,9 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
                     fieldName.substring(fieldName.indexOf(".") + 1)
                 );
                 if (nestedType == null) {
-                    Mapper inferredFieldMapper = typeInference.infer(getValueFetcher(fieldName, script));
+                    Mapper inferredFieldMapper = typeInference.infer(
+                        getValueFetcher(fieldName, script, parentDerivedField.derivedField.getIgnoreMalformed())
+                    );
                     if (inferredFieldMapper != null) {
                         nestedType = inferredFieldMapper.typeName();
                     }
@@ -165,12 +168,13 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
         return parentDerivedField.getProperties().get(subField);
     }
 
-    ValueFetcher getValueFetcher(String fieldName, Script script) {
+    ValueFetcher getValueFetcher(String fieldName, Script script, boolean ignoreMalformed) {
         String subFieldName = fieldName.substring(fieldName.indexOf(".") + 1);
         return new ObjectDerivedFieldType.ObjectDerivedFieldValueFetcher(
             subFieldName,
             DerivedFieldType.getDerivedFieldLeafFactory(script, queryShardContext, queryShardContext.lookup()),
-            o -> o // raw object returned will be used to infer the type without modifying it
+            o -> o, // raw object returned will be used to infer the type without modifying it
+            ignoreMalformed
         );
     }
 
@@ -215,5 +219,15 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
             IGNORE_MALFORMED_SETTING.getDefault(queryShardContext.getIndexSettings().getSettings())
         );
         return builder.build(builderContext).fieldType();
+    }
+
+    private DerivedFieldType resolveUsingMappings(String name) {
+        if (queryShardContext != null && queryShardContext.getMapperService() != null) {
+            MappedFieldType mappedFieldType = queryShardContext.getMapperService().fieldType(name);
+            if (mappedFieldType instanceof DerivedFieldType) {
+                return (DerivedFieldType) mappedFieldType;
+            }
+        }
+        return null;
     }
 }

@@ -303,6 +303,40 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         assertNull(resolver.resolve("derived_object.field"));
     }
 
+    public void testRegularFieldTypesAreNotResolved() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startObject("properties");
+            {
+                b.startObject("indexed_field");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject();
+                b.startObject("indexed_field_2.sub_field");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("derived");
+            {
+                b.startObject("derived_text");
+                {
+                    b.field("type", "keyword");
+                    b.field("script", "");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
+        DefaultDerivedFieldResolver resolver = new DefaultDerivedFieldResolver(queryShardContext, null, null);
+        assertNull(resolver.resolve("indexed_field"));
+        assertNull(resolver.resolve("indexed_field_2.sub_field"));
+    }
+
     public void testResolutionCaching() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> {}));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
@@ -417,7 +451,7 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         }
 
         @Override
-        ValueFetcher getValueFetcher(String fieldName, Script script) {
+        ValueFetcher getValueFetcher(String fieldName, Script script, boolean ignoreMalFormed) {
             cnt++;
             if (!error) {
                 return lookup -> List.of("text field content");

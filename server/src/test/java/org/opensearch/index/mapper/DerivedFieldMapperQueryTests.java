@@ -19,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.index.Index;
@@ -59,6 +60,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"long_field\": 1500,"
                 + "\"date_field\": \"2024-03-20T08:30:45\","
                 + "\"keyword_field\": \"GET\","
+                + "\"array_field\": [1, 2, 3],"
                 + "\"text_field\": \"document number 1\","
                 + "\"nested_field\": { \"sub_field_1\": \"GET\"}"
                 + "}" },
@@ -77,6 +79,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"long_field\": 2300,"
                 + "\"date_field\": \"2024-03-20T09:15:20\","
                 + "\"keyword_field\": \"GET\","
+                + "\"array_field\": [4, 5, 6],"
                 + "\"text_field\": \"document number 2\","
                 + "\"nested_field\": { \"sub_field_1\": \"GET\"}"
                 + "}" },
@@ -94,6 +97,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"boolean_field\": true,"
                 + "\"long_field\": 3700,"
                 + "\"date_field\": \"2024-03-20T10:05:55\","
+                + "\"array_field\": [7, 8, 9],"
                 + "\"keyword_field\": \"DELETE\","
                 + "\"text_field\": \"document number 3\","
                 + "\"nested_field\": { \"sub_field_1\": \"DELETE\"}"
@@ -113,6 +117,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"long_field\": 4100,"
                 + "\"date_field\": \"2024-03-20T11:20:10\","
                 + "\"keyword_field\": \"GET\","
+                + "\"array_field\": [10, 11, 12],"
                 + "\"text_field\": \"document number 4\","
                 + "\"nested_field\": { \"sub_field_1\": \"GET\"}"
                 + "}" },
@@ -131,6 +136,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"long_field\": 5800,"
                 + "\"date_field\": \"2024-03-20T12:45:30\","
                 + "\"keyword_field\": \"DELETE\","
+                + "\"array_field\": [13, 14, 15],"
                 + "\"text_field\": \"document number 5\","
                 + "\"nested_field\": { \"sub_field_1\": \"DELETE\"}"
                 + "}" },
@@ -149,6 +155,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"long_field\": 6300,"
                 + "\"date_field\": \"2024-03-20T13:10:15\","
                 + "\"keyword_field\": \"GET\","
+                + "\"array_field\": [16, 17, 18],"
                 + "\"text_field\": \"document number 6\","
                 + "\"nested_field\": { \"sub_field_1\": \"GET\"}"
                 + "}" },
@@ -167,6 +174,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"long_field\": 7200,"
                 + "\"date_field\": \"2024-03-20T14:20:50\","
                 + "\"keyword_field\": \"GET\","
+                + "\"array_field\": [19, 20, 21],"
                 + "\"text_field\": \"document number 7\","
                 + "\"nested_field\": { \"sub_field_1\": \"GET\"}"
                 + "}" },
@@ -185,6 +193,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"long_field\": 8900,"
                 + "\"date_field\": \"2024-03-20T15:30:25\","
                 + "\"keyword_field\": \"PUT\","
+                + "\"array_field\": [22, 23, 24],"
                 + "\"text_field\": \"document number 8\","
                 + "\"nested_field\": { \"sub_field_1\": \"PUT\"}"
                 + "}" },
@@ -203,6 +212,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"long_field\": 9400,"
                 + "\"date_field\": \"2024-03-20T16:40:15\","
                 + "\"keyword_field\": \"GET\","
+                + "\"array_field\": [25, 26, 27],"
                 + "\"text_field\": \"document number 9\","
                 + "\"nested_field\": { \"sub_field_1\": \"GET\"}"
                 + "}" },
@@ -221,10 +231,32 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 + "\"long_field\": 10700,"
                 + "\"date_field\": \"2024-03-20T17:50:40\","
                 + "\"keyword_field\": \"GET\","
+                + "\"array_field\": [28, 29, 30],"
                 + "\"text_field\": \"document number 10\","
                 + "\"invalid_field\": {},"
                 + "\"nested_field\": { \"sub_field_1\": \"GET\"}"
-                + "}" } };
+                + "}" },
+        // malformed json
+        {
+            "192.168.1.1 GET /path/to/resource?size=10.7KB HTTP/1.0 400 2024-03-20T17:50:40 10700",
+            false,
+            -1L,
+            "192.169.1.1",
+            "JKJ",
+            -1,
+            -1,
+            new Tuple<>(-1.0, -1.0),
+            "{ "
+                + "\"float_field\": 10.7,"
+                + "\"boolean_field\": false,"
+                + "\"long_field\": 10700,"
+                + "\"date_field\": \"2024-03-20T17:50:40\","
+                + "\"keyword_field\": \"GET\","
+                + "\"array_field\": [28, 29, 30],"
+                + "\"text_field\": \"document number 10\","
+                + "\"invalid_field\": {},"
+                + "\"nested_field\": { \"sub_field_1\": \"GET\"}"
+                + "" } };
 
     public void testAllPossibleQueriesOnDerivedFields() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> {
@@ -420,6 +452,13 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 {
                     b.field("type", "object");
                     b.field("script", "");
+                    b.field("ignore_malformed", "true");
+                }
+                b.endObject();
+                b.startObject("object_field_without_ignored_malformed");
+                {
+                    b.field("type", "object");
+                    b.field("script", "");
                 }
                 b.endObject();
             }
@@ -486,6 +525,13 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 TopDocs topDocs = searcher.search(query, 10);
                 assertEquals(7, topDocs.totalHits.value);
 
+                // since last doc has a malformed json, if ignore_malformed isn't set or set as false, the query should fail
+                termQueryBuilder = new TermQueryBuilder("object_field_without_ignored_malformed.keyword_field", "GET");
+                termQueryBuilder.caseInsensitive(true);
+                query = termQueryBuilder.toQuery(queryShardContext);
+                Query finalQuery = query;
+                assertThrows(OpenSearchParseException.class, () -> searcher.search(finalQuery, 10));
+
                 query = QueryBuilders.matchPhraseQuery("object_field.text_field", "document number 1").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
                 assertEquals(1, topDocs.totalHits.value);
@@ -526,6 +572,27 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 topDocs = searcher.search(query, 10);
                 assertEquals(2, topDocs.totalHits.value);
 
+                // Test nested array field
+                query = QueryBuilders.rangeQuery("object_field.array_field").from("1").toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(10, topDocs.totalHits.value);
+
+                query = QueryBuilders.rangeQuery("object_field.array_field").from("3").to("6").toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(2, topDocs.totalHits.value);
+
+                query = QueryBuilders.rangeQuery("object_field.array_field").from("9").to("9").toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(1, topDocs.totalHits.value);
+
+                query = QueryBuilders.rangeQuery("object_field.array_field").from("10").to("12").toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(1, topDocs.totalHits.value);
+
+                query = QueryBuilders.rangeQuery("object_field.array_field").from("31").to("50").toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(0, topDocs.totalHits.value);
+
                 // tested missing nested field
                 query = QueryBuilders.regexpQuery("object_field.invalid_field.sub_field", ".*let.*").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
@@ -556,6 +623,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 {
                     b.field("type", "object");
                     b.field("script", "");
+                    b.field("ignore_malformed", true);
                 }
                 b.endObject();
                 b.startObject("object_field_2");
@@ -672,7 +740,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 assertEquals(7, topDocs.totalHits.value);
 
                 // since we have source_indexed_field set to "raw_message", it should not evaluate all documents
-                assertEquals(7, docsEvaluated[0]);
+                assertEquals(8, docsEvaluated[0]);
 
                 termQueryBuilder = new TermQueryBuilder("invalid_object.keyword_field", "GET");
                 termQueryBuilder.caseInsensitive(true);
@@ -721,6 +789,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 {
                     b.field("type", "object");
                     b.field("script", "");
+                    b.field("ignore_malformed", true);
                 }
                 b.endObject();
                 b.startObject("object_field_2");
