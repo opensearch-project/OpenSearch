@@ -32,6 +32,7 @@ import java.util.function.Function;
 
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING;
 
 /**
  * Utils for remote store
@@ -200,7 +201,7 @@ public class RemoteStoreUtils {
      * @param discoveryNodes Current {@link DiscoveryNodes} from the cluster state
      * @return {@link Map} to be added as custom data in index metadata
      */
-    public static Map<String, String> determineRemoteStorePathStrategyDuringMigration(
+    public static Map<String, String> determineRemoteStoreCustomDataDuringMigration(
         Settings clusterSettings,
         DiscoveryNodes discoveryNodes
     ) {
@@ -211,8 +212,11 @@ public class RemoteStoreUtils {
         RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm = pathType == RemoteStoreEnums.PathType.FIXED
             ? null
             : CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.get(clusterSettings);
+        boolean ckpAsMetadata = Version.CURRENT.compareTo(minNodeVersion) <= 0
+            && CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING.get(clusterSettings);
         Map<String, String> remoteCustomData = new HashMap<>();
         remoteCustomData.put(RemoteStoreEnums.PathType.NAME, pathType.name());
+        remoteCustomData.put(RemoteStoreEnums.CKP_AS_METADATA, Boolean.toString(ckpAsMetadata));
         if (Objects.nonNull(pathHashAlgorithm)) {
             remoteCustomData.put(RemoteStoreEnums.PathHashAlgorithm.NAME, pathHashAlgorithm.name());
         }
