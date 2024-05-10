@@ -10,6 +10,7 @@ package org.opensearch.index.translog.transfer;
 
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -18,7 +19,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import static org.mockito.Mockito.anyLong;
@@ -31,19 +31,20 @@ public class TranslogCkpFilesTransferTrackerTests extends OpenSearchTestCase {
     protected long primaryTerm = 10;
     protected long generation = 5;
     protected long minTranslogGeneration = 2;
-    FileTransferTracker fileTransferTracker;
+    TranslogCkpFilesTransferTracker fileTransferTracker;
     RemoteTranslogTransferTracker remoteTranslogTransferTracker;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 20);
-        fileTransferTracker = FileTransferTrackerFactory.getFileTransferTracker(shardId, remoteTranslogTransferTracker, false);
+        fileTransferTracker = new TranslogCkpFilesTransferTracker(shardId, remoteTranslogTransferTracker);
     }
 
     public void testOnSuccess() throws IOException {
-        Path testFile = createTempFile();
-        Path ckpFile = createTempFile();
+        Path location = createTempDir();
+        Path testFile = Files.createFile(location.resolve("translog-5.tlog"));
+        Path ckpFile = Files.createFile(location.resolve("translog-5.ckp"));
         int fileSize = 128;
         int ckpFileSize = 100;
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
@@ -68,7 +69,7 @@ public class TranslogCkpFilesTransferTrackerTests extends OpenSearchTestCase {
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
         fileTransferTracker.onSuccess(transferFileSnapshot);
         assertEquals(fileTransferTracker.allUploadedGeneration().size(), 1);
-        assertEquals(fileTransferTracker.allUploadedFiles().size(), 2);
+        assertEquals(fileTransferTracker.allUploaded().size(), 2);
         try {
             remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
             fileTransferTracker.onFailure(transferFileSnapshot, new IOException("random exception"));
@@ -79,10 +80,12 @@ public class TranslogCkpFilesTransferTrackerTests extends OpenSearchTestCase {
     }
 
     public void testOnFailure() throws IOException {
-        Path tlogFile1 = createTempFile();
-        Path ckpFile1 = createTempFile();
-        Path tlogFile2 = createTempFile();
-        Path ckpFile2 = createTempFile();
+        Path location = createTempDir();
+        Path tlogFile1 = Files.createFile(location.resolve("translog-5.tlog"));
+        Path ckpFile1 = Files.createFile(location.resolve("translog-5.ckp"));
+        Path tlogFile2 = Files.createFile(location.resolve("translog-6.tlog"));
+        Path ckpFile2 = Files.createFile(location.resolve("translog-6.ckp"));
+
         int fileSize = 128;
         Files.write(tlogFile1, randomByteArrayOfLength(fileSize), StandardOpenOption.APPEND);
         Files.write(ckpFile1, randomByteArrayOfLength(fileSize), StandardOpenOption.APPEND);
@@ -94,7 +97,7 @@ public class TranslogCkpFilesTransferTrackerTests extends OpenSearchTestCase {
             generation,
             minTranslogGeneration,
             tlogFile1,
-            ckpFile1,
+            ckpFile2,
             null,
             null,
             null,
@@ -129,12 +132,12 @@ public class TranslogCkpFilesTransferTrackerTests extends OpenSearchTestCase {
         );
         fileTransferTracker.onSuccess(translogCheckpointSnapshot2);
         assertEquals(fileTransferTracker.allUploadedGeneration().size(), 1);
-        assertEquals(fileTransferTracker.allUploadedFiles().size(), 2);
+        assertEquals(fileTransferTracker.allUploaded().size(), 2);
 
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize * 2);
         fileTransferTracker.onSuccess(translogCheckpointSnapshot1);
         assertEquals(fileTransferTracker.allUploadedGeneration().size(), 2);
-        assertEquals(fileTransferTracker.allUploadedFiles().size(), 4);
+        assertEquals(fileTransferTracker.allUploaded().size(), 4);
 
         checkpointFileSnapshot1.close();
         translogFileSnapshot1.close();
@@ -176,8 +179,8 @@ public class TranslogCkpFilesTransferTrackerTests extends OpenSearchTestCase {
     }
 
     public void testUploaded() throws IOException {
-        Path testFile = createTempFile();
-        Path ckpFile = createTempFile();
+        Path testFile = createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.TRANSLOG_FILE_SUFFIX);
+        Path ckpFile = createTempFile(Translog.TRANSLOG_FILE_PREFIX + generation, Translog.CHECKPOINT_SUFFIX);
         int fileSize = 128;
         Files.write(testFile, randomByteArrayOfLength(fileSize), StandardOpenOption.APPEND);
         TranslogCheckpointSnapshot transferFileSnapshot = new TranslogCheckpointSnapshot(
@@ -199,18 +202,17 @@ public class TranslogCkpFilesTransferTrackerTests extends OpenSearchTestCase {
         fileTransferTracker.onSuccess(transferFileSnapshot);
         String tlogFileName = String.valueOf(testFile.getFileName());
         String ckpFileName = String.valueOf(ckpFile.getFileName());
-        assertTrue(fileTransferTracker.isFileUploaded(tlogFileName));
-        assertTrue(fileTransferTracker.isFileUploaded(ckpFileName));
+        assertTrue(fileTransferTracker.isUploaded(tlogFileName));
+        assertTrue(fileTransferTracker.isUploaded(ckpFileName));
         assertTrue(fileTransferTracker.isGenerationUploaded(generation));
         assertFalse(fileTransferTracker.isGenerationUploaded(generation + 2));
-        assertFalse(fileTransferTracker.isFileUploaded("random-name"));
+        assertFalse(fileTransferTracker.isUploaded("random-name"));
 
         fileTransferTracker.deleteGenerations(Set.of(generation));
         assertFalse(fileTransferTracker.isGenerationUploaded(generation));
 
-        fileTransferTracker.deleteFiles(List.of(tlogFileName));
-        assertFalse(fileTransferTracker.isFileUploaded(tlogFileName));
-        assertTrue(fileTransferTracker.isFileUploaded(ckpFileName));
+        fileTransferTracker.deleteGenerations(Set.of(generation));
+        assertFalse(fileTransferTracker.isUploaded(Long.toString(generation)));
 
     }
 

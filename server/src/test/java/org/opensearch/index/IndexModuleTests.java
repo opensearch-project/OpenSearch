@@ -131,7 +131,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -169,8 +168,6 @@ public class IndexModuleTests extends OpenSearchTestCase {
     private ScriptService scriptService;
     private ClusterService clusterService;
     private RepositoriesService repositoriesService;
-
-    private Supplier<Version> minNodeVersionSupplier = () -> Version.CURRENT;
 
     @Override
     public void setUp() throws Exception {
@@ -241,8 +238,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
                     threadPool,
                     indexSettings.getRemoteStoreTranslogRepository(),
                     new RemoteTranslogTransferTracker(shardRouting.shardId(), 10),
-                    DefaultRemoteStoreSettings.INSTANCE,
-                    minNodeVersionSupplier
+                    DefaultRemoteStoreSettings.INSTANCE
                 );
             }
             return new InternalTranslogFactory();

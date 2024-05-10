@@ -89,10 +89,11 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.remote.RemoteStoreCustomDataResolver;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
-import org.opensearch.index.remote.RemoteStorePathStrategyResolver;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexCreationException;
@@ -177,7 +178,7 @@ public class MetadataCreateIndexService {
     private AwarenessReplicaBalance awarenessReplicaBalance;
 
     @Nullable
-    private final RemoteStorePathStrategyResolver remoteStorePathStrategyResolver;
+    private final RemoteStoreCustomDataResolver remoteStoreCustomDataResolver;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -212,8 +213,8 @@ public class MetadataCreateIndexService {
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
-        remoteStorePathStrategyResolver = isRemoteDataAttributePresent(settings)
-            ? new RemoteStorePathStrategyResolver(remoteStoreSettings, minNodeVersionSupplier)
+        remoteStoreCustomDataResolver = isRemoteDataAttributePresent(settings)
+            ? new RemoteStoreCustomDataResolver(remoteStoreSettings, minNodeVersionSupplier)
             : null;
     }
 
@@ -562,7 +563,7 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
-        addRemoteStorePathStrategyInCustomData(tmpImdBuilder, true);
+        addRemoteStoreCustomData(tmpImdBuilder, true);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
@@ -577,8 +578,8 @@ public class MetadataCreateIndexService {
      * @param tmpImdBuilder     index metadata builder.
      * @param assertNullOldType flag to verify that the old remote store path type is null
      */
-    public void addRemoteStorePathStrategyInCustomData(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
-        if (remoteStorePathStrategyResolver == null) {
+    public void addRemoteStoreCustomData(IndexMetadata.Builder tmpImdBuilder, boolean assertNullOldType) {
+        if (remoteStoreCustomDataResolver == null) {
             return;
         }
         // It is possible that remote custom data exists already. In such cases, we need to only update the path type
@@ -587,8 +588,12 @@ public class MetadataCreateIndexService {
         assert assertNullOldType == false || Objects.isNull(existingCustomData);
 
         // Determine the path type for use using the remoteStorePathResolver.
-        RemoteStorePathStrategy newPathStrategy = remoteStorePathStrategyResolver.get();
+        RemoteStorePathStrategy newPathStrategy = remoteStoreCustomDataResolver.get();
         Map<String, String> remoteCustomData = new HashMap<>();
+
+        boolean translocCkpAsMetadataUploadAllowed = remoteStoreCustomDataResolver.getRemoteStoreTranslogCkpAsMetadataAllowed();
+        remoteCustomData.put(RemoteStoreEnums.CKP_AS_METADATA, Boolean.toString(translocCkpAsMetadataUploadAllowed));
+
         remoteCustomData.put(PathType.NAME, newPathStrategy.getType().name());
         if (Objects.nonNull(newPathStrategy.getHashAlgorithm())) {
             remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());

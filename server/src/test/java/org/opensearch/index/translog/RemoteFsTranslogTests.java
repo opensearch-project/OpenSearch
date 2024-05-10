@@ -16,7 +16,6 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -96,7 +95,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
@@ -133,7 +131,6 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
     BlobStoreRepository repository;
 
     BlobStoreTransferService blobStoreTransferService;
-    Supplier<Version> minNodeVersionSupplier = () -> Version.CURRENT;
 
     TestTranslog.FailSwitch fail;
 
@@ -193,8 +190,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             threadPool,
             primaryMode::get,
             new RemoteTranslogTransferTracker(shardId, 10),
-            DefaultRemoteStoreSettings.INSTANCE,
-            minNodeVersionSupplier
+            DefaultRemoteStoreSettings.INSTANCE
         );
     }
 
@@ -467,8 +463,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE,
-                minNodeVersionSupplier
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1518,8 +1513,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE,
-                minNodeVersionSupplier
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {
@@ -1629,8 +1623,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 threadPool,
                 () -> Boolean.TRUE,
                 new RemoteTranslogTransferTracker(shardId, 10),
-                DefaultRemoteStoreSettings.INSTANCE,
-                minNodeVersionSupplier
+                DefaultRemoteStoreSettings.INSTANCE
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {

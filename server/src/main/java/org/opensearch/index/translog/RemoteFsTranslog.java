@@ -9,7 +9,6 @@
 package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.Version;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobPath;
@@ -54,7 +53,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
@@ -107,14 +105,17 @@ public class RemoteFsTranslog extends Translog {
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings,
-        Supplier<Version> minNodeVersionSupplier
+        RemoteStoreSettings remoteStoreSettings
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         logger = Loggers.getLogger(getClass(), shardId);
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
-        boolean ckpAsTranslogMetadata = isCkpAsTranslogMetadata(minNodeVersionSupplier, blobStoreRepository);
+
+        boolean ckpAsTranslogMetadata = isCkpAsTranslogMetadata(
+            indexSettings().getTranslogCkpAsMetadataUploadAllowed(),
+            blobStoreRepository
+        );
         fileTransferTracker = FileTransferTrackerFactory.getFileTransferTracker(
             shardId,
             remoteTranslogTransferTracker,
@@ -173,8 +174,8 @@ public class RemoteFsTranslog extends Translog {
         return remoteTranslogTransferTracker;
     }
 
-    private boolean isCkpAsTranslogMetadata(Supplier<Version> minNodeVersionSupplier, BlobStoreRepository blobStoreRepository) {
-        return blobStoreRepository.blobStore().isBlobMetadataSupported() && Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0;
+    private static boolean isCkpAsTranslogMetadata(boolean isCkpAsMetadataUploadAllowed, BlobStoreRepository blobStoreRepository) {
+        return blobStoreRepository.blobStore().isBlobMetadataSupported() && isCkpAsMetadataUploadAllowed;
     }
 
     public static void download(
@@ -185,7 +186,8 @@ public class RemoteFsTranslog extends Translog {
         RemoteStorePathStrategy pathStrategy,
         RemoteStoreSettings remoteStoreSettings,
         Logger logger,
-        boolean seedRemote
+        boolean seedRemote,
+        boolean ckpAsMetadataUploadAllowed
     ) throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
             Locale.ROOT,
@@ -193,13 +195,15 @@ public class RemoteFsTranslog extends Translog {
             shardId
         );
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+
+        boolean ckpAsTranslogMetadata = isCkpAsTranslogMetadata(ckpAsMetadataUploadAllowed, blobStoreRepository);
         // We use a dummy stats tracker to ensure the flow doesn't break.
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
         FileTransferTracker fileTransferTracker = FileTransferTrackerFactory.getFileTransferTracker(
             shardId,
             remoteTranslogTransferTracker,
-            false
+            ckpAsTranslogMetadata
         );
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
@@ -209,7 +213,7 @@ public class RemoteFsTranslog extends Translog {
             remoteTranslogTransferTracker,
             pathStrategy,
             remoteStoreSettings,
-            false
+            ckpAsTranslogMetadata
         );
         RemoteFsTranslog.download(translogTransferManager, location, logger, seedRemote);
         logger.trace(remoteTranslogTransferTracker.toString());
@@ -451,7 +455,7 @@ public class RemoteFsTranslog extends Translog {
 
     // Visible for testing
     public Set<String> allUploaded() {
-        return fileTransferTracker.allUploadedFiles();
+        return fileTransferTracker.allUploaded();
     }
 
     private boolean syncToDisk() throws IOException {

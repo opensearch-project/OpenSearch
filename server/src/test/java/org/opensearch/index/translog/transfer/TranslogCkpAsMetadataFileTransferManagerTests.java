@@ -391,17 +391,11 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
         assertTrue(Files.exists(location.resolve(translogFile)));
         assertTrue(Files.exists(location.resolve(checkpointFile)));
 
-        // Since the tracker already holds the translog.tlog file, and generation with success state, adding them with failed state would
-        // throw exception
-        assertThrows(IllegalStateException.class, () -> tracker.addFile(translogFile, false));
+        // Since the tracker already holds the generation with success state, adding them with failed state would throw exception
         assertThrows(IllegalStateException.class, () -> tracker.addGeneration(23, false));
-
-        // Since the tracker doesn't have translog.ckp file status updated. adding it Failed is allowed
-        tracker.addFile(checkpointFile, false);
 
         // Since the tracker already holds the translog.tlog file, and generation with success state, adding them with success state is
         // allowed
-        tracker.addFile(translogFile, true);
         tracker.addGeneration(23, true);
         assertTlogCkpDownloadStats_When_CkpFileStoredAsMetadata();
     }
@@ -431,15 +425,12 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
         );
         String translogFile = "translog-19.tlog";
         tracker.addGeneration(19, true);
-        tracker.addFile(translogFile, true);
         // tracker.add(checkpointFile, true);
         assertEquals(1, tracker.allUploadedGeneration().size());
-        assertEquals(1, tracker.allUploadedFiles().size());
 
         List<String> verifyDeleteFilesList = List.of(translogFile);
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertBusy(() -> assertEquals(0, tracker.allUploadedGeneration().size()));
-        assertBusy(() -> assertEquals(0, tracker.allUploadedFiles().size()));
         // only translog.tlog file will be sent for delete.
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(verifyDeleteFilesList));
     }

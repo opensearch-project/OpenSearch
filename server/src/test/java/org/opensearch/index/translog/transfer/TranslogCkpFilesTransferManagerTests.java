@@ -80,7 +80,7 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
     private RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     byte[] tlogBytes;
     byte[] ckpBytes;
-    FileTransferTracker tracker;
+    TranslogCkpFilesTransferTracker tracker;
     TranslogTransferManager translogCkpFilesTransferManager;
     long delayForBlobDownload;
     private final boolean ckpAsTranslogMetadata = false;
@@ -458,7 +458,7 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         Files.createFile(location.resolve("translog-23.ckp"));
         mockDownloadBlobWithMetadataResponse_WithNULLMetadataValue();
         translogCkpFilesTransferManager.downloadTranslog("12", "23", location);
-        verify(transferService).downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"));
+        verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
         verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
         assertTrue(Files.exists(location.resolve("translog-23.tlog")));
         assertTrue(Files.exists(location.resolve("translog-23.ckp")));
@@ -470,9 +470,9 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         String translogFile = "translog-23.tlog", checkpointFile = "translog-23.ckp";
         Files.createFile(location.resolve(translogFile));
         Files.createFile(location.resolve(checkpointFile));
-        mockDownloadBlobWithMetadataResponse_WithNULLMetadataValue();
+        // mockDownloadBlobWithMetadataResponse_WithNULLMetadataValue();
         translogCkpFilesTransferManager.downloadTranslog("12", "23", location);
-        verify(transferService).downloadBlobWithMetadata(any(BlobPath.class), eq(translogFile));
+        verify(transferService).downloadBlob(any(BlobPath.class), eq(translogFile));
         verify(transferService).downloadBlob(any(BlobPath.class), eq(checkpointFile));
         assertTrue(Files.exists(location.resolve(translogFile)));
         assertTrue(Files.exists(location.resolve(checkpointFile)));
@@ -516,12 +516,12 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         tracker.addFile(translogFile, true);
         tracker.addFile(checkpointFile, true);
         assertEquals(1, tracker.allUploadedGeneration().size());
-        assertEquals(2, tracker.allUploadedFiles().size());
+        assertEquals(2, tracker.allUploaded().size());
 
         List<String> files = List.of(checkpointFile, translogFile);
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertBusy(() -> assertEquals(0, tracker.allUploadedGeneration().size()));
-        assertBusy(() -> assertEquals(0, tracker.allUploadedFiles().size()));
+        assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
     }
 
@@ -564,7 +564,7 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testDeleteTranslogFailure() throws Exception {
-        FileTransferTracker tracker = new TranslogCkpFilesTransferTracker(
+        TranslogCkpFilesTransferTracker tracker = new TranslogCkpFilesTransferTracker(
             new ShardId("index", "indexUuid", 0),
             remoteTranslogTransferTracker
         );
@@ -587,12 +587,12 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         tracker.addFile(translogFile, true);
         tracker.addFile(checkpointFile, true);
         tracker.addGeneration(19, true);
-        assertEquals(2, tracker.allUploadedFiles().size());
+        assertEquals(2, tracker.allUploaded().size());
         assertEquals(1, tracker.allUploadedGeneration().size());
 
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertEquals(1, tracker.allUploadedGeneration().size());
-        assertEquals(2, tracker.allUploadedFiles().size());
+        assertEquals(2, tracker.allUploaded().size());
     }
 
     private void assertNoDownloadStats(boolean nonZeroUploadTime) {

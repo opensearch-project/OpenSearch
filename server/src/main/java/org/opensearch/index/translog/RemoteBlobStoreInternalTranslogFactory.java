@@ -8,7 +8,6 @@
 
 package org.opensearch.index.translog;
 
-import org.opensearch.Version;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
@@ -37,15 +36,13 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
 
     private final RemoteStoreSettings remoteStoreSettings;
-    private final Supplier<Version> minNodeVersionSupplier;
 
     public RemoteBlobStoreInternalTranslogFactory(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
         String repositoryName,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings,
-        Supplier<Version> minNodeVersionSupplier
+        RemoteStoreSettings remoteStoreSettings
     ) {
         Repository repository;
         try {
@@ -57,7 +54,6 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         this.threadPool = threadPool;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.remoteStoreSettings = remoteStoreSettings;
-        this.minNodeVersionSupplier = minNodeVersionSupplier;
     }
 
     @Override
@@ -84,8 +80,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             threadPool,
             startedPrimarySupplier,
             remoteTranslogTransferTracker,
-            remoteStoreSettings,
-            minNodeVersionSupplier
+            remoteStoreSettings
         );
     }
 

@@ -180,7 +180,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
@@ -231,7 +230,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     protected ThreadPool threadPool;
     protected long primaryTerm;
     protected ClusterService clusterService;
-    Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
 
     @Override
     public void setUp() throws Exception {
@@ -685,8 +683,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                         threadPool,
                         settings.getRemoteStoreTranslogRepository(),
                         new RemoteTranslogTransferTracker(shardRouting.shardId(), 20),
-                        DefaultRemoteStoreSettings.INSTANCE,
-                        minNodeVersionSupplier
+                        DefaultRemoteStoreSettings.INSTANCE
                     );
                 }
                 return new InternalTranslogFactory();

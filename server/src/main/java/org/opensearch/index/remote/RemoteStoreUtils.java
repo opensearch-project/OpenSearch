@@ -182,6 +182,18 @@ public class RemoteStoreUtils {
     }
 
     /**
+     * Determines whether translog ckp upload as metadata allowed or not
+     */
+    public static boolean determineTranslogCkpUploadAsMetadataAllowed(IndexMetadata indexMetadata) {
+        Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.CKP_AS_METADATA);
+        if (remoteCustomData != null && remoteCustomData.containsKey(RemoteStoreEnums.CKP_AS_METADATA)) {
+            return Boolean.parseBoolean(remoteCustomData.get(RemoteStoreEnums.CKP_AS_METADATA));
+        }
+        return false;
+    }
+
+    /**
      * Generates the remote store path type information to be added to custom data of index metadata during migration
      *
      * @param clusterSettings Current Cluster settings from {@link ClusterState}

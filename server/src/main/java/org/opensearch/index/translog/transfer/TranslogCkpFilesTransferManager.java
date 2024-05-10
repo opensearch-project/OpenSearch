@@ -15,12 +15,17 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.indices.RemoteStoreSettings;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -65,10 +70,10 @@ public class TranslogCkpFilesTransferManager extends TranslogTransferManager {
             String tlogFileName = tlogAndCkpTransferFileSnapshot.getTranslogFileName();
             String ckpFileName = tlogAndCkpTransferFileSnapshot.getCheckpointFileName();
 
-            if (fileTransferTracker.isFileUploaded(tlogFileName) == false) {
+            if (fileTransferTracker.isUploaded(tlogFileName) == false) {
                 filesToUpload.add(tlogAndCkpTransferFileSnapshot.getTranslogFileSnapshot());
             }
-            if (fileTransferTracker.isFileUploaded(ckpFileName) == false) {
+            if (fileTransferTracker.isUploaded(ckpFileName) == false) {
                 filesToUpload.add(tlogAndCkpTransferFileSnapshot.getCheckpointFileSnapshot());
             }
             assert !filesToUpload.isEmpty();
@@ -107,4 +112,38 @@ public class TranslogCkpFilesTransferManager extends TranslogTransferManager {
             transferService.uploadBlobs(filesToUpload, blobPathMap, actionListener, WritePriority.HIGH);
         }
     }
+
+    @Override
+    public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
+        logger.trace(
+            "Downloading translog and checkpoint files with: Primary Term = {}, Generation = {}, Location = {}",
+            primaryTerm,
+            generation,
+            location
+        );
+
+        // Download translog.tlog and translog.ckp files from remote to local FS
+        String translogFilename = Translog.getFilename(Long.parseLong(generation));
+        String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
+
+        downloadFileToFS(translogFilename, location, primaryTerm);
+        downloadFileToFS(ckpFileName, location, primaryTerm);
+        fileTransferTracker.addGeneration(Long.parseLong(generation), true);
+        return true;
+    }
+
+    @Override
+    public void deleteGenerationAsync(long primaryTerm, Set<Long> generations, Runnable onCompletion) {
+        List<String> translogFiles = new ArrayList<>();
+        generations.forEach(generation -> {
+            // Add .ckp and .tlog file to translog file list which is located in basePath/<primaryTerm>
+            String ckpFileName = Translog.getCommitCheckpointFileName(generation);
+            String translogFileName = Translog.getFilename(generation);
+            translogFiles.add(ckpFileName);
+            translogFiles.add(translogFileName);
+        });
+        // Delete the translog and checkpoint files asynchronously
+        deleteTranslogFilesAsync(primaryTerm, translogFiles, onCompletion, generations);
+    }
+
 }

@@ -22,12 +22,12 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 @ExperimentalApi
-public class RemoteStorePathStrategyResolver {
+public class RemoteStoreCustomDataResolver {
 
     private final RemoteStoreSettings remoteStoreSettings;
     private final Supplier<Version> minNodeVersionSupplier;
 
-    public RemoteStorePathStrategyResolver(RemoteStoreSettings remoteStoreSettings, Supplier<Version> minNodeVersionSupplier) {
+    public RemoteStoreCustomDataResolver(RemoteStoreSettings remoteStoreSettings, Supplier<Version> minNodeVersionSupplier) {
         this.remoteStoreSettings = remoteStoreSettings;
         this.minNodeVersionSupplier = minNodeVersionSupplier;
     }
@@ -41,4 +41,9 @@ public class RemoteStorePathStrategyResolver {
         pathHashAlgorithm = pathType == PathType.FIXED ? null : remoteStoreSettings.getPathHashAlgorithm();
         return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
     }
+
+    public boolean getRemoteStoreTranslogCkpAsMetadataAllowed() {
+        return Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0 && remoteStoreSettings.getEnableTranslogCkpAsMetadataUpload();
+    }
+
 }

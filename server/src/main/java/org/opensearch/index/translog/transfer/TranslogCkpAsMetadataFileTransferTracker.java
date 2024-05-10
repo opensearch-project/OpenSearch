@@ -11,6 +11,9 @@ package org.opensearch.index.translog.transfer;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 
+import java.util.HashMap;
+import java.util.Set;
+
 /**
  * A subclass of {@link FileTransferTracker} that tracks the transfer state of translog files for generation
  * when translog ckp file is uploaded as translog tlog file metadata
@@ -41,4 +44,29 @@ public class TranslogCkpAsMetadataFileTransferTracker extends FileTransferTracke
         addGeneration(fileSnapshot.getGeneration(), false);
     }
 
+    @Override
+    public boolean isUploaded(String generation) {
+        return super.isGenerationUploaded(Long.parseLong(generation));
+    }
+
+    @Override
+    public Set<String> allUploaded() {
+        return super.allUploadedGeneration();
+    }
+
+    @Override
+    void recordBytesForFiles(Set<TranslogCheckpointSnapshot> toUpload) {
+        bytesForTlogCkpFileToUpload = new HashMap<>();
+        toUpload.forEach(file -> {
+            recordFileContentLength(file.getTranslogFileName(), file::getTranslogFileContentLength);
+            recordFileContentLength(file.getCheckpointFileName(), file::getCheckpointFileContentLength);
+        });
+    }
+
+    @Override
+    void deleteGenerations(Set<Long> generations) {
+        for (Long generation : generations) {
+            generationTransferTracker.remove(Long.toString(generation));
+        }
+    }
 }

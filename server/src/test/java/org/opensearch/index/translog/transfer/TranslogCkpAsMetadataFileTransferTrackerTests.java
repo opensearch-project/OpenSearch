@@ -18,7 +18,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import static org.mockito.Mockito.anyLong;
@@ -69,7 +68,6 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
         fileTransferTrackerCkpAsMetadata.onSuccess(transferFileSnapshot);
         assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedGeneration().size(), 1);
-        assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedFiles().size(), 0);
         try {
             remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
             fileTransferTrackerCkpAsMetadata.onFailure(transferFileSnapshot, new IOException("random exception"));
@@ -129,14 +127,10 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
         );
         fileTransferTrackerCkpAsMetadata.onSuccess(translogCheckpointSnapshot2);
         assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedGeneration().size(), 1);
-        // fileName based tracker will not be updated
-        assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedFiles().size(), 0);
 
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize * 2);
         fileTransferTrackerCkpAsMetadata.onSuccess(translogCheckpointSnapshot1);
         assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedGeneration().size(), 2);
-        // fileName based tracker will not be updated
-        assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedFiles().size(), 0);
 
         translogFileSnapshot1.close();
     }
@@ -198,21 +192,11 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
         fileTransferTrackerCkpAsMetadata.recordBytesForFiles(toUpload);
         remoteTranslogTransferTracker.addUploadBytesStarted(2 * fileSize);
         fileTransferTrackerCkpAsMetadata.onSuccess(transferFileSnapshot);
-        String tlogFileName = String.valueOf(testFile.getFileName());
-        String ckpFileName = String.valueOf(ckpFile.getFileName());
-        // fileName based tracker will not get updated
-        assertFalse(fileTransferTrackerCkpAsMetadata.isFileUploaded(tlogFileName));
-        assertFalse(fileTransferTrackerCkpAsMetadata.isFileUploaded(ckpFileName));
         assertTrue(fileTransferTrackerCkpAsMetadata.isGenerationUploaded(generation));
         assertFalse(fileTransferTrackerCkpAsMetadata.isGenerationUploaded(generation + 2));
-        assertFalse(fileTransferTrackerCkpAsMetadata.isFileUploaded("random-name"));
 
         fileTransferTrackerCkpAsMetadata.deleteGenerations(Set.of(generation));
         assertFalse(fileTransferTrackerCkpAsMetadata.isGenerationUploaded(generation));
-
-        fileTransferTrackerCkpAsMetadata.deleteFiles(List.of(tlogFileName));
-        assertFalse(fileTransferTrackerCkpAsMetadata.isFileUploaded(tlogFileName));
-        assertFalse(fileTransferTrackerCkpAsMetadata.isFileUploaded(ckpFileName));
     }
 
 }
