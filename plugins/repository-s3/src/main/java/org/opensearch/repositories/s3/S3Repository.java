@@ -314,7 +314,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3AsyncService s3AsyncService,
         final boolean multipartUploadEnabled,
         final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
-        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ
+        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
+        final GenericStatsMetricPublisher genericStatsMetricPublisher
     ) {
         this(
             metadata,
@@ -331,7 +332,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             Path.of(""),
             normalPrioritySizeBasedBlockingQ,
             lowPrioritySizeBasedBlockingQ,
-            new GenericStatsMetricPublisher()
+            genericStatsMetricPublisher
         );
     }
 

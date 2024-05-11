@@ -65,6 +65,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
     @Before
     public void setUp() throws Exception {
         s3AsyncClient = mock(S3AsyncClient.class);
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         asyncTransferManager = new AsyncTransferManager(
             ByteSizeUnit.MB.toBytes(5),
             Executors.newSingleThreadExecutor(),
@@ -75,7 +76,7 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
                 Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
                 5,
                 TimeUnit.MINUTES,
-                new GenericStatsMetricPublisher()
+                genericStatsMetricPublisher
             )
         );
         super.setUp();

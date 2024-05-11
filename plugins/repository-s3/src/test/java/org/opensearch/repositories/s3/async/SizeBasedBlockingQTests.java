@@ -41,7 +41,7 @@ public class SizeBasedBlockingQTests extends OpenSearchTestCase {
     }
 
     public void testProducerConsumerOfBulkItems() throws InterruptedException {
-        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher();
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         SizeBasedBlockingQ.QueueEventType queueEventType = randomBoolean()
             ? SizeBasedBlockingQ.QueueEventType.NORMAL
             : SizeBasedBlockingQ.QueueEventType.LOW;

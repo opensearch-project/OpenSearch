@@ -377,7 +377,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         transferQueueConsumerService = Executors.newFixedThreadPool(20);
         scheduler = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
-        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher();
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
             new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 10L, ByteSizeUnit.GB),
             transferQueueConsumerService,
@@ -431,7 +431,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             streamReaderService,
             transferNIOGroup
         );
-
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         return new S3BlobStore(
             null,
             asyncService,
@@ -453,7 +453,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
                     Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
                     5,
                     TimeUnit.MINUTES,
-                    new GenericStatsMetricPublisher()
+                    genericStatsMetricPublisher
                 )
             ),
             asyncExecutorContainer,
@@ -461,7 +461,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             asyncExecutorContainer,
             normalPrioritySizeBasedBlockingQ,
             lowPrioritySizeBasedBlockingQ,
-            new GenericStatsMetricPublisher()
+            genericStatsMetricPublisher
         );
     }
 
@@ -637,7 +637,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
         int numberOfParts = 20;
         final ByteSizeValue partSize = new ByteSizeValue(capacity.getBytes() / numberOfParts + 1, ByteSizeUnit.BYTES);
 
-        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher();
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         SizeBasedBlockingQ sizeBasedBlockingQ = new SizeBasedBlockingQ(
             capacity,
             transferQueueConsumerService,

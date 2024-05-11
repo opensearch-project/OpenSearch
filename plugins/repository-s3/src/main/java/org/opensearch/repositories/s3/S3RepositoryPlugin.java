@@ -105,7 +105,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     private SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
     private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
     private TransferSemaphoresHolder transferSemaphoresHolder;
-    private GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher();
+    private GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
@@ -231,28 +231,48 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             threadPool.executor(STREAM_READER),
             new AsyncTransferEventLoopGroup(normalEventLoopThreads)
         );
+
         this.lowTransferQConsumerService = threadPool.executor(LOW_TRANSFER_QUEUE_CONSUMER);
         this.normalTransferQConsumerService = threadPool.executor(NORMAL_TRANSFER_QUEUE_CONSUMER);
+
+        // High number of permit allocation because each op acquiring permit performs disk IO, computation and network IO.
+        int availablePermits = Math.max(allocatedProcessors(clusterService.getSettings()) * 4, 10);
+        double priorityPermitAllocation = ((double) S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT.get(clusterService.getSettings()))
+            / 100;
+        int normalPriorityPermits = (int) (priorityPermitAllocation * availablePermits);
+        int lowPriorityPermits = availablePermits - normalPriorityPermits;
+
         int normalPriorityConsumers = normalPriorityTransferQConsumers(clusterService.getSettings());
+        int lowPriorityConsumers = lowPriorityTransferQConsumers(clusterService.getSettings());
+
+        ByteSizeValue normalPriorityQCapacity = new ByteSizeValue(normalPriorityConsumers * 10L, ByteSizeUnit.GB);
+        ByteSizeValue lowPriorityQCapacity = new ByteSizeValue(lowPriorityConsumers * 20L, ByteSizeUnit.GB);
+
+        this.genericStatsMetricPublisher = new GenericStatsMetricPublisher(
+            normalPriorityQCapacity.getBytes(),
+            normalPriorityPermits,
+            lowPriorityQCapacity.getBytes(),
+            lowPriorityPermits
+        );
+
         this.normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
-            new ByteSizeValue(normalPriorityConsumers * 10L, ByteSizeUnit.GB),
+            normalPriorityQCapacity,
             normalTransferQConsumerService,
             normalPriorityConsumers,
             genericStatsMetricPublisher,
             SizeBasedBlockingQ.QueueEventType.NORMAL
         );
-        int lowPriorityConsumers = lowPriorityTransferQConsumers(clusterService.getSettings());
+
         LowPrioritySizeBasedBlockingQ lowPrioritySizeBasedBlockingQ = new LowPrioritySizeBasedBlockingQ(
-            new ByteSizeValue(lowPriorityConsumers * 20L, ByteSizeUnit.GB),
+            lowPriorityQCapacity,
             lowTransferQConsumerService,
             lowPriorityConsumers,
             genericStatsMetricPublisher
         );
         this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
         this.transferSemaphoresHolder = new TransferSemaphoresHolder(
-            // High number of permit allocation because each op acquiring permit performs disk IO, computation and network IO.
-            Math.max(allocatedProcessors(clusterService.getSettings()) * 4, 10),
-            ((double) S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT.get(clusterService.getSettings())) / 100,
+            normalPriorityPermits,
+            lowPriorityPermits,
             S3Repository.S3_PERMIT_WAIT_DURATION_MIN.get(clusterService.getSettings()),
             TimeUnit.MINUTES,
             genericStatsMetricPublisher

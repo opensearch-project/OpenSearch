@@ -22,6 +22,22 @@ public class GenericStatsMetricPublisher {
     private final AtomicInteger normalPriorityPermits = new AtomicInteger();
     private final AtomicLong lowPriorityQSize = new AtomicLong();
     private final AtomicInteger lowPriorityPermits = new AtomicInteger();
+    private final long normalPriorityQCapacity;
+    private final int maxNormalPriorityPermits;
+    private final long lowPriorityQCapacity;
+    private final int maxLowPriorityPermits;
+
+    public GenericStatsMetricPublisher(
+        long normalPriorityQCapacity,
+        int maxNormalPriorityPermits,
+        long lowPriorityQCapacity,
+        int maxLowPriorityPermits
+    ) {
+        this.normalPriorityQCapacity = normalPriorityQCapacity;
+        this.maxNormalPriorityPermits = maxNormalPriorityPermits;
+        this.lowPriorityQCapacity = lowPriorityQCapacity;
+        this.maxLowPriorityPermits = maxLowPriorityPermits;
+    }
 
     public void updateNormalPriorityQSize(long qSize) {
         normalPriorityQSize.addAndGet(qSize);
@@ -65,10 +81,10 @@ public class GenericStatsMetricPublisher {
 
     Map<String, Long> stats() {
         final Map<String, Long> results = new HashMap<>();
-        results.put("NormalPriorityQSize", normalPriorityQSize.get());
-        results.put("LowPriorityQSize", lowPriorityQSize.get());
-        results.put("AcquiredNormalPriorityPermits", (long) normalPriorityPermits.get());
-        results.put("AcquiredLowPriorityPermits", (long) lowPriorityPermits.get());
+        results.put("NormalPriorityQUtilization", (normalPriorityQSize.get() * 100) / normalPriorityQCapacity);
+        results.put("LowPriorityQUtilization", (lowPriorityQSize.get() * 100) / lowPriorityQCapacity);
+        results.put("NormalPriorityPermitsUtilization", (normalPriorityPermits.get() * 100L) / maxNormalPriorityPermits);
+        results.put("LowPriorityPermitsUtilization", (lowPriorityPermits.get() * 100L) / maxLowPriorityPermits);
         return results;
     }
 }

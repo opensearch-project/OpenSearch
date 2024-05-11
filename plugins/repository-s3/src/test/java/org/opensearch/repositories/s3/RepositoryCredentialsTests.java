@@ -316,6 +316,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
                 null,
                 false,
                 null,
+                null,
                 null
             ) {
                 @Override

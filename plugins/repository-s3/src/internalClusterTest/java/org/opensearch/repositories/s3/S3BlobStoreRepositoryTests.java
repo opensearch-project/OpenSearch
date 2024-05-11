@@ -262,6 +262,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
                 null,
                 false,
                 null,
+                null,
                 null
             ) {
 

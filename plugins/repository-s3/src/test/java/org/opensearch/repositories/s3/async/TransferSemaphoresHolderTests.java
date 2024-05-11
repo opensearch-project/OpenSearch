@@ -29,10 +29,10 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
         int normalPermits = (int) (availablePermits * priorityAllocation);
         int lowPermits = availablePermits - normalPermits;
-        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher();
+        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         TransferSemaphoresHolder transferSemaphoresHolder = new TransferSemaphoresHolder(
-            availablePermits,
-            priorityAllocation,
+            normalPermits,
+            lowPermits,
             1,
             TimeUnit.NANOSECONDS,
             genericStatsPublisher
@@ -48,10 +48,10 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
         int normalPermits = (int) (availablePermits * priorityAllocation);
         int lowPermits = availablePermits - normalPermits;
-        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher();
+        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         TransferSemaphoresHolder transferSemaphoresHolder = new TransferSemaphoresHolder(
-            availablePermits,
-            priorityAllocation,
+            normalPermits,
+            lowPermits,
             1,
             TimeUnit.NANOSECONDS,
             genericStatsPublisher
@@ -106,10 +106,10 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
         int normalPermits = (int) (availablePermits * priorityAllocation);
         int lowPermits = availablePermits - normalPermits;
-        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher();
+        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         TransferSemaphoresHolder transferSemaphoresHolder = new TransferSemaphoresHolder(
-            availablePermits,
-            priorityAllocation,
+            normalPermits,
+            lowPermits,
             1,
             TimeUnit.NANOSECONDS,
             genericStatsPublisher
@@ -169,13 +169,13 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
          * Constructor to create semaphores holder.
          */
         public TestTransferSemaphoresHolder(
-            int availablePermits,
-            double priorityPermitAllocation,
+            int normalPermits,
+            int lowPermits,
             int acquireWaitDuration,
             TimeUnit timeUnit,
             GenericStatsMetricPublisher genericStatsMetricPublisher
         ) throws InterruptedException {
-            super(availablePermits, priorityPermitAllocation, acquireWaitDuration, timeUnit, genericStatsMetricPublisher);
+            super(normalPermits, lowPermits, acquireWaitDuration, timeUnit, genericStatsMetricPublisher);
             TypeSemaphore executingNormalSemaphore = normalPrioritySemaphore;
             TypeSemaphore executingLowSemaphore = lowPrioritySemaphore;
 
@@ -201,12 +201,13 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
         int availablePermits = randomIntBetween(10, 50);
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
         int normalPermits = (int) (availablePermits * priorityAllocation);
+        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         TestTransferSemaphoresHolder transferSemaphoresHolder = new TestTransferSemaphoresHolder(
-            availablePermits,
-            priorityAllocation,
+            normalPermits,
+            availablePermits - normalPermits,
             5,
             TimeUnit.MINUTES,
-            new GenericStatsMetricPublisher()
+            genericStatsPublisher
         );
 
         TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();
@@ -235,12 +236,13 @@ public class TransferSemaphoresHolderTests extends OpenSearchTestCase {
         double priorityAllocation = randomDoubleBetween(0.1, 0.9, true);
         int normalPermits = (int) (availablePermits * priorityAllocation);
         int lowPermits = availablePermits - normalPermits;
+        GenericStatsMetricPublisher genericStatsPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         TestTransferSemaphoresHolder transferSemaphoresHolder = new TestTransferSemaphoresHolder(
-            availablePermits,
-            priorityAllocation,
+            normalPermits,
+            lowPermits,
             5,
             TimeUnit.MINUTES,
-            new GenericStatsMetricPublisher()
+            genericStatsPublisher
         );
 
         TransferSemaphoresHolder.RequestContext requestContext = transferSemaphoresHolder.createRequestContext();

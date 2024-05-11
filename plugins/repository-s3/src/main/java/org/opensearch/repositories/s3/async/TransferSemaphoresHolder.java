@@ -35,20 +35,20 @@ public class TransferSemaphoresHolder {
      * Constructor to create semaphores holder.
      */
     public TransferSemaphoresHolder(
-        int availablePermits,
-        double priorityPermitAllocation,
+        int normalPriorityPermits,
+        int lowPriorityPermits,
         int acquireWaitDuration,
         TimeUnit timeUnit,
         GenericStatsMetricPublisher genericStatsPublisher
     ) {
 
-        this.normalPriorityPermits = (int) (priorityPermitAllocation * availablePermits);
+        this.normalPriorityPermits = normalPriorityPermits;
+        this.lowPriorityPermits = lowPriorityPermits;
         this.normalPrioritySemaphore = new TypeSemaphore(
             normalPriorityPermits,
             TypeSemaphore.PermitType.NORMAL,
             genericStatsPublisher::updateNormalPermits
         );
-        this.lowPriorityPermits = availablePermits - normalPriorityPermits;
         this.lowPrioritySemaphore = new TypeSemaphore(
             lowPriorityPermits,
             TypeSemaphore.PermitType.LOW,
