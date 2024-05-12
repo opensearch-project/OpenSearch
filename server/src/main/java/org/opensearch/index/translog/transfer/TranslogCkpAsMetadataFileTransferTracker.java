@@ -50,11 +50,6 @@ public class TranslogCkpAsMetadataFileTransferTracker extends FileTransferTracke
     }
 
     @Override
-    public Set<String> allUploaded() {
-        return super.allUploadedGeneration();
-    }
-
-    @Override
     void recordBytesForFiles(Set<TranslogCheckpointSnapshot> toUpload) {
         bytesForTlogCkpFileToUpload = new HashMap<>();
         toUpload.forEach(file -> {

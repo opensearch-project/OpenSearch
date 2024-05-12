@@ -298,7 +298,14 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         )
             .putCustom(
                 REMOTE_STORE_CUSTOM_KEY,
-                Map.of(RemoteStoreEnums.PathType.NAME, "dummy", RemoteStoreEnums.PathHashAlgorithm.NAME, "dummy")
+                Map.of(
+                    RemoteStoreEnums.PathType.NAME,
+                    "dummy",
+                    RemoteStoreEnums.PathHashAlgorithm.NAME,
+                    "dummy",
+                    RemoteStoreEnums.CKP_AS_METADATA,
+                    "dummy"
+                )
             )
             .build();
         return Metadata.builder().put(indexMetadata).build();

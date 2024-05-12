@@ -455,7 +455,7 @@ public class RemoteFsTranslog extends Translog {
 
     // Visible for testing
     public Set<String> allUploaded() {
-        return fileTransferTracker.allUploaded();
+        return fileTransferTracker.allUploadedGeneration();
     }
 
     private boolean syncToDisk() throws IOException {

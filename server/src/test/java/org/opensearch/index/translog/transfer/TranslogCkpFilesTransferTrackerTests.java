@@ -69,7 +69,6 @@ public class TranslogCkpFilesTransferTrackerTests extends OpenSearchTestCase {
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
         fileTransferTracker.onSuccess(transferFileSnapshot);
         assertEquals(fileTransferTracker.allUploadedGeneration().size(), 1);
-        assertEquals(fileTransferTracker.allUploaded().size(), 2);
         try {
             remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
             fileTransferTracker.onFailure(transferFileSnapshot, new IOException("random exception"));
@@ -132,12 +131,10 @@ public class TranslogCkpFilesTransferTrackerTests extends OpenSearchTestCase {
         );
         fileTransferTracker.onSuccess(translogCheckpointSnapshot2);
         assertEquals(fileTransferTracker.allUploadedGeneration().size(), 1);
-        assertEquals(fileTransferTracker.allUploaded().size(), 2);
 
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize * 2);
         fileTransferTracker.onSuccess(translogCheckpointSnapshot1);
         assertEquals(fileTransferTracker.allUploadedGeneration().size(), 2);
-        assertEquals(fileTransferTracker.allUploaded().size(), 4);
 
         checkpointFileSnapshot1.close();
         translogFileSnapshot1.close();

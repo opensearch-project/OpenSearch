@@ -94,11 +94,9 @@ public class TranslogCkpAsMetadataFileTransferManager extends TranslogTransferMa
             generation,
             location
         );
-
         // Download translog.tlog file with object metadata from remote to local FS
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
         Map<String, String> metadata = downloadTranslogToFSAndGetMetadata(translogFilename, location, primaryTerm, generation);
-
         try {
             assert metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
             recoverCkpFileFromMetadata(metadata, location, generation, translogFilename);
@@ -110,21 +108,6 @@ public class TranslogCkpAsMetadataFileTransferManager extends TranslogTransferMa
         return true;
     }
 
-    /**
-     * Retrieves and processes translog files from a remote store.
-     *
-     * <p>This method first attempts to download the "translog.tlog" file from the remote store
-     * and copy it to the FS. If the downloaded file does not contain specific
-     * metadata, it then tries to download the "translog.ckp" file from the remote store and
-     * copy it to the local FS. If the "translog.tlog" file contains the required
-     * metadata, its content is used to write the "translog.ckp" file to FS.
-     *
-     * @param fileName     The name of the translog file (e.g., "translog.tlog").
-     * @param location     The local file system path where the translog files will be stored.
-     * @param primaryTerm  The primary term associated with the translog files.
-     * @param generation   The generation associated with the translog files.
-     * @throws IOException If an I/O error occurs during the file operations.
-     */
     private Map<String, String> downloadTranslogToFSAndGetMetadata(String fileName, Path location, String primaryTerm, String generation)
         throws IOException {
         Path filePath = location.resolve(fileName);
@@ -161,15 +144,6 @@ public class TranslogCkpAsMetadataFileTransferManager extends TranslogTransferMa
 
     /**
      * Process the provided metadata and tries to write the content of the checkpoint (ckp) file to the FS.
-     *
-     * <p>This method takes the metadata from the translog file download and uses it to generate the content
-     * of the checkpoint file. The checkpoint file is then written to the specified local file system path
-     * with the given file name and generation.
-     *
-     * @param metadata   A map containing the metadata extracted from the translog file.
-     * @param location   The local file system path where the checkpoint file will be written.
-     * @param generation The generation associated with the checkpoint file.
-     * @param fileName   The name of the checkpoint file (e.g., "translog.ckp").
      */
     private void recoverCkpFileFromMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
         throws IOException {

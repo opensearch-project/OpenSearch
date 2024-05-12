@@ -139,17 +139,14 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
         RemoteTranslogTransferTracker localRemoteTranslogTransferTracker = spy(remoteTranslogTransferTracker);
         doAnswer((count) -> { throw new NullPointerException("Error while updating stats"); }).when(localRemoteTranslogTransferTracker)
             .addUploadBytesSucceeded(anyLong());
-
         FileTransferTracker localFileTransferTracker = FileTransferTrackerFactory.getFileTransferTracker(
             shardId,
             localRemoteTranslogTransferTracker,
             true
         );
-
         Path testFile = createTempFile();
         int fileSize = 128;
         Files.write(testFile, randomByteArrayOfLength(fileSize), StandardOpenOption.APPEND);
-
         TranslogCheckpointSnapshot transferFileSnapshot = new TranslogCheckpointSnapshot(
             primaryTerm,
             generation,
@@ -161,7 +158,6 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
             null,
             generation
         );
-
         Set<TranslogCheckpointSnapshot> toUpload = new HashSet<>();
         toUpload.add(transferFileSnapshot);
         localFileTransferTracker.recordBytesForFiles(toUpload);
@@ -198,5 +194,4 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
         fileTransferTrackerCkpAsMetadata.deleteGenerations(Set.of(generation));
         assertFalse(fileTransferTrackerCkpAsMetadata.isGenerationUploaded(generation));
     }
-
 }

@@ -121,11 +121,9 @@ public class TranslogCkpFilesTransferManager extends TranslogTransferManager {
             generation,
             location
         );
-
         // Download translog.tlog and translog.ckp files from remote to local FS
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
         String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
-
         downloadFileToFS(translogFilename, location, primaryTerm);
         downloadFileToFS(ckpFileName, location, primaryTerm);
         fileTransferTracker.addGeneration(Long.parseLong(generation), true);

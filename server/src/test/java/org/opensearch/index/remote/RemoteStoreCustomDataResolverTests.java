@@ -148,11 +148,19 @@ public class RemoteStoreCustomDataResolverTests extends OpenSearchTestCase {
     }
 
     public void testTranslogCkpAsMetadataAllowedMinVersionNewer() {
-        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING.getKey(), randomBoolean()).build();
+        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING.getKey(), true).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
         RemoteStoreCustomDataResolver resolver = new RemoteStoreCustomDataResolver(remoteStoreSettings, () -> Version.CURRENT);
         assertTrue(resolver.getRemoteStoreTranslogCkpAsMetadataAllowed());
+    }
+
+    public void testTranslogCkpAsMetadataAllowed2MinVersionNewer() {
+        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING.getKey(), false).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        RemoteStoreCustomDataResolver resolver = new RemoteStoreCustomDataResolver(remoteStoreSettings, () -> Version.CURRENT);
+        assertFalse(resolver.getRemoteStoreTranslogCkpAsMetadataAllowed());
     }
 
     public void testTranslogCkpAsMetadataAllowedMinVersionOlder() {

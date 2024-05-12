@@ -81,11 +81,6 @@ public class TranslogCkpFilesTransferTracker extends FileTransferTracker {
         return fileTransferTracker.get(file) == TransferState.SUCCESS;
     }
 
-    @Override
-    public Set<String> allUploaded() {
-        return getSuccessfulKeys(fileTransferTracker);
-    }
-
     // here along with generation we also mark status of files in the tracker.
     @Override
     void addGeneration(long generation, boolean success) {

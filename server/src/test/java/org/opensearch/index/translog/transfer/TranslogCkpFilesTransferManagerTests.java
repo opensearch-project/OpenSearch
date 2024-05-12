@@ -516,12 +516,10 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         tracker.addFile(translogFile, true);
         tracker.addFile(checkpointFile, true);
         assertEquals(1, tracker.allUploadedGeneration().size());
-        assertEquals(2, tracker.allUploaded().size());
 
         List<String> files = List.of(checkpointFile, translogFile);
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertBusy(() -> assertEquals(0, tracker.allUploadedGeneration().size()));
-        assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
     }
 
@@ -587,12 +585,10 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         tracker.addFile(translogFile, true);
         tracker.addFile(checkpointFile, true);
         tracker.addGeneration(19, true);
-        assertEquals(2, tracker.allUploaded().size());
         assertEquals(1, tracker.allUploadedGeneration().size());
 
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertEquals(1, tracker.allUploadedGeneration().size());
-        assertEquals(2, tracker.allUploaded().size());
     }
 
     private void assertNoDownloadStats(boolean nonZeroUploadTime) {

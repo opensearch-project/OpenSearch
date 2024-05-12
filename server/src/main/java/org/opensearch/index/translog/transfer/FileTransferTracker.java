@@ -48,8 +48,6 @@ public abstract class FileTransferTracker implements FileTransferListener {
 
     public abstract boolean isUploaded(String key);
 
-    public abstract Set<String> allUploaded();
-
     abstract void deleteGenerations(Set<Long> generations);
 
     abstract void recordBytesForFiles(Set<TranslogCheckpointSnapshot> toUpload);
