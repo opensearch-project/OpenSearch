@@ -194,6 +194,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
                 null
             ),
             new NodeStats(
@@ -224,6 +225,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
                 null
             ),
             new NodeStats(
@@ -235,6 +237,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 new FsInfo(0, null, node3FSInfo),
+                null,
                 null,
                 null,
                 null,
@@ -315,6 +318,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
                 null
             ),
             new NodeStats(
@@ -345,6 +349,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
                 null
             ),
             new NodeStats(
@@ -356,6 +361,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 new FsInfo(0, null, node3FSInfo),
+                null,
                 null,
                 null,
                 null,

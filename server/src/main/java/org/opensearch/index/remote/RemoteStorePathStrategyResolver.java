@@ -9,6 +9,7 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -20,6 +21,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class RemoteStorePathStrategyResolver {
 
     private final RemoteStoreSettings remoteStoreSettings;
@@ -34,7 +36,7 @@ public class RemoteStorePathStrategyResolver {
         PathType pathType;
         PathHashAlgorithm pathHashAlgorithm;
         // Min node version check ensures that we are enabling the new prefix type only when all the nodes understand it.
-        pathType = Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0 ? remoteStoreSettings.getPathType() : PathType.FIXED;
+        pathType = Version.V_2_14_0.compareTo(minNodeVersionSupplier.get()) <= 0 ? remoteStoreSettings.getPathType() : PathType.FIXED;
         // If the path type is fixed, hash algorithm is not applicable.
         pathHashAlgorithm = pathType == PathType.FIXED ? null : remoteStoreSettings.getPathHashAlgorithm();
         return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);

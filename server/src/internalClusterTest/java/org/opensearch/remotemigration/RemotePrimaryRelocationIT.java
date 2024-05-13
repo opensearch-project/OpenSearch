@@ -8,9 +8,8 @@
 
 package org.opensearch.remotemigration;
 
-import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
@@ -18,21 +17,25 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.Client;
+import org.opensearch.client.Requests;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.opensearch.test.transport.MockTransportService;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Arrays.asList;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -42,7 +45,6 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         return 1;
     }
 
-    // ToDo : Fix me when we support migration of replicas
     protected int maximumNumberOfReplicas() {
         return 0;
     }
@@ -51,9 +53,9 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         return asList(MockTransportService.TestPlugin.class);
     }
 
-    public void testMixedModeRelocation() throws Exception {
-        String docRepNode = internalCluster().startNode();
-        Client client = internalCluster().client(docRepNode);
+    public void testRemotePrimaryRelocation() throws Exception {
+        List<String> docRepNodes = internalCluster().startNodes(2);
+        Client client = internalCluster().client(docRepNodes.get(0));
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
@@ -69,9 +71,12 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         refresh("test");
 
         // add remote node in mixed mode cluster
-        addRemote = true;
+        setAddRemote(true);
         String remoteNode = internalCluster().startNode();
         internalCluster().validateClusterFormed();
+
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         String remoteNode2 = internalCluster().startNode();
         internalCluster().validateClusterFormed();
@@ -86,8 +91,17 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         int finalCurrentDoc1 = currentDoc;
         waitUntil(() -> numAutoGenDocs.get() > finalCurrentDoc1 + 5);
 
-        logger.info("-->  relocating from {} to {} ", docRepNode, remoteNode);
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
+        // Change direction to remote store
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        logger.info("-->  relocating from {} to {} ", docRepNodes, remoteNode);
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand("test", 0, primaryNodeName("test"), remoteNode))
+            .execute()
+            .actionGet();
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -158,16 +172,20 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         refresh("test");
 
         // add remote node in mixed mode cluster
-        addRemote = true;
+        setAddRemote(true);
         String remoteNode = internalCluster().startNode();
         internalCluster().validateClusterFormed();
 
-        // assert repo gets registered
-        GetRepositoriesRequest gr = new GetRepositoriesRequest(new String[] { REPOSITORY_NAME });
-        GetRepositoriesResponse getRepositoriesResponse = client.admin().cluster().getRepositories(gr).actionGet();
-        assertEquals(1, getRepositoriesResponse.repositories().size());
-
         setFailRate(REPOSITORY_NAME, 100);
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.getKey(), "10s"))
+            .get();
+
+        // Change direction to remote store
+        updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         logger.info("--> relocating from {} to {} ", docRepNode, remoteNode);
         client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
@@ -181,29 +199,23 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .actionGet();
 
         assertTrue(clusterHealthResponse.getRelocatingShards() == 1);
-        setFailRate(REPOSITORY_NAME, 0);
-        Thread.sleep(RandomNumbers.randomIntBetween(random(), 0, 2000));
-        clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setTimeout(TimeValue.timeValueSeconds(45))
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
-        assertTrue(clusterHealthResponse.getRelocatingShards() == 0);
-        logger.info("--> remote to remote relocation complete");
+        // waiting more than waitForRemoteStoreSync's sleep time of 30 sec to deterministically fail
+        Thread.sleep(40000);
+
+        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest()
+            .waitForNoRelocatingShards(true)
+            .waitForNoInitializingShards(true);
+        ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
+        assertEquals(actionGet.getRelocatingShards(), 0);
+        assertEquals(docRepNode, primaryNodeName("test"));
+
         finished.set(true);
         indexingThread.join();
-        refresh("test");
-        OpenSearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true).get(), numAutoGenDocs.get());
-        OpenSearchAssertions.assertHitCount(
-            client().prepareSearch("test")
-                .setTrackTotalHits(true)// extra paranoia ;)
-                .setQuery(QueryBuilders.termQuery("auto", true))
-                .get(),
-            numAutoGenDocs.get()
-        );
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.getKey(), (String) null))
+            .get();
     }
 
     private static Thread getIndexingThread(AtomicBoolean finished, AtomicInteger numAutoGenDocs) {

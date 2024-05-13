@@ -8,10 +8,13 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.math.BigInteger;
@@ -28,6 +31,8 @@ import static org.opensearch.index.remote.RemoteStoreUtils.longToCompositeBase64
 import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 import static org.opensearch.index.remote.RemoteStoreUtils.urlBase64ToLong;
 import static org.opensearch.index.remote.RemoteStoreUtils.verifyNoMultipleWriters;
+import static org.opensearch.index.shard.IndexShardTestUtils.MOCK_SEGMENT_REPO_NAME;
+import static org.opensearch.index.shard.IndexShardTestUtils.MOCK_TLOG_REPO_NAME;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils.SEPARATOR;
 import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_SEPARATOR;
@@ -314,6 +319,19 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
             String compositeEncoding = longToCompositeBase64AndBinaryEncoding(value, 64);
             assertEquals(value, compositeUrlBase64BinaryEncodingToLong(compositeEncoding));
         }
+    }
+
+    public void testGetRemoteStoreRepoNameWithRemoteNodes() {
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode("1")).build();
+        Map<String, String> expected = new HashMap<>();
+        expected.put(RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_SEGMENT_REPO_NAME);
+        expected.put(RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, MOCK_TLOG_REPO_NAME);
+        assertEquals(expected, RemoteStoreUtils.getRemoteStoreRepoName(discoveryNodes));
+    }
+
+    public void testGetRemoteStoreRepoNameWithDocrepNdoes() {
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeDiscoNode("1")).build();
+        assertTrue(RemoteStoreUtils.getRemoteStoreRepoName(discoveryNodes).isEmpty());
     }
 
     static long compositeUrlBase64BinaryEncodingToLong(String encodedValue) {
