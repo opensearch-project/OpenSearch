@@ -68,7 +68,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
     private final RemoteClusterStateService remoteClusterStateService;
     private final RemotePersistenceStats remoteStateStats;
     private BlobStoreTransferService blobStoreTransferService;
-    private volatile TimeValue staleFileCleanupInterval;
+    private TimeValue staleFileCleanupInterval;
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
     private AsyncStaleFileDeletion staleFileDeletionTask;
     private long lastCleanupAttemptStateVersion;
@@ -119,9 +119,9 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         ClusterState currentAppliedState = clusterApplierService.state();
         if (currentAppliedState.nodes().isLocalNodeElectedClusterManager()) {
             long cleanUpAttemptStateVersion = currentAppliedState.version();
-            if (cleanUpAttemptStateVersion - lastCleanupAttemptStateVersion > SKIP_CLEANUP_STATE_CHANGES
-                && Strings.isNotEmpty(currentAppliedState.getClusterName().value())
-                && Strings.isNotEmpty(currentAppliedState.metadata().clusterUUID())) {
+            assert Strings.isNotEmpty(currentAppliedState.getClusterName().value()) : "cluster name is not set";
+            assert Strings.isNotEmpty(currentAppliedState.metadata().clusterUUID()) : "cluster uuid is not set";
+            if (cleanUpAttemptStateVersion - lastCleanupAttemptStateVersion > SKIP_CLEANUP_STATE_CHANGES) {
                 logger.info(
                     "Cleaning up stale remote state files for cluster [{}] with uuid [{}]. Last clean was done before {} updates",
                     currentAppliedState.getClusterName().value(),
