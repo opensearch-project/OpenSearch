@@ -61,7 +61,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.*;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -475,9 +478,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      *
      * @return true if the node contains remote store data attributes, false otherwise
      */
-    public boolean isRemoteDataNode(){
-        return this.getAttributes().keySet().stream().anyMatch(key -> (key.equals(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY) ||
-            key.equals(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY)));
+    public boolean isRemoteDataNode() {
+        return this.getAttributes()
+            .keySet()
+            .stream()
+            .anyMatch(
+                key -> (key.equals(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY)
+                    || key.equals(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY))
+            );
     }
 
     /**
@@ -485,8 +493,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      *
      * @return true if the node contains remote store cluster attributes, false otherwise
      */
-    public boolean isRemoteClusterNode(){
-        return this.getAttributes().keySet().stream().anyMatch(key -> (key.equals(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)));
+    public boolean isRemoteClusterNode() {
+        return this.getAttributes()
+            .keySet()
+            .stream()
+            .anyMatch(key -> (key.equals(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)));
     }
 
     /**
