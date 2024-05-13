@@ -11,10 +11,10 @@ import org.opensearch.cluster.ack.AckedRequest;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
-
 
 import java.io.IOException;
+
+import static org.opensearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * A base request for cluster-manager based operations.
@@ -74,6 +74,7 @@ public abstract class ClusterManagerNodeAckRequest extends ActionRequest impleme
     public ActionRequestValidationException validate() {
         return null;
     }
+
     @Override
     public TimeValue ackTimeout() {
         return this.timeout;

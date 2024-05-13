@@ -4,6 +4,7 @@
 */
 
 package org.opensearch.action.support.clustermanager;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -57,8 +58,9 @@ import static org.opensearch.Version.V_2_13_0;
  * It is similar to TransportClusterManagerNodeAction, but the difference is in the generic type of the Request parameter expecting it to be a subclass of ClusterManagerNodeAckRequest.
  * @opensearch.internal
  */
-public abstract class TransportClusterManagerNodeExtendedAction<Request extends ClusterManagerNodeAckRequest, Response extends ActionResponse>
-    extends HandledTransportAction<ClusterManagerNodeAckRequest, Response> {
+public abstract class TransportClusterManagerNodeExtendedAction<
+    Request extends ClusterManagerNodeAckRequest,
+    Response extends ActionResponse> extends HandledTransportAction<ClusterManagerNodeAckRequest, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportClusterManagerNodeExtendedAction.class);
 
