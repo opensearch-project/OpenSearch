@@ -19,7 +19,9 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -43,6 +45,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
     private ThreadPool threadPool;
 
     private BlobStore blobStore;
+    byte[] ckpBytes = "ckp-data".getBytes(StandardCharsets.UTF_8);
 
     @Override
     public void setUp() throws Exception {
@@ -88,7 +91,11 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             public void onFailure(Exception e) {
                 exceptionRef.set(e);
             }
-        }, latch), WritePriority.HIGH);
+        }, latch), WritePriority.HIGH, new HashMap<>() {
+            {
+                put(transferFileSnapshot, new ByteArrayInputStream(ckpBytes));
+            }
+        });
 
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         verify(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
@@ -129,7 +136,11 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             public void onFailure(Exception e) {
                 exceptionRef.set(e);
             }
-        }, latch), WritePriority.HIGH);
+        }, latch), WritePriority.HIGH, new HashMap<>() {
+            {
+                put(transferFileSnapshot, new ByteArrayInputStream(ckpBytes));
+            }
+        });
 
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         verify(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
@@ -174,7 +185,11 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             {
                 put(transferFileSnapshot.getPrimaryTerm(), new BlobPath().add("sample_path"));
             }
-        }, listener, WritePriority.HIGH);
+        }, listener, WritePriority.HIGH, new HashMap<>() {
+            {
+                put(transferFileSnapshot, new ByteArrayInputStream(ckpBytes));
+            }
+        });
 
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         verify(blobContainer).asyncBlobUpload(any(WriteContext.class), any());

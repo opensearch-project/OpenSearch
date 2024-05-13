@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -81,6 +82,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     FileTransferTracker tracker;
     TranslogTransferManager translogTransferManager;
     long delayForBlobDownload;
+    boolean ckpAsTranslogMetadata;
 
     @Override
     public void setUp() throws Exception {
@@ -97,6 +99,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         tlogBytes = "Hello Translog".getBytes(StandardCharsets.UTF_8);
         ckpBytes = "Hello Checkpoint".getBytes(StandardCharsets.UTF_8);
         tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker);
+        ckpAsTranslogMetadata = false;
         translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
@@ -104,7 +107,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(METADATA.getName()),
             tracker,
             remoteTranslogTransferTracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            ckpAsTranslogMetadata
         );
 
         delayForBlobDownload = 1;
@@ -143,7 +147,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             Set<TransferFileSnapshot> transferFileSnapshots = (Set<TransferFileSnapshot>) invocationOnMock.getArguments()[0];
             transferFileSnapshots.forEach(listener::onResponse);
             return null;
-        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class), anyMap());
 
         FileTransferTracker fileTransferTracker = new FileTransferTracker(
             new ShardId("index", "indexUUid", 0),
@@ -170,7 +174,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(METADATA.getName()),
             fileTransferTracker,
             remoteTranslogTransferTracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            ckpAsTranslogMetadata
         );
 
         assertTrue(translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
@@ -208,7 +213,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             Thread t = new Thread(runnable);
             t.start();
             return null;
-        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class), anyMap());
         FileTransferTracker fileTransferTracker = new FileTransferTracker(
             new ShardId("index", "indexUUid", 0),
             remoteTranslogTransferTracker
@@ -222,7 +227,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(METADATA.getName()),
             fileTransferTracker,
             remoteTranslogTransferTracker,
-            remoteStoreSettings
+            remoteStoreSettings,
+            ckpAsTranslogMetadata
         );
         SetOnce<Exception> exception = new SetOnce<>();
         translogTransferManager.transferSnapshot(createTransferSnapshot(), new TranslogTransferListener() {
@@ -253,7 +259,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             }));
             uploadThread.get().start();
             return null;
-        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class));
+        }).when(transferService).uploadBlobs(anySet(), anyMap(), any(ActionListener.class), any(WritePriority.class), anyMap());
         FileTransferTracker fileTransferTracker = new FileTransferTracker(
             new ShardId("index", "indexUUid", 0),
             remoteTranslogTransferTracker
@@ -265,7 +271,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(METADATA.getName()),
             fileTransferTracker,
             remoteTranslogTransferTracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            ckpAsTranslogMetadata
         );
         SetOnce<Exception> exception = new SetOnce<>();
 
@@ -348,6 +355,11 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             @Override
             public TranslogTransferMetadata getTranslogTransferMetadata() {
                 return new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, randomInt(5));
+            }
+
+            @Override
+            public Map<TransferFileSnapshot, TransferFileSnapshot> getTranslogCheckpointSnapshotMap() {
+                return Map.of();
             }
 
             @Override
@@ -502,7 +514,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(METADATA.getName()),
             tracker,
             remoteTranslogTransferTracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            ckpAsTranslogMetadata
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
         tracker.add(translogFile, true);
@@ -567,7 +580,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             remoteBaseTransferPath.add(METADATA.getName()),
             tracker,
             remoteTranslogTransferTracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            ckpAsTranslogMetadata
         );
         String translogFile = "translog-19.tlog", checkpointFile = "translog-19.ckp";
         tracker.add(translogFile, true);

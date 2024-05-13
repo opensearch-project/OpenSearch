@@ -54,21 +54,8 @@ public interface TransferService {
         Set<TransferFileSnapshot> fileSnapshots,
         final Map<Long, BlobPath> blobPaths,
         ActionListener<TransferFileSnapshot> listener,
-        WritePriority writePriority
-    ) throws Exception;
-
-    /**
-     * Uploads multiple {@link TransferFileSnapshot}, once the upload is complete the callback is invoked
-     * @param fileSnapshots the file snapshots to upload
-     * @param blobPaths Primary term to {@link BlobPath} map
-     * @param listener the callback to be invoked once uploads complete successfully/fail
-     */
-    void uploadBlobs(
-        Set<TransferFileSnapshot> fileSnapshots,
-        final Map<Long, BlobPath> blobPaths,
-        final Map<TransferFileSnapshot, InputStream> fileMetadataMap,
-        ActionListener<TransferFileSnapshot> listener,
-        WritePriority writePriority
+        WritePriority writePriority,
+        final Map<TransferFileSnapshot, InputStream> transferFileMetadata
     ) throws Exception;
 
     /**

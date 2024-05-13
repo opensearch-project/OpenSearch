@@ -12,7 +12,6 @@ import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapsho
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
@@ -42,5 +41,9 @@ public interface TransferSnapshot {
      */
     TranslogTransferMetadata getTranslogTransferMetadata();
 
-    Map<TranslogFileSnapshot, CheckpointFileSnapshot> getTranslogCheckpointSnapshotMap();
+    /**
+     * The map of translog to checkpoint file snapshot of this {@link TransferSnapshot}
+     * @return the map of translog and checkpoint file snapshot
+     */
+    Map<TransferFileSnapshot, TransferFileSnapshot> getTranslogCheckpointSnapshotMap();
 }

@@ -33,9 +33,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.opensearch.common.blobstore.BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC;
+import static org.opensearch.index.translog.transfer.TranslogTransferManager.CHECKPOINT_FILE_DATA_KEY;
 
 /**
  * Service that handles remote transfer of translog and checkpoint files
@@ -88,13 +94,13 @@ public class BlobStoreTransferService implements TransferService {
     public void uploadBlobs(
         Set<TransferFileSnapshot> fileSnapshots,
         final Map<Long, BlobPath> blobPaths,
-        final Map<TransferFileSnapshot, InputStream> fileMetadataMap,
         ActionListener<TransferFileSnapshot> listener,
-        WritePriority writePriority
+        WritePriority writePriority,
+        final Map<TransferFileSnapshot, InputStream> transferFileMetadata
     ) {
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
-            InputStream fileMetadata = fileMetadataMap.get(fileSnapshot);
+            InputStream fileMetadata = transferFileMetadata.get(fileSnapshot);
             if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
                 uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
@@ -104,19 +110,20 @@ public class BlobStoreTransferService implements TransferService {
 
     }
 
-    public Map<String, String> buildFileMetadata(InputStream fileMetadata) throws IOException {
+    public Map<String, String> buildTransferFileMetadata(InputStream fileMetadata) throws IOException {
         Map<String, String> metadata = new HashMap<>();
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int bytesRead;
+        try (fileMetadata; ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
 
-        while ((bytesRead = fileMetadata.read(buffer)) != -1) {
-            byteArrayOutputStream.write(buffer, 0, bytesRead);
+            while ((bytesRead = fileMetadata.read(buffer)) != -1) {
+                byteArrayOutputStream.write(buffer, 0, bytesRead);
+            }
+
+            byte[] bytes = byteArrayOutputStream.toByteArray();
+            String metadataString = Base64.getEncoder().encodeToString(bytes);
+            metadata.put(CHECKPOINT_FILE_DATA_KEY, metadataString);
         }
-
-        byte[] bytes = byteArrayOutputStream.toByteArray();
-        String metadataString = Base64.getEncoder().encodeToString(bytes);
-        metadata.put("ckp-data", metadataString);
         return metadata;
     }
 
@@ -131,8 +138,8 @@ public class BlobStoreTransferService implements TransferService {
         try {
             ChannelFactory channelFactory = FileChannel::open;
             Map<String, String> metadata = null;
-            if(fileMetadata != null){
-                metadata = buildFileMetadata(fileMetadata);
+            if (fileMetadata != null) {
+                metadata = buildTransferFileMetadata(fileMetadata);
             }
             long contentLength;
             try (FileChannel channel = channelFactory.open(fileSnapshot.getPath(), StandardOpenOption.READ)) {
@@ -188,9 +195,10 @@ public class BlobStoreTransferService implements TransferService {
         return blobStore.blobContainer((BlobPath) path).readBlob(fileName);
     }
 
-    @Override
     @ExperimentalApi
+    @Override
     public FetchBlobResult downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
+        assert blobStore.isBlobMetadataSupported();
         return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }
 

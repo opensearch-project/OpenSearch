@@ -22,7 +22,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -109,7 +108,6 @@ public class FileSnapshot implements Closeable {
 
         private final long primaryTerm;
         private Long checksum;
-        private Map<String, String> metadata;
 
         public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
             super(path);
@@ -128,14 +126,6 @@ public class FileSnapshot implements Closeable {
 
         public long getPrimaryTerm() {
             return primaryTerm;
-        }
-
-        public void setMetadata(Map<String, String> metadata) {
-            this.metadata = metadata;
-        }
-
-        public Map<String, String> getMetadata() {
-            return metadata;
         }
 
         @Override

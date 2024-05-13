@@ -65,7 +65,8 @@ public class TranslogTransferManager {
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private final RemoteStoreSettings remoteStoreSettings;
     private static final int METADATA_FILES_TO_FETCH = 10;
-    boolean ckpAsMetadata;
+    private final boolean ckpAsTranslogMetadata;
+    final static String CHECKPOINT_FILE_DATA_KEY = "ckp-data";
 
     private final Logger logger;
 
@@ -83,7 +84,7 @@ public class TranslogTransferManager {
         FileTransferTracker fileTransferTracker,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
         RemoteStoreSettings remoteStoreSettings,
-        boolean ckpAsMetadata
+        boolean ckpAsTranslogMetadata
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
@@ -93,7 +94,7 @@ public class TranslogTransferManager {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         this.remoteStoreSettings = remoteStoreSettings;
-        this.ckpAsMetadata = ckpAsMetadata;
+        this.ckpAsTranslogMetadata = ckpAsTranslogMetadata;
     }
 
     public RemoteTranslogTransferTracker getRemoteTranslogTransferTracker() {
@@ -115,13 +116,13 @@ public class TranslogTransferManager {
         long prevUploadTimeInMillis = remoteTranslogTransferTracker.getTotalUploadTimeInMillis();
 
         try {
-            Map<TranslogFileSnapshot, FileSnapshot.CheckpointFileSnapshot> tlogCkpSnapshotMap = transferSnapshot.getTranslogCheckpointSnapshotMap();
-            Map<TransferFileSnapshot, InputStream> fileMetadataMap = new HashMap<>();
-            if (ckpAsMetadata) {
+            Map<TransferFileSnapshot, TransferFileSnapshot> tlogCkpSnapshotMap = transferSnapshot.getTranslogCheckpointSnapshotMap();
+            Map<TransferFileSnapshot, InputStream> transferFileMetadata = new HashMap<>();
+            if (ckpAsTranslogMetadata) {
                 toUpload.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogFileSnapshots()));
                 toUpload.forEach(fileSnapshot -> {
                     try {
-                        fileMetadataMap.put(fileSnapshot, tlogCkpSnapshotMap.get(fileSnapshot).inputStream());
+                        transferFileMetadata.put(fileSnapshot, tlogCkpSnapshotMap.get(fileSnapshot).inputStream());
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -167,7 +168,7 @@ public class TranslogTransferManager {
             // TODO: Ideally each file's upload start time should be when it is actually picked for upload
             // https://github.com/opensearch-project/OpenSearch/issues/9729
             fileTransferTracker.recordFileTransferStartTime(uploadStartTime);
-            transferService.uploadBlobs(toUpload, blobPathMap, fileMetadataMap, latchedActionListener, WritePriority.HIGH);
+            transferService.uploadBlobs(toUpload, blobPathMap, latchedActionListener, WritePriority.HIGH, transferFileMetadata);
 
             try {
                 if (latch.await(remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
@@ -256,7 +257,7 @@ public class TranslogTransferManager {
         );
         String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
-        if (ckpAsMetadata == false) {
+        if (ckpAsTranslogMetadata == false) {
             // Download Checkpoint file from remote to local FS
             downloadToFS(ckpFileName, location, primaryTerm);
             // Download translog file from remote to local FS
@@ -265,8 +266,8 @@ public class TranslogTransferManager {
             // Download translog.tlog file with object metadata from remote to local FS
             Map<String, String> metadata = downloadTranslogToFSAndGetMetadata(translogFilename, location, primaryTerm, generation);
             try {
-                assert metadata != null && !metadata.isEmpty() && metadata.containsKey("ckp-data");
-                recoverCkpFileFromMetadata(metadata, location, generation, translogFilename);
+                assert metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
+                recoverCkpFileUsingMetadata(metadata, location, generation, translogFilename);
             } catch (Exception e) {
                 throw new IOException("Failed to recover checkpoint file from remote", e);
             }
@@ -296,51 +297,37 @@ public class TranslogTransferManager {
             bytesToRead = inputStream.available();
             Files.copy(inputStream, filePath);
             downloadStatus = true;
-
         } finally {
             remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
             if (downloadStatus) {
                 remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
             }
         }
-
         // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
         fileTransferTracker.add(fileName, true);
-
         return metadata;
     }
 
     /**
      * Process the provided metadata and tries to write the content of the checkpoint (ckp) file to the FS.
      */
-    private void recoverCkpFileFromMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
+    private void recoverCkpFileUsingMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
         throws IOException {
 
-        boolean downloadStatus = false;
-        long bytesToRead = 0;
-        try {
-            String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
-            Path filePath = location.resolve(ckpFileName);
-            // Here, we always override the existing file if present.
-            deleteFileIfExists(filePath);
+        String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
+        Path filePath = location.resolve(ckpFileName);
+        // Here, we always override the existing file if present.
+        deleteFileIfExists(filePath);
 
-            String ckpDataBase64 = metadata.get("ckp-data");
-            if (ckpDataBase64 == null) {
-                logger.error("Error processing metadata for translog file: {}", fileName);
-                throw new IllegalStateException(
-                    "Checkpoint file data (key - ckp-data) is expected but not found in metadata for file: " + fileName
-                );
-            }
-            byte[] ckpFileBytes = Base64.getDecoder().decode(ckpDataBase64);
-            bytesToRead = ckpFileBytes.length;
-
-            Files.write(filePath, ckpFileBytes);
-            downloadStatus = true;
-        } finally {
-            if (downloadStatus) {
-                remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
-            }
+        String ckpDataBase64 = metadata.get(CHECKPOINT_FILE_DATA_KEY);
+        if (ckpDataBase64 == null) {
+            logger.error("Error processing metadata for translog file: {}", fileName);
+            throw new IllegalStateException(
+                "Checkpoint file data (key - ckp-data) is expected but not found in metadata for file: " + fileName
+            );
         }
+        byte[] ckpFileBytes = Base64.getDecoder().decode(ckpDataBase64);
+        Files.write(filePath, ckpFileBytes);
     }
 
     public void deleteFileIfExists(Path filePath) throws IOException {
@@ -495,7 +482,7 @@ public class TranslogTransferManager {
             // Add .ckp and .tlog file to translog file list which is located in basePath/<primaryTerm>
             String ckpFileName = Translog.getCommitCheckpointFileName(generation);
             String translogFileName = Translog.getFilename(generation);
-            if (ckpAsMetadata == false) {
+            if (ckpAsTranslogMetadata == false) {
                 translogFiles.addAll(List.of(ckpFileName, translogFileName));
             } else {
                 translogFiles.add(translogFileName);
