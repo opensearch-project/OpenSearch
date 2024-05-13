@@ -8,39 +8,29 @@
 
 package org.opensearch.plugin.insights.core.exporter;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 
 /**
- * Base Abstract class for Query Insights exporters
+ * Base interface for Query Insights exporters
  */
-public abstract class AbstractExporter {
-    /**
-     * Logger of exporter
-     */
-    protected final Logger logger = LogManager.getLogger();
-
-    /**
-     * Constructor of AbstractExporter
-     */
-    protected AbstractExporter() {}
-
+public interface AbstractExporter extends Closeable {
     /**
      * Export a list of SearchQueryRecord to the exporter sink
      *
      * @param records list of {@link SearchQueryRecord}
      * @return True if export succeed, false otherwise
      */
-    public abstract boolean export(final List<SearchQueryRecord> records);
+    boolean export(final List<SearchQueryRecord> records);
 
     /**
      * Close the exporter sink
      *
      * @throws IOException IOException
      */
-    public void close() throws IOException {}
+    @Override
+    void close() throws IOException;
 }

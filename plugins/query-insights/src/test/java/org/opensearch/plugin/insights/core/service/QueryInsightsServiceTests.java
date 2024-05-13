@@ -54,4 +54,12 @@ public class QueryInsightsServiceTests extends OpenSearchTestCase {
             queryInsightsService.getTopQueriesService(MetricType.LATENCY).getTopQueriesRecords(false).size()
         );
     }
+
+    public void testClose() {
+        try {
+            queryInsightsService.doClose();
+        } catch (Exception e) {
+            fail("No exception expected when closing query insights service");
+        }
+    }
 }

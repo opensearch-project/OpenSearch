@@ -19,6 +19,7 @@ import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -62,6 +63,11 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
     protected volatile Scheduler.Cancellable scheduledFuture;
 
     /**
+     * Query Insights exporter factory
+     */
+    final QueryInsightsExporterFactory queryInsightsExporterFactory;
+
+    /**
      * Constructor of the QueryInsightsService
      *
      * @param clusterSettings OpenSearch cluster level settings
@@ -73,7 +79,7 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
         enableCollect = new HashMap<>();
         queryRecordsQueue = new LinkedBlockingQueue<>(QueryInsightsSettings.QUERY_RECORD_QUEUE_CAPACITY);
         this.threadPool = threadPool;
-        final QueryInsightsExporterFactory queryInsightsExporterFactory = new QueryInsightsExporterFactory(client);
+        this.queryInsightsExporterFactory = new QueryInsightsExporterFactory(client);
         // initialize top n queries services and configurations consumers
         topQueriesServices = new HashMap<>();
         for (MetricType metricType : MetricType.allMetricTypes()) {
@@ -190,5 +196,12 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() {}
+    protected void doClose() throws IOException {
+        // close all top n queries service
+        for (TopQueriesService topQueriesService : topQueriesServices.values()) {
+            topQueriesService.close();
+        }
+        // close any unclosed resources
+        queryInsightsExporterFactory.closeAllExporters();
+    }
 }

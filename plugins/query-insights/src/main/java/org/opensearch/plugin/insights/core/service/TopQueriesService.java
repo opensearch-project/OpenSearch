@@ -18,6 +18,7 @@ import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -341,5 +342,12 @@ public class TopQueriesService {
      */
     public List<SearchQueryRecord> getTopQueriesCurrentSnapshot() {
         return topQueriesCurrentSnapshot.get();
+    }
+
+    /**
+     * Close the top n queries service
+     */
+    public void close() throws IOException {
+        queryInsightsExporterFactory.closeExporter(this.exporter);
     }
 }

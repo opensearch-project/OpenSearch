@@ -8,9 +8,10 @@
 
 package org.opensearch.plugin.insights.core.exporter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -25,9 +26,13 @@ import java.util.List;
 /**
  * Local index exporter for exporting query insights data to local OpenSearch indices.
  */
-public final class LocalIndexExporter extends AbstractExporter {
-    final private Client client;
-    final private DateTimeFormatter indexPattern;
+public final class LocalIndexExporter implements AbstractExporter {
+    /**
+     * Logger of the local index exporter
+     */
+    private final Logger logger = LogManager.getLogger();
+    private final Client client;
+    private final DateTimeFormatter indexPattern;
 
     /**
      * Constructor of LocalIndexExporter
@@ -53,9 +58,7 @@ public final class LocalIndexExporter extends AbstractExporter {
         }
         try {
             final String index = getDateTimeFromFormat();
-            final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk()
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .setTimeout(TimeValue.timeValueMinutes(1));
+            final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk().setTimeout(TimeValue.timeValueMinutes(1));
             for (SearchQueryRecord record : records) {
                 bulkRequestBuilder.add(
                     new IndexRequest(index).source(record.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
@@ -68,6 +71,12 @@ public final class LocalIndexExporter extends AbstractExporter {
             return false;
         }
     }
+
+    /**
+     * Close the exporter sink
+     */
+    @Override
+    public void close() {}
 
     private String getDateTimeFromFormat() {
         return indexPattern.print(DateTime.now(DateTimeZone.UTC));

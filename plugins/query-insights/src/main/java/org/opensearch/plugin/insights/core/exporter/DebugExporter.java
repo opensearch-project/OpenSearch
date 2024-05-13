@@ -8,6 +8,8 @@
 
 package org.opensearch.plugin.insights.core.exporter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
 import java.util.List;
@@ -15,7 +17,12 @@ import java.util.List;
 /**
  * Debug exporter for development purpose
  */
-public final class DebugExporter extends AbstractExporter {
+public final class DebugExporter implements AbstractExporter {
+    /**
+     * Logger of the debug exporter
+     */
+    private final Logger logger = LogManager.getLogger();
+
     /**
      * Constructor of DebugExporter
      */
@@ -32,4 +39,10 @@ public final class DebugExporter extends AbstractExporter {
         logger.debug("QUERY_INSIGHTS_RECORDS: " + records.toString());
         return true;
     }
+
+    /**
+     * Close the debugger exporter sink
+     */
+    @Override
+    public void close() {}
 }

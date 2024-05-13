@@ -63,10 +63,19 @@ public class QueryInsightsExporterFactoryTests extends OpenSearchTestCase {
         });
     }
 
-    public void testCreateExporter() {
-        AbstractExporter exporter = queryInsightsExporterFactory.createExporter(SinkType.LOCAL_INDEX, format);
-        assertTrue(exporter instanceof LocalIndexExporter);
-        exporter = queryInsightsExporterFactory.createExporter(SinkType.DEBUG, format);
-        assertTrue(exporter instanceof DebugExporter);
+    public void testCreateAndCloseExporter() {
+        AbstractExporter exporter1 = queryInsightsExporterFactory.createExporter(SinkType.LOCAL_INDEX, format);
+        assertTrue(exporter1 instanceof LocalIndexExporter);
+        AbstractExporter exporter2 = queryInsightsExporterFactory.createExporter(SinkType.DEBUG, format);
+        assertTrue(exporter2 instanceof DebugExporter);
+        AbstractExporter exporter3 = queryInsightsExporterFactory.createExporter(SinkType.DEBUG, format);
+        assertTrue(exporter3 instanceof DebugExporter);
+        try {
+            queryInsightsExporterFactory.closeExporter(exporter1);
+            queryInsightsExporterFactory.closeExporter(exporter2);
+            queryInsightsExporterFactory.closeAllExporters();
+        } catch (Exception e) {
+            fail("No exception should be thrown when closing exporter");
+        }
     }
 }

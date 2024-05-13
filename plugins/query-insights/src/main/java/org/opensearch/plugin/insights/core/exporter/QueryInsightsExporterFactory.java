@@ -8,15 +8,16 @@
 
 package org.opensearch.plugin.insights.core.exporter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.joda.time.format.DateTimeFormat;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.io.IOException;
+import java.util.HashSet;
 import java.util.Locale;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_QUERIES_EXPORTER_TYPE;
@@ -27,8 +28,12 @@ import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPO
  * Factory class for validating and creating exporters based on provided settings
  */
 public class QueryInsightsExporterFactory {
+    /**
+     * Logger of the query insights exporter factory
+     */
+    private final Logger logger = LogManager.getLogger();
     final private Client client;
-    final private List<AbstractExporter> exporters;
+    final private Set<AbstractExporter> exporters;
 
     /**
      * Constructor of QueryInsightsExporterFactory
@@ -37,7 +42,7 @@ public class QueryInsightsExporterFactory {
      */
     public QueryInsightsExporterFactory(final Client client) {
         this.client = client;
-        this.exporters = new ArrayList<>();
+        this.exporters = new HashSet<>();
     }
 
     /**
@@ -55,7 +60,14 @@ public class QueryInsightsExporterFactory {
         try {
             type = SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Invalid exporter type [%s], type should be one of %s", settings.get(EXPORTER_TYPE), SinkType.allSinkTypes()));
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Invalid exporter type [%s], type should be one of %s",
+                    settings.get(EXPORTER_TYPE),
+                    SinkType.allSinkTypes()
+                )
+            );
         }
         switch (type) {
             case LOCAL_INDEX:
@@ -81,12 +93,42 @@ public class QueryInsightsExporterFactory {
      * @return AbstractExporter the created exporter sink
      */
     public AbstractExporter createExporter(SinkType type, String indexPattern) {
+        AbstractExporter exporter;
         switch (type) {
             case LOCAL_INDEX:
-                return new LocalIndexExporter(client, DateTimeFormat.forPattern(indexPattern));
+                exporter = new LocalIndexExporter(client, DateTimeFormat.forPattern(indexPattern));
+                break;
             default:
-                return new DebugExporter();
+                exporter = new DebugExporter();
+        }
+        this.exporters.add(exporter);
+        return exporter;
+    }
+
+    /**
+     * Close an exporter
+     *
+     * @param exporter the exporter to close
+     */
+    public void closeExporter(AbstractExporter exporter) throws IOException {
+        if (exporter != null) {
+            this.exporters.remove(exporter);
+            exporter.close();
         }
     }
 
+    /**
+     * Close all exporters
+     *
+     */
+    public void closeAllExporters() {
+        for (AbstractExporter exporter : exporters) {
+            try {
+                exporter.close();
+            } catch (IOException e) {
+                logger.error("Fail to close query insights exporter, error: ", e);
+            }
+        }
+        this.exporters.clear();
+    }
 }
