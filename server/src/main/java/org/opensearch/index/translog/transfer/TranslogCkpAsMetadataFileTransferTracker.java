@@ -45,11 +45,6 @@ public class TranslogCkpAsMetadataFileTransferTracker extends FileTransferTracke
     }
 
     @Override
-    public boolean isUploaded(String generation) {
-        return super.isGenerationUploaded(Long.parseLong(generation));
-    }
-
-    @Override
     void recordBytesForFiles(Set<TranslogCheckpointSnapshot> toUpload) {
         bytesForTlogCkpFileToUpload = new HashMap<>();
         toUpload.forEach(file -> {
@@ -61,7 +56,7 @@ public class TranslogCkpAsMetadataFileTransferTracker extends FileTransferTracke
     @Override
     void deleteGenerations(Set<Long> generations) {
         for (Long generation : generations) {
-            generationTransferTracker.remove(Long.toString(generation));
+            generationTransferTracker.remove(generation);
         }
     }
 }

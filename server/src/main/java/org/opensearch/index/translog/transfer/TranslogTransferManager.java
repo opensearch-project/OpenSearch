@@ -117,14 +117,13 @@ public abstract class TranslogTransferManager {
 
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
         throws IOException {
+        List<Exception> exceptionList = new ArrayList<>(transferSnapshot.getTranslogTransferMetadata().getCount());
+        Set<TranslogCheckpointSnapshot> toUpload = new HashSet<>(transferSnapshot.getTranslogTransferMetadata().getCount());
         long metadataBytesToUpload;
         long metadataUploadStartTime;
         long uploadStartTime;
         long prevUploadBytesSucceeded = remoteTranslogTransferTracker.getUploadBytesSucceeded();
         long prevUploadTimeInMillis = remoteTranslogTransferTracker.getTotalUploadTimeInMillis();
-        int totalFilesCount = transferSnapshot.getTranslogTransferMetadata().getCount();
-        List<Exception> exceptionList = new ArrayList<>(totalFilesCount);
-        Set<TranslogCheckpointSnapshot> toUpload = new HashSet<>(totalFilesCount);
 
         try {
             toUpload.addAll(fileTransferTracker.exclusionFilter(transferSnapshot.getTranslogCheckpointSnapshots()));
@@ -167,7 +166,6 @@ public abstract class TranslogTransferManager {
             // TODO: Ideally each file's upload start time should be when it is actually picked for upload
             // https://github.com/opensearch-project/OpenSearch/issues/9729
             fileTransferTracker.recordFileTransferStartTime(uploadStartTime);
-
             transferTranslogCheckpointSnapshot(toUpload, blobPathMap, latchedActionListener);
 
             try {
@@ -249,37 +247,6 @@ public abstract class TranslogTransferManager {
     }
 
     public abstract boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException;
-
-    /**
-     * Downloads the checkpoint (ckp) file from a remote source and saves it to the local FS.
-     *
-     * <p>This method retrieves the checkpoint file "translog.ckp", from a remote
-     * storage location and copies it to the specified local file system path.
-     *
-     * @param fileName     The name of the checkpoint file (e.g., "translog.ckp").
-     * @param location     The local file system path where the checkpoint file will be stored.
-     * @param primaryTerm  The primary term associated with the checkpoint file.
-     * @throws IOException If an I/O error occurs during the file download or copy operation.
-     */
-    void downloadFileToFS(String fileName, Path location, String primaryTerm) throws IOException {
-        Path filePath = location.resolve(fileName);
-        // Here, we always override the existing file if present.
-        deleteFileIfExists(filePath);
-
-        boolean downloadStatus = false;
-        long bytesToRead = 0, downloadStartTime = System.nanoTime();
-        try (InputStream inputStream = transferService.downloadBlob(remoteDataTransferPath.add(primaryTerm), fileName)) {
-            // Capture number of bytes for stats before reading
-            bytesToRead = inputStream.available();
-            Files.copy(inputStream, filePath);
-            downloadStatus = true;
-        } finally {
-            remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
-            if (downloadStatus) {
-                remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
-            }
-        }
-    }
 
     void deleteFileIfExists(Path filePath) throws IOException {
         if (Files.exists(filePath)) {

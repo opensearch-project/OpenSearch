@@ -94,12 +94,7 @@ public class FileSnapshot implements Closeable {
 
     @Override
     public String toString() {
-        return new StringBuilder("FileInfo [").append(" name = ")
-            .append(name)
-            .append(", path = ")
-            .append(path.toUri())
-            .append("]")
-            .toString();
+        return "FileInfo [" + " name = " + name + ", path = " + path.toUri() + "]";
     }
 
     @Override
@@ -116,10 +111,6 @@ public class FileSnapshot implements Closeable {
 
         private final long primaryTerm;
         private Long checksum;
-
-        public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
-            this(path, primaryTerm, checksum, null);
-        }
 
         public TransferFileSnapshot(Path path, long primaryTerm, Long checksum, Map<String, String> metadata) throws IOException {
             super(path, metadata);
@@ -167,8 +158,7 @@ public class FileSnapshot implements Closeable {
         private final long generation;
 
         public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum) throws IOException {
-            super(path, primaryTerm, checksum);
-            this.generation = generation;
+            this(primaryTerm, generation, path, checksum, null);
         }
 
         public TranslogFileSnapshot(long primaryTerm, long generation, Path path, Long checksum, Map<String, String> metadata)
@@ -211,7 +201,7 @@ public class FileSnapshot implements Closeable {
 
         public CheckpointFileSnapshot(long primaryTerm, long generation, long minTranslogGeneration, Path path, Long checksum)
             throws IOException {
-            super(path, primaryTerm, checksum);
+            super(path, primaryTerm, checksum, null);
             this.minTranslogGeneration = minTranslogGeneration;
             this.generation = generation;
         }

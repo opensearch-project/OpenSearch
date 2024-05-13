@@ -82,11 +82,11 @@ public class RemoteStoreSettings {
 
     /**
     * This setting is used to disable uploading translog.ckp file as metadata to translog.tlog. This setting is effective only for
-     * remote store enabled cluster.
+     * repositories that supports metadata read and write with metadata and is applicable for only remote store enabled clusters.
     */
     @ExperimentalApi
-    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING = Setting.boolSetting(
-        "cluster.remote_store.index.translog.enable_translog_ckp_as_metadata_upload",
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA = Setting.boolSetting(
+        "cluster.remote_store.index.translog.ckp_as_metadata",
         true,
         Property.NodeScope,
         Property.Dynamic
@@ -123,7 +123,7 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathType pathType;
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
-    private volatile boolean enableTranslogCkpAsMetadataUpload;
+    private volatile boolean ckpAsTranslogMetadata;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -147,11 +147,8 @@ public class RemoteStoreSettings {
         pathType = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING, this::setPathType);
 
-        enableTranslogCkpAsMetadataUpload = clusterSettings.get(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING);
-        clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING,
-            this::setEnableTranslogCkpAsMetadataUpload
-        );
+        ckpAsTranslogMetadata = clusterSettings.get(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA, this::setCkpAsTranslogMetadata);
 
         pathHashAlgorithm = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING, this::setPathHashAlgorithm);
@@ -198,12 +195,12 @@ public class RemoteStoreSettings {
         this.pathType = pathType;
     }
 
-    private void setEnableTranslogCkpAsMetadataUpload(boolean enableTranslogCkpAsMetadataUpload) {
-        this.enableTranslogCkpAsMetadataUpload = enableTranslogCkpAsMetadataUpload;
+    private void setCkpAsTranslogMetadata(boolean ckpAsTranslogMetadata) {
+        this.ckpAsTranslogMetadata = ckpAsTranslogMetadata;
     }
 
-    public boolean getEnableTranslogCkpAsMetadataUpload() {
-        return enableTranslogCkpAsMetadataUpload;
+    public boolean isCkpAsTranslogMetadata() {
+        return ckpAsTranslogMetadata;
     }
 
     private void setPathHashAlgorithm(RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm) {

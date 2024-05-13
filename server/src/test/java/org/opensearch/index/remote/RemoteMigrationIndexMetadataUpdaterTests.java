@@ -145,7 +145,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         assertDocrepSettingsApplied(indexMetadataBuilder.build());
     }
 
-    public void testMaybeUpdateRemoteStoreCustomDataExecutes() {
+    public void testMaybeUpdateRemoteStoreCustomMetadataExecutes() {
         Metadata currentMetadata = createIndexMetadataWithDocrepSettings(indexName);
         IndexMetadata existingIndexMetadata = currentMetadata.index(indexName);
         IndexMetadata.Builder builder = IndexMetadata.builder(existingIndexMetadata);
@@ -163,11 +163,11 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
                 .build(),
             logger
         );
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomData(builder, indexName);
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomMetadata(builder, indexName);
         assertCustomPathMetadataIsPresent(builder.build());
     }
 
-    public void testMaybeUpdateRemoteStoreCustomDataDoesNotExecute() {
+    public void testMaybeUpdateRemoteStoreCustomMetadataDoesNotExecute() {
         Metadata currentMetadata = createIndexMetadataWithRemoteStoreSettings(indexName);
         IndexMetadata existingIndexMetadata = currentMetadata.index(indexName);
         IndexMetadata.Builder builder = IndexMetadata.builder(currentMetadata.index(indexName));
@@ -186,7 +186,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             logger
         );
 
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomData(builder, indexName);
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomMetadata(builder, indexName);
 
         assertCustomPathMetadataIsPresent(builder.build());
     }

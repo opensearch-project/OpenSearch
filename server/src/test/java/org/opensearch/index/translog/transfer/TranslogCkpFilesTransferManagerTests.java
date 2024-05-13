@@ -193,7 +193,7 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         assertEquals(0, fileTransferFailed.get());
         assertEquals(1, translogTransferSucceeded.get());
         assertEquals(0, translogTransferFailed.get());
-        assertEquals(2, fileTransferTracker.allUploadedGeneration().size());
+        assertEquals(2, fileTransferTracker.allUploadedGenerationSize());
     }
 
     public void testTransferSnapshotOnUploadTimeout() throws Exception {
@@ -515,11 +515,11 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         tracker.addGeneration(19, true);
         tracker.addFile(translogFile, true);
         tracker.addFile(checkpointFile, true);
-        assertEquals(1, tracker.allUploadedGeneration().size());
+        assertEquals(1, tracker.allUploadedGenerationSize());
 
         List<String> files = List.of(checkpointFile, translogFile);
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
-        assertBusy(() -> assertEquals(0, tracker.allUploadedGeneration().size()));
+        assertBusy(() -> assertEquals(0, tracker.allUploadedGenerationSize()));
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
     }
 
@@ -585,10 +585,10 @@ public class TranslogCkpFilesTransferManagerTests extends OpenSearchTestCase {
         tracker.addFile(translogFile, true);
         tracker.addFile(checkpointFile, true);
         tracker.addGeneration(19, true);
-        assertEquals(1, tracker.allUploadedGeneration().size());
+        assertEquals(1, tracker.allUploadedGenerationSize());
 
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
-        assertEquals(1, tracker.allUploadedGeneration().size());
+        assertEquals(1, tracker.allUploadedGenerationSize());
     }
 
     private void assertNoDownloadStats(boolean nonZeroUploadTime) {

@@ -32,7 +32,7 @@ import java.util.function.Function;
 
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
-import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA;
 
 /**
  * Utils for remote store
@@ -185,7 +185,7 @@ public class RemoteStoreUtils {
     /**
      * Determines whether translog ckp upload as metadata allowed or not
      */
-    public static boolean determineTranslogCkpUploadAsMetadataAllowed(IndexMetadata indexMetadata) {
+    public static boolean determineCkpAsTranslogMetadata(IndexMetadata indexMetadata) {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.CKP_AS_METADATA);
         if (remoteCustomData != null && remoteCustomData.containsKey(RemoteStoreEnums.CKP_AS_METADATA)) {
@@ -198,25 +198,27 @@ public class RemoteStoreUtils {
      * Generates the remote store path type information to be added to custom data of index metadata during migration
      *
      * @param clusterSettings Current Cluster settings from {@link ClusterState}
-     * @param discoveryNodes Current {@link DiscoveryNodes} from the cluster state
+     * @param discoveryNodes  Current {@link DiscoveryNodes} from the cluster state
      * @return {@link Map} to be added as custom data in index metadata
      */
-    public static Map<String, String> determineRemoteStoreCustomDataDuringMigration(
+    public static Map<String, String> determineRemoteStoreCustomMetadataDuringMigration(
         Settings clusterSettings,
         DiscoveryNodes discoveryNodes
     ) {
+        Map<String, String> remoteCustomData = new HashMap<>();
         Version minNodeVersion = discoveryNodes.getMinNodeVersion();
+
+        boolean ckpAsMetadata = Version.CURRENT.compareTo(minNodeVersion) <= 0
+            && CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA.get(clusterSettings);
+        remoteCustomData.put(RemoteStoreEnums.CKP_AS_METADATA, Boolean.toString(ckpAsMetadata));
+
         RemoteStoreEnums.PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
             ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(clusterSettings)
             : RemoteStoreEnums.PathType.FIXED;
         RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm = pathType == RemoteStoreEnums.PathType.FIXED
             ? null
             : CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.get(clusterSettings);
-        boolean ckpAsMetadata = Version.CURRENT.compareTo(minNodeVersion) <= 0
-            && CLUSTER_REMOTE_STORE_TRANSLOG_CKP_UPLOAD_SETTING.get(clusterSettings);
-        Map<String, String> remoteCustomData = new HashMap<>();
         remoteCustomData.put(RemoteStoreEnums.PathType.NAME, pathType.name());
-        remoteCustomData.put(RemoteStoreEnums.CKP_AS_METADATA, Boolean.toString(ckpAsMetadata));
         if (Objects.nonNull(pathHashAlgorithm)) {
             remoteCustomData.put(RemoteStoreEnums.PathHashAlgorithm.NAME, pathHashAlgorithm.name());
         }

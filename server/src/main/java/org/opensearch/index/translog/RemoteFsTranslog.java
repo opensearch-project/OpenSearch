@@ -112,10 +112,7 @@ public class RemoteFsTranslog extends Translog {
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
 
-        boolean ckpAsTranslogMetadata = isCkpAsTranslogMetadata(
-            indexSettings().getTranslogCkpAsMetadataUploadAllowed(),
-            blobStoreRepository
-        );
+        boolean ckpAsTranslogMetadata = isCkpAsTranslogMetadata(indexSettings().isCkpAsTranslogMetadata(), blobStoreRepository);
         fileTransferTracker = FileTransferTrackerFactory.getFileTransferTracker(
             shardId,
             remoteTranslogTransferTracker,
@@ -174,8 +171,8 @@ public class RemoteFsTranslog extends Translog {
         return remoteTranslogTransferTracker;
     }
 
-    private static boolean isCkpAsTranslogMetadata(boolean isCkpAsMetadataUploadAllowed, BlobStoreRepository blobStoreRepository) {
-        return blobStoreRepository.blobStore().isBlobMetadataSupported() && isCkpAsMetadataUploadAllowed;
+    private static boolean isCkpAsTranslogMetadata(boolean ckpAsTranslogMetadata, BlobStoreRepository blobStoreRepository) {
+        return blobStoreRepository.blobStore().isBlobMetadataSupported() && ckpAsTranslogMetadata;
     }
 
     public static void download(
@@ -187,7 +184,7 @@ public class RemoteFsTranslog extends Translog {
         RemoteStoreSettings remoteStoreSettings,
         Logger logger,
         boolean seedRemote,
-        boolean ckpAsMetadataUploadAllowed
+        boolean ckpAsTranslogMetadata
     ) throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
             Locale.ROOT,
@@ -196,7 +193,7 @@ public class RemoteFsTranslog extends Translog {
         );
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
 
-        boolean ckpAsTranslogMetadata = isCkpAsTranslogMetadata(ckpAsMetadataUploadAllowed, blobStoreRepository);
+        ckpAsTranslogMetadata = isCkpAsTranslogMetadata(ckpAsTranslogMetadata, blobStoreRepository);
         // We use a dummy stats tracker to ensure the flow doesn't break.
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
@@ -454,8 +451,8 @@ public class RemoteFsTranslog extends Translog {
     }
 
     // Visible for testing
-    public Set<String> allUploaded() {
-        return fileTransferTracker.allUploadedGeneration();
+    int allUploadedSize() {
+        return fileTransferTracker.allUploadedGenerationSize();
     }
 
     private boolean syncToDisk() throws IOException {
@@ -575,7 +572,7 @@ public class RemoteFsTranslog extends Translog {
         // This enables us to restore translog from the metadata in case of failover or relocation.
         Set<Long> generationsToDelete = new HashSet<>();
         for (long generation = minRemoteGenReferenced - 1 - indexSettings().getRemoteTranslogExtraKeep(); generation >= 0; generation--) {
-            if (fileTransferTracker.isGenerationUploaded(generation) == false) {
+            if (fileTransferTracker.uploaded(generation) == false) {
                 break;
             }
             generationsToDelete.add(generation);

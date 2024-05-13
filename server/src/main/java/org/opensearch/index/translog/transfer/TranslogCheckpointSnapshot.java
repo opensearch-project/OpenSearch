@@ -107,13 +107,9 @@ public class TranslogCheckpointSnapshot {
     }
 
     TransferFileSnapshot getTranslogFileSnapshotWithMetadata() throws IOException {
-        Map<String, String> metadata = createCheckpointDataAsObjectMetadata();
-        return new TranslogFileSnapshot(primaryTerm, generation, translogPath, translogChecksum, metadata);
-    }
-
-    private Map<String, String> createCheckpointDataAsObjectMetadata() throws IOException {
         byte[] fileBytes = Checkpoint.createCheckpointBytes(checkpointPath, checkpoint);
-        return createMetadata(fileBytes);
+        Map<String, String> metadata = createMetadata(fileBytes);
+        return new TranslogFileSnapshot(primaryTerm, generation, translogPath, translogChecksum, metadata);
     }
 
     static Map<String, String> createMetadata(byte[] ckpBytes) {

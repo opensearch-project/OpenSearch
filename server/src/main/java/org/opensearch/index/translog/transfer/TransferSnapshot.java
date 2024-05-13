@@ -19,14 +19,14 @@ import java.util.Set;
 public interface TransferSnapshot {
 
     /**
-     * The translog transfer metadata of this {@link TransferSnapshot}
-     * @return the translog transfer metadata
-     */
-    TranslogTransferMetadata getTranslogTransferMetadata();
-
-    /**
      * The set of generational translog and checkpoint snapshots
      *  @return the set of {@link TranslogCheckpointSnapshot}
      */
     Set<TranslogCheckpointSnapshot> getTranslogCheckpointSnapshots();
+
+    /**
+     * The translog transfer metadata of this {@link TransferSnapshot}
+     * @return the translog transfer metadata
+     */
+    TranslogTransferMetadata getTranslogTransferMetadata();
 }

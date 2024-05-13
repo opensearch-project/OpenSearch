@@ -17,6 +17,7 @@ import org.opensearch.index.remote.RemoteTranslogTransferTracker;
  * @opensearch.internal
  */
 public class FileTransferTrackerFactory {
+
     public static FileTransferTracker getFileTransferTracker(
         ShardId shardId,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,

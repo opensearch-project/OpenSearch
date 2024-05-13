@@ -5002,7 +5002,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteStoreSettings,
             logger,
             shouldSeedRemoteStore(),
-            indexSettings.getTranslogCkpAsMetadataUploadAllowed()
+            indexSettings.isCkpAsTranslogMetadata()
         );
     }
 

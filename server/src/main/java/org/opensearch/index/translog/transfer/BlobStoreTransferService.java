@@ -173,12 +173,8 @@ public class BlobStoreTransferService implements TransferService {
     @ExperimentalApi
     public InputStreamWithMetadata downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
         // If the blob store supports metadata, retrieve the blob with metadata; otherwise, retrieve the blob without metadata.
-        if (blobStore.isBlobMetadataSupported()) {
-            return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
-        } else {
-            InputStream inputStream = blobStore.blobContainer((BlobPath) path).readBlob(fileName);
-            return new InputStreamWithMetadata(inputStream, null);
-        }
+        assert blobStore.isBlobMetadataSupported();
+        return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }
 
     @Override

@@ -67,7 +67,7 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
         // idempotent
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
         fileTransferTrackerCkpAsMetadata.onSuccess(transferFileSnapshot);
-        assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedGeneration().size(), 1);
+        assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedGenerationSize(), 1);
         try {
             remoteTranslogTransferTracker.addUploadBytesStarted(fileSize + ckpFileSize);
             fileTransferTrackerCkpAsMetadata.onFailure(transferFileSnapshot, new IOException("random exception"));
@@ -126,11 +126,11 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
             )
         );
         fileTransferTrackerCkpAsMetadata.onSuccess(translogCheckpointSnapshot2);
-        assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedGeneration().size(), 1);
+        assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedGenerationSize(), 1);
 
         remoteTranslogTransferTracker.addUploadBytesStarted(fileSize * 2);
         fileTransferTrackerCkpAsMetadata.onSuccess(translogCheckpointSnapshot1);
-        assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedGeneration().size(), 2);
+        assertEquals(fileTransferTrackerCkpAsMetadata.allUploadedGenerationSize(), 2);
 
         translogFileSnapshot1.close();
     }
@@ -163,7 +163,7 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
         localFileTransferTracker.recordBytesForFiles(toUpload);
         localRemoteTranslogTransferTracker.addUploadBytesStarted(2 * fileSize);
         localFileTransferTracker.onSuccess(transferFileSnapshot);
-        assertEquals(localFileTransferTracker.allUploadedGeneration().size(), 1);
+        assertEquals(localFileTransferTracker.allUploadedGenerationSize(), 1);
     }
 
     public void testUploaded_WhenCkpAsMetadata() throws IOException {
@@ -188,10 +188,10 @@ public class TranslogCkpAsMetadataFileTransferTrackerTests extends OpenSearchTes
         fileTransferTrackerCkpAsMetadata.recordBytesForFiles(toUpload);
         remoteTranslogTransferTracker.addUploadBytesStarted(2 * fileSize);
         fileTransferTrackerCkpAsMetadata.onSuccess(transferFileSnapshot);
-        assertTrue(fileTransferTrackerCkpAsMetadata.isGenerationUploaded(generation));
-        assertFalse(fileTransferTrackerCkpAsMetadata.isGenerationUploaded(generation + 2));
+        assertTrue(fileTransferTrackerCkpAsMetadata.uploaded(generation));
+        assertFalse(fileTransferTrackerCkpAsMetadata.uploaded(generation + 2));
 
         fileTransferTrackerCkpAsMetadata.deleteGenerations(Set.of(generation));
-        assertFalse(fileTransferTrackerCkpAsMetadata.isGenerationUploaded(generation));
+        assertFalse(fileTransferTrackerCkpAsMetadata.uploaded(generation));
     }
 }

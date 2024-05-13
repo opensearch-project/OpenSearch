@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -79,7 +80,12 @@ public class TranslogCkpAsMetadataFileTransferManager extends TranslogTransferMa
                 FileTransferException e = (FileTransferException) ex;
                 TransferFileSnapshot failedSnapshot = e.getFileSnapshot();
                 latchedActionListener.onFailure(
-                    new TranslogTransferException(fileToGenerationSnapshotMap.get(failedSnapshot), ex, Set.of(failedSnapshot), null)
+                    new TranslogTransferException(
+                        fileToGenerationSnapshotMap.get(failedSnapshot),
+                        ex,
+                        Set.of(failedSnapshot),
+                        Collections.emptySet()
+                    )
                 );
             }
         );

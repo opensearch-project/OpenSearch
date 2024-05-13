@@ -224,7 +224,7 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
         assertEquals(0, fileTransferFailed.get());
         assertEquals(1, translogTransferSucceeded.get());
         assertEquals(0, translogTransferFailed.get());
-        assertEquals(2, fileTransferTracker.allUploadedGeneration().size());
+        assertEquals(2, fileTransferTracker.allUploadedGenerationSize());
     }
 
     public void testTransferSnapshotOnUploadTimeout() throws Exception {
@@ -426,11 +426,11 @@ public class TranslogCkpAsMetadataFileTransferManagerTests extends OpenSearchTes
         String translogFile = "translog-19.tlog";
         tracker.addGeneration(19, true);
         // tracker.add(checkpointFile, true);
-        assertEquals(1, tracker.allUploadedGeneration().size());
+        assertEquals(1, tracker.allUploadedGenerationSize());
 
         List<String> verifyDeleteFilesList = List.of(translogFile);
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
-        assertBusy(() -> assertEquals(0, tracker.allUploadedGeneration().size()));
+        assertBusy(() -> assertEquals(0, tracker.allUploadedGenerationSize()));
         // only translog.tlog file will be sent for delete.
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(verifyDeleteFilesList));
     }

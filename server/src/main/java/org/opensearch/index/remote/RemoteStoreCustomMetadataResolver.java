@@ -22,17 +22,17 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 @ExperimentalApi
-public class RemoteStoreCustomDataResolver {
+public class RemoteStoreCustomMetadataResolver {
 
     private final RemoteStoreSettings remoteStoreSettings;
     private final Supplier<Version> minNodeVersionSupplier;
 
-    public RemoteStoreCustomDataResolver(RemoteStoreSettings remoteStoreSettings, Supplier<Version> minNodeVersionSupplier) {
+    public RemoteStoreCustomMetadataResolver(RemoteStoreSettings remoteStoreSettings, Supplier<Version> minNodeVersionSupplier) {
         this.remoteStoreSettings = remoteStoreSettings;
         this.minNodeVersionSupplier = minNodeVersionSupplier;
     }
 
-    public RemoteStorePathStrategy get() {
+    public RemoteStorePathStrategy getPathStrategy() {
         PathType pathType;
         PathHashAlgorithm pathHashAlgorithm;
         // Min node version check ensures that we are enabling the new prefix type only when all the nodes understand it.
@@ -42,8 +42,8 @@ public class RemoteStoreCustomDataResolver {
         return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
     }
 
-    public boolean getRemoteStoreTranslogCkpAsMetadataAllowed() {
-        return Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0 && remoteStoreSettings.getEnableTranslogCkpAsMetadataUpload();
+    public boolean isCkpAsTranslogMetadata() {
+        return Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0 && remoteStoreSettings.isCkpAsTranslogMetadata();
     }
 
 }

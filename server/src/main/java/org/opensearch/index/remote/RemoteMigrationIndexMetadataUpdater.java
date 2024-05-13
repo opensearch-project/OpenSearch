@@ -28,7 +28,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGME
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.index.remote.RemoteStoreUtils.determineRemoteStoreCustomDataDuringMigration;
+import static org.opensearch.index.remote.RemoteStoreUtils.determineRemoteStoreCustomMetadataDuringMigration;
 import static org.opensearch.index.remote.RemoteStoreUtils.getRemoteStoreRepoName;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -127,12 +127,12 @@ public class RemoteMigrationIndexMetadataUpdater {
      * @param indexMetadataBuilder Mutated {@link IndexMetadata.Builder} having the previous state updates
      * @param index                index name
      */
-    public void maybeUpdateRemoteStoreCustomData(IndexMetadata.Builder indexMetadataBuilder, String index) {
-        if (indexHasRemoteCustomData(indexMetadata) == false) {
+    public void maybeUpdateRemoteStoreCustomMetadata(IndexMetadata.Builder indexMetadataBuilder, String index) {
+        if (indexHasRemoteCustomMetadata(indexMetadata) == false) {
             logger.info("Adding remote store custom data for index [{}] during migration", index);
             indexMetadataBuilder.putCustom(
                 REMOTE_STORE_CUSTOM_KEY,
-                determineRemoteStoreCustomDataDuringMigration(clusterSettings, discoveryNodes)
+                determineRemoteStoreCustomMetadataDuringMigration(clusterSettings, discoveryNodes)
             );
         } else {
             logger.debug("Index {} already has remote store custom data", index);
@@ -140,7 +140,7 @@ public class RemoteMigrationIndexMetadataUpdater {
     }
 
     public static boolean indexHasAllRemoteStoreRelatedMetadata(IndexMetadata indexMetadata) {
-        return indexHasRemoteStoreSettings(indexMetadata.getSettings()) && indexHasRemoteCustomData(indexMetadata);
+        return indexHasRemoteStoreSettings(indexMetadata.getSettings()) && indexHasRemoteCustomMetadata(indexMetadata);
     }
 
     /**
@@ -167,7 +167,7 @@ public class RemoteMigrationIndexMetadataUpdater {
      * @param indexMetadata Current index metadata
      * @return <code>true</code> if all above conditions match. <code>false</code> otherwise
      */
-    public static boolean indexHasRemoteCustomData(IndexMetadata indexMetadata) {
+    public static boolean indexHasRemoteCustomMetadata(IndexMetadata indexMetadata) {
         Map<String, String> customMetadata = indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY);
         return Objects.nonNull(customMetadata)
             && Objects.nonNull(customMetadata.get(PathType.NAME))

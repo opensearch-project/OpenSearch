@@ -57,7 +57,8 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
             testFile,
             randomNonNegativeLong(),
-            0L
+            0L,
+            null
         );
 
         AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
@@ -104,7 +105,8 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
             testFile,
             randomNonNegativeLong(),
-            0L
+            0L,
+            null
         );
 
         AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
@@ -143,7 +145,8 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
             testFile,
             randomNonNegativeLong(),
-            0L
+            0L,
+            null
         );
 
         AsyncMultiStreamBlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
