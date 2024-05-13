@@ -23,6 +23,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,11 +52,16 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
     }
 
     public void testListAll() throws IOException {
+        when(localDirectory.listAll()).thenReturn(new String[]{});
+        String[] actualFileNames = compositeDirectory.listAll();
+        String[] expectedFileNames = new String[] {};
+        assertArrayEquals(expectedFileNames, actualFileNames);
+
         populateMetadata();
         when(localDirectory.listAll()).thenReturn(new String[] { "_1.cfe", "_2.cfe", "_0.cfe_block_7", "_0.cfs_block_7" });
 
-        String[] actualFileNames = compositeDirectory.listAll();
-        String[] expectedFileNames = new String[] { "_0.cfe", "_0.cfs", "_0.si", "_1.cfe", "_2.cfe", "segments_1" };
+        actualFileNames = compositeDirectory.listAll();
+        expectedFileNames = new String[] { "_0.cfe", "_0.cfs", "_0.si", "_1.cfe", "_2.cfe", "segments_1" };
         assertArrayEquals(expectedFileNames, actualFileNames);
     }
 
@@ -168,5 +175,15 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
         verify(localDirectory).close();
         verify(fileCache).remove(resolvedPath1);
         verify(fileCache).remove(resolvedPath2);
+    }
+
+    public void testAfterSyncToRemote() throws IOException {
+        Path basePath = mock(Path.class);
+        Path resolvedPath = mock(Path.class);
+        when(basePath.resolve(anyString())).thenReturn(resolvedPath);
+        when(localDirectory.getDirectory()).thenReturn(basePath);
+        Collection<String> files = Arrays.asList("_0.si", "_0.cfs");
+        compositeDirectory.afterSyncToRemote(files);
+        verify(fileCache, times(files.size())).decRef(resolvedPath);
     }
 }

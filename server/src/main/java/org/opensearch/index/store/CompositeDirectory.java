@@ -101,7 +101,7 @@ public class CompositeDirectory extends FilterDirectory {
 
     /**
      * Removes an existing file in the directory.
-     * Currently deleting only from local directory as files from remote should not be deleted due to availability reasons
+     * Currently deleting only from local directory as files from remote should not be deleted as that is taken care by garbage collection logic of remote directory
      * @param name the name of an existing file.
      * @throws IOException in case of I/O error
      */
@@ -181,6 +181,7 @@ public class CompositeDirectory extends FilterDirectory {
         localDirectory.rename(source, dest);
         fileCache.remove(localDirectory.getDirectory().resolve(source));
         cacheFile(dest);
+        fileCache.decRef(localDirectory.getDirectory().resolve(dest));
     }
 
     /**
@@ -243,10 +244,6 @@ public class CompositeDirectory extends FilterDirectory {
      */
     public void afterSyncToRemote(Collection<String> files) throws IOException {
         logger.trace("afterSyncToRemote called for {}", files);
-        if (remoteDirectory == null) {
-            logger.trace("afterSyncToRemote called even though remote directory is not set");
-            return;
-        }
         for (String fileName : files) {
             /*
             Decrementing the refCount here for the path so that it becomes eligible for eviction
@@ -273,10 +270,9 @@ public class CompositeDirectory extends FilterDirectory {
             remoteFiles = remoteDirectory.listAll();
         } catch (NullPointerException e) {
             /*
-            There are two scenarios where the listAll() call on remote directory returns NullPointerException:
-            - When remote directory is not set
-            - When init() of remote directory has not yet been called
-            Returning an empty list in the above scenarios
+            We can encounter NPE when no data has been uploaded to remote store yet and as a result the metadata is empty
+            Empty metadata means that there are no files currently in remote, hence returning an empty list in this scenario
+            TODO : Catch the NPE in listAll of RemoteSegmentStoreDirectory itself instead of catching here
              */
             remoteFiles = new String[0];
         }
@@ -285,7 +281,7 @@ public class CompositeDirectory extends FilterDirectory {
 
     private void cacheFile(String name) throws IOException {
         Path filePath = localDirectory.getDirectory().resolve(name);
-        // put will increase the refCount for the path, making sure it is not evicted, wil decrease the ref after it is uploaded to Remote
+        // put will increase the refCount for the path, making sure it is not evicted, will decrease the ref after it is uploaded to Remote
         // so that it can be evicted after that
         // this is just a temporary solution, will pin the file once support for that is added in FileCache
         // TODO : Pin the above filePath in the file cache once pinning support is added so that it cannot be evicted unless it has been

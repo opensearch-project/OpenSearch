@@ -22,8 +22,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @ExperimentalApi
 public class FullFileCachedIndexInput implements CachedIndexInput {
-
-    private final IndexInput indexInput;
     private final FileCache fileCache;
     private final Path path;
     private final FileCachedIndexInput fileCachedIndexInput;
@@ -35,7 +33,6 @@ public class FullFileCachedIndexInput implements CachedIndexInput {
     public FullFileCachedIndexInput(FileCache fileCache, Path path, IndexInput indexInput) {
         this.fileCache = fileCache;
         this.path = path;
-        this.indexInput = indexInput;
         fileCachedIndexInput = new FileCachedIndexInput(fileCache, path, indexInput);
         isClosed = new AtomicBoolean(false);
     }
@@ -54,7 +51,7 @@ public class FullFileCachedIndexInput implements CachedIndexInput {
      */
     @Override
     public long length() {
-        return indexInput.length();
+        return fileCachedIndexInput.length();
     }
 
     /**
@@ -71,7 +68,7 @@ public class FullFileCachedIndexInput implements CachedIndexInput {
     @Override
     public void close() throws Exception {
         if (!isClosed.getAndSet(true)) {
-            indexInput.close();
+            fileCachedIndexInput.close();
         }
     }
 }

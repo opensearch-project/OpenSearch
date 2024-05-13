@@ -646,7 +646,7 @@ public final class IndexModule {
             if (type != null) {
                 return type;
             }
-            throw new IllegalArgumentException("Unknown Locality Type constant [" + localityType + "].");
+            throw new IllegalArgumentException("Unknown locality type constant [" + localityType + "].");
         }
     }
 
