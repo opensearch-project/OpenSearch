@@ -370,9 +370,9 @@ public class RemoteClusterStateService implements Closeable {
                 prevIndexMetadataByName.put(indexName, prevIndexMetadata);
             } else {
                 numIndicesUnchanged++;
-                // index unchanged it shouldn't be deleted from remote
-                indicesToBeDeletedFromRemote.remove(indexMetadata.getIndex().getName());
             }
+            // index present in current cluster state
+            indicesToBeDeletedFromRemote.remove(indexMetadata.getIndex().getName());
         }
         UploadedMetadataResults uploadedMetadataResults;
         // For migration case from codec V0 or V1 to V2, we have added null check on metadata attribute files,

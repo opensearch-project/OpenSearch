@@ -814,27 +814,27 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         String initialIndex = "test-index";
         Index index1 = new Index("test-index-1", "index-uuid-1");
         Index index2 = new Index("test-index-2", "index-uuid-2");
-        final Settings idxSettings1 = Settings.builder()
+        Settings idxSettings1 = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
             .build();
-        final IndexMetadata indexMetadata1 = new IndexMetadata.Builder(index1.getName()).settings(idxSettings1)
+        IndexMetadata indexMetadata1 = new IndexMetadata.Builder(index1.getName()).settings(idxSettings1)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        final Settings idxSettings2 = Settings.builder()
+        Settings idxSettings2 = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_INDEX_UUID, index2.getUUID())
             .build();
-        final IndexMetadata indexMetadata2 = new IndexMetadata.Builder(index2.getName()).settings(idxSettings2)
+        IndexMetadata indexMetadata2 = new IndexMetadata.Builder(index2.getName()).settings(idxSettings2)
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         ClusterState clusterState1 = ClusterState.builder(initialClusterState)
             .metadata(
                 Metadata.builder(initialClusterState.getMetadata())
-                    .put(indexMetadata1, false)
-                    .put(indexMetadata2, false)
+                    .put(indexMetadata1, true)
+                    .put(indexMetadata2, true)
                     .remove(initialIndex)
                     .build()
             )
@@ -845,11 +845,36 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             initialManifest
         );
         // verify that initial index is removed, and new index are added
+        assertEquals(1, initialManifest.getIndices().size());
+        assertEquals(2, manifest1.getIndices().size());
         assertTrue(initialManifest.getIndices().stream().anyMatch(indexMetadata -> indexMetadata.getIndexName().equals(initialIndex)));
         assertFalse(manifest1.getIndices().stream().anyMatch(indexMetadata -> indexMetadata.getIndexName().equals(initialIndex)));
-        assertTrue(manifest1.getIndices().stream().anyMatch(indexMetadata -> indexMetadata.getIndexName().equals(index1.getName())));
-        assertTrue(manifest1.getIndices().stream().anyMatch(indexMetadata -> indexMetadata.getIndexName().equals(index2.getName())));
-
+        // update index1, index2 is unchanged
+        indexMetadata1 = new IndexMetadata.Builder(indexMetadata1).version(indexMetadata1.getVersion() + 1).build();
+        ClusterState clusterState2 = ClusterState.builder(clusterState1)
+            .metadata(Metadata.builder(clusterState1.getMetadata()).put(indexMetadata1, true).build())
+            .build();
+        ClusterMetadataManifest manifest2 = remoteClusterStateService.writeIncrementalMetadata(clusterState1, clusterState2, manifest1);
+        // index1 is updated
+        assertEquals(2, manifest2.getIndices().size());
+        assertEquals(
+            1,
+            manifest2.getIndices().stream().filter(uploadedIndex -> uploadedIndex.getIndexName().equals(index1.getName())).count()
+        );
+        assertNotEquals(
+            manifest2.getIndices()
+                .stream()
+                .filter(uploadedIndex -> uploadedIndex.getIndexName().equals(index1.getName()))
+                .findFirst()
+                .get()
+                .getUploadedFilename(),
+            manifest1.getIndices()
+                .stream()
+                .filter(uploadedIndex -> uploadedIndex.getIndexName().equals(index1.getName()))
+                .findFirst()
+                .get()
+                .getUploadedFilename()
+        );
     }
 
     private void verifyMetadataAttributeOnlyUpdated(
