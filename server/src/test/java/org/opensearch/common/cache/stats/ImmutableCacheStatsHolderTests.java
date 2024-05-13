@@ -29,10 +29,11 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testSerialization() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
+        String[] levels = dimensionNames.toArray(new String[0]);
         DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
         Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
         DefaultCacheStatsHolderTests.populateStats(statsHolder, usedDimensionValues, 100, 10);
-        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(null);
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(levels);
         assertNotEquals(0, stats.getStatsRoot().children.size());
 
         BytesStreamOutput os = new BytesStreamOutput();
@@ -57,19 +58,20 @@ public class ImmutableCacheStatsHolderTests extends OpenSearchTestCase {
 
     public void testEquals() throws Exception {
         List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
+        String[] levels = dimensionNames.toArray(new String[0]);
         DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
         DefaultCacheStatsHolder differentStoreNameStatsHolder = new DefaultCacheStatsHolder(dimensionNames, "nonMatchingStoreName");
         DefaultCacheStatsHolder nonMatchingStatsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
         Map<String, List<String>> usedDimensionValues = DefaultCacheStatsHolderTests.getUsedDimensionValues(statsHolder, 10);
         DefaultCacheStatsHolderTests.populateStats(List.of(statsHolder, differentStoreNameStatsHolder), usedDimensionValues, 100, 10);
         DefaultCacheStatsHolderTests.populateStats(nonMatchingStatsHolder, usedDimensionValues, 100, 10);
-        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(null);
+        ImmutableCacheStatsHolder stats = statsHolder.getImmutableCacheStatsHolder(levels);
 
-        ImmutableCacheStatsHolder secondStats = statsHolder.getImmutableCacheStatsHolder(null);
+        ImmutableCacheStatsHolder secondStats = statsHolder.getImmutableCacheStatsHolder(levels);
         assertEquals(stats, secondStats);
-        ImmutableCacheStatsHolder nonMatchingStats = nonMatchingStatsHolder.getImmutableCacheStatsHolder(null);
+        ImmutableCacheStatsHolder nonMatchingStats = nonMatchingStatsHolder.getImmutableCacheStatsHolder(levels);
         assertNotEquals(stats, nonMatchingStats);
-        ImmutableCacheStatsHolder differentStoreNameStats = differentStoreNameStatsHolder.getImmutableCacheStatsHolder(null);
+        ImmutableCacheStatsHolder differentStoreNameStats = differentStoreNameStatsHolder.getImmutableCacheStatsHolder(levels);
         assertNotEquals(stats, differentStoreNameStats);
     }
 

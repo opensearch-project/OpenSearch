@@ -166,7 +166,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             )
         );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildFastFilter();
+            fastFilterContext.setFieldName(valuesSourceConfig.fieldType().name());
+            fastFilterContext.buildRanges();
         }
     }
 
@@ -304,6 +305,17 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         mergeBuckets(mergeMap, newNumBuckets);
         if (deferringCollector != null) {
             deferringCollector.mergeBuckets(mergeMap);
+        }
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        if (fastFilterContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
+            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
+            add.accept("leaf_visited", fastFilterContext.leaf);
+            add.accept("inner_visited", fastFilterContext.inner);
         }
     }
 
