@@ -38,10 +38,12 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -112,7 +114,7 @@ public class TikaDocTests extends OpenSearchTestCase {
         Map.entry("testRTFWithCurlyBraces.rtf", "019cab63b73ff89d094823cf50c0a721bec08ee2"),
         Map.entry("testFooter.ods", "846e1d0415b23fa27631b536b0cf566abbf8fcc1"),
         Map.entry("testPPT.ppt", "933ee556884b1d9e28b801daa0d77bbaa4f4be62"),
-        // Map.entry("testEXCEL-formats.xls", "3f3e2e5cd7d6527af8d15e5668dc2cf7c33b25fe"),
+        Map.entry("testEXCEL-formats.xls", "3f3e2e5cd7d6527af8d15e5668dc2cf7c33b25fe"),
         Map.entry("testPPT_masterFooter.pptx", "29bb97006b3608b7db6ff72b94d20157878d94dd"),
         Map.entry("testWORD_header_hyperlink.doc", "914bbec0730c54948ad307ea3e375ef0c100abf1"),
         Map.entry("testRTFHyperlink.rtf", "2b2ffb1997aa495fbab1af490d134051de168c97"),
@@ -169,7 +171,7 @@ public class TikaDocTests extends OpenSearchTestCase {
         Map.entry("testPPT_embedded_two_slides.pptx", "0d760dbaf9d9d2f173dd40deecd0de5ecb885301"),
         Map.entry("testPDF_bookmarks.pdf", "5fc486c443511452db4f1aa6530714c6aa49c831"),
         Map.entry("test_recursive_embedded.docx", "afc32b07ce07ad273e5b3d1a43390a9d2b6dd0a9"),
-        // Map.entry("testEXCEL-formats.xlsx", "e7f686ba515ab24cb9c99cba46c58d79fa5790e6"),
+        Map.entry("testEXCEL-formats.xlsx", "801f4850a8e5dca36cd2e3544cb4e74d8f4265f5"),
         Map.entry("testPPT_masterText2.pptx", "2b01eab5d0349e3cfe791b28c70c2dbf4efc884d"),
         Map.entry("test.doc", "774be3106edbb6d80be36dbb548d62401dcfa0fe"),
         Map.entry("test_recursive_embedded_npe.docx", "afc32b07ce07ad273e5b3d1a43390a9d2b6dd0a9"),
@@ -264,6 +266,11 @@ public class TikaDocTests extends OpenSearchTestCase {
         Map.entry("test_TIKA-1251.doc", "5a9394c34274964055fdd9272b4f7dc314b99ecf"),
         Map.entry("test_list_override.rtf", "9fe8b4a36c5222fe7ed2e9b54e2330aec8fa9423")
     );
+
+    @Before
+    public void setLocale() {
+        Locale.setDefault(Locale.ENGLISH);
+    }
 
     public void testTika292BWC() throws Exception {
         Path tikaUnzip = unzipToTemp(TIKA_FILES);
