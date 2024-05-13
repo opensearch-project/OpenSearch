@@ -33,9 +33,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class IndexRoutingTableInputStreamTests extends ReplicationTrackerTestCase {
+public class IndexRoutingTableInputStreamTests extends OpenSearchTestCase {
 
-    public void testRoutingTableInputStream() throws IOException {
+    public void testRoutingTableInputStream(){
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -44,14 +44,14 @@ public class IndexRoutingTableInputStreamTests extends ReplicationTrackerTestCas
 
         initialRoutingTable.getIndicesRouting().values().forEach(indexShardRoutingTables -> {
             try {
-                logger.info("IndexShardRoutingTables: {}", indexShardRoutingTables);
-                InputStream indexRoutingStream = new IndexRoutingTableInputStream(indexShardRoutingTables,
-                    initialRoutingTable.version(), Version.CURRENT);
+                InputStream indexRoutingStream = new IndexRoutingTableInputStream(indexShardRoutingTables);
 
                 IndexRoutingTableInputStreamReader reader = new IndexRoutingTableInputStreamReader(indexRoutingStream);
                 Map<String, IndexShardRoutingTable> indexShardRoutingTableMap = reader.read();
 
-                logger.info("indexShardRoutingTableMap: {}", indexShardRoutingTableMap);
+                assertEquals(1, indexShardRoutingTableMap.size());
+                assertNotNull(indexShardRoutingTableMap.get("test"));
+                assertEquals(2,indexShardRoutingTableMap.get("test").shards().size());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

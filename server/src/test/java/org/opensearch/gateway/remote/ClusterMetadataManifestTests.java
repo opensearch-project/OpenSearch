@@ -233,6 +233,35 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         }
     }
 
+    public void testClusterMetadataManifestXContentV2() throws IOException {
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
+            1L,
+            1L,
+            "test-cluster-uuid",
+            "test-state-uuid",
+            Version.CURRENT,
+            "test-node-id",
+            false,
+            ClusterMetadataManifest.CODEC_V2,
+            "test-metadata",
+            Collections.singletonList(uploadedIndexMetadata),
+            "prev-cluster-uuid",
+            true,
+            1L,
+            Collections.singletonList(uploadedIndexMetadata)
+        );
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContent(parser);
+            assertEquals(originalManifest, fromXContentManifest);
+        }
+    }
+
     private List<UploadedIndexMetadata> randomUploadedIndexMetadataList() {
         final int size = randomIntBetween(1, 10);
         final List<UploadedIndexMetadata> uploadedIndexMetadataList = new ArrayList<>(size);

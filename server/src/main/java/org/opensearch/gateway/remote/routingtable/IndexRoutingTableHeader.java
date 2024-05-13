@@ -14,12 +14,6 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
-import org.opensearch.Version;
-import org.opensearch.common.io.stream.BufferedChecksumStreamInput;
-import org.opensearch.common.io.stream.BufferedChecksumStreamOutput;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -31,52 +25,27 @@ import java.io.IOException;
  */
 public class IndexRoutingTableHeader {
 
-    private final long routingTableVersion;
-
+    public static final String INDEX_ROUTING_HEADER_CODEC = "index_routing_header_codec";
+    public static final int INITIAL_VERSION = 1;
+    public static final int CURRENT_VERSION = INITIAL_VERSION;
     private final String indexName;
 
-    private final Version nodeVersion;
-
-    public static final String INDEX_ROUTING_HEADER_CODEC = "index_routing_header_codec";
-
-    public static final int INITIAL_VERSION = 1;
-
-    public static final int CURRENT_VERSION = INITIAL_VERSION;
-
-    public IndexRoutingTableHeader(long routingTableVersion, String indexName, Version nodeVersion) {
-        this.routingTableVersion = routingTableVersion;
+    public IndexRoutingTableHeader(String indexName) {
         this.indexName = indexName;
-        this.nodeVersion = nodeVersion;
-    }
-
-    /**
-     * Returns the bytes reference for the {@link IndexRoutingTableHeader}
-     * @throws IOException
-     */
-    public void write(StreamOutput out) throws IOException {
-            CodecUtil.writeHeader(new OutputStreamDataOutput(out), INDEX_ROUTING_HEADER_CODEC, CURRENT_VERSION);
-            // Write version
-            out.writeLong(routingTableVersion);
-            out.writeInt(nodeVersion.id);
-            out.writeString(indexName);
-
-            out.flush();
     }
 
     /**
      * Reads the contents on the byte array into the corresponding {@link IndexRoutingTableHeader}
+     *
      * @param in
      * @return IndexRoutingTableHeader
      * @throws IOException
      */
-    public static IndexRoutingTableHeader read(BufferedChecksumStreamInput in) throws IOException {
+    public static IndexRoutingTableHeader read(StreamInput in) throws IOException {
         try {
-                readHeaderVersion(in);
-                final long version = in.readLong();
-                final int nodeVersion = in.readInt();
-                final String name = in.readString();
-                assert version >= 0 : "Version must be non-negative [" + version + "]";
-                return new IndexRoutingTableHeader(version, name, Version.fromId(nodeVersion));
+            readHeaderVersion(in);
+            final String name = in.readString();
+            return new IndexRoutingTableHeader(name);
         } catch (EOFException e) {
             throw new IOException("index routing header truncated", e);
         }
@@ -92,15 +61,19 @@ public class IndexRoutingTableHeader {
         return version;
     }
 
-    public long getRoutingTableVersion() {
-        return routingTableVersion;
+    /**
+     * Returns the bytes reference for the {@link IndexRoutingTableHeader}
+     *
+     * @throws IOException
+     */
+    public void write(StreamOutput out) throws IOException {
+        CodecUtil.writeHeader(new OutputStreamDataOutput(out), INDEX_ROUTING_HEADER_CODEC, CURRENT_VERSION);
+        out.writeString(indexName);
+        out.flush();
     }
 
     public String getIndexName() {
         return indexName;
     }
 
-    public Version getNodeVersion() {
-        return nodeVersion;
-    }
 }
