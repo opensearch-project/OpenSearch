@@ -91,6 +91,7 @@ public class RemoteFsTranslog extends Translog {
     private static final int SYNC_PERMIT = 1;
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
+    boolean ckpAsMetadata;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -110,6 +111,7 @@ public class RemoteFsTranslog extends Translog {
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        ckpAsMetadata = true;
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -117,7 +119,8 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             indexSettings().getRemoteStorePathStrategy(),
-            remoteStoreSettings
+            remoteStoreSettings,
+            ckpAsMetadata
         );
         try {
             download(translogTransferManager, location, logger);
@@ -288,7 +291,8 @@ public class RemoteFsTranslog extends Translog {
         FileTransferTracker fileTransferTracker,
         RemoteTranslogTransferTracker tracker,
         RemoteStorePathStrategy pathStrategy,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        boolean ckpAsMetadata
     ) {
         assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
@@ -310,7 +314,16 @@ public class RemoteFsTranslog extends Translog {
             .build();
         BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
         BlobStoreTransferService transferService = new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool);
-        return new TranslogTransferManager(shardId, transferService, dataPath, mdPath, fileTransferTracker, tracker, remoteStoreSettings);
+        return new TranslogTransferManager(
+            shardId,
+            transferService,
+            dataPath,
+            mdPath,
+            fileTransferTracker,
+            tracker,
+            remoteStoreSettings,
+            ckpAsMetadata
+        );
     }
 
     @Override

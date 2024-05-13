@@ -28,14 +28,12 @@ import org.opensearch.index.translog.ChannelFactory;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 import static org.opensearch.common.blobstore.BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC;
 
@@ -90,22 +88,41 @@ public class BlobStoreTransferService implements TransferService {
     public void uploadBlobs(
         Set<TransferFileSnapshot> fileSnapshots,
         final Map<Long, BlobPath> blobPaths,
+        final Map<TransferFileSnapshot, InputStream> fileMetadataMap,
         ActionListener<TransferFileSnapshot> listener,
         WritePriority writePriority
     ) {
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
+            InputStream fileMetadata = fileMetadataMap.get(fileSnapshot);
             if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
                 uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
-                uploadBlob(fileSnapshot, listener, blobPath, writePriority);
+                uploadBlob(fileSnapshot, fileMetadata, listener, blobPath, writePriority);
             }
         });
 
     }
 
+    public Map<String, String> buildFileMetadata(InputStream fileMetadata) throws IOException {
+        Map<String, String> metadata = new HashMap<>();
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        int bytesRead;
+
+        while ((bytesRead = fileMetadata.read(buffer)) != -1) {
+            byteArrayOutputStream.write(buffer, 0, bytesRead);
+        }
+
+        byte[] bytes = byteArrayOutputStream.toByteArray();
+        String metadataString = Base64.getEncoder().encodeToString(bytes);
+        metadata.put("ckp-data", metadataString);
+        return metadata;
+    }
+
     private void uploadBlob(
         TransferFileSnapshot fileSnapshot,
+        InputStream fileMetadata,
         ActionListener<TransferFileSnapshot> listener,
         BlobPath blobPath,
         WritePriority writePriority
@@ -113,6 +130,10 @@ public class BlobStoreTransferService implements TransferService {
 
         try {
             ChannelFactory channelFactory = FileChannel::open;
+            Map<String, String> metadata = null;
+            if(fileMetadata != null){
+                metadata = buildFileMetadata(fileMetadata);
+            }
             long contentLength;
             try (FileChannel channel = channelFactory.open(fileSnapshot.getPath(), StandardOpenOption.READ)) {
                 contentLength = channel.size();
@@ -130,7 +151,8 @@ public class BlobStoreTransferService implements TransferService {
                 writePriority,
                 (size, position) -> new OffsetRangeFileInputStream(fileSnapshot.getPath(), size, position),
                 Objects.requireNonNull(fileSnapshot.getChecksum()),
-                remoteIntegrityEnabled
+                remoteIntegrityEnabled,
+                metadata
             );
             ActionListener<Void> completionListener = ActionListener.wrap(resp -> listener.onResponse(fileSnapshot), ex -> {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);

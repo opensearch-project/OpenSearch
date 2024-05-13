@@ -13,12 +13,10 @@ import org.opensearch.index.translog.TranslogReader;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -62,6 +60,14 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
     @Override
     public Set<TransferFileSnapshot> getTranslogFileSnapshots() {
         return translogCheckpointFileInfoTupleSet.stream().map(Tuple::v1).collect(Collectors.toSet());
+    }
+
+    public Map<TranslogFileSnapshot, CheckpointFileSnapshot> getTranslogCheckpointSnapshotMap() {
+        Map<TranslogFileSnapshot, CheckpointFileSnapshot> tlogCkpSnapshots = new HashMap<>();
+        translogCheckpointFileInfoTupleSet.forEach(tuple -> {
+            tlogCkpSnapshots.put(tuple.v1(), tuple.v2());
+        });
+        return tlogCkpSnapshots;
     }
 
     @Override
