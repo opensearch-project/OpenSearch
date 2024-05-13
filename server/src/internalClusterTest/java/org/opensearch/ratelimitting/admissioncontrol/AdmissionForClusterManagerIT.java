@@ -170,8 +170,8 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
 
             @Override
             public void sendResponse(RestResponse response) {
-                waitForResponse.countDown();
                 aliasResponse.set(response);
+                waitForResponse.countDown();
             }
         };
 
