@@ -44,7 +44,6 @@ import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
@@ -87,7 +86,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithDocrepSettings;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithRemoteStoreSettings;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -982,90 +980,6 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .metadata(createIndexMetadataWithRemoteStoreSettings("test"))
             .build();
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameVersionClusterState);
-    }
-
-    // Test to not allow switching migration direction to remote store when remote cluster state is disabled
-    public void testFailValidateRemoteClusterStateEnabled() {
-        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-
-        Settings remoteMigrationDirectionUpdateSettings = Settings.builder()
-            .put(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
-            .build();
-
-        ClusterUpdateSettingsRequest remoteMigrationDirectionUpdateRequest = new ClusterUpdateSettingsRequest();
-        remoteMigrationDirectionUpdateRequest.persistentSettings(remoteMigrationDirectionUpdateSettings);
-
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.applySettings(
-            (Settings.builder()
-                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
-                .build())
-        );
-
-        AllocationService allocationService = new AllocationService(
-            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
-            EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
-        );
-        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
-            transportService,
-            clusterService,
-            threadPool,
-            allocationService,
-            new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            clusterSettings
-        );
-
-        // will expect exception when remote cluster state is not enabled
-        final SettingsException exception = expectThrows(
-            SettingsException.class,
-            () -> transportClusterUpdateSettingsAction.validateRemoteClusterStateEnabled(remoteMigrationDirectionUpdateRequest)
-        );
-        assertEquals("can not switch migration direction to remote store when remote cluster state is not enabled", exception.getMessage());
-    }
-
-    public void testPassValidateRemoteClusterStateEnabled() {
-        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-
-        Settings remoteMigrationDirectionUpdateSettings = Settings.builder()
-            .put(RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
-            .build();
-
-        ClusterUpdateSettingsRequest remoteMigrationDirectionUpdateRequest = new ClusterUpdateSettingsRequest();
-        remoteMigrationDirectionUpdateRequest.persistentSettings(remoteMigrationDirectionUpdateSettings);
-
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.applySettings(
-            (Settings.builder()
-                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
-                .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
-                .build())
-        );
-
-        AllocationService allocationService = new AllocationService(
-            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
-            EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
-        );
-        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
-            transportService,
-            clusterService,
-            threadPool,
-            allocationService,
-            new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            clusterSettings
-        );
-
-        // will allow switching migration direction to remoteStore, as remote store is enabled
-        transportClusterUpdateSettingsAction.validateRemoteClusterStateEnabled(remoteMigrationDirectionUpdateRequest);
     }
 
     private Map<String, String> getRemoteStoreNodeAttributes() {
