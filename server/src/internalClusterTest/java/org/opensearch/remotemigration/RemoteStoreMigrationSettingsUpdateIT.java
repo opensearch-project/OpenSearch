@@ -14,6 +14,7 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -26,6 +27,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationShardAllocationBaseTestCase {
 
     private Client client;
+    private String nonRemoteNodeName;
+    private String remoteNodeName;
 
     // remote store backed index setting tests
 
@@ -120,18 +123,7 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
     // compatibility mode setting test
 
     public void testSwitchToStrictMode() throws Exception {
-        logger.info("Initialize cluster");
-        initializeCluster(false);
-
-        logger.info("Create a mixed mode cluster");
-        setClusterMode(MIXED.mode);
-        addRemote = true;
-        String remoteNodeName = internalCluster().startNode();
-        addRemote = false;
-        String nonRemoteNodeName = internalCluster().startNode();
-        internalCluster().validateClusterFormed();
-        assertNodeInCluster(remoteNodeName);
-        assertNodeInCluster(nonRemoteNodeName);
+        createMixedModeCluster();
 
         logger.info("Attempt switching to strict mode");
         SettingsException exception = assertThrows(SettingsException.class, () -> setClusterMode(STRICT.mode));
@@ -140,12 +132,39 @@ public class RemoteStoreMigrationSettingsUpdateIT extends RemoteStoreMigrationSh
             exception.getMessage()
         );
 
-        logger.info("Stop remote node so that cluster had only non-remote nodes");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(remoteNodeName));
-        ensureStableCluster(2);
+        stopRemoteNode();
 
         logger.info("Attempt switching to strict mode");
         setClusterMode(STRICT.mode);
+    }
+
+    public void testClearCompatibilityModeSetting() throws Exception {
+        createMixedModeCluster();
+        stopRemoteNode();
+
+        logger.info("Attempt clearing compatibility mode");
+        clearClusterMode();
+    }
+
+    private void stopRemoteNode() throws IOException {
+        logger.info("Stop remote node so that cluster had only non-remote nodes");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(remoteNodeName));
+        ensureStableCluster(2);
+    }
+
+    private void createMixedModeCluster() {
+        logger.info("Initialize cluster");
+        initializeCluster(false);
+
+        logger.info("Create a mixed mode cluster");
+        setClusterMode(MIXED.mode);
+        addRemote = true;
+        remoteNodeName = internalCluster().startNode();
+        addRemote = false;
+        nonRemoteNodeName = internalCluster().startNode();
+        internalCluster().validateClusterFormed();
+        assertNodeInCluster(remoteNodeName);
+        assertNodeInCluster(nonRemoteNodeName);
     }
 
     // bootstrap a cluster
