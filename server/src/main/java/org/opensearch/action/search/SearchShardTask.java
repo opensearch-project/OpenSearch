@@ -53,7 +53,6 @@ import java.util.function.Supplier;
 public class SearchShardTask extends CancellableTask implements SearchBackpressureTask {
     // generating metadata in a lazy way since source can be quite big
     private final MemoizedSupplier<String> metadataSupplier;
-    private String resourceLimitGroupId;
 
     public SearchShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, () -> "");
