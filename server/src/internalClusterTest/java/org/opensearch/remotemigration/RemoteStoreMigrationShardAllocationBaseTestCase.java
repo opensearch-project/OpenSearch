@@ -55,6 +55,11 @@ public class RemoteStoreMigrationShardAllocationBaseTestCase extends MigrationBa
         assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
+    protected void clearClusterMode() {
+        updateSettingsRequest.persistentSettings(Settings.builder().putNull(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey()));
+        assertAcked(internalCluster().client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
     // set the migration direction for cluster [remote_store, docrep, none]
     protected void setDirection(String direction) {
         updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), direction));
