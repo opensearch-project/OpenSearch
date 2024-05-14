@@ -50,7 +50,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
 
     public static final int RETAINED_MANIFESTS = 10;
     public static final int SKIP_CLEANUP_STATE_CHANGES = 10;
-    public static final TimeValue CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT = TimeValue.timeValueMillis(60000);
+    public static final TimeValue CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT = TimeValue.timeValueMinutes(5);
     public static final TimeValue CLUSTER_STATE_CLEANUP_INTERVAL_MINIMUM = TimeValue.MINUS_ONE;
 
     /**

@@ -741,16 +741,6 @@ public class RemoteClusterStateService implements Closeable {
         return blobStoreRepository.blobStore();
     }
 
-    private String fetchPreviousClusterUUID(String clusterName, String clusterUUID) {
-        final Optional<ClusterMetadataManifest> latestManifest = getLatestClusterMetadataManifest(clusterName, clusterUUID);
-        if (!latestManifest.isPresent()) {
-            final String previousClusterUUID = getLastKnownUUIDFromRemote(clusterName);
-            assert !clusterUUID.equals(previousClusterUUID) : "Last cluster UUID is same current cluster UUID";
-            return previousClusterUUID;
-        }
-        return latestManifest.get().getPreviousClusterUUID();
-    }
-
     private BlobContainer indexMetadataContainer(String clusterName, String clusterUUID, String indexUUID) {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/index/ftqsCnn9TgOX
         return blobStoreRepository.blobStore()
