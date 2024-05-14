@@ -66,7 +66,6 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -285,9 +284,9 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
     public void validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState clusterState) {
         Settings settings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
         if (RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.exists(settings)) {
-            String value = settings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey()).toLowerCase(Locale.ROOT);
+            String value = RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(settings).mode;
             validateAllNodesOfSameVersion(clusterState.nodes());
-            if (value.equals(RemoteStoreNodeService.CompatibilityMode.STRICT.mode)) {
+            if (RemoteStoreNodeService.CompatibilityMode.STRICT.mode.equals(value)) {
                 validateAllNodesOfSameType(clusterState.nodes());
                 validateIndexSettings(clusterState);
             }
