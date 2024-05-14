@@ -71,7 +71,6 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         this(in.readString(), in.readString(), ResourceLimitGroupMode.fromName(in.readString()), in.readMap());
     }
 
-
     /**
      * Write this into the {@linkplain StreamOutput}.
      *
@@ -85,9 +84,8 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         out.writeMap(resourceLimits);
     }
 
-
     private void validateResourceLimits(Map<String, Object> resourceLimits) {
-        for (Map.Entry<String, Object> resource: resourceLimits.entrySet()) {
+        for (Map.Entry<String, Object> resource : resourceLimits.entrySet()) {
             String resourceName = resource.getKey();
             Double threshold = (Double) resource.getValue();
             Objects.requireNonNull(resourceName, "resourceName can't be null");
@@ -104,7 +102,6 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             }
         }
     }
-
 
     /**
      * @param builder
@@ -157,7 +154,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
                 } else if (ALLOWED_RESOURCES.contains(fieldName)) {
                     resourceLimitGroup_.put(fieldName, parser.doubleValue());
                 } else {
-                    throw new IllegalArgumentException("unrecognised [field=" + fieldName +" in ResourceLimitGroup");
+                    throw new IllegalArgumentException("unrecognised [field=" + fieldName + " in ResourceLimitGroup");
                 }
             }
         }
@@ -194,7 +191,6 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         return resourceLimits;
     }
 
-
     /**
      * builder method for this {@link ResourceLimitGroup}
      * @return
@@ -202,7 +198,6 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     public static Builder builder() {
         return new Builder();
     }
-
 
     /**
      * This enum models the different sandbox modes
@@ -237,7 +232,6 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         }
 
     }
-
 
     /**
      * Builder class for {@link ResourceLimitGroup}

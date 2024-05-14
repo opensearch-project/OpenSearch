@@ -78,14 +78,14 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
     }
 
     public void testEmptyResourceLimits() {
-        assertThrows(IllegalArgumentException.class, () -> new ResourceLimitGroup("analytics", "_id", randomMode(), Collections.emptyMap()));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new ResourceLimitGroup("analytics", "_id", randomMode(), Collections.emptyMap())
+        );
     }
 
     public void testIllegalResourceLimitGroupMode() {
-        assertThrows(
-            NullPointerException.class,
-            () -> new ResourceLimitGroup("analytics", "_id", null,  Map.of("jvm", (Object) 0.4))
-        );
+        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup("analytics", "_id", null, Map.of("jvm", (Object) 0.4)));
     }
 
     public void testInvalidResourceLimitWhenInvalidSystemResourceNameIsGiven() {
@@ -95,7 +95,8 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
                 "analytics",
                 "_id",
                 randomMode(),
-                Map.of("RequestRate", (Object) randomDoubleBetween(0.01, 0.8, false)))
+                Map.of("RequestRate", (Object) randomDoubleBetween(0.01, 0.8, false))
+            )
         );
     }
 
@@ -106,7 +107,8 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
                 "analytics",
                 "_id",
                 randomMode(),
-                Map.of("RequestRate", (Object) randomDoubleBetween(1.1, 1.8, false)))
+                Map.of("RequestRate", (Object) randomDoubleBetween(1.1, 1.8, false))
+            )
         );
     }
 

@@ -23,7 +23,12 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 
@@ -54,7 +59,8 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
         PARSER.declareObjectArray(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ResourceLimitGroup.fromXContent(p),
-            RESOURCE_LIMIT_GROUP_FIELD);
+            RESOURCE_LIMIT_GROUP_FIELD
+        );
     }
 
     private final Set<ResourceLimitGroup> resourceLimitGroups;
@@ -174,9 +180,7 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
         private Map<String, ResourceLimitGroup> toMap(Set<ResourceLimitGroup> resourceLimitGroups) {
             final Map<String, ResourceLimitGroup> resourceLimitGroupMap = new HashMap<>();
 
-            resourceLimitGroups.forEach(resourceLimitGroup ->
-                resourceLimitGroupMap.put(resourceLimitGroup.getName(), resourceLimitGroup)
-            );
+            resourceLimitGroups.forEach(resourceLimitGroup -> resourceLimitGroupMap.put(resourceLimitGroup.getName(), resourceLimitGroup));
             return resourceLimitGroupMap;
         }
 
@@ -206,10 +210,7 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
             return new ResourceLimitGroupMetadata(
-                new HashSet<>(
-                    dataStreamDiff.apply(
-                        toMap( ( (ResourceLimitGroupMetadata) part).resourceLimitGroups)
-                    ).values())
+                new HashSet<>(dataStreamDiff.apply(toMap(((ResourceLimitGroupMetadata) part).resourceLimitGroups)).values())
             );
         }
     }
