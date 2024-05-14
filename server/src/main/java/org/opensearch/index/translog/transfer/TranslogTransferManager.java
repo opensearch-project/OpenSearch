@@ -276,13 +276,11 @@ public class TranslogTransferManager {
         long bytesToRead = 0, downloadStartTime = System.nanoTime();
         Map<String, String> metadata;
 
-        try {
-            FetchBlobResult inputStreamWithMetadata = transferService.downloadBlobWithMetadata(
-                remoteDataTransferPath.add(primaryTerm),
-                fileName
-            );
-            InputStream inputStream = inputStreamWithMetadata.getInputStream();
-            metadata = inputStreamWithMetadata.getMetadata();
+        try (
+            FetchBlobResult fetchBlobResult = transferService.downloadBlobWithMetadata(remoteDataTransferPath.add(primaryTerm), fileName)
+        ) {
+            InputStream inputStream = fetchBlobResult.getInputStream();
+            metadata = fetchBlobResult.getMetadata();
 
             bytesToRead = inputStream.available();
             Files.copy(inputStream, filePath);

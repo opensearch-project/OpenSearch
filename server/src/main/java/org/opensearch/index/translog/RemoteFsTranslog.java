@@ -91,7 +91,7 @@ public class RemoteFsTranslog extends Translog {
     private static final int SYNC_PERMIT = 1;
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
-    boolean isTranslogMetadataEnabled;
+    private final boolean isTranslogMetadataEnabled;
 
     public RemoteFsTranslog(
         TranslogConfig config,
