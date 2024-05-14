@@ -13,19 +13,13 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.io.stream.BufferedChecksumStreamInput;
-import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.Index;
 
-import java.io.BufferedReader;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class IndexRoutingTableInputStreamReader {
 
@@ -34,32 +28,31 @@ public class IndexRoutingTableInputStreamReader {
     private static final Logger logger = LogManager.getLogger(IndexRoutingTableInputStreamReader.class);
 
     public IndexRoutingTableInputStreamReader(InputStream inputStream) throws IOException {
-        this.streamInput = new InputStreamStreamInput(inputStream);
+        streamInput = new InputStreamStreamInput(inputStream);
     }
 
-    public Map<String, IndexShardRoutingTable> read() throws IOException {
+    public IndexRoutingTable readIndexRoutingTable(Index index) throws IOException {
         try {
             try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(streamInput, "assertion")) {
-                // Read the Table Header first
-                IndexRoutingTableHeader.read(in);
-                int shards = in.readVInt();
-                logger.info("Number of Index Routing Table {}", shards);
-                Map<String, IndexShardRoutingTable> indicesRouting = new HashMap<String, IndexShardRoutingTable>(Collections.EMPTY_MAP);
-                for(int i=0; i<shards; i++)
-                {
+                // Read the Table Header first and confirm the index
+                IndexRoutingTableHeader indexRoutingTableHeader = IndexRoutingTableHeader.read(in);
+                assert indexRoutingTableHeader.getIndexName().equals(index.getName());
+
+                int numberOfShardRouting = in.readVInt();
+                logger.debug("Number of Index Routing Table {}", numberOfShardRouting);
+                IndexRoutingTable.Builder indicesRoutingTable = IndexRoutingTable.builder(index);
+                for (int idx = 0; idx < numberOfShardRouting; idx++) {
                     IndexShardRoutingTable indexShardRoutingTable = IndexShardRoutingTable.Builder.readFrom(in);
-                    logger.info("Index Shard Routing Table reading {}", indexShardRoutingTable);
-                    indicesRouting.put(indexShardRoutingTable.getShardId().getIndexName(), indexShardRoutingTable);
+                    logger.debug("Index Shard Routing Table reading {}", indexShardRoutingTable);
+                    indicesRoutingTable.addIndexShard(indexShardRoutingTable);
 
                 }
                 verifyCheckSum(in);
-                // Return indices Routing table
-                return indicesRouting;
+                return indicesRoutingTable.build();
             }
         } catch (EOFException e) {
             throw new IOException("Indices Routing table is corrupted", e);
         }
-
     }
 
     private void verifyCheckSum(BufferedChecksumStreamInput in) throws IOException {

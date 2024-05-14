@@ -61,8 +61,7 @@ public class IndexRoutingTableInputStream extends InputStream {
         this(indexRoutingTable, BUFFER_SIZE);
     }
 
-    public IndexRoutingTableInputStream(IndexRoutingTable indexRoutingTable, int size)
-        throws IOException {
+    public IndexRoutingTableInputStream(IndexRoutingTable indexRoutingTable, int size) throws IOException {
         this.buf = new byte[size];
         this.shardIter = indexRoutingTable.iterator();
         this.indexRoutingTableHeader = new IndexRoutingTableHeader(indexRoutingTable.getIndex().getName());
@@ -85,7 +84,7 @@ public class IndexRoutingTableInputStream extends InputStream {
         indexRoutingTableHeader.write(out);
         out.writeVInt(shardCount);
 
-        System.arraycopy(bytesStreamOutput.bytes().toBytesRef().bytes, 0 , buf, 0, bytesStreamOutput.bytes().length());
+        System.arraycopy(bytesStreamOutput.bytes().toBytesRef().bytes, 0, buf, 0, bytesStreamOutput.bytes().length());
         count = bytesStreamOutput.bytes().length();
         bytesStreamOutput.reset();
         fill(buf);
@@ -93,16 +92,17 @@ public class IndexRoutingTableInputStream extends InputStream {
 
     private void fill(byte[] buf) throws IOException {
         if (leftOverBuf != null) {
-            if(leftOverBuf.length > buf.length - count) {
-                // leftOverBuf has more content than length of buf, so we need to copy only based on buf length and keep the remaining in leftOverBuf.
+            if (leftOverBuf.length > buf.length - count) {
+                // leftOverBuf has more content than length of buf, so we need to copy only based on buf length and keep the remaining in
+                // leftOverBuf.
                 System.arraycopy(leftOverBuf, 0, buf, count, buf.length - count);
-                byte[] tempLeftOverBuffer =  new byte[leftOverBuf.length - (buf.length - count)];
-                System.arraycopy(leftOverBuf, buf.length - count , tempLeftOverBuffer, 0, leftOverBuf.length - (buf.length - count));
+                byte[] tempLeftOverBuffer = new byte[leftOverBuf.length - (buf.length - count)];
+                System.arraycopy(leftOverBuf, buf.length - count, tempLeftOverBuffer, 0, leftOverBuf.length - (buf.length - count));
                 leftOverBuf = tempLeftOverBuffer;
                 count = buf.length - count;
             } else {
                 System.arraycopy(leftOverBuf, 0, buf, count, leftOverBuf.length);
-                count +=  leftOverBuf.length;
+                count += leftOverBuf.length;
                 leftOverBuf = null;
             }
         }
@@ -110,8 +110,8 @@ public class IndexRoutingTableInputStream extends InputStream {
         if (count < buf.length && shardIter.hasNext()) {
             IndexShardRoutingTable next = shardIter.next();
             IndexShardRoutingTable.Builder.writeTo(next, out);
-            //Add checksum for the file after all shards are done
-            if(!shardIter.hasNext()) {
+            // Add checksum for the file after all shards are done
+            if (!shardIter.hasNext()) {
                 out.writeLong(out.getChecksum());
             }
             out.flush();
@@ -125,7 +125,7 @@ public class IndexRoutingTableInputStream extends InputStream {
             } else {
                 System.arraycopy(bytesRef.toBytesRef().bytes, 0, buf, count, buf.length - count);
                 leftOverBuf = new byte[bytesRef.length() - (buf.length - count)];
-                System.arraycopy(bytesRef.toBytesRef().bytes, buf.length - count , leftOverBuf, 0, bytesRef.length() - (buf.length - count));
+                System.arraycopy(bytesRef.toBytesRef().bytes, buf.length - count, leftOverBuf, 0, bytesRef.length() - (buf.length - count));
                 count = buf.length;
             }
         }

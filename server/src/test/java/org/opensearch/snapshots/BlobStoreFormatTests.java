@@ -46,6 +46,7 @@ import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.io.Streams;
+import org.opensearch.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -55,7 +56,6 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.opensearch.test.OpenSearchTestCase;
 

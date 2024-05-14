@@ -161,7 +161,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             clusterUUIDCommitted(fields),
             routingTableVersion(fields),
             indicesRouting(fields)
-            )
+        )
     );
 
     private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V2;
@@ -287,8 +287,22 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         String previousClusterUUID,
         boolean clusterUUIDCommitted
     ) {
-        this(clusterTerm, version, clusterUUID, stateUUID, opensearchVersion, nodeId, committed, codecVersion,
-            globalMetadataFileName, indices, previousClusterUUID, clusterUUIDCommitted, -1, new ArrayList<>());
+        this(
+            clusterTerm,
+            version,
+            clusterUUID,
+            stateUUID,
+            opensearchVersion,
+            nodeId,
+            committed,
+            codecVersion,
+            globalMetadataFileName,
+            indices,
+            previousClusterUUID,
+            clusterUUIDCommitted,
+            -1,
+            new ArrayList<>()
+        );
     }
 
     public ClusterMetadataManifest(
@@ -306,7 +320,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         boolean clusterUUIDCommitted,
         long routingTableVersion,
         List<UploadedIndexMetadata> indicesRouting
-        ) {
+    ) {
         this.clusterTerm = clusterTerm;
         this.stateVersion = version;
         this.clusterUUID = clusterUUID;
@@ -694,8 +708,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder
-                .field(INDEX_NAME_FIELD.getPreferredName(), getIndexName())
+            return builder.field(INDEX_NAME_FIELD.getPreferredName(), getIndexName())
                 .field(INDEX_UUID_FIELD.getPreferredName(), getIndexUUID())
                 .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath());
         }
