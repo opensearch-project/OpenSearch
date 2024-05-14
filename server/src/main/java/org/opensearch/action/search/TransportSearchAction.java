@@ -1114,14 +1114,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             localShardIterators.size() + remoteShardIterators.size()
         );
 
-        // Set tenant for this request in the task for tracking the tasks across tenants
-        Map<String, Object> multiTenantLabels = searchRequest.source().multiTenantLabels();
-        String tenant = NOT_PROVIDED;
-        if (multiTenantLabels != null) {
-            tenant = (String) multiTenantLabels.get(MultiTenantLabel.TENANT_LABEL.name());
-        }
-        task.setResourceLimitGroupName(tenant);
-
         searchAsyncActionProvider.asyncSearchAction(
             task,
             searchRequest,

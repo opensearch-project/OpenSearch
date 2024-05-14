@@ -11,30 +11,27 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Class to define the ResourceLimitGroup schema
  * {
- *     "name": "analytics",
- *     "resourceLimits": [
- *          {
- *              "resourceName": "jvm",
- *              "value": 0.4
- *          }
- *     ]
+ *     "analytics":{
+ *              "jvm": 0.4,
+ *              "mpde": "enforced",
+ *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga"
+ *      }
  * }
  */
 @ExperimentalApi
@@ -42,35 +39,18 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     public static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
     private final String name;
-    private final List<ResourceLimit> resourceLimits;
+    private final String _id;
     private final ResourceLimitGroupMode mode;
+    private final Map<String, Object> resourceLimits;
 
     // list of resources that are allowed to be present in the ResourceLimitGroupSchema
     public static final List<String> ALLOWED_RESOURCES = List.of("jvm");
 
-    public static final ParseField NAME_FIELD = new ParseField("name");
-    public static final ParseField RESOURCE_LIMITS_FIELD = new ParseField("resourceLimits");
-    public static final ParseField MODE_FIELD = new ParseField("mode");
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ResourceLimitGroup, Void> PARSER = new ConstructingObjectParser<>(
-        "ResourceLimitGroupParser",
-        args -> new ResourceLimitGroup((String) args[0], (List<ResourceLimit>) args[1], (String) args[2])
-    );
-
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareObjectArray(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> ResourceLimit.fromXContent(p),
-            RESOURCE_LIMITS_FIELD
-        );
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), MODE_FIELD);
-    }
-
-    public ResourceLimitGroup(final String name, final List<ResourceLimit> resourceLimits, final String modeName) {
+    public ResourceLimitGroup(String name, String _id, ResourceLimitGroupMode mode, Map<String, Object> resourceLimits) {
         Objects.requireNonNull(name, "ResourceLimitGroup.name can't be null");
         Objects.requireNonNull(resourceLimits, "ResourceLimitGroup.resourceLimits can't be null");
+        Objects.requireNonNull(mode, "ResourceLimitGroup.mode can't be null");
+        Objects.requireNonNull(_id, "ResourceLimitGroup._id can't be null");
 
         if (name.length() > MAX_CHARS_ALLOWED_IN_NAME) {
             throw new IllegalArgumentException("ResourceLimitGroup.name shouldn't be more than 50 chars long");
@@ -79,44 +59,41 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         if (resourceLimits.isEmpty()) {
             throw new IllegalArgumentException("ResourceLimitGroup.resourceLimits should at least have 1 resource limit");
         }
+        validateResourceLimits(resourceLimits);
 
         this.name = name;
+        this._id = _id;
+        this.mode = mode;
         this.resourceLimits = resourceLimits;
-        this.mode = ResourceLimitGroupMode.fromName(modeName);
     }
 
     public ResourceLimitGroup(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(ResourceLimit::new), in.readString());
+        this(in.readString(), in.readString(), ResourceLimitGroupMode.fromName(in.readString()), in.readMap());
     }
 
+
     /**
-     * Class to hold the system resource limits;
-     * sample Schema
+     * Write this into the {@linkplain StreamOutput}.
      *
+     * @param out
      */
-    @ExperimentalApi
-    public static class ResourceLimit implements Writeable, ToXContentObject {
-        private final String resourceName;
-        private final Double threshold;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeString(_id);
+        out.writeString(mode.getName());
+        out.writeMap(resourceLimits);
+    }
 
-        static final ParseField RESOURCE_NAME_FIELD = new ParseField("resourceName");
-        static final ParseField RESOURCE_VALUE_FIELD = new ParseField("threshold");
 
-        public static final ConstructingObjectParser<ResourceLimit, Void> PARSER = new ConstructingObjectParser<>(
-            "ResourceLimitParser",
-            args -> new ResourceLimit((String) args[0], (Double) args[1])
-        );
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), RESOURCE_NAME_FIELD);
-            PARSER.declareDouble(ConstructingObjectParser.constructorArg(), RESOURCE_VALUE_FIELD);
-        }
-
-        public ResourceLimit(String resourceName, Double value) {
+    private void validateResourceLimits(Map<String, Object> resourceLimits) {
+        for (Map.Entry<String, Object> resource: resourceLimits.entrySet()) {
+            String resourceName = resource.getKey();
+            Double threshold = (Double) resource.getValue();
             Objects.requireNonNull(resourceName, "resourceName can't be null");
-            Objects.requireNonNull(value, "resource value can't be null");
+            Objects.requireNonNull(threshold, "resource value can't be null");
 
-            if (Double.compare(value, 1.0) > 0) {
+            if (Double.compare(threshold, 1.0) > 0) {
                 throw new IllegalArgumentException("resource value should be less than 1.0");
             }
 
@@ -125,71 +102,113 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
                     "resource has to be valid, valid resources " + ALLOWED_RESOURCES.stream().reduce((x, e) -> x + ", " + e).get()
                 );
             }
-            this.resourceName = resourceName;
-            this.threshold = value;
-        }
-
-        public ResourceLimit(StreamInput in) throws IOException {
-            this(in.readString(), in.readDouble());
-        }
-
-        /**
-         * Write this into the {@linkplain StreamOutput}.
-         *
-         * @param out
-         */
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(resourceName);
-            out.writeDouble(threshold);
-        }
-
-        /**
-         * @param builder
-         * @param params
-         * @return
-         * @throws IOException
-         */
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(RESOURCE_NAME_FIELD.getPreferredName(), resourceName);
-            builder.field(RESOURCE_VALUE_FIELD.getPreferredName(), threshold);
-            builder.endObject();
-            return builder;
-        }
-
-        public static ResourceLimit fromXContent(final XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ResourceLimit that = (ResourceLimit) o;
-            return Objects.equals(resourceName, that.resourceName) && Objects.equals(threshold, that.threshold);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(resourceName, threshold);
-        }
-
-        public String getResourceName() {
-            return resourceName;
-        }
-
-        public Double getThreshold() {
-            return threshold;
         }
     }
+
+
+    /**
+     * @param builder
+     * @param params
+     * @return
+     * @throws IOException
+     */
+    @Override
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        builder.startObject();
+        builder.startObject(this.name);
+        builder.field("_id", _id);
+        builder.field("mode", mode.getName());
+        builder.mapContents(resourceLimits);
+        builder.endObject();
+        builder.endObject();
+        return builder;
+    }
+
+    public static ResourceLimitGroup fromXContent(final XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
+            parser.nextToken();
+        }
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            parser.nextToken(); // move to field name
+        }
+        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {  // on a start object move to next token
+            throw new IllegalArgumentException("Expected FIELD_NAME token but found [" + parser.currentName() + "]");
+        }
+
+        Builder builder = builder().name(parser.currentName());
+
+        XContentParser.Token token = parser.nextToken();
+
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Expected START_OBJECT token but found [" + parser.currentName() + "]");
+        }
+
+        String fieldName = "";
+        // Map to hold resources
+        final Map<String, Object> resourceLimitGroup_ = new HashMap<>();
+        while ((token = parser.nextToken()) != null) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (fieldName.equals("_id")) {
+                    builder._id(parser.text());
+                } else if (fieldName.equals("mode")) {
+                    builder.mode(parser.text());
+                } else if (ALLOWED_RESOURCES.contains(fieldName)) {
+                    resourceLimitGroup_.put(fieldName, parser.doubleValue());
+                } else {
+                    throw new IllegalArgumentException("unrecognised [field=" + fieldName +" in ResourceLimitGroup");
+                }
+            }
+        }
+        builder.resourceLimitGroup(resourceLimitGroup_);
+        return builder.build();
+    }
+
+    public static Diff<ResourceLimitGroup> readDiff(final StreamInput in) throws IOException {
+        return readDiffFrom(ResourceLimitGroup::new, in);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ResourceLimitGroup that = (ResourceLimitGroup) o;
+        return Objects.equals(name, that.name) && Objects.equals(resourceLimits, that.resourceLimits);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, resourceLimits);
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public ResourceLimitGroupMode getMode() {
+        return mode;
+    }
+
+    public Map<String, Object> getResourceLimits() {
+        return resourceLimits;
+    }
+
+
+    /**
+     * builder method for this {@link ResourceLimitGroup}
+     * @return
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
 
     /**
      * This enum models the different sandbox modes
      */
     @ExperimentalApi
-    public static enum ResourceLimitGroupMode {
+    public enum ResourceLimitGroupMode {
         SOFT("soft"),
         ENFORCED("enforced"),
         MONITOR("monitor");
@@ -219,71 +238,42 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
 
     }
 
-    /**
-     * Write this into the {@linkplain StreamOutput}.
-     *
-     * @param out
-     */
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeList(resourceLimits);
-        out.writeString(mode.getName());
-    }
 
     /**
-     * @param builder
-     * @param params
-     * @return
-     * @throws IOException
+     * Builder class for {@link ResourceLimitGroup}
      */
-    @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        builder.startObject();
-        builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(RESOURCE_LIMITS_FIELD.getPreferredName(), resourceLimits);
-        builder.field(MODE_FIELD.getPreferredName(), mode.getName());
-        builder.endObject();
-        return builder;
-    }
+    @ExperimentalApi
+    public static class Builder {
+        private String name;
+        private String _id;
+        private ResourceLimitGroupMode mode;
+        private Map<String, Object> resourceLimitGroup;
 
-    public static ResourceLimitGroup fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
+        private Builder() {}
 
-    public static Diff<ResourceLimitGroup> readDiff(final StreamInput in) throws IOException {
-        return readDiffFrom(ResourceLimitGroup::new, in);
-    }
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ResourceLimitGroup that = (ResourceLimitGroup) o;
-        return Objects.equals(name, that.name) && Objects.equals(resourceLimits, that.resourceLimits);
-    }
+        public Builder _id(String _id) {
+            this._id = _id;
+            return this;
+        }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, resourceLimits);
-    }
+        public Builder mode(String mode) {
+            this.mode = ResourceLimitGroupMode.fromName(mode);
+            return this;
+        }
 
-    public String getName() {
-        return name;
-    }
+        public Builder resourceLimitGroup(Map<String, Object> resourceLimitGroup) {
+            this.resourceLimitGroup = resourceLimitGroup;
+            return this;
+        }
 
-    public ResourceLimitGroupMode getMode() {
-        return mode;
-    }
+        public ResourceLimitGroup build() {
+            return new ResourceLimitGroup(name, _id, mode, resourceLimitGroup);
+        }
 
-    public List<ResourceLimit> getResourceLimits() {
-        return resourceLimits;
-    }
-
-    public ResourceLimit getResourceLimitFor(String resourceName) {
-        return resourceLimits.stream()
-            .filter(resourceLimit -> resourceLimit.getResourceName().equals(resourceName))
-            .findFirst()
-            .orElseGet(() -> new ResourceLimit(resourceName, 100.0));
     }
 }
