@@ -65,7 +65,7 @@ public class TranslogTransferManager {
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
     private final RemoteStoreSettings remoteStoreSettings;
     private static final int METADATA_FILES_TO_FETCH = 10;
-    // boolean flag indicates if checkpoint file should upload/download with translog file object metadata
+    // Flag to include checkpoint file data as translog file metadata during upload/download
     private final boolean isTranslogMetadataEnabled;
     final static String CHECKPOINT_FILE_DATA_KEY = "ckp-data";
 
@@ -255,7 +255,7 @@ public class TranslogTransferManager {
             downloadToFS(translogFilename, location, primaryTerm);
         } else {
             // Download translog.tlog file with object metadata from remote to local FS
-            Map<String, String> metadata = downloadTranslogToFSAndGetMetadata(translogFilename, location, primaryTerm);
+            Map<String, String> metadata = downloadTranslogFileAndGetMetadata(translogFilename, location, primaryTerm);
             try {
                 assert metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
                 recoverCkpFileUsingMetadata(metadata, location, generation, translogFilename);
@@ -266,7 +266,7 @@ public class TranslogTransferManager {
         return true;
     }
 
-    private Map<String, String> downloadTranslogToFSAndGetMetadata(String fileName, Path location, String primaryTerm) throws IOException {
+    private Map<String, String> downloadTranslogFileAndGetMetadata(String fileName, Path location, String primaryTerm) throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
         // We need to change this logic when we introduce incremental download
@@ -299,7 +299,7 @@ public class TranslogTransferManager {
     }
 
     /**
-     * Process the provided metadata and tries to write the content of the checkpoint (ckp) file to the FS.
+     * Process the provided metadata and tries to recover translog.ckp file to the FS.
      */
     private void recoverCkpFileUsingMetadata(Map<String, String> metadata, Path location, String generation, String fileName)
         throws IOException {

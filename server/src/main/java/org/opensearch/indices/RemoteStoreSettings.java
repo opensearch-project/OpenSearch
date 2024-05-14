@@ -148,7 +148,7 @@ public class RemoteStoreSettings {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING, this::setPathType);
 
         isTranslogMetadataEnabled = clusterSettings.get(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA, this::setisTranslogMetadataEnabled);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA, this::setTranslogMetadataEnabled);
 
         pathHashAlgorithm = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING, this::setPathHashAlgorithm);
@@ -195,7 +195,7 @@ public class RemoteStoreSettings {
         this.pathType = pathType;
     }
 
-    private void setisTranslogMetadataEnabled(boolean isTranslogMetadataEnabled) {
+    private void setTranslogMetadataEnabled(boolean isTranslogMetadataEnabled) {
         this.isTranslogMetadataEnabled = isTranslogMetadataEnabled;
     }
 

@@ -183,9 +183,9 @@ public class RemoteStoreUtils {
     }
 
     /**
-     * Determines whether translog ckp upload as metadata allowed or not
+     * Determines if translog file object metadata can be used to store checkpoint file data.
      */
-    public static boolean determineisTranslogMetadataEnabled(IndexMetadata indexMetadata) {
+    public static boolean determineTranslogMetadataEnabled(IndexMetadata indexMetadata) {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
         assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.TRANSLOG_METADATA);
         if (remoteCustomData != null && remoteCustomData.containsKey(RemoteStoreEnums.TRANSLOG_METADATA)) {

@@ -108,7 +108,7 @@ public class BlobStoreTransferService implements TransferService {
 
     }
 
-    // this function creates metadata of checkpoint file data to be associated with translog file.
+    // Builds a metadata map containing the Base64-encoded checkpoint file data associated with a translog file.
     static Map<String, String> buildTransferFileMetadata(InputStream metadataInputStream) throws IOException {
         Map<String, String> metadata = new HashMap<>();
         try (metadataInputStream) {
@@ -121,6 +121,7 @@ public class BlobStoreTransferService implements TransferService {
                 byteArrayOutputStream.write(buffer, 0, bytesRead);
                 totalBytesRead += bytesRead;
                 if (totalBytesRead > 1024) {
+                    // We enforce a limit of 1KB on the size of the checkpoint file.
                     throw new AssertionError("Input stream exceeds 1KB limit");
                 }
             }
