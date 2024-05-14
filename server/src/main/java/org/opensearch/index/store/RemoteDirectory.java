@@ -29,7 +29,6 @@ import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
 
 import java.io.FileNotFoundException;
@@ -324,12 +323,11 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext context,
         Runnable postUploadRunner,
-        ActionListener<Void> listener,
-        boolean lowPriorityUpload
+        ActionListener<Void> listener
     ) {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
-                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -344,8 +342,7 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext ioContext,
         Runnable postUploadRunner,
-        ActionListener<Void> listener,
-        boolean lowPriorityUpload
+        ActionListener<Void> listener
     ) throws Exception {
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
@@ -356,13 +353,12 @@ public class RemoteDirectory extends Directory {
         if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
             remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
         }
-        lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
             src,
             remoteFileName,
             contentLength,
             true,
-            lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
+            WritePriority.NORMAL,
             (size, position) -> uploadRateLimiter.apply(new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)),
             expectedChecksum,
             remoteIntegrityEnabled

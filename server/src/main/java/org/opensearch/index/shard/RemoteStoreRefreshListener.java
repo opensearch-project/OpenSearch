@@ -438,12 +438,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 batchUploadListener.onFailure(ex);
             });
             statsListener.beforeUpload(src);
-            remoteDirectory.copyFrom(storeDirectory, src, IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload());
+            remoteDirectory.copyFrom(storeDirectory, src, IOContext.DEFAULT, aggregatedListener);
         }
-    }
-
-    private boolean isLowPriorityUpload() {
-        return isLocalOrSnapshotRecovery();
     }
 
     /**
