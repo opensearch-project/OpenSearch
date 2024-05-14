@@ -95,29 +95,34 @@ public class BlobStoreTransferService implements TransferService {
         Set<TransferFileSnapshot> fileSnapshots,
         final Map<Long, BlobPath> blobPaths,
         ActionListener<TransferFileSnapshot> listener,
-        WritePriority writePriority,
-        final Map<TransferFileSnapshot, InputStream> transferFileMetadata
+        WritePriority writePriority
     ) {
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
-            InputStream fileMetadata = transferFileMetadata.get(fileSnapshot);
             if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
                 uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
             } else {
-                uploadBlob(fileSnapshot, fileMetadata, listener, blobPath, writePriority);
+                uploadBlob(fileSnapshot, listener, blobPath, writePriority);
             }
         });
 
     }
 
-    public Map<String, String> buildTransferFileMetadata(InputStream fileMetadata) throws IOException {
+    // this function creates metadata of checkpoint file data to be associated with translog file.
+    static Map<String, String> buildTransferFileMetadata(InputStream metadataInputStream) throws IOException {
         Map<String, String> metadata = new HashMap<>();
-        try (fileMetadata; ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096];
+        try (metadataInputStream) {
+            byte[] buffer = new byte[128];
             int bytesRead;
+            int totalBytesRead = 0;
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
-            while ((bytesRead = fileMetadata.read(buffer)) != -1) {
+            while ((bytesRead = metadataInputStream.read(buffer)) != -1) {
                 byteArrayOutputStream.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+                if (totalBytesRead > 1024) {
+                    throw new AssertionError("Input stream exceeds 1KB limit");
+                }
             }
 
             byte[] bytes = byteArrayOutputStream.toByteArray();
@@ -129,7 +134,6 @@ public class BlobStoreTransferService implements TransferService {
 
     private void uploadBlob(
         TransferFileSnapshot fileSnapshot,
-        InputStream fileMetadata,
         ActionListener<TransferFileSnapshot> listener,
         BlobPath blobPath,
         WritePriority writePriority
@@ -138,9 +142,10 @@ public class BlobStoreTransferService implements TransferService {
         try {
             ChannelFactory channelFactory = FileChannel::open;
             Map<String, String> metadata = null;
-            if (fileMetadata != null) {
-                metadata = buildTransferFileMetadata(fileMetadata);
+            if (fileSnapshot.getMetadataFileInputStream() != null) {
+                metadata = buildTransferFileMetadata(fileSnapshot.getMetadataFileInputStream());
             }
+
             long contentLength;
             try (FileChannel channel = channelFactory.open(fileSnapshot.getPath(), StandardOpenOption.READ)) {
                 contentLength = channel.size();
@@ -198,7 +203,7 @@ public class BlobStoreTransferService implements TransferService {
     @ExperimentalApi
     @Override
     public FetchBlobResult downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
-        assert blobStore.isBlobMetadataSupported();
+        assert blobStore.isBlobMetadataEnabled();
         return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }
 

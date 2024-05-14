@@ -18,7 +18,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
-import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA;
 
 public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
 
@@ -148,27 +148,27 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
     }
 
     public void testTranslogCkpAsMetadataAllowedTrueWithMinVersionNewer() {
-        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA.getKey(), true).build();
+        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA.getKey(), true).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
         RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(remoteStoreSettings, () -> Version.CURRENT);
-        assertTrue(resolver.isCkpAsTranslogMetadata());
+        assertTrue(resolver.isTranslogMetadataEnabled());
     }
 
     public void testTranslogCkpAsMetadataAllowedFalseWithMinVersionNewer() {
-        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA.getKey(), false).build();
+        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA.getKey(), false).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
         RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(remoteStoreSettings, () -> Version.CURRENT);
-        assertFalse(resolver.isCkpAsTranslogMetadata());
+        assertFalse(resolver.isTranslogMetadataEnabled());
     }
 
     public void testTranslogCkpAsMetadataAllowedMinVersionOlder() {
-        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA.getKey(), randomBoolean()).build();
+        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA.getKey(), randomBoolean()).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
         RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(remoteStoreSettings, () -> Version.V_2_14_0);
-        assertFalse(resolver.isCkpAsTranslogMetadata());
+        assertFalse(resolver.isTranslogMetadataEnabled());
     }
 
 }

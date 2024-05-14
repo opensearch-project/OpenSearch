@@ -42,8 +42,8 @@ public class RemoteStoreCustomMetadataResolver {
         return new RemoteStorePathStrategy(pathType, pathHashAlgorithm);
     }
 
-    public boolean isCkpAsTranslogMetadata() {
-        return Version.CURRENT.compareTo(minNodeVersionSupplier.get()) <= 0 && remoteStoreSettings.isCkpAsTranslogMetadata();
+    public boolean isTranslogMetadataEnabled() {
+        return Version.V_2_15_0.compareTo(minNodeVersionSupplier.get()) <= 0 && remoteStoreSettings.isTranslogMetadataEnabled();
     }
 
 }

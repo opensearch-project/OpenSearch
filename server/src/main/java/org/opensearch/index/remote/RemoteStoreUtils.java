@@ -32,7 +32,7 @@ import java.util.function.Function;
 
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
-import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA;
 
 /**
  * Utils for remote store
@@ -185,11 +185,11 @@ public class RemoteStoreUtils {
     /**
      * Determines whether translog ckp upload as metadata allowed or not
      */
-    public static boolean determineCkpAsTranslogMetadata(IndexMetadata indexMetadata) {
+    public static boolean determineisTranslogMetadataEnabled(IndexMetadata indexMetadata) {
         Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
-        assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.CKP_AS_METADATA);
-        if (remoteCustomData != null && remoteCustomData.containsKey(RemoteStoreEnums.CKP_AS_METADATA)) {
-            return Boolean.parseBoolean(remoteCustomData.get(RemoteStoreEnums.CKP_AS_METADATA));
+        assert remoteCustomData == null || remoteCustomData.containsKey(RemoteStoreEnums.TRANSLOG_METADATA);
+        if (remoteCustomData != null && remoteCustomData.containsKey(RemoteStoreEnums.TRANSLOG_METADATA)) {
+            return Boolean.parseBoolean(remoteCustomData.get(RemoteStoreEnums.TRANSLOG_METADATA));
         }
         return false;
     }
@@ -209,8 +209,8 @@ public class RemoteStoreUtils {
         Version minNodeVersion = discoveryNodes.getMinNodeVersion();
 
         boolean ckpAsMetadata = Version.CURRENT.compareTo(minNodeVersion) <= 0
-            && CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA.get(clusterSettings);
-        remoteCustomData.put(RemoteStoreEnums.CKP_AS_METADATA, Boolean.toString(ckpAsMetadata));
+            && CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA.get(clusterSettings);
+        remoteCustomData.put(RemoteStoreEnums.TRANSLOG_METADATA, Boolean.toString(ckpAsMetadata));
 
         RemoteStoreEnums.PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
             ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(clusterSettings)

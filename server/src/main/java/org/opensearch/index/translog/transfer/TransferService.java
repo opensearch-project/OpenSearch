@@ -54,8 +54,7 @@ public interface TransferService {
         Set<TransferFileSnapshot> fileSnapshots,
         final Map<Long, BlobPath> blobPaths,
         ActionListener<TransferFileSnapshot> listener,
-        WritePriority writePriority,
-        final Map<TransferFileSnapshot, InputStream> transferFileMetadata
+        WritePriority writePriority
     ) throws Exception;
 
     /**

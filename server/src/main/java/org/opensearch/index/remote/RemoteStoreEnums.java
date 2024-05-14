@@ -36,7 +36,7 @@ import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 @ExperimentalApi
 public class RemoteStoreEnums {
 
-    public static final String CKP_AS_METADATA = "ckp-as-metadata";
+    public static final String TRANSLOG_METADATA = "translog-metadata";
 
     /**
      * Categories of the data in Remote store.

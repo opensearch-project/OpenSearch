@@ -85,8 +85,8 @@ public class RemoteStoreSettings {
      * repositories that supports metadata read and write with metadata and is applicable for only remote store enabled clusters.
      */
     @ExperimentalApi
-    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA = Setting.boolSetting(
-        "cluster.remote_store.index.translog.ckp_as_metadata",
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA = Setting.boolSetting(
+        "cluster.remote_store.index.translog.translog_metadata",
         true,
         Property.NodeScope,
         Property.Dynamic
@@ -123,7 +123,7 @@ public class RemoteStoreSettings {
     private volatile RemoteStoreEnums.PathType pathType;
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
-    private volatile boolean ckpAsTranslogMetadata;
+    private volatile boolean isTranslogMetadataEnabled;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -147,8 +147,8 @@ public class RemoteStoreSettings {
         pathType = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING, this::setPathType);
 
-        ckpAsTranslogMetadata = clusterSettings.get(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_TRANSLOG_CKP_AS_METADATA, this::setCkpAsTranslogMetadata);
+        isTranslogMetadataEnabled = clusterSettings.get(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA, this::setisTranslogMetadataEnabled);
 
         pathHashAlgorithm = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING, this::setPathHashAlgorithm);
@@ -195,12 +195,12 @@ public class RemoteStoreSettings {
         this.pathType = pathType;
     }
 
-    private void setCkpAsTranslogMetadata(boolean ckpAsTranslogMetadata) {
-        this.ckpAsTranslogMetadata = ckpAsTranslogMetadata;
+    private void setisTranslogMetadataEnabled(boolean isTranslogMetadataEnabled) {
+        this.isTranslogMetadataEnabled = isTranslogMetadataEnabled;
     }
 
-    public boolean isCkpAsTranslogMetadata() {
-        return ckpAsTranslogMetadata;
+    public boolean isTranslogMetadataEnabled() {
+        return isTranslogMetadataEnabled;
     }
 
     private void setPathHashAlgorithm(RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm) {

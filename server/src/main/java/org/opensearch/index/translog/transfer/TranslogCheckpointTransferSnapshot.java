@@ -15,11 +15,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -66,10 +64,14 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
         return translogCheckpointFileInfoTupleSet.stream().map(Tuple::v1).collect(Collectors.toSet());
     }
 
-    public Map<TransferFileSnapshot, TransferFileSnapshot> getTranslogCheckpointSnapshotMap() {
-        Map<TransferFileSnapshot, TransferFileSnapshot> tlogCkpSnapshots = new HashMap<>();
-        translogCheckpointFileInfoTupleSet.forEach(tuple -> tlogCkpSnapshots.put(tuple.v1(), tuple.v2()));
-        return tlogCkpSnapshots;
+    @Override
+    public Set<TransferFileSnapshot> getTranslogFileSnapshotWithMetadata() throws IOException {
+        for (Tuple<TranslogFileSnapshot, CheckpointFileSnapshot> tuple : translogCheckpointFileInfoTupleSet) {
+            TransferFileSnapshot translogFileSnapshot = tuple.v1();
+            TransferFileSnapshot checkpointFileSnapshot = tuple.v2();
+            translogFileSnapshot.setMetadataFileInputStream(checkpointFileSnapshot.inputStream());
+        }
+        return getTranslogFileSnapshots();
     }
 
     @Override

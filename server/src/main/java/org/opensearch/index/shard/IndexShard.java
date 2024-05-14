@@ -4982,7 +4982,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getThreadPool(),
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
-            indexSettings().isCkpAsTranslogMetadata()
+            indexSettings().isTranslogMetadataEnabled()
         );
     }
 
@@ -5009,7 +5009,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             remoteStoreSettings,
             logger,
             shouldSeedRemoteStore(),
-            indexSettings().isCkpAsTranslogMetadata()
+            indexSettings().isTranslogMetadataEnabled()
         );
     }
 

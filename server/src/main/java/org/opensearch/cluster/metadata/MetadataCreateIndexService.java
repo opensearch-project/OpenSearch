@@ -590,8 +590,8 @@ public class MetadataCreateIndexService {
         Map<String, String> remoteCustomData = new HashMap<>();
 
         // Determine if the ckp would be stored as translog metadata
-        boolean isCkpAsTranslogMetadata = remoteStoreCustomMetadataResolver.isCkpAsTranslogMetadata();
-        remoteCustomData.put(RemoteStoreEnums.CKP_AS_METADATA, Boolean.toString(isCkpAsTranslogMetadata));
+        boolean isTranslogMetadataEnabled = remoteStoreCustomMetadataResolver.isTranslogMetadataEnabled();
+        remoteCustomData.put(RemoteStoreEnums.TRANSLOG_METADATA, Boolean.toString(isTranslogMetadataEnabled));
 
         // Determine the path type for use using the remoteStorePathResolver.
         RemoteStorePathStrategy newPathStrategy = remoteStoreCustomMetadataResolver.getPathStrategy();
