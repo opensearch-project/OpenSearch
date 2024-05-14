@@ -336,9 +336,11 @@ public class AzureStorageService implements AutoCloseable {
         this.executor.shutdown();
         try {
             if (this.executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
-                logger.warning("The executor was not shutdown gracefuly with 30 seconds");
+                this.executor.shutdownNow();
+                logger.warning("The executor was not shutdown gracefully with 30 seconds");
             }
         } catch (final InterruptedException ex) {
+            Thread.currentThread().interrupt();
             throw new IOException(ex);
         }
     }
