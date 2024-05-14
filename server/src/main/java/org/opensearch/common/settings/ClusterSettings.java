@@ -157,10 +157,6 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
-<<<<<<< HEAD
-=======
-import org.opensearch.search.resource_limit_group.ResourceLimitGroupServiceSettings;
->>>>>>> ba237c14d3f (add resourceLimitGroupTests)
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
