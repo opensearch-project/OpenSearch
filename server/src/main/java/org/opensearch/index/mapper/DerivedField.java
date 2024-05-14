@@ -31,7 +31,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
     private final Script script;
     private String sourceIndexedField;
     private Map<String, String> properties;
-    private boolean ignoreMalformed;
+    private Boolean ignoreMalformed;
     private String format;
 
     public DerivedField(String name, String type, Script script) {
@@ -49,7 +49,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
         }
         sourceIndexedField = in.readOptionalString();
         format = in.readOptionalString();
-        ignoreMalformed = Boolean.TRUE.equals(in.readOptionalBoolean());
+        ignoreMalformed = in.readOptionalBoolean();
     }
 
     @Override
@@ -82,7 +82,9 @@ public class DerivedField implements Writeable, ToXContentFragment {
         if (format != null) {
             builder.field("format", format);
         }
-        builder.field("ignore_malformed", ignoreMalformed);
+        if (ignoreMalformed != null) {
+            builder.field("ignore_malformed", ignoreMalformed);
+        }
         builder.endObject();
         return builder;
     }
@@ -112,7 +114,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
     }
 
     public boolean getIgnoreMalformed() {
-        return ignoreMalformed;
+        return Boolean.TRUE.equals(ignoreMalformed);
     }
 
     public void setProperties(Map<String, String> properties) {
@@ -150,7 +152,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
             && Objects.equals(script, other.script)
             && Objects.equals(sourceIndexedField, other.sourceIndexedField)
             && Objects.equals(properties, other.properties)
-            && ignoreMalformed == other.ignoreMalformed
+            && Objects.equals(ignoreMalformed, other.ignoreMalformed)
             && Objects.equals(format, other.format);
     }
 }

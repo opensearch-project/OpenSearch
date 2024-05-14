@@ -1,0 +1,189 @@
+---
+"derived_field using index mapping definition":
+  - skip:
+      version: " - 2.14.99"
+      reason: "derived_field feature was added in 2.15"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+              long:
+                type: long
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              geo:
+                type: geo_point
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+            derived:
+              derived_text:
+                type: text
+                script: "emit(params._source[\"text\"])"
+              derived_text_source_indexed_field:
+                type: text
+                script: "emit(params._source[\"text\"])"
+                source_indexed_field: "text"
+              derived_keyword:
+                type: keyword
+                script: "emit(params._source[\"keyword\"])"
+              derived_long:
+                type: long
+                script: "emit(params._source[\"long\"])"
+              derived_float:
+                type: float
+                script: "emit(params._source[\"float\"])"
+              derived_double:
+                type: double
+                script: "emit(params._source[\"double\"])"
+              derived_date:
+                type: date
+                script: "emit(params._source[\"date\"])"
+              derived_geo:
+                type: geo_point
+                script: "emit(params._source[\"geo_point\"])"
+              derived_ip:
+                type: ip
+                script: "emit(params._source[\"ip\"])"
+              derived_boolean:
+                type: boolean
+                script: "emit(params._source[\"boolean\"])"
+              derived_object:
+                  type: object
+                  properties:
+                    derived_object.keyword: keyword
+                  source_indexed_field: text
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   {
+          text: "peter piper",
+          keyword: "foo",
+          long: 1,
+          float: 1.0,
+          double: 1.0,
+          date: "2017-01-01",
+          geo: [0.0, 20.0],
+          ip: "192.168.0.1",
+          boolean: true
+        }
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   {
+          text: "piper picked a peck",
+          keyword: "bar",
+          long: 2,
+          float: 2.0,
+          double: 2.0,
+          date: "2017-01-02",
+          geo: [10.0, 30.0],
+          ip: "192.168.0.2",
+          boolean: false
+        }
+  - do:
+      index:
+        index:  test
+        id:     3
+        body:   {
+          text: "peck of pickled peppers",
+          keyword: "baz",
+          long: -3,
+          float: -3.0,
+          double: -3.0,
+          date: "2017-01-03",
+          geo: [20.0, 40.0],
+          ip: "192.168.0.3",
+          boolean: true
+        }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              derived_text:
+                query: "peter piper"
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              derived_text:
+                query: "piper picked a peck"
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              derived_text:
+                query: "peck of pickled peppers"
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              derived_text:
+                query: "peck"
+
+  - match: {hits.total: 2}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              derived_text_source_indexed_field:
+                query: "piper picked a peck"
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              derived_text_source_indexed_field:
+                query: "peck"
+
+  - match: {hits.total: 2}
