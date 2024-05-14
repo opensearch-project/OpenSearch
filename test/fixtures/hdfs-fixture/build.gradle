@@ -37,7 +37,7 @@ versions << [
 ]
 
 dependencies {
-  api("org.apache.hadoop:hadoop-minicluster:3.3.6") {
+  api("org.apache.hadoop:hadoop-minicluster:3.4.0") {
     exclude module: 'websocket-client'
     exclude module: 'jettison'
     exclude module: 'netty'
