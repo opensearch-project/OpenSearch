@@ -446,7 +446,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
      * In final manifest codec version should be 1 and
      * global metadata should be updated, even if it was not changed in this cluster state update
      */
-    public void testMigrationFromCodecV0ManifestToCodecV1Manifest() throws IOException {
+    public void testMigrationFromCodecV0ManifestToCodecV2Manifest() throws IOException {
         mockBlobStoreObjects();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
         final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -481,7 +481,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // global metadata is updated
         assertThat(manifestAfterUpdate.getGlobalMetadataFileName(), notNullValue());
         // Manifest file with codec version with 1 is updated.
-        assertThat(manifestAfterUpdate.getCodecVersion(), is(ClusterMetadataManifest.CODEC_V1));
+        assertThat(manifestAfterUpdate.getCodecVersion(), is(ClusterMetadataManifest.CODEC_V2));
     }
 
     public void testWriteIncrementalGlobalMetadataSuccess() throws IOException {
@@ -803,6 +803,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
+            .routingTableVersion(1)
+            .indicesRouting(List.of())
             .build();
 
         Metadata expactedMetadata = Metadata.builder().persistentSettings(Settings.builder().put("readonly", true).build()).build();
@@ -1464,7 +1466,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterMetadataManifest clusterMetadataManifest,
         Metadata metadata
     ) throws IOException {
-        String mockManifestFileName = "manifest__1__2__C__456__1";
+        String mockManifestFileName = "manifest__1__2__C__456__2";
         BlobMetadata blobMetadata = new PlainBlobMetadata(mockManifestFileName, 1);
         when(
             blobContainer.listBlobsByPrefixInSortedOrder(

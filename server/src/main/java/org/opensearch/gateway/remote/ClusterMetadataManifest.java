@@ -493,6 +493,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return PARSER_V0.parse(parser, null);
     }
 
+    public static ClusterMetadataManifest fromXContentV1(XContentParser parser) throws IOException {
+        return PARSER_V1.parse(parser, null);
+    }
+
     public static ClusterMetadataManifest fromXContent(XContentParser parser) throws IOException {
         return CURRENT_PARSER.parse(parser, null);
     }
