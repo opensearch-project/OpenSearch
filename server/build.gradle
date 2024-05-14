@@ -98,7 +98,7 @@ dependencies {
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.3'
   // precentil ranks aggregation
-  api 'org.hdrhistogram:HdrHistogram:2.1.12'
+  api 'org.hdrhistogram:HdrHistogram:2.2.1'
 
   // lucene spatial
   api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
@@ -171,6 +171,22 @@ tasks.named("testingConventions").configure {
             baseClass "org.opensearch.test.OpenSearchSingleNodeTestCase"
         }
     }
+}
+
+// Set to current version by default
+def japicmpCompareTarget = System.getProperty("japicmp.compare.version")
+if (japicmpCompareTarget == null) { /* use latest released version */
+    // Read the list from maven central.
+    // Fetch the metadata and parse the xml into Version instances, pick the latest one
+    japicmpCompareTarget = new URL('https://repo1.maven.org/maven2/org/opensearch/opensearch/maven-metadata.xml').openStream().withStream { s ->
+        new XmlParser().parse(s)
+           .versioning.versions.version
+           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
+           .collect { org.opensearch.gradle.Version.fromString(it) }
+           .toSorted()
+           .last()
+           .toString()
+        }
 }
 
 def generateModulesList = tasks.register("generateModulesList") {
@@ -380,9 +396,10 @@ tasks.named("sourcesJar").configure {
   }
 }
 
-/** Compares the current build against a snapshot build */
+/** Compares the current build against a laltest released version or the version supplied through 'japicmp.compare.version' system property */
 tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
-    oldClasspath.from(files("${buildDir}/snapshot/opensearch-${version}.jar"))
+    logger.info("Comparing public APIs from ${version} to ${japicmpCompareTarget}")
+    oldClasspath.from(files("${buildDir}/japicmp-target/opensearch-${japicmpCompareTarget}.jar"))
     newClasspath.from(tasks.named('jar'))
     onlyModified = true
     failOnModification = true
@@ -390,50 +407,48 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
-    dependsOn downloadSnapshot
+    dependsOn downloadJapicmpCompareTarget
 }
 
 /** If the Java API Comparison task failed, print a hint if the change should be merged from its target branch */
 gradle.taskGraph.afterTask { Task task, TaskState state ->
     if (task.name == 'japicmp' && state.failure != null) {
-        def sha = getGitShaFromJar("${buildDir}/snapshot/opensearch-${version}.jar")
-        logger.info("Incompatiable java api from snapshot jar built off of commit ${sha}")
-
-        if (!inHistory(sha)) {
-          logger.warn('\u001B[33mPlease merge from the target branch and run this task again.\u001B[0m')
-        }
+        logger.info("Public APIs changes incompatiable with ${japicmpCompareTarget} target have been detected")
     }
 }
 
-/** Downloads latest snapshot from maven repository */
-tasks.register("downloadSnapshot", Copy) {
+/** Downloads latest released version from maven repository */
+tasks.register("downloadJapicmpCompareTarget", Copy) {
     def mavenSnapshotRepoUrl = "https://aws.oss.sonatype.org/content/repositories/snapshots/"
     def groupId = "org.opensearch"
     def artifactId = "opensearch"
 
-    def repos = project.getRepositories();
-    MavenArtifactRepository opensearchRepo = repos.maven(repo -> {
-        repo.setName("opensearch-snapshots");
-        repo.setUrl(mavenSnapshotRepoUrl);
-    });
+    // Add repository for snapshot artifacts if japicmp compare target version is snapshot
+    if (japicmpCompareTarget.endsWith("-SNAPSHOT")) {
+        def repos = project.getRepositories();
+        MavenArtifactRepository opensearchRepo = repos.maven(repo -> {
+            repo.setName("opensearch-snapshots");
+            repo.setUrl(mavenSnapshotRepoUrl);
+        });
 
-    repos.exclusiveContent(exclusiveRepo -> {
-        exclusiveRepo.filter(descriptor -> descriptor.includeGroup(groupId));
-        exclusiveRepo.forRepositories(opensearchRepo);
-    });
+        repos.exclusiveContent(exclusiveRepo -> {
+            exclusiveRepo.filter(descriptor -> descriptor.includeGroup(groupId));
+            exclusiveRepo.forRepositories(opensearchRepo);
+        });
+    }
 
     configurations {
-        snapshotArtifact {
+        japicmpCompareTargetArtifact {
             exclude group: 'org.apache.lucene'
         }
     }
 
     dependencies {
-        snapshotArtifact("${groupId}:${artifactId}:${version}:")
+        japicmpCompareTargetArtifact("${groupId}:${artifactId}:${japicmpCompareTarget}:")
     }
 
-    from configurations.snapshotArtifact
-    into "$buildDir/snapshot"
+    from configurations.japicmpCompareTargetArtifact
+    into "$buildDir/japicmp-target"
 }
 
 /** Check if the sha is in the current history */

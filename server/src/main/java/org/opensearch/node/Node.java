@@ -136,6 +136,7 @@ import org.opensearch.gateway.GatewayModule;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.PersistedClusterStateService;
+import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
@@ -146,6 +147,7 @@ import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
+import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -726,17 +728,26 @@ public class Node implements Closeable {
                 threadPool::relativeTimeInMillis
             );
             final RemoteClusterStateService remoteClusterStateService;
+            final RemoteIndexPathUploader remoteIndexPathUploader;
             if (isRemoteStoreClusterStateEnabled(settings)) {
+                remoteIndexPathUploader = new RemoteIndexPathUploader(
+                    threadPool,
+                    settings,
+                    repositoriesServiceReference::get,
+                    clusterService.getClusterSettings()
+                );
                 remoteClusterStateService = new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
                     repositoriesServiceReference::get,
                     settings,
                     clusterService.getClusterSettings(),
                     threadPool::preciseRelativeTimeInNanos,
-                    threadPool
+                    threadPool,
+                    List.of(remoteIndexPathUploader)
                 );
             } else {
                 remoteClusterStateService = null;
+                remoteIndexPathUploader = null;
             }
 
             // collect engine factory providers from plugins
@@ -1181,7 +1192,8 @@ public class Node implements Closeable {
                 resourceUsageCollectorService,
                 segmentReplicationStatsTracker,
                 repositoryService,
-                admissionControlService
+                admissionControlService,
+                cacheService
             );
 
             final SearchService searchService = newSearchService(
@@ -1313,6 +1325,7 @@ public class Node implements Closeable {
                 b.bind(SearchRequestSlowLog.class).toInstance(searchRequestSlowLog);
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
+                b.bind(RemoteIndexPathUploader.class).toProvider(() -> remoteIndexPathUploader);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
@@ -1322,9 +1335,12 @@ public class Node implements Closeable {
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
             // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it
             // completes we trigger another reroute to try the allocation again. This means there is a circular dependency: the allocation
-            // service needs access to the existing shards allocators (e.g. the GatewayAllocator) which need to be able to trigger a
-            // reroute, which needs to call into the allocation service. We close the loop here:
-            clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
+            // service needs access to the existing shards allocators (e.g. the GatewayAllocator, ShardsBatchGatewayAllocator) which
+            // need to be able to trigger a reroute, which needs to call into the allocation service. We close the loop here:
+            clusterModule.setExistingShardsAllocators(
+                injector.getInstance(GatewayAllocator.class),
+                injector.getInstance(ShardsBatchGatewayAllocator.class)
+            );
 
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)
@@ -1461,6 +1477,10 @@ public class Node implements Closeable {
         final RemoteClusterStateService remoteClusterStateService = injector.getInstance(RemoteClusterStateService.class);
         if (remoteClusterStateService != null) {
             remoteClusterStateService.start();
+        }
+        final RemoteIndexPathUploader remoteIndexPathUploader = injector.getInstance(RemoteIndexPathUploader.class);
+        if (remoteIndexPathUploader != null) {
+            remoteIndexPathUploader.start();
         }
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);

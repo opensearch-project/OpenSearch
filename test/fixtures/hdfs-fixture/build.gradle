@@ -37,7 +37,7 @@ versions << [
 ]
 
 dependencies {
-  api("org.apache.hadoop:hadoop-minicluster:3.3.6") {
+  api("org.apache.hadoop:hadoop-minicluster:3.4.0") {
     exclude module: 'websocket-client'
     exclude module: 'jettison'
     exclude module: 'netty'
@@ -69,7 +69,7 @@ dependencies {
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
   api 'org.apache.zookeeper:zookeeper:3.9.2'
-  api "org.apache.commons:commons-text:1.11.0"
+  api "org.apache.commons:commons-text:1.12.0"
   api "commons-net:commons-net:3.10.0"
   api "ch.qos.logback:logback-core:1.5.3"
   api "ch.qos.logback:logback-classic:1.2.13"
@@ -78,6 +78,6 @@ dependencies {
   runtimeOnly("com.squareup.okhttp3:okhttp:4.12.0") {
     exclude group: "com.squareup.okio"
   }
-  runtimeOnly "com.squareup.okio:okio:3.8.0"
+  runtimeOnly "com.squareup.okio:okio:3.9.0"
   runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.5"
 }
