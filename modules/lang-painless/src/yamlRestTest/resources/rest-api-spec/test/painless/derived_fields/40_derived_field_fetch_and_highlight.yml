@@ -169,4 +169,3 @@ setup:
   - match: { hits.hits.1.fields.derived_object\.boolean.0: false }
   - match: { hits.hits.1.fields.derived_object\.array_of_long.0: 2 }
   - match: { hits.hits.1.fields.derived_object\.array_of_long.1: 3 }
-
