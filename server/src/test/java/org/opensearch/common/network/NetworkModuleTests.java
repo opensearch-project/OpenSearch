@@ -47,13 +47,15 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpStats;
 import org.opensearch.http.NullDispatcher;
 import org.opensearch.plugins.NetworkPlugin;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
+import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
+import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TcpTransport;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
@@ -73,38 +75,60 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.hamcrest.CoreMatchers.startsWith;
+
 public class NetworkModuleTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
-    private SecureTransportSettingsProvider secureTransportSettingsProvider;
+    private SecureSettingsFactory secureSettingsFactory;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(NetworkModuleTests.class.getName());
-        secureTransportSettingsProvider = new SecureTransportSettingsProvider() {
+        secureSettingsFactory = new SecureSettingsFactory() {
+
             @Override
-            public Optional<ServerExceptionHandler> buildHttpServerExceptionHandler(Settings settings, HttpServerTransport transport) {
-                return Optional.empty();
+            public Optional<SecureTransportSettingsProvider> getSecureTransportSettingsProvider(Settings settings) {
+                return Optional.of(new SecureTransportSettingsProvider() {
+                    @Override
+                    public Optional<TransportExceptionHandler> buildServerTransportExceptionHandler(
+                        Settings settings,
+                        Transport transport
+                    ) {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, Transport transport)
+                        throws SSLException {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public Optional<SSLEngine> buildSecureClientTransportEngine(Settings settings, String hostname, int port)
+                        throws SSLException {
+                        return Optional.empty();
+                    }
+                });
             }
 
             @Override
-            public Optional<ServerExceptionHandler> buildServerTransportExceptionHandler(Settings settings, TcpTransport transport) {
-                return Optional.empty();
-            }
+            public Optional<SecureHttpTransportSettingsProvider> getSecureHttpTransportSettingsProvider(Settings settings) {
+                return Optional.of(new SecureHttpTransportSettingsProvider() {
+                    @Override
+                    public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport)
+                        throws SSLException {
+                        return Optional.empty();
+                    }
 
-            @Override
-            public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<SSLEngine> buildSecureServerTransportEngine(Settings settings, TcpTransport transport) throws SSLException {
-                return Optional.empty();
-            }
-
-            @Override
-            public Optional<SSLEngine> buildSecureClientTransportEngine(Settings settings, String hostname, int port) throws SSLException {
-                return Optional.empty();
+                    @Override
+                    public Optional<TransportExceptionHandler> buildHttpServerExceptionHandler(
+                        Settings settings,
+                        HttpServerTransport transport
+                    ) {
+                        return Optional.empty();
+                    }
+                });
             }
         };
     }
@@ -211,7 +235,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 return Collections.singletonMap("custom-secure", custom);
             }
         };
-        NetworkModule module = newNetworkModule(settings, null, List.of(secureTransportSettingsProvider), plugin);
+        NetworkModule module = newNetworkModule(settings, null, List.of(secureSettingsFactory), plugin);
         assertSame(custom, module.getTransportSupplier());
     }
 
@@ -222,7 +246,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             .build();
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
 
-        NetworkModule module = newNetworkModule(settings, null, List.of(secureTransportSettingsProvider), new NetworkPlugin() {
+        NetworkModule module = newNetworkModule(settings, null, List.of(secureSettingsFactory), new NetworkPlugin() {
             @Override
             public Map<String, Supplier<HttpServerTransport>> getSecureHttpTransports(
                 Settings settings,
@@ -234,7 +258,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
                 ClusterSettings clusterSettings,
-                SecureTransportSettingsProvider secureTransportSettingsProvider,
+                SecureHttpTransportSettingsProvider secureTransportSettingsProvider,
                 Tracer tracer
             ) {
                 return Collections.singletonMap("custom-secure", custom);
@@ -595,7 +619,7 @@ public class NetworkModuleTests extends OpenSearchTestCase {
     private NetworkModule newNetworkModule(
         Settings settings,
         List<TransportInterceptor> coreTransportInterceptors,
-        List<SecureTransportSettingsProvider> secureTransportSettingsProviders,
+        List<SecureSettingsFactory> secureSettingsFactories,
         NetworkPlugin... plugins
     ) {
         return new NetworkModule(
@@ -612,7 +636,33 @@ public class NetworkModuleTests extends OpenSearchTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             NoopTracer.INSTANCE,
             coreTransportInterceptors,
-            secureTransportSettingsProviders
+            secureSettingsFactories
         );
+    }
+
+    public void testRegisterSecureTransportMultipleProviers() {
+        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom-secure").build();
+        Supplier<Transport> custom = () -> null; // content doesn't matter we check reference equality
+        NetworkPlugin plugin = new NetworkPlugin() {
+            @Override
+            public Map<String, Supplier<Transport>> getSecureTransports(
+                Settings settings,
+                ThreadPool threadPool,
+                PageCacheRecycler pageCacheRecycler,
+                CircuitBreakerService circuitBreakerService,
+                NamedWriteableRegistry namedWriteableRegistry,
+                NetworkService networkService,
+                SecureTransportSettingsProvider secureTransportSettingsProvider,
+                Tracer tracer
+            ) {
+                return Collections.singletonMap("custom-secure", custom);
+            }
+        };
+
+        final IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> newNetworkModule(settings, null, List.of(secureSettingsFactory, secureSettingsFactory), plugin)
+        );
+        assertThat(ex.getMessage(), startsWith("there is more than one secure transport settings provider"));
     }
 }

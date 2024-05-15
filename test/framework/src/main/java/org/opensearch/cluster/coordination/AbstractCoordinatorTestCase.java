@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskListener;
@@ -89,7 +90,6 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
@@ -1147,7 +1147,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     clusterSettings,
                     deterministicTaskQueue,
                     threadPool,
-                    NoopMetricsRegistry.INSTANCE
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                 );
                 clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
@@ -1598,9 +1598,9 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             ClusterSettings clusterSettings,
             DeterministicTaskQueue deterministicTaskQueue,
             ThreadPool threadPool,
-            MetricsRegistry metricsRegistry
+            ClusterManagerMetrics clusterManagerMetrics
         ) {
-            super(nodeName, settings, clusterSettings, threadPool, metricsRegistry);
+            super(nodeName, settings, clusterSettings, threadPool, clusterManagerMetrics);
             this.nodeName = nodeName;
             this.deterministicTaskQueue = deterministicTaskQueue;
             addStateApplier(event -> {

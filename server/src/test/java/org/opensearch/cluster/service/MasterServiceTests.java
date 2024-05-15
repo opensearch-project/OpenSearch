@@ -40,6 +40,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -147,7 +148,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            metricsRegistry
+            new ClusterManagerMetrics(metricsRegistry)
         );
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
@@ -221,7 +222,6 @@ public class MasterServiceTests extends OpenSearchTestCase {
 
         nonClusterManager.close();
 
-        verify(metricsRegistry, times(2)).createHistogram(anyString(), anyString(), anyString());
         verify(clusterStateComputeHistogram, times(1)).record(anyDouble(), any());
     }
 
@@ -1100,7 +1100,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                         .build(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     threadPool,
-                    NoopMetricsRegistry.INSTANCE
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                 )
             ) {
 
@@ -1296,7 +1296,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     .build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
-                metricsRegistry
+                new ClusterManagerMetrics(metricsRegistry)
             )
         ) {
 
@@ -1416,7 +1416,6 @@ public class MasterServiceTests extends OpenSearchTestCase {
             }
         }
 
-        verify(metricsRegistry, times(2)).createHistogram(anyString(), anyString(), anyString());
         verify(clusterStateComputeHistogram, times(2)).record(anyDouble(), any());
         verify(clusterStatePublishHistogram, times(1)).record(anyDouble());
     }

@@ -89,7 +89,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             settings,
             clusterSettings,
             threadPool,
-            NoopMetricsRegistry.INSTANCE
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         ) {
             @Override
             protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {

@@ -95,8 +95,10 @@ import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
+import org.opensearch.index.mapper.ConstantKeywordFieldMapper;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.DerivedFieldMapper;
 import org.opensearch.index.mapper.FieldAliasMapper;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
@@ -124,7 +126,6 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 import org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.opensearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -198,6 +199,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         denylist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
         denylist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
         denylist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
+        denylist.add(DerivedFieldMapper.CONTENT_TYPE); // TODO support derived fields
         TYPE_TEST_DENYLIST = denylist;
     }
 
@@ -407,6 +409,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         );
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
+        when(searchContext.maxAggRewriteFilters()).thenReturn(10_000);
         registerFieldTypes(searchContext, mapperService, fieldNameToType);
         doAnswer(invocation -> {
             /* Store the release-ables so we can release them at the end of the test case. This is important because aggregations don't
@@ -778,6 +781,10 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                 source.put("doc_values", "true");
             }
 
+            if (mappedType.getKey().equals(ConstantKeywordFieldMapper.CONTENT_TYPE) == true) {
+                source.put("value", "default_value");
+            }
+
             Mapper.Builder builder = mappedType.getValue().parse(fieldName, source, new MockParserContext());
             FieldMapper mapper = (FieldMapper) builder.build(new BuilderContext(settings, new ContentPath()));
 
@@ -1116,7 +1123,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         private final AtomicInteger collectCounter;
         public final Aggregator delegate;
 
-        public CountingAggregator(AtomicInteger collectCounter, TermsAggregator delegate) {
+        public CountingAggregator(AtomicInteger collectCounter, Aggregator delegate) {
             this.collectCounter = collectCounter;
             this.delegate = delegate;
         }

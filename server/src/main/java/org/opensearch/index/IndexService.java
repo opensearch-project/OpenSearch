@@ -44,6 +44,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
@@ -94,6 +95,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
@@ -130,6 +132,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 
 /**
  * The main OpenSearch index service
@@ -183,8 +186,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
-    private final Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier;
     private final RecoverySettings recoverySettings;
+    private final RemoteStoreSettings remoteStoreSettings;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -219,8 +222,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
-        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -296,8 +299,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         this.translogFactorySupplier = translogFactorySupplier;
-        this.clusterRemoteTranslogBufferIntervalSupplier = clusterRemoteTranslogBufferIntervalSupplier;
         this.recoverySettings = recoverySettings;
+        this.remoteStoreSettings = remoteStoreSettings;
         updateFsyncTaskIfNecessary();
     }
 
@@ -461,7 +464,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         final RepositoriesService repositoriesService,
         final DiscoveryNode targetNode,
-        @Nullable DiscoveryNode sourceNode
+        @Nullable DiscoveryNode sourceNode,
+        DiscoveryNodes discoveryNodes
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -497,20 +501,33 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
-                    if (sourceNode != null && sourceNode.isRemoteStoreNode() == false) {
+                    if (sourceNode == null || sourceNode.isRemoteStoreNode() == false) {
                         if (routing.primary() == false) {
                             throw new IllegalStateException("Can't migrate a remote shard to replica before primary " + routing.shardId());
                         }
                         logger.info("DocRep shard {} is migrating to remote", shardId);
                         seedRemote = true;
                     }
+
                     remoteDirectory = ((RemoteSegmentStoreDirectoryFactory) remoteDirectoryFactory).newDirectory(
                         RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
                         this.indexSettings.getUUID(),
-                        shardId
+                        shardId,
+                        this.indexSettings.getRemoteStorePathStrategy()
                     );
                 }
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
+            } else {
+                // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
+                // Even though we have `RemoteStoreMigrationAllocationDecider` in place to prevent something like this from happening at the
+                // allocation level,
+                // keeping this defensive check in place
+                // TODO: Remove this once remote to docrep migration is supported
+                if (indexHasRemoteStoreSettings(indexSettings)) {
+                    throw new IllegalStateException(
+                        "[{" + routing.shardId() + "}] Cannot initialize shards with remote store index settings on non-remote store nodes"
+                    );
+                }
             }
 
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
@@ -548,10 +565,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings.isSegRepEnabledOrRemoteNode() ? checkpointPublisher : null,
                 remoteStore,
                 remoteStoreStatsTrackerFactory,
-                clusterRemoteTranslogBufferIntervalSupplier,
                 nodeEnv.nodeId(),
                 recoverySettings,
-                seedRemote
+                remoteStoreSettings,
+                seedRemote,
+                discoveryNodes
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

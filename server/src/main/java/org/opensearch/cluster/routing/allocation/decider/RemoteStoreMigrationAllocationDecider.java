@@ -39,6 +39,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import org.opensearch.node.remotestore.RemoteStoreNodeService.Direction;
@@ -60,9 +61,8 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "remote_store_migration";
 
-    private Direction migrationDirection;
-    private CompatibilityMode compatibilityMode;
-    private boolean remoteStoreBackedIndex;
+    volatile private Direction migrationDirection;
+    volatile private CompatibilityMode compatibilityMode;
 
     public RemoteStoreMigrationAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         this.migrationDirection = RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING.get(settings);
@@ -95,34 +95,38 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
             );
         }
 
-        if (migrationDirection.equals(Direction.REMOTE_STORE) == false) {
-            // docrep migration direction is currently not supported
-            return allocation.decision(
-                Decision.YES,
-                NAME,
-                getDecisionDetails(true, shardRouting, targetNode, " for non remote_store direction")
-            );
-        }
-
-        // check for remote store backed indices
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        if (IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.exists(indexMetadata.getSettings())) {
-            remoteStoreBackedIndex = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings());
-        }
-        if (remoteStoreBackedIndex && targetNode.isRemoteStoreNode() == false) {
-            // allocations and relocations must be to a remote node
-            String reason = String.format(
-                Locale.ROOT,
-                " because a remote store backed index's shard copy can only be %s to a remote node",
-                ((shardRouting.assignedToNode() == false) ? "allocated" : "relocated")
-            );
-            return allocation.decision(Decision.NO, NAME, getDecisionDetails(false, shardRouting, targetNode, reason));
-        }
+        boolean remoteSettingsBackedIndex = IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings());
 
-        if (shardRouting.primary()) {
-            return primaryShardDecision(shardRouting, targetNode, allocation);
+        if (migrationDirection.equals(Direction.NONE)) {
+            // remote backed indices on docrep nodes and non remote backed indices on remote nodes are not allowed
+            boolean isNoDecision = remoteSettingsBackedIndex ^ targetNode.isRemoteStoreNode();
+            String reason = String.format(Locale.ROOT, " for %sremote store backed index", remoteSettingsBackedIndex ? "" : "non ");
+            return allocation.decision(
+                isNoDecision ? Decision.NO : Decision.YES,
+                NAME,
+                getDecisionDetails(!isNoDecision, shardRouting, targetNode, reason)
+            );
+        } else if (migrationDirection.equals(Direction.DOCREP)) {
+            // docrep migration direction is currently not supported
+            return allocation.decision(Decision.YES, NAME, getDecisionDetails(true, shardRouting, targetNode, " for DOCREP direction"));
+        } else {
+            // check for remote store backed indices
+            if (remoteSettingsBackedIndex && targetNode.isRemoteStoreNode() == false) {
+                // allocations and relocations must be to a remote node
+                String reason = String.format(
+                    Locale.ROOT,
+                    " because a remote store backed index's shard copy can only be %s to a remote node",
+                    ((shardRouting.assignedToNode() == false) ? "allocated" : "relocated")
+                );
+                return allocation.decision(Decision.NO, NAME, getDecisionDetails(false, shardRouting, targetNode, reason));
+            }
+
+            if (shardRouting.primary()) {
+                return primaryShardDecision(shardRouting, targetNode, allocation);
+            }
+            return replicaShardDecision(shardRouting, targetNode, allocation);
         }
-        return replicaShardDecision(shardRouting, targetNode, allocation);
     }
 
     // handle scenarios for allocation of a new shard's primary copy
@@ -133,15 +137,20 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, getDecisionDetails(true, primaryShardRouting, targetNode, ""));
     }
 
+    // Checks if primary shard is on a remote node.
+    static boolean isPrimaryOnRemote(ShardId shardId, RoutingAllocation allocation) {
+        ShardRouting primaryShardRouting = allocation.routingNodes().activePrimary(shardId);
+        if (primaryShardRouting != null) {
+            DiscoveryNode primaryShardNode = allocation.nodes().getNodes().get(primaryShardRouting.currentNodeId());
+            return primaryShardNode.isRemoteStoreNode();
+        }
+        return false;
+    }
+
     private Decision replicaShardDecision(ShardRouting replicaShardRouting, DiscoveryNode targetNode, RoutingAllocation allocation) {
         if (targetNode.isRemoteStoreNode()) {
-            ShardRouting primaryShardRouting = allocation.routingNodes().activePrimary(replicaShardRouting.shardId());
-            boolean primaryHasMigratedToRemote = false;
-            if (primaryShardRouting != null) {
-                DiscoveryNode primaryShardNode = allocation.nodes().getNodes().get(primaryShardRouting.currentNodeId());
-                primaryHasMigratedToRemote = primaryShardNode.isRemoteStoreNode();
-            }
-            if (primaryHasMigratedToRemote == false) {
+            boolean primaryOnRemote = RemoteStoreMigrationAllocationDecider.isPrimaryOnRemote(replicaShardRouting.shardId(), allocation);
+            if (primaryOnRemote == false) {
                 return allocation.decision(
                     Decision.NO,
                     NAME,

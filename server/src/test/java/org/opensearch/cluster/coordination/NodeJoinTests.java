@@ -33,6 +33,7 @@ package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
@@ -181,7 +182,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            NoopMetricsRegistry.INSTANCE
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {

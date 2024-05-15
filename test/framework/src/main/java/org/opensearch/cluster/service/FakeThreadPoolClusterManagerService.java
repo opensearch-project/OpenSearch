@@ -34,6 +34,7 @@ package org.opensearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.opensearch.common.UUIDs;
@@ -76,7 +77,7 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            NoopMetricsRegistry.INSTANCE
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;

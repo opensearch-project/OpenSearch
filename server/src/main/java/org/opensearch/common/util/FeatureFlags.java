@@ -12,9 +12,11 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 
+import java.util.List;
+
 /**
  * Utility class to manage feature flags. Feature flags are system properties that must be set on the JVM.
- * These are used to gate the visibility/availability of incomplete features. Fore more information, see
+ * These are used to gate the visibility/availability of incomplete features. For more information, see
  * https://featureflags.io/feature-flag-introduction/
  *
  * @opensearch.internal
@@ -65,10 +67,53 @@ public class FeatureFlags {
      */
     public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
 
+    public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        REMOTE_STORE_MIGRATION_EXPERIMENTAL,
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
+
+    public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
+
+    public static final Setting<Boolean> TELEMETRY_SETTING = Setting.boolSetting(TELEMETRY, false, Property.NodeScope);
+
+    public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
+        DATETIME_FORMATTER_CACHING,
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> WRITEABLE_REMOTE_INDEX_SETTING = Setting.boolSetting(
+        WRITEABLE_REMOTE_INDEX,
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
+
+    private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
+        REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
+        EXTENSIONS_SETTING,
+        IDENTITY_SETTING,
+        TELEMETRY_SETTING,
+        DATETIME_FORMATTER_CACHING_SETTING,
+        WRITEABLE_REMOTE_INDEX_SETTING,
+        PLUGGABLE_CACHE_SETTING
+    );
     /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;
+
+    static {
+        Settings.Builder settingsBuilder = Settings.builder();
+        for (Setting<Boolean> ffSetting : ALL_FEATURE_FLAG_SETTINGS) {
+            settingsBuilder = settingsBuilder.put(ffSetting.getKey(), ffSetting.getDefault(Settings.EMPTY));
+        }
+        settings = settingsBuilder.build();
+    }
 
     /**
      * This method is responsible to map settings from opensearch.yml to local stored
@@ -77,7 +122,14 @@ public class FeatureFlags {
      * @param openSearchSettings The settings stored in opensearch.yml.
      */
     public static void initializeFeatureFlags(Settings openSearchSettings) {
-        settings = openSearchSettings;
+        Settings.Builder settingsBuilder = Settings.builder();
+        for (Setting<Boolean> ffSetting : ALL_FEATURE_FLAG_SETTINGS) {
+            settingsBuilder = settingsBuilder.put(
+                ffSetting.getKey(),
+                openSearchSettings.getAsBoolean(ffSetting.getKey(), ffSetting.getDefault(openSearchSettings))
+            );
+        }
+        settings = settingsBuilder.build();
     }
 
     /**
@@ -103,30 +155,4 @@ public class FeatureFlags {
             return featureFlag.getDefault(Settings.EMPTY);
         }
     }
-
-    public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
-        REMOTE_STORE_MIGRATION_EXPERIMENTAL,
-        false,
-        Property.NodeScope
-    );
-
-    public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
-
-    public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
-
-    public static final Setting<Boolean> TELEMETRY_SETTING = Setting.boolSetting(TELEMETRY, false, Property.NodeScope);
-
-    public static final Setting<Boolean> DATETIME_FORMATTER_CACHING_SETTING = Setting.boolSetting(
-        DATETIME_FORMATTER_CACHING,
-        true,
-        Property.NodeScope
-    );
-
-    public static final Setting<Boolean> WRITEABLE_REMOTE_INDEX_SETTING = Setting.boolSetting(
-        WRITEABLE_REMOTE_INDEX,
-        false,
-        Property.NodeScope
-    );
-
-    public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 }

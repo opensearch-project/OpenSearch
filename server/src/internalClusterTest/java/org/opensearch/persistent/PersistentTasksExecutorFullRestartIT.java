@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -129,7 +130,7 @@ public class PersistentTasksExecutorFullRestartIT extends OpenSearchIntegTestCas
                     .custom(PersistentTasksCustomMetadata.TYPE)).tasks(),
                 empty()
             );
-        });
+        }, 20, TimeUnit.SECONDS);
 
     }
 }

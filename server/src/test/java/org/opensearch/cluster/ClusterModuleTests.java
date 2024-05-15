@@ -75,6 +75,7 @@ import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.test.gateway.TestShardBatchGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -168,7 +169,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                     return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));
                 }
-            }), clusterInfoService, null, threadContext, NoopMetricsRegistry.INSTANCE)
+            }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE))
         );
         assertEquals(e.getMessage(), "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
     }
@@ -179,7 +180,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonList(new FakeAllocationDecider());
             }
-        }), clusterInfoService, null, threadContext, NoopMetricsRegistry.INSTANCE);
+        }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
 
@@ -189,7 +190,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonMap(name, supplier);
             }
-        }), clusterInfoService, null, threadContext, NoopMetricsRegistry.INSTANCE);
+        }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
     }
 
     public void testRegisterShardsAllocator() {
@@ -217,7 +218,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 clusterInfoService,
                 null,
                 threadContext,
-                NoopMetricsRegistry.INSTANCE
+                new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
             )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
@@ -305,9 +306,12 @@ public class ClusterModuleTests extends ModuleTestCase {
             clusterInfoService,
             null,
             threadContext,
-            NoopMetricsRegistry.INSTANCE
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
-        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(), new TestShardBatchGatewayAllocator())
+        );
     }
 
     public void testRejectsDuplicateExistingShardsAllocatorName() {
@@ -318,9 +322,12 @@ public class ClusterModuleTests extends ModuleTestCase {
             clusterInfoService,
             null,
             threadContext,
-            NoopMetricsRegistry.INSTANCE
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
-        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(), new TestShardBatchGatewayAllocator())
+        );
     }
 
     private static ClusterPlugin existingShardsAllocatorPlugin(final String allocatorName) {

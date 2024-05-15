@@ -253,6 +253,10 @@ public class RestShardsAction extends AbstractCatAction {
             "search.point_in_time_total",
             "alias:spto,searchPointInTimeTotal;default:false;text-align:right;desc:completed point in time contexts"
         );
+        table.addCell(
+            "search.search_idle_reactivate_count_total",
+            "alias:ssirct,searchSearchIdleReactivateCountTotal;default:false;text-align:right;desc:number of times a shard reactivated"
+        );
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
@@ -427,6 +431,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getPitCurrent()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getPitTime()));
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getPitCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getSearchIdleReactivateCount()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getCount));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getZeroMemory));

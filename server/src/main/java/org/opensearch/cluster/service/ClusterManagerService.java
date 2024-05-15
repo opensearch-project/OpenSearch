@@ -8,10 +8,10 @@
 
 package org.opensearch.cluster.service;
 
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 /**
@@ -25,8 +25,8 @@ public class ClusterManagerService extends MasterService {
         Settings settings,
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        MetricsRegistry metricsRegistry
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
-        super(settings, clusterSettings, threadPool, metricsRegistry);
+        super(settings, clusterSettings, threadPool, clusterManagerMetrics);
     }
 }

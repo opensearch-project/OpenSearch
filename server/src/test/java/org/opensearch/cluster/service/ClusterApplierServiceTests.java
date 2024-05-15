@@ -35,6 +35,7 @@ package org.opensearch.cluster.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -135,7 +136,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            metricsRegistry
+            new ClusterManagerMetrics(metricsRegistry)
         );
         timedClusterApplierService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         timedClusterApplierService.setInitialState(
@@ -678,9 +679,9 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
             Settings settings,
             ClusterSettings clusterSettings,
             ThreadPool threadPool,
-            MetricsRegistry metricsRegistry
+            ClusterManagerMetrics clusterManagerMetrics
         ) {
-            super("test_node", settings, clusterSettings, threadPool, metricsRegistry);
+            super("test_node", settings, clusterSettings, threadPool, clusterManagerMetrics);
             this.clusterSettings = clusterSettings;
         }
 

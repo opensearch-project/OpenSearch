@@ -66,8 +66,6 @@ import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.cluster.state.TransportClusterStateAction;
-import org.opensearch.action.admin.cluster.state.term.GetTermVersionAction;
-import org.opensearch.action.admin.cluster.state.term.TransportGetTermVersionAction;
 import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
@@ -105,6 +103,8 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
+import org.opensearch.action.support.clustermanager.term.TransportGetTermVersionAction;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.client.AdminClient;
@@ -112,6 +112,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterInfoService;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -192,6 +193,7 @@ import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -1921,7 +1923,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     settings,
                     clusterSettings,
                     clusterManagerService,
-                    new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool, NoopMetricsRegistry.INSTANCE) {
+                    new ClusterApplierService(
+                        node.getName(),
+                        settings,
+                        clusterSettings,
+                        threadPool,
+                        new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+                    ) {
                         @Override
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
@@ -2077,7 +2085,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     null,
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
                     DefaultRecoverySettings.INSTANCE,
-                    new CacheModule(new ArrayList<>(), settings).getCacheService()
+                    new CacheModule(new ArrayList<>(), settings).getCacheService(),
+                    DefaultRemoteStoreSettings.INSTANCE
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
@@ -2161,7 +2170,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     namedXContentRegistry,
                     systemIndices,
                     false,
-                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
+                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                    DefaultRemoteStoreSettings.INSTANCE
                 );
                 actions.put(
                     CreateIndexAction.INSTANCE,

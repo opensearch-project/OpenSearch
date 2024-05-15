@@ -59,6 +59,7 @@ import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterInfoService;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -136,6 +137,7 @@ import org.opensearch.gateway.GatewayModule;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.PersistedClusterStateService;
+import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
@@ -146,6 +148,7 @@ import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
+import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -153,6 +156,7 @@ import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
@@ -202,7 +206,7 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
-import org.opensearch.plugins.SecureTransportSettingsProvider;
+import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
@@ -631,12 +635,14 @@ public class Node implements Closeable {
             resourcesToClose.add(tracer::close);
             resourcesToClose.add(metricsRegistry::close);
 
+            final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
+
             List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
             final ClusterService clusterService = new ClusterService(
                 settings,
                 settingsModule.getClusterSettings(),
                 threadPool,
-                metricsRegistry
+                clusterManagerMetrics
             );
             clusterService.addStateApplier(scriptService);
             resourcesToClose.add(clusterService);
@@ -675,7 +681,7 @@ public class Node implements Closeable {
                 clusterInfoService,
                 snapshotsInfoService,
                 threadPool.getThreadContext(),
-                metricsRegistry
+                clusterManagerMetrics
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
@@ -731,17 +737,26 @@ public class Node implements Closeable {
                 threadPool::relativeTimeInMillis
             );
             final RemoteClusterStateService remoteClusterStateService;
+            final RemoteIndexPathUploader remoteIndexPathUploader;
             if (isRemoteStoreClusterStateEnabled(settings)) {
+                remoteIndexPathUploader = new RemoteIndexPathUploader(
+                    threadPool,
+                    settings,
+                    repositoriesServiceReference::get,
+                    clusterService.getClusterSettings()
+                );
                 remoteClusterStateService = new RemoteClusterStateService(
                     nodeEnvironment.nodeId(),
                     repositoriesServiceReference::get,
                     settings,
                     clusterService.getClusterSettings(),
                     threadPool::preciseRelativeTimeInNanos,
-                    threadPool
+                    threadPool,
+                    List.of(remoteIndexPathUploader)
                 );
             } else {
                 remoteClusterStateService = null;
+                remoteIndexPathUploader = null;
             }
 
             // collect engine factory providers from plugins
@@ -794,6 +809,8 @@ public class Node implements Closeable {
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
+            final RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, settingsModule.getClusterSettings());
+
             final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get,
                 threadPool
@@ -831,7 +848,8 @@ public class Node implements Closeable {
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 recoverySettings,
-                cacheService
+                cacheService,
+                remoteStoreSettings
             );
 
             final IngestService ingestService = new IngestService(
@@ -865,7 +883,8 @@ public class Node implements Closeable {
                 xContentRegistry,
                 systemIndices,
                 forbidPrivateIndexSettings,
-                awarenessReplicaBalance
+                awarenessReplicaBalance,
+                remoteStoreSettings
             );
             pluginsService.filterPlugins(Plugin.class)
                 .forEach(
@@ -952,9 +971,9 @@ public class Node implements Closeable {
                 admissionControlService
             );
 
-            final Collection<SecureTransportSettingsProvider> secureTransportSettingsProviders = pluginsService.filterPlugins(Plugin.class)
+            final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()
-                .map(p -> p.getSecureSettingFactory(settings).flatMap(f -> f.getSecureTransportSettingsProvider(settings)))
+                .map(p -> p.getSecureSettingFactory(settings))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .collect(Collectors.toList());
@@ -974,7 +993,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 tracer,
                 transportInterceptors,
-                secureTransportSettingsProviders
+                secureSettingsFactories
             );
 
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
@@ -1182,7 +1201,8 @@ public class Node implements Closeable {
                 resourceUsageCollectorService,
                 segmentReplicationStatsTracker,
                 repositoryService,
-                admissionControlService
+                admissionControlService,
+                cacheService
             );
 
             final SearchService searchService = newSearchService(
@@ -1314,6 +1334,7 @@ public class Node implements Closeable {
                 b.bind(SearchRequestSlowLog.class).toInstance(searchRequestSlowLog);
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
+                b.bind(RemoteIndexPathUploader.class).toProvider(() -> remoteIndexPathUploader);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
@@ -1323,9 +1344,12 @@ public class Node implements Closeable {
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
             // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it
             // completes we trigger another reroute to try the allocation again. This means there is a circular dependency: the allocation
-            // service needs access to the existing shards allocators (e.g. the GatewayAllocator) which need to be able to trigger a
-            // reroute, which needs to call into the allocation service. We close the loop here:
-            clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
+            // service needs access to the existing shards allocators (e.g. the GatewayAllocator, ShardsBatchGatewayAllocator) which
+            // need to be able to trigger a reroute, which needs to call into the allocation service. We close the loop here:
+            clusterModule.setExistingShardsAllocators(
+                injector.getInstance(GatewayAllocator.class),
+                injector.getInstance(ShardsBatchGatewayAllocator.class)
+            );
 
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)
@@ -1462,6 +1486,10 @@ public class Node implements Closeable {
         final RemoteClusterStateService remoteClusterStateService = injector.getInstance(RemoteClusterStateService.class);
         if (remoteClusterStateService != null) {
             remoteClusterStateService.start();
+        }
+        final RemoteIndexPathUploader remoteIndexPathUploader = injector.getInstance(RemoteIndexPathUploader.class);
+        if (remoteIndexPathUploader != null) {
+            remoteIndexPathUploader.start();
         }
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);

@@ -11,9 +11,11 @@ package org.opensearch.node.remotestore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
@@ -222,5 +224,39 @@ public class RemoteStoreNodeService {
         } else {
             return existingRepositories;
         }
+    }
+
+    /**
+     * Returns <code>true</code> iff current cluster settings have:
+     * <br>
+     * - <code>remote_store.compatibility_mode</code> set to <code>mixed</code>
+     * <br>
+     * - <code>migration.direction</code> set to <code>remote_store</code>
+     * <br>
+     * <code>false</code> otherwise
+     *
+     * @param clusterSettings cluster level settings
+     * @return
+     * <code>true</code> For <code>REMOTE_STORE</code> migration direction and <code>MIXED</code> compatibility mode,
+     * <code>false</code> otherwise
+     */
+    public static boolean isMigratingToRemoteStore(ClusterSettings clusterSettings) {
+        boolean isMixedMode = clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED);
+        boolean isRemoteStoreMigrationDirection = clusterSettings.get(MIGRATION_DIRECTION_SETTING).equals(Direction.REMOTE_STORE);
+
+        return (isMixedMode && isRemoteStoreMigrationDirection);
+    }
+
+    /**
+     * To check if the cluster is undergoing remote store migration using clusterState metadata
+     * @return
+     * <code>true</code> For <code>REMOTE_STORE</code> migration direction and <code>MIXED</code> compatibility mode,
+     * <code>false</code> otherwise
+     */
+    public static boolean isMigratingToRemoteStore(Metadata metadata) {
+        boolean isMixedMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings()).equals(CompatibilityMode.MIXED);
+        boolean isRemoteStoreMigrationDirection = MIGRATION_DIRECTION_SETTING.get(metadata.settings()).equals(Direction.REMOTE_STORE);
+
+        return (isMixedMode && isRemoteStoreMigrationDirection);
     }
 }

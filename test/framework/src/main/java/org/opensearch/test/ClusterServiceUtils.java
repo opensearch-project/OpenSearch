@@ -34,6 +34,7 @@ package org.opensearch.test;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
@@ -69,7 +70,7 @@ public class ClusterServiceUtils {
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_cluster_manager_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            NoopMetricsRegistry.INSTANCE
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
         clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
@@ -182,7 +183,12 @@ public class ClusterServiceUtils {
         MetricsRegistry metricsRegistry
     ) {
         Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool, metricsRegistry);
+        ClusterService clusterService = new ClusterService(
+            settings,
+            clusterSettings,
+            threadPool,
+            new ClusterManagerMetrics(metricsRegistry)
+        );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).clusterManagerNodeId(localNode.getId()))
@@ -197,7 +203,7 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        return new ClusterService(settings, clusterSettings, threadPool, NoopMetricsRegistry.INSTANCE);
+        return new ClusterService(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
     }
 
     public static NodeConnectionsService createNoOpNodeConnectionsService() {
