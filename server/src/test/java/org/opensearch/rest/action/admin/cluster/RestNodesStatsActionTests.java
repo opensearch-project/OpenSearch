@@ -130,7 +130,7 @@ public class RestNodesStatsActionTests extends OpenSearchTestCase {
         );
     }
 
-    public void testIndexMetricsRequestWithoutIndicesMetric() throws IOException {
+    public void testIndexMetricsRequestWithoutIndicesAndCachesMetrics() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
         final Set<String> metrics = new HashSet<>(RestNodesStatsAction.METRICS.keySet());
         metrics.remove("indices");
