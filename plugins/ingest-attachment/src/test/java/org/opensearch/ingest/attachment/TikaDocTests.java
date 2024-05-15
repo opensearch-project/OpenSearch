@@ -40,17 +40,17 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Locale;
 import java.util.Map;
 
 /**
  * Parse sample tika documents and assert the contents has not changed according to previously recorded checksums.
  * Uncaught changes to tika parsing could potentially pose bwc issues.
+ * Note: In some cases tika will access a user's locale to inform the parsing of a file.
+ * The checksums of these files are left empty, and we only validate that parsed content is not null.
  */
 @SuppressFileSystems("ExtrasFS") // don't try to parse extraN
 public class TikaDocTests extends OpenSearchTestCase {
@@ -58,11 +58,6 @@ public class TikaDocTests extends OpenSearchTestCase {
     /** some test files from the apache tika unit test suite with accompanying sha1 checksums */
     static final String TIKA_FILES = "/org/opensearch/ingest/attachment/test/tika-files/";
     static final String TIKA_CHECKSUMS = "/org/opensearch/ingest/attachment/test/.checksums";
-
-    @Before
-    public void setLocale() {
-        Locale.setDefault(Locale.ENGLISH);
-    }
 
     public void testParseSamples() throws Exception {
         String checksumJson = Files.readString(PathUtils.get(getClass().getResource(TIKA_CHECKSUMS).toURI()));
@@ -73,7 +68,11 @@ public class TikaDocTests extends OpenSearchTestCase {
             String parsedContent = tryParse(doc);
             assertNotNull(parsedContent);
             assertFalse(parsedContent.isEmpty());
-            assertEquals(checksums.get(doc.getFileName().toString()), DigestUtils.sha1Hex(parsedContent));
+
+            String check = checksums.get(doc.getFileName().toString()).toString();
+            if (!check.isEmpty()) {
+                assertEquals(check, DigestUtils.sha1Hex(parsedContent));
+            }
         }
 
         stream.close();
