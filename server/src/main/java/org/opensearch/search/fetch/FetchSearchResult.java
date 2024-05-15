@@ -39,6 +39,7 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.fetch.subphase.serializer.NativeFetchSearchResultSerializer;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
 
@@ -52,16 +53,16 @@ import java.io.IOException;
 @PublicApi(since = "1.0.0")
 public final class FetchSearchResult extends SearchPhaseResult {
 
-    private SearchHits hits;
     // client side counter
     private transient int counter;
+    private final NativeFetchSearchResultSerializer serializer = new NativeFetchSearchResultSerializer();
 
     public FetchSearchResult() {}
 
     public FetchSearchResult(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);
-        hits = new SearchHits(in);
+        serializer.readFetchSearchResult(in);
     }
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -81,7 +82,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public void hits(SearchHits hits) {
         assert assertNoSearchTarget(hits);
-        this.hits = hits;
+        serializer.setHits(hits);
     }
 
     private boolean assertNoSearchTarget(SearchHits hits) {
@@ -92,7 +93,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public SearchHits hits() {
-        return hits;
+        return serializer.getHits();
     }
 
     public FetchSearchResult initCounter() {
@@ -107,6 +108,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
-        hits.writeTo(out);
+        serializer.writeFetchSearchResult(out);
     }
 }

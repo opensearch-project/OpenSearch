@@ -52,12 +52,12 @@ public class CachedQueryResult {
     ) throws IOException {
         StreamInput in = new NamedWriteableAwareStreamInput(serializedCQR.streamInput(), registry);
         PolicyValues pv = new PolicyValues(in); // Read and discard PolicyValues
-        qsr.readFromWithId(id, in);
+        qsr.getSerializer().readFromWithId(in);
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
         policyValues.writeTo(out);
-        qsr.writeToNoId(out);
+        qsr.getSerializer().writeToNoId(out);
     }
 
     /**
