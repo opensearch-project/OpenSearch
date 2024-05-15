@@ -1,4 +1,4 @@
-"derived_field using index mapping definition":
+"Test derived_field supported type using index mapping definition":
   - skip:
       version: " - 2.14.99"
       reason: "derived_field feature was added in 2.15"
@@ -27,6 +27,8 @@
                 type: ip
               boolean:
                 type: boolean
+              array_of_long:
+                type: long
               json_field:
                 type: text
             derived:
@@ -61,6 +63,9 @@
               derived_boolean:
                 type: boolean
                 script: "emit(params._source[\"boolean\"])"
+              derived_array_of_long:
+                type: long
+                script: "emit(params._source[\"array_of_long\"][0]);emit(params._source[\"array_of_long\"][1]);"
               derived_object:
                 type: object
                 properties:
@@ -82,7 +87,8 @@
           geo: [0.0, 20.0],
           ip: "192.168.0.1",
           boolean: true,
-          json_field: "{\"keyword\":\"json_keyword1\",\"long\":10,\"float\":10.0,\"double\":10.0,\"date\":\"2021-01-01T00:00:00Z\",\"ip\":\"10.0.0.1\",\"boolean\":true}"
+          array_of_long: [1, 2],
+          json_field: "{\"keyword\":\"json_keyword1\",\"long\":10,\"float\":10.0,\"double\":10.0,\"date\":\"2021-01-01T00:00:00Z\",\"ip\":\"10.0.0.1\",\"boolean\":true, \"array_of_long\": [1, 2]}}"
         }
 
   - do:
@@ -99,7 +105,8 @@
           geo: [10.0, 30.0],
           ip: "192.168.0.2",
           boolean: false,
-          json_field: "{\"keyword\":\"json_keyword2\",\"long\":20,\"float\":20.0,\"double\":20.0,\"date\":\"2021-02-01T00:00:00Z\",\"ip\":\"10.0.0.2\",\"boolean\":false}"
+          array_of_long: [2, 3],
+          json_field: "{\"keyword\":\"json_keyword2\",\"long\":20,\"float\":20.0,\"double\":20.0,\"date\":\"2021-02-01T00:00:00Z\",\"ip\":\"10.0.0.2\",\"boolean\":false, \"array_of_long\": [2, 3]}}"
         }
 
   - do:
@@ -116,7 +123,8 @@
           geo: [20.0, 40.0],
           ip: "192.168.0.3",
           boolean: true,
-          json_field: "{\"keyword\":\"json_keyword3\",\"long\":30,\"float\":30.0,\"double\":30.0,\"date\":\"2021-03-01T00:00:00Z\",\"ip\":\"10.0.0.3\",\"boolean\":true}"
+          array_of_long: [3, 4],
+          json_field: "{\"keyword\":\"json_keyword3\",\"long\":30,\"float\":30.0,\"double\":30.0,\"date\":\"2021-03-01T00:00:00Z\",\"ip\":\"10.0.0.3\",\"boolean\":true, \"array_of_long\": [3, 4]}"
         }
 
   - do:
@@ -133,7 +141,8 @@
           geo: [30.0, 50.0],
           ip: "192.168.0.4",
           boolean: false,
-          json_field: "{\"keyword\":\"json_keyword4\",\"long\":40,\"float\":40.0,\"double\":40.0,\"date\":\"2021-04-01T00:00:00Z\",\"ip\":\"10.0.0.4\",\"boolean\":false}"
+          array_of_long: [4, 5],
+          json_field: "{\"keyword\":\"json_keyword4\",\"long\":40,\"float\":40.0,\"double\":40.0,\"date\":\"2021-04-01T00:00:00Z\",\"ip\":\"10.0.0.4\",\"boolean\":false, \"array_of_long\": [4, 5]}"
         }
 
   - do:
@@ -150,7 +159,8 @@
           geo: [40.0, 60.0],
           ip: "192.168.0.5",
           boolean: true,
-          json_field: "{\"keyword\":\"json_keyword5\",\"long\":50,\"float\":50.0,\"double\":50.0,\"date\":\"2021-05-01T00:00:00Z\",\"ip\":\"10.0.0.5\",\"boolean\":true}"
+          array_of_long: [5, 6],
+          json_field: "{\"keyword\":\"json_keyword5\",\"long\":50,\"float\":50.0,\"double\":50.0,\"date\":\"2021-05-01T00:00:00Z\",\"ip\":\"10.0.0.5\",\"boolean\":true, \"array_of_long\": [5, 6]}"
         }
 
   - do:
@@ -276,6 +286,19 @@
 
   - match: { hits.total: 3 }
 
+  # Tests for derived_array_of_long
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            range:
+              derived_array_of_long:
+                gte: 3
+
+  - match: { hits.total: 4 }
+
   # Tests for derived_object.keyword
   - do:
       search:
@@ -366,3 +389,16 @@
                 value: true
 
   - match: { hits.total: 3 }
+
+  # Tests for derived_object.array_of_long
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            range:
+              derived_object.array_of_long:
+                gte: 3
+
+  - match: { hits.total: 4 }
