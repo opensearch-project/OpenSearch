@@ -27,9 +27,9 @@ import java.util.Objects;
 /**
  * Class to define the ResourceLimitGroup schema
  * {
- *     "analytics":{
+ *     "analytics" : {
  *              "jvm": 0.4,
- *              "mpde": "enforced",
+ *              "mode": "enforced",
  *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga"
  *      }
  * }
@@ -112,8 +112,8 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.startObject(this.name);
-        builder.field("_id", _id);
+        builder.startObject(this._id);
+        builder.field("name", name);
         builder.field("mode", mode.getName());
         builder.mapContents(resourceLimits);
         builder.endObject();
@@ -132,7 +132,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             throw new IllegalArgumentException("Expected FIELD_NAME token but found [" + parser.currentName() + "]");
         }
 
-        Builder builder = builder().name(parser.currentName());
+        Builder builder = builder()._id(parser.currentName());
 
         XContentParser.Token token = parser.nextToken();
 
@@ -147,8 +147,8 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (fieldName.equals("_id")) {
-                    builder._id(parser.text());
+                if (fieldName.equals("name")) {
+                    builder.name(parser.text());
                 } else if (fieldName.equals("mode")) {
                     builder.mode(parser.text());
                 } else if (ALLOWED_RESOURCES.contains(fieldName)) {
@@ -219,16 +219,12 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         }
 
         public static ResourceLimitGroupMode fromName(String s) {
-            switch (s) {
-                case "soft":
-                    return SOFT;
-                case "enforced":
-                    return ENFORCED;
-                case "monitor":
-                    return MONITOR;
-                default:
-                    throw new IllegalArgumentException("Invalid value for ResourceLimitGroupMode: " + s);
+            for (ResourceLimitGroupMode mode: values()) {
+                if (mode.getName().equalsIgnoreCase(s))
+                    return mode;
+
             }
+            throw new IllegalArgumentException("Invalid value for ResourceLimitGroupMode: " + s);
         }
 
     }
