@@ -214,9 +214,8 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateStats = new RemotePersistenceStats();
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
 
-        if(isRemoteRoutingTableEnabled(settings)) {
-            this.remoteRoutingTableService = new RemoteRoutingTableService(repositoriesService,
-                settings, clusterSettings);
+        if (isRemoteRoutingTableEnabled(settings)) {
+            this.remoteRoutingTableService = new RemoteRoutingTableService(repositoriesService, settings, clusterSettings);
         }
     }
 
@@ -652,7 +651,7 @@ public class RemoteClusterStateService implements Closeable {
         if (blobStoreRepository != null) {
             IOUtils.close(blobStoreRepository);
         }
-        if(this.remoteRoutingTableService != null) {
+        if (this.remoteRoutingTableService != null) {
             this.remoteRoutingTableService.close();
         }
     }
@@ -666,7 +665,7 @@ public class RemoteClusterStateService implements Closeable {
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         blobStoreRepository = (BlobStoreRepository) repository;
-        if(this.remoteRoutingTableService != null) {
+        if (this.remoteRoutingTableService != null) {
             this.remoteRoutingTableService.start();
         }
     }
@@ -805,7 +804,7 @@ public class RemoteClusterStateService implements Closeable {
         return this.metadataManifestUploadTimeout;
     }
 
-    //Package private for unit test
+    // Package private for unit test
     RemoteRoutingTableService getRemoteRoutingTableService() {
         return this.remoteRoutingTableService;
     }

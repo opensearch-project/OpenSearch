@@ -104,7 +104,6 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
-
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,

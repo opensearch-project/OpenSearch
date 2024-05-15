@@ -163,7 +163,7 @@ public class RemoteStoreNodeAttribute {
         } else if (node.getAttributes().containsKey(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
             repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY));
         }
-        if (node.getAttributes().containsKey(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)){
+        if (node.getAttributes().containsKey(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
             repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
         }
 
@@ -203,7 +203,8 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean isRemoteRoutingTableEnabled(Settings settings) {
-        return FeatureFlags.isEnabled(REMOTE_ROUTING_TABLE_EXPERIMENTAL) && RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.get(settings)
+        return FeatureFlags.isEnabled(REMOTE_ROUTING_TABLE_EXPERIMENTAL)
+            && RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.get(settings)
             && isRemoteRoutingTableAttributePresent(settings);
     }
 

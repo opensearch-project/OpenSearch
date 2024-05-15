@@ -8,8 +8,6 @@
 
 package org.opensearch.cluster.routing.remote;
 
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -18,12 +16,16 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.function.Supplier;
 
-import static org.mockito.Mockito.*;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_ROUTING_TABLE_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
@@ -52,11 +54,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put(REMOTE_ROUTING_TABLE_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
 
-        remoteRoutingTableService = new RemoteRoutingTableService(
-            repositoriesServiceSupplier,
-            settings,
-            clusterSettings
-        );
+        remoteRoutingTableService = new RemoteRoutingTableService(repositoriesServiceSupplier, settings, clusterSettings);
     }
 
     @After
@@ -64,7 +62,6 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         super.tearDown();
         remoteRoutingTableService.close();
     }
-
 
     public void testFailInitializationWhenRemoteRoutingDisabled() {
         final Settings settings = Settings.builder().build();

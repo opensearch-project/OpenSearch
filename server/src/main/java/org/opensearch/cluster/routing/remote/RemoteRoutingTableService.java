@@ -52,23 +52,29 @@ public class RemoteRoutingTableService implements Closeable {
     private final ClusterSettings clusterSettings;
     private BlobStoreRepository blobStoreRepository;
 
-    public RemoteRoutingTableService(Supplier<RepositoriesService> repositoriesService,
-                                     Settings settings,
-                                     ClusterSettings clusterSettings) {
+    public RemoteRoutingTableService(
+        Supplier<RepositoriesService> repositoriesService,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
         assert isRemoteRoutingTableEnabled(settings) : "Remote routing table is not enabled";
         this.repositoriesService = repositoriesService;
         this.settings = settings;
         this.clusterSettings = clusterSettings;
     }
 
-    public List<ClusterMetadataManifest.UploadedIndexMetadata> writeFullRoutingTable(ClusterState clusterState, String previousClusterUUID) {
+    public List<ClusterMetadataManifest.UploadedIndexMetadata> writeFullRoutingTable(
+        ClusterState clusterState,
+        String previousClusterUUID
+    ) {
         return null;
     }
 
     public List<ClusterMetadataManifest.UploadedIndexMetadata> writeIncrementalMetadata(
         ClusterState previousClusterState,
         ClusterState clusterState,
-        ClusterMetadataManifest previousManifest) {
+        ClusterMetadataManifest previousManifest
+    ) {
         return null;
     }
 
@@ -76,12 +82,16 @@ public class RemoteRoutingTableService implements Closeable {
         return null;
     }
 
-    public RoutingTable getIncrementalRoutingTable(ClusterState previousClusterState, ClusterMetadataManifest previousManifest, String clusterName, String clusterUUID) {
+    public RoutingTable getIncrementalRoutingTable(
+        ClusterState previousClusterState,
+        ClusterMetadataManifest previousManifest,
+        String clusterName,
+        String clusterUUID
+    ) {
         return null;
     }
 
-    private void deleteStaleRoutingTable(String clusterName, String clusterUUID, int manifestsToRetain) {
-    }
+    private void deleteStaleRoutingTable(String clusterName, String clusterUUID, int manifestsToRetain) {}
 
     @Override
     public void close() throws IOException {

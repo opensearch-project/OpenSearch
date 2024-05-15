@@ -88,6 +88,10 @@ import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_C
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_FILE_PREFIX;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.METADATA_FILE_PREFIX;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.RETAINED_MANIFESTS;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -100,7 +104,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.*;
 
 public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
@@ -1224,7 +1227,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteRoutingTableNotInitializedWhenDisabled() {
-       assertNull(remoteClusterStateService.getRemoteRoutingTableService());
+        assertNull(remoteClusterStateService.getRemoteRoutingTableService());
     }
 
     public void testRemoteRoutingTableInitializedWhenEnabled() {
@@ -1245,7 +1248,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             newSettings,
             clusterSettings,
             () -> 0L,
-            threadPool
+            threadPool,
+            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings))
         );
         assertNotNull(remoteClusterStateService.getRemoteRoutingTableService());
     }
