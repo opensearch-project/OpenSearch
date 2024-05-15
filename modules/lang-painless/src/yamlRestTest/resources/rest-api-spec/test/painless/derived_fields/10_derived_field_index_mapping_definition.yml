@@ -401,4 +401,4 @@
               derived_object.array_of_long:
                 gte: 3
 
-  - match: { hits.total: 3 }
+  - match: { hits.total: 4 }
