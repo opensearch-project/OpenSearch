@@ -85,7 +85,7 @@ public class TemplatesMetadata extends AbstractDiffable<TemplatesMetadata> imple
      *
      * @opensearch.api
      */
-    @PublicApi(since = "3.0.0")
+    @PublicApi(since = "2.15.0")
     public static class Builder {
         private final Map<String, IndexTemplateMetadata> templates;
 
