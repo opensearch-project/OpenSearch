@@ -34,6 +34,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFilenameUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -90,7 +91,12 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
         RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
-        remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, SegmentReplicationCheckpointPublisher.EMPTY, tracker);
+        remoteStoreRefreshListener = new RemoteStoreRefreshListener(
+            indexShard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            tracker,
+            DefaultRemoteStoreSettings.INSTANCE
+        );
     }
 
     private void indexDocs(int startDocId, int numberOfDocs) throws IOException {
@@ -175,7 +181,12 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
 
         // Since the thrown IOException is caught in the constructor, ctor should be invoked successfully.
-        new RemoteStoreRefreshListener(shard, SegmentReplicationCheckpointPublisher.EMPTY, mock(RemoteSegmentTransferTracker.class));
+        new RemoteStoreRefreshListener(
+            shard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            mock(RemoteSegmentTransferTracker.class),
+            DefaultRemoteStoreSettings.INSTANCE
+        );
 
         // Validate that the stream of metadata file of remoteMetadataDirectory has been opened only once and the
         // listFilesByPrefixInLexicographicOrder has been called twice.
@@ -638,7 +649,12 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         RemoteStoreSettings remoteStoreSettings = mock(RemoteStoreSettings.class);
         when(remoteStoreSettings.getMinRemoteSegmentMetadataFiles()).thenReturn(10);
         when(shard.getRemoteStoreSettings()).thenReturn(remoteStoreSettings);
-        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, emptyCheckpointPublisher, tracker);
+        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(
+            shard,
+            emptyCheckpointPublisher,
+            tracker,
+            DefaultRemoteStoreSettings.INSTANCE
+        );
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteStoreStatsTrackerFactory);
     }
