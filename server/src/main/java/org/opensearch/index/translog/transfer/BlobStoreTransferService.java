@@ -111,11 +111,10 @@ public class BlobStoreTransferService implements TransferService {
     // Builds a metadata map containing the Base64-encoded checkpoint file data associated with a translog file.
     static Map<String, String> buildTransferFileMetadata(InputStream metadataInputStream) throws IOException {
         Map<String, String> metadata = new HashMap<>();
-        try (metadataInputStream) {
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[128];
             int bytesRead;
             int totalBytesRead = 0;
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
             while ((bytesRead = metadataInputStream.read(buffer)) != -1) {
                 byteArrayOutputStream.write(buffer, 0, bytesRead);

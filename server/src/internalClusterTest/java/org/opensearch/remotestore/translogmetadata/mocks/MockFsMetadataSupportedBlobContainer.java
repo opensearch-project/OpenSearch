@@ -59,13 +59,14 @@ public class MockFsMetadataSupportedBlobContainer extends FsBlobContainer implem
         final Path file = path.resolve(writeContext.getFileName());
         byte[] buffer = new byte[(int) writeContext.getFileSize()];
 
-        // If the upload writeContext have a non-null metadata, we store the metadata content as translog file name.
+        // If the upload writeContext have a non-null metadata, we store the metadata content as translog.ckp file.
         if (writeContext.getMetadata() != null) {
             String base64String = writeContext.getMetadata().get(CHECKPOINT_FILE_DATA_KEY);
             byte[] decodedBytes = Base64.getDecoder().decode(base64String);
             ByteArrayInputStream inputStream = new ByteArrayInputStream(decodedBytes);
             int length = decodedBytes.length;
-            writeBlob(getCheckpointFileName(writeContext.getFileName()), inputStream, length, true);
+            String ckpFileName = getCheckpointFileName(writeContext.getFileName());
+            writeBlob(ckpFileName, inputStream, length, true);
         }
 
         AtomicLong totalContentRead = new AtomicLong();
@@ -147,11 +148,10 @@ public class MockFsMetadataSupportedBlobContainer extends FsBlobContainer implem
     }
 
     public static String convertToBase64(InputStream inputStream) throws IOException {
-        try (inputStream) {
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[128];
             int bytesRead;
             int totalBytesRead = 0;
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 byteArrayOutputStream.write(buffer, 0, bytesRead);
@@ -171,7 +171,8 @@ public class MockFsMetadataSupportedBlobContainer extends FsBlobContainer implem
     @Override
     public FetchBlobResult readBlobWithMetadata(String blobName) throws IOException {
         InputStream inputStream = readBlob(blobName);
-        InputStream ckpInputStream = readBlob(getCheckpointFileName(blobName));
+        String ckpFileName = getCheckpointFileName(blobName);
+        InputStream ckpInputStream = readBlob(ckpFileName);
         String ckpString = convertToBase64(ckpInputStream);
         Map<String, String> metadata = new HashMap<>();
         metadata.put(CHECKPOINT_FILE_DATA_KEY, ckpString);

@@ -10,32 +10,19 @@ package org.opensearch.remotestore.translogmetadata;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.remotestore.RemoteStoreRestoreIT;
+import org.opensearch.remotestore.RemoteStoreStatsIT;
 import org.opensearch.remotestore.translogmetadata.mocks.MockFsMetadataSupportedRepositoryPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
-import org.junit.Before;
 
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteStoreTranslogMetadataRestoreIT extends RemoteStoreRestoreIT {
-    Path repositoryLocation;
-    boolean compress;
-    boolean overrideBuildRepositoryMetadata;
-
-    @Before
-    public void setup() {
-        clusterSettingsSuppliedByTest = true;
-        overrideBuildRepositoryMetadata = false;
-        repositoryLocation = randomRepoPath();
-        compress = randomBoolean();
-    }
+public class TranslogMetadataRemoteStoreStatsIT extends RemoteStoreStatsIT {
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
+    public Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockFsMetadataSupportedRepositoryPlugin.class);
     }
 
@@ -55,4 +42,5 @@ public class RemoteStoreTranslogMetadataRestoreIT extends RemoteStoreRestoreIT {
             )
             .build();
     }
+
 }

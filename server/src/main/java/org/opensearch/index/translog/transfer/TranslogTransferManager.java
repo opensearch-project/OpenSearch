@@ -251,11 +251,11 @@ public class TranslogTransferManager {
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
         if (isTranslogMetadataEnabled == false) {
             // Download Checkpoint file, translog file from remote to local FS
-            downloadToFS(ckpFileName, location, primaryTerm);
-            downloadToFS(translogFilename, location, primaryTerm);
+            downloadToFS(ckpFileName, location, primaryTerm, false);
+            downloadToFS(translogFilename, location, primaryTerm, false);
         } else {
             // Download translog.tlog file with object metadata from remote to local FS
-            Map<String, String> metadata = downloadTranslogFileAndGetMetadata(translogFilename, location, primaryTerm);
+            Map<String, String> metadata = downloadToFS(translogFilename, location, primaryTerm, true);
             try {
                 assert metadata != null && !metadata.isEmpty() && metadata.containsKey(CHECKPOINT_FILE_DATA_KEY);
                 recoverCkpFileUsingMetadata(metadata, location, generation, translogFilename);
@@ -264,36 +264,6 @@ public class TranslogTransferManager {
             }
         }
         return true;
-    }
-
-    private Map<String, String> downloadTranslogFileAndGetMetadata(String fileName, Path location, String primaryTerm) throws IOException {
-        Path filePath = location.resolve(fileName);
-        // Here, we always override the existing file if present.
-        // We need to change this logic when we introduce incremental download
-        deleteFileIfExists(filePath);
-
-        boolean downloadStatus = false;
-        long bytesToRead = 0, downloadStartTime = System.nanoTime();
-        Map<String, String> metadata;
-
-        try (
-            FetchBlobResult fetchBlobResult = transferService.downloadBlobWithMetadata(remoteDataTransferPath.add(primaryTerm), fileName)
-        ) {
-            InputStream inputStream = fetchBlobResult.getInputStream();
-            metadata = fetchBlobResult.getMetadata();
-
-            bytesToRead = inputStream.available();
-            Files.copy(inputStream, filePath);
-            downloadStatus = true;
-        } finally {
-            remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
-            if (downloadStatus) {
-                remoteTranslogTransferTracker.addDownloadBytesSucceeded(bytesToRead);
-            }
-        }
-        // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
-        fileTransferTracker.add(fileName, true);
-        return metadata;
     }
 
     /**
@@ -318,19 +288,37 @@ public class TranslogTransferManager {
         Files.write(filePath, ckpFileBytes);
     }
 
-    private void downloadToFS(String fileName, Path location, String primaryTerm) throws IOException {
+    private Map<String, String> downloadToFS(String fileName, Path location, String primaryTerm, boolean withMetadata) throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
         // We need to change this logic when we introduce incremental download
         deleteFileIfExists(filePath);
 
+        Map<String, String> metadata = null;
         boolean downloadStatus = false;
         long bytesToRead = 0, downloadStartTime = System.nanoTime();
-        try (InputStream inputStream = transferService.downloadBlob(remoteDataTransferPath.add(primaryTerm), fileName)) {
-            // Capture number of bytes for stats before reading
-            bytesToRead = inputStream.available();
-            Files.copy(inputStream, filePath);
-            downloadStatus = true;
+        try {
+            if (withMetadata) {
+                try (
+                    FetchBlobResult fetchBlobResult = transferService.downloadBlobWithMetadata(
+                        remoteDataTransferPath.add(primaryTerm),
+                        fileName
+                    )
+                ) {
+                    InputStream inputStream = fetchBlobResult.getInputStream();
+                    metadata = fetchBlobResult.getMetadata();
+
+                    bytesToRead = inputStream.available();
+                    Files.copy(inputStream, filePath);
+                    downloadStatus = true;
+                }
+            } else {
+                try (InputStream inputStream = transferService.downloadBlob(remoteDataTransferPath.add(primaryTerm), fileName)) {
+                    bytesToRead = inputStream.available();
+                    Files.copy(inputStream, filePath);
+                    downloadStatus = true;
+                }
+            }
         } finally {
             remoteTranslogTransferTracker.addDownloadTimeInMillis((System.nanoTime() - downloadStartTime) / 1_000_000L);
             if (downloadStatus) {
@@ -340,6 +328,7 @@ public class TranslogTransferManager {
 
         // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
         fileTransferTracker.add(fileName, true);
+        return metadata;
     }
 
     private void deleteFileIfExists(Path filePath) throws IOException {
