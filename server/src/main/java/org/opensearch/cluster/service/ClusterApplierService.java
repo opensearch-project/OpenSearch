@@ -618,7 +618,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try (TimingHandle ignored = stopWatch.timing("running applier [" + applier + "]")) {
                 long applierStartTimeNS = System.nanoTime();
                 applier.applyClusterState(clusterChangedEvent);
-                ClusterManagerMetrics.recordLatency(
+                clusterManagerMetrics.recordLatency(
                     clusterManagerMetrics.clusterStateAppliersHistogram,
                     (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - applierStartTimeNS)),
                     Optional.of(Tags.create().addTag("Operation", applier.getClass().getSimpleName()))
@@ -643,7 +643,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 try (TimingHandle ignored = stopWatch.timing("notifying listener [" + listener + "]")) {
                     long listenerStartTimeNS = System.nanoTime();
                     listener.clusterChanged(clusterChangedEvent);
-                    ClusterManagerMetrics.recordLatency(
+                    clusterManagerMetrics.recordLatency(
                         clusterManagerMetrics.clusterStateListenersHistogram,
                         (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - listenerStartTimeNS)),
                         Optional.of(Tags.create().addTag("Operation", listener.getClass().getSimpleName()))

@@ -567,7 +567,7 @@ public class AllocationService {
 
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
         shardsAllocator.allocate(allocation);
-        ClusterManagerMetrics.recordLatency(
+        clusterManagerMetrics.recordLatency(
             clusterManagerMetrics.rerouteHistogram,
             (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - rerouteStartTimeNS))
         );

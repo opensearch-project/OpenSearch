@@ -17,6 +17,8 @@ import java.util.Optional;
 
 /**
  * Class containing metrics (counters/latency) specific to ClusterManager.
+ *
+ * @opensearch.internal
  */
 public final class ClusterManagerMetrics {
 
@@ -56,11 +58,11 @@ public final class ClusterManagerMetrics {
         );
     }
 
-    public static void recordLatency(Histogram histogram, Double value) {
+    public void recordLatency(Histogram histogram, Double value) {
         histogram.record(value);
     }
 
-    public static void recordLatency(Histogram histogram, Double value, Optional<Tags> tags) {
+    public void recordLatency(Histogram histogram, Double value, Optional<Tags> tags) {
         if (Objects.isNull(tags) || tags.isEmpty()) {
             histogram.record(value);
             return;

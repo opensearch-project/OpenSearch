@@ -313,7 +313,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
 
-        ClusterManagerMetrics.recordLatency(
+        clusterManagerMetrics.recordLatency(
             clusterManagerMetrics.clusterStateComputeHistogram,
             (double) computationTime.getMillis(),
             Optional.of(Tags.create().addTag("Operation", taskInputs.executor.getClass().getSimpleName()))
@@ -377,7 +377,7 @@ public class MasterService extends AbstractLifecycleComponent {
             final long durationMillis = getTimeSince(startTimeNanos).millis();
             stateStats.stateUpdateTook(durationMillis);
             stateStats.stateUpdated();
-            ClusterManagerMetrics.recordLatency(clusterManagerMetrics.clusterStatePublishHistogram, (double) durationMillis);
+            clusterManagerMetrics.recordLatency(clusterManagerMetrics.clusterStatePublishHistogram, (double) durationMillis);
         } catch (Exception e) {
             stateStats.stateUpdateFailed();
             onPublicationFailed(clusterChangedEvent, taskOutputs, startTimeNanos, e);
