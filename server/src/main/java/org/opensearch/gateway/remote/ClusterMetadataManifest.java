@@ -355,7 +355,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         this.indices = Collections.unmodifiableList(in.readList(UploadedIndexMetadata::new));
         this.previousClusterUUID = in.readString();
         this.clusterUUIDCommitted = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_15_0)) {
             this.codecVersion = in.readInt();
             this.uploadedCoordinationMetadata = new UploadedMetadataAttribute(in);
             this.uploadedSettingsMetadata = new UploadedMetadataAttribute(in);
@@ -448,7 +448,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         out.writeCollection(indices);
         out.writeString(previousClusterUUID);
         out.writeBoolean(clusterUUIDCommitted);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_15_0)) {
             out.writeInt(codecVersion);
             uploadedCoordinationMetadata.writeTo(out);
             uploadedSettingsMetadata.writeTo(out);
