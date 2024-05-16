@@ -716,14 +716,24 @@ public class OpenSearchNode implements TestClusterConfiguration {
             LoggedExec.exec(project, spec -> {
                 spec.setEnvironment(getOpenSearchEnvironment());
                 spec.workingDir(getDistroDir());
-                spec.executable(OS.conditionalString().onUnix(() -> "./bin/" + tool).onWindows(() -> "cmd").supply());
+                spec.executable(
+                    OS.conditionalString()
+                        .onUnix(() -> "/usr/bin/env")
+                        .onWindows(() -> "cmd").supply()
+                );
                 spec.args(OS.<List<CharSequence>>conditional().onWindows(() -> {
                     ArrayList<CharSequence> result = new ArrayList<>();
                     result.add("/c");
                     result.add("bin\\" + tool + ".bat");
                     result.addAll(Arrays.asList(args));
                     return result;
-                }).onUnix(() -> Arrays.asList(args)).supply());
+                }).onUnix(() -> {
+                    ArrayList<CharSequence> result = new ArrayList<>();
+                    result.add("bash");
+                    result.add("-c");
+                    result.add("source /etc/profile; ./bin/" + tool + " " + String.join(" ", args));
+                    return result;
+                }).supply());
                 spec.setStandardInput(byteArrayInputStream);
 
             });
