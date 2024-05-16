@@ -454,6 +454,21 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param listener Listener to handle upload callback events
      */
     public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener) {
+        copyFrom(from, src, context, listener, false);
+    }
+
+    /**
+     * Copies a file from the source directory to a remote based on multi-stream upload support.
+     * If vendor plugin supports uploading multiple parts in parallel, <code>BlobContainer#writeBlobByStreams</code>
+     * will be used, else, the legacy {@link RemoteSegmentStoreDirectory#copyFrom(Directory, String, String, IOContext)}
+     * will be called.
+     *
+     * @param from     The directory for the file to be uploaded
+     * @param src      File to be uploaded
+     * @param context  IOContext to be used to open IndexInput of file during remote upload
+     * @param listener Listener to handle upload callback events
+     */
+    public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener, boolean lowPriorityUpload) {
         try {
             final String remoteFileName = getNewRemoteSegmentFilename(src);
             boolean uploaded = remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
@@ -462,7 +477,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 } catch (IOException e) {
                     throw new RuntimeException("Exception in segment postUpload for file " + src, e);
                 }
-            }, listener);
+            }, listener, lowPriorityUpload);
             if (uploaded == false) {
                 copyFrom(from, src, src, context);
                 listener.onResponse(null);

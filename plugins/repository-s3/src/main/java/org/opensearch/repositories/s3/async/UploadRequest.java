@@ -24,8 +24,7 @@ public class UploadRequest {
     private final CheckedConsumer<Boolean, IOException> uploadFinalizer;
     private final boolean doRemoteDataIntegrityCheck;
     private final Long expectedChecksum;
-
-    private boolean uploadRetryEnabled;
+    private final boolean uploadRetryEnabled;
 
     /**
      * Construct a new UploadRequest object
