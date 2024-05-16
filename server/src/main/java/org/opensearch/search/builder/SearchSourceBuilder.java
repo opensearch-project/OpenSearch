@@ -53,7 +53,6 @@ import org.opensearch.core.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.DerivedField;
 import org.opensearch.index.mapper.DerivedFieldMapper;
-import org.opensearch.index.mapper.DerivedFieldSupportedTypes;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.Rewriteable;
