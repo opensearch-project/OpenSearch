@@ -24,8 +24,9 @@ import java.util.List;
 
 
 /**
- * Clone of {@link org.apache.lucene.search} {@code DisjunctionScorer.java} in lucene with following modifications -
- * 1. {@link #removeAllDISIsOnCurrentDoc()} - it removes all the DISIs for subscorer pointing to current doc. This is
+ * Clone of {@link org.apache.lucene.search} {@code DisjunctionScorer.java} in lucene with following modifications
+ * <p>
+ * 1. {@link #removeAllDISIsOnCurrentDoc()} removes all the DISIs for subscorer pointing to current doc. This is
  * helpful in dynamic pruning for Cardinality aggregation, where once a term is found, it becomes irrelevant for
  * rest of the search space, so this term's subscorer DISI can be safely removed from list of subscorer to process.
  * <p>
