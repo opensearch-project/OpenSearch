@@ -77,9 +77,8 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.mapper.DerivedField;
-import org.opensearch.index.mapper.DerivedFieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.DefaultDerivedFieldResolver;
+import org.opensearch.index.mapper.DerivedFieldResolver;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -1081,24 +1080,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.source() != null
                 && request.source().size() != 0
                 && (request.source().getDerivedFieldsObject() != null || request.source().getDerivedFields() != null)) {
-                Map<String, MappedFieldType> derivedFieldTypeMap = new HashMap<>();
-                if (request.source().getDerivedFieldsObject() != null) {
-                    Map<String, Object> derivedFieldObject = new HashMap<>();
-                    derivedFieldObject.put(DerivedFieldMapper.CONTENT_TYPE, request.source().getDerivedFieldsObject());
-                    derivedFieldTypeMap.putAll(
-                        DerivedFieldMapper.getAllDerivedFieldTypeFromObject(derivedFieldObject, searchContext.mapperService())
-                    );
-                }
-                if (request.source().getDerivedFields() != null) {
-                    for (DerivedField derivedField : request.source().getDerivedFields()) {
-                        derivedFieldTypeMap.put(
-                            derivedField.getName(),
-                            DerivedFieldMapper.getDerivedFieldType(derivedField, searchContext.mapperService())
-                        );
-                    }
-                }
-                context.setDerivedFieldTypes(derivedFieldTypeMap);
-                searchContext.getQueryShardContext().setDerivedFieldTypes(derivedFieldTypeMap);
+                DerivedFieldResolver derivedFieldResolver = new DefaultDerivedFieldResolver(
+                    searchContext.getQueryShardContext(),
+                    request.source().getDerivedFieldsObject(),
+                    request.source().getDerivedFields()
+                );
+                context.setDerivedFieldResolver(derivedFieldResolver);
+                searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);
             }
             Rewriteable.rewrite(request.getRewriteable(), context, true);
             assert searchContext.getQueryShardContext().isCacheable();

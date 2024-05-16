@@ -29,6 +29,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * DerivedFieldQuery used for querying derived fields. It contains the logic to execute an input lucene query against
@@ -36,9 +37,15 @@ import java.util.Objects;
  */
 public final class DerivedFieldQuery extends Query {
     private final Query query;
+
+    private final Query filterQuery;
+
     private final DerivedFieldValueFetcher valueFetcher;
     private final SearchLookup searchLookup;
     private final Analyzer indexAnalyzer;
+    private final boolean ignoreMalformed;
+
+    private final Function<Object, IndexableField> indexableFieldGenerator;
 
     /**
      * @param query lucene query to be executed against the derived field
@@ -46,11 +53,33 @@ public final class DerivedFieldQuery extends Query {
      *                     using LeafSearchLookup
      * @param searchLookup SearchLookup to get the LeafSearchLookup look used by valueFetcher to fetch the _source
      */
-    public DerivedFieldQuery(Query query, DerivedFieldValueFetcher valueFetcher, SearchLookup searchLookup, Analyzer indexAnalyzer) {
+    public DerivedFieldQuery(
+        Query query,
+        DerivedFieldValueFetcher valueFetcher,
+        SearchLookup searchLookup,
+        Analyzer indexAnalyzer,
+        Function<Object, IndexableField> indexableFieldGenerator,
+        boolean ignoreMalformed
+    ) {
+        this(query, null, valueFetcher, searchLookup, indexAnalyzer, indexableFieldGenerator, ignoreMalformed);
+    }
+
+    public DerivedFieldQuery(
+        Query query,
+        Query filterQuery,
+        DerivedFieldValueFetcher valueFetcher,
+        SearchLookup searchLookup,
+        Analyzer indexAnalyzer,
+        Function<Object, IndexableField> indexableFieldGenerator,
+        boolean ignoreMalformed
+    ) {
         this.query = query;
+        this.filterQuery = filterQuery;
         this.valueFetcher = valueFetcher;
         this.searchLookup = searchLookup;
         this.indexAnalyzer = indexAnalyzer;
+        this.indexableFieldGenerator = indexableFieldGenerator;
+        this.ignoreMalformed = ignoreMalformed;
     }
 
     @Override
@@ -64,23 +93,53 @@ public final class DerivedFieldQuery extends Query {
         if (rewritten == query) {
             return this;
         }
-        return new DerivedFieldQuery(rewritten, valueFetcher, searchLookup, indexAnalyzer);
+        Query rewrittenFilterQuery = filterQuery == null ? filterQuery : indexSearcher.rewrite(filterQuery);
+        return new DerivedFieldQuery(
+            rewritten,
+            rewrittenFilterQuery,
+            valueFetcher,
+            searchLookup,
+            indexAnalyzer,
+            indexableFieldGenerator,
+            ignoreMalformed
+        );
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
 
+        Weight filterQueryWeight = filterQuery == null ? null : filterQuery.createWeight(searcher, scoreMode, boost);
+
         return new ConstantScoreWeight(this, boost) {
             @Override
-            public Scorer scorer(LeafReaderContext context) {
-                DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
+            public Scorer scorer(LeafReaderContext context) throws IOException {
+                DocIdSetIterator approximation;
+
+                if (filterQueryWeight != null) {
+                    Scorer scorer = filterQueryWeight.scorer(context);
+                    if (scorer == null) {
+                        // none of the docs are matching
+                        return null;
+                    }
+                    approximation = scorer.iterator();
+                } else {
+                    approximation = DocIdSetIterator.all(context.reader().maxDoc());
+                }
                 valueFetcher.setNextReader(context);
                 LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(context);
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() {
                         leafSearchLookup.source().setSegmentAndDocument(context, approximation.docID());
-                        List<IndexableField> indexableFields = valueFetcher.getIndexableField(leafSearchLookup.source());
+                        List<IndexableField> indexableFields;
+                        try {
+                            indexableFields = valueFetcher.getIndexableField(leafSearchLookup.source(), indexableFieldGenerator);
+                        } catch (Exception e) {
+                            if (ignoreMalformed) {
+                                return false;
+                            }
+                            throw e;
+                        }
                         // TODO: in case of errors from script, should it be ignored and treated as missing field
                         // by using a configurable setting?
                         MemoryIndex memoryIndex = new MemoryIndex();
@@ -126,6 +185,8 @@ public final class DerivedFieldQuery extends Query {
 
     @Override
     public String toString(String f) {
-        return "DerivedFieldQuery (Query: [ " + query.toString(f) + "])";
+        return "DerivedFieldQuery (Query: [ " + query.toString(f) + "]" + filterQuery != null
+            ? " FilterQuery: [ " + filterQuery.toString(f) + "])"
+            : ")";
     }
 }
