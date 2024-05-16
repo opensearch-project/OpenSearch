@@ -30,11 +30,15 @@ jobs:
       - name: Setup environment variables (PR)
         if: github.event_name == 'pull_request_target'
         run: |
+          echo "event_name=pull_request_target" >> $GITHUB_ENV
+          echo "branch_name=$(jq --raw-output .pull_request.base.ref $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_to_clone_url=$(jq --raw-output .pull_request.base.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_owner=$(jq --raw-output .pull_request.user.login $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_or_commit_description=$(jq --ascii-output .pull_request.body $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
 
       - name: Setup environment variables (Push)
         if: github.event_name == 'push'
@@ -43,11 +47,14 @@ jobs:
           ref_id=$(git rev-parse HEAD)
           branch_name=$(git rev-parse --abbrev-ref HEAD)
           echo "branch_name=$branch_name" >> $GITHUB_ENV
+          echo "event_name=push" >> $GITHUB_ENV
           echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
           echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
           echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
           echo "pr_title=Push trigger $branch_name $ref_id $repo_url" >> $GITHUB_ENV
+          echo "pr_owner=$(jq --raw-output '.commits[0].author.username' $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_number=Null" >> $GITHUB_ENV
+          echo "pr_or_commit_description=$(jq --ascii-output .head_commit.message $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
         uses: actions/checkout@v4
