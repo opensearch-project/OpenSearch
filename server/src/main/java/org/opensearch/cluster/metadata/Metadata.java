@@ -835,13 +835,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
-    public Set<ResourceLimitGroup> resourceLimitGroups() {
-        return Optional.ofNullable((ResourceLimitGroupMetadata) this.custom(ResourceLimitGroupMetadata.TYPE))
-            .map(ResourceLimitGroupMetadata::resourceLimitGroups)
-            .orElse(Collections.emptySet());
-
-    }
-
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
         return custom(DecommissionAttributeMetadata.TYPE);
     }
@@ -1334,25 +1327,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             existingDataStreams.remove(name);
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
             return this;
-        }
-
-        public Builder resourceLimitGroups(final Set<ResourceLimitGroup> resourceLimitGroups) {
-            this.customs.put(ResourceLimitGroupMetadata.TYPE, new ResourceLimitGroupMetadata(resourceLimitGroups));
-            return this;
-        }
-
-        public Builder put(final ResourceLimitGroup resourceLimitGroup) {
-            Objects.requireNonNull(resourceLimitGroup, "resourceLimitGroup should not be null");
-            Set<ResourceLimitGroup> existing = getResourceLimitGroups();
-            existing.add(resourceLimitGroup);
-            return resourceLimitGroups(existing);
-        }
-
-        private Set<ResourceLimitGroup> getResourceLimitGroups() {
-            return Optional.ofNullable(this.customs.get(ResourceLimitGroupMetadata.TYPE))
-                .map(o -> (ResourceLimitGroupMetadata) o)
-                .map(ResourceLimitGroupMetadata::resourceLimitGroups)
-                .orElse(Collections.emptySet());
         }
 
         private Map<String, View> getViews() {
