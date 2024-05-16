@@ -77,7 +77,12 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;

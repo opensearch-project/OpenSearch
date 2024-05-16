@@ -603,7 +603,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private void setTenantInTask(SearchShardTask task, ShardSearchRequest request) {
         String tenant = NOT_PROVIDED;
         if (request.source().multiTenantLabels() != null) {
-            tenant = (String) request.source().multiTenantLabels().get(MultiTenantLabel.TENANT_LABEL.name());
+            tenant = (String) request.source().multiTenantLabels().get(MultiTenantLabel.TENANT.name());
         }
         task.setResourceLimitGroupName(tenant);
     }

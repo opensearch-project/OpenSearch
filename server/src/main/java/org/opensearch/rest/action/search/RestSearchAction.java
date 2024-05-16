@@ -223,7 +223,6 @@ public class RestSearchAction extends BaseRestHandler {
             );
         }
 
-
         searchRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", null));
     }
 
