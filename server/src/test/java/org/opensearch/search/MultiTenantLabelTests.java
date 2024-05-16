@@ -15,7 +15,7 @@ import java.io.IOException;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
-public class MultiTenantLabelTest extends AbstractSearchTestCase {
+public class MultiTenantLabelTests extends AbstractSearchTestCase {
 
     public void testValidMultiTenantLabel() {
         MultiTenantLabel label = MultiTenantLabel.fromName("tenant");

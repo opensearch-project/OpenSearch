@@ -1108,9 +1108,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
 
         // Set tenant for this request in the task for tracking the tasks across tenants
-        Map<String, Object> multiTenantLabels = searchRequest.source().multiTenantLabels();
         String tenant = NOT_PROVIDED;
-        if (multiTenantLabels != null) {
+        if (searchRequest.source() != null) {
+            Map<String, Object> multiTenantLabels = searchRequest.source().multiTenantLabels();
             tenant = (String) multiTenantLabels.get(MultiTenantLabel.TENANT.name());
         }
         task.setResourceLimitGroupName(tenant);
