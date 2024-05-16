@@ -791,6 +791,21 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
+     * Creates a snapshot of the scoped settings as a Settings instance.
+     * <p>
+     * Note: Updates to scoped settings are not reflected in the result Settings instance. This API is meant to
+     * represent a point in time.
+     * </p>
+     * @return The current settings
+     */
+    public Settings toSettings() {
+        return Settings.builder()
+            .put(settings)
+            .put(lastSettingsApplied)
+            .build();
+    }
+
+    /**
      * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
      * <p>
      * Note: This method will only allow updates to dynamic settings. if a non-dynamic setting is updated an

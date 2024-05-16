@@ -203,11 +203,14 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.plugins.SdkAwarePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SecureSettingsFactory;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.plugins.TelemetryPlugin;
+import org.opensearch.plugins.sdk.DefaultPluginMetadataClient;
+import org.opensearch.plugins.sdk.PluginMetadataClient;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
@@ -890,6 +893,22 @@ public class Node implements Closeable {
 
             final ViewService viewService = new ViewService(clusterService, client, null);
 
+            DefaultPluginMetadataClient defaultPluginMetadataClient = new DefaultPluginMetadataClient(
+                clusterService,
+                clusterModule.getIndexNameExpressionResolver(),
+                settingsModule.getIndexScopedSettings()
+            );
+
+            SdkAwarePlugin.Dependencies sdkDependencies = new SdkAwarePlugin.Dependencies() {
+                @Override
+                public PluginMetadataClient getPluginMetadataClient() {
+                    return defaultPluginMetadataClient;
+                }
+            };
+
+            pluginsService.filterPlugins(SdkAwarePlugin.class)
+                .forEach(plugin -> plugin.setupSdkPlugin(sdkDependencies));
+
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
                 .stream()
                 .flatMap(
@@ -1329,6 +1348,7 @@ public class Node implements Closeable {
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
+                b.bind(PluginMetadataClient.class).toInstance(defaultPluginMetadataClient);
             });
             injector = modules.createInjector();
 
