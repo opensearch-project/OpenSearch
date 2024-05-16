@@ -10,13 +10,10 @@ package org.opensearch.cluster.routing.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
@@ -25,7 +22,6 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
 import java.util.function.Supplier;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
@@ -62,36 +58,6 @@ public class RemoteRoutingTableService implements Closeable {
         this.settings = settings;
         this.clusterSettings = clusterSettings;
     }
-
-    public List<ClusterMetadataManifest.UploadedIndexMetadata> writeFullRoutingTable(
-        ClusterState clusterState,
-        String previousClusterUUID
-    ) {
-        return null;
-    }
-
-    public List<ClusterMetadataManifest.UploadedIndexMetadata> writeIncrementalMetadata(
-        ClusterState previousClusterState,
-        ClusterState clusterState,
-        ClusterMetadataManifest previousManifest
-    ) {
-        return null;
-    }
-
-    public RoutingTable getLatestRoutingTable(String clusterName, String clusterUUID) {
-        return null;
-    }
-
-    public RoutingTable getIncrementalRoutingTable(
-        ClusterState previousClusterState,
-        ClusterMetadataManifest previousManifest,
-        String clusterName,
-        String clusterUUID
-    ) {
-        return null;
-    }
-
-    private void deleteStaleRoutingTable(String clusterName, String clusterUUID, int manifestsToRetain) {}
 
     @Override
     public void close() throws IOException {
