@@ -121,14 +121,12 @@ public class TransportCreatePitAction extends HandledTransportAction<CreatePitRe
         public CreateReaderContextResponse(StreamInput in) throws IOException {
             super(in);
             contextId = new ShardSearchContextId(in);
-            readResourceUsage(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             contextId.writeTo(out);
-            writeResourceUsage(out);
         }
     }
 

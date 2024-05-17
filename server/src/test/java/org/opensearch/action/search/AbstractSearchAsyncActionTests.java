@@ -186,7 +186,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
-                request
+                request,
+                () -> null
             ),
             NoopTracer.INSTANCE
         ) {
@@ -771,7 +772,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
-                searchRequest
+                searchRequest,
+                () -> null
             ),
             NoopTracer.INSTANCE
         );
@@ -825,7 +827,8 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(searchRequestOperationsListeners, logger),
-                searchRequest
+                searchRequest,
+                () -> null
             ),
             NoopTracer.INSTANCE
         ) {

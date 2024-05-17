@@ -451,7 +451,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 logger,
                 TraceableSearchRequestOperationsListener.create(tracer, requestSpan)
             );
-            SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, originalSearchRequest);
+            SearchRequestContext searchRequestContext = new SearchRequestContext(
+                requestOperationsListeners,
+                originalSearchRequest,
+                threadPool::getThreadContext
+            );
             searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             PipelinedRequest searchRequest;

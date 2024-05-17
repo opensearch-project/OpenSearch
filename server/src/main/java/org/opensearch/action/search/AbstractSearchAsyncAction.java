@@ -48,10 +48,10 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
@@ -78,6 +78,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_RESOURCE_USAGE;
 
 /**
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
@@ -619,7 +621,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
+        this.setPhaseResourceUsages();
         results.consumeResult(result, () -> onShardResultConsumed(result, shardIt));
+    }
+
+    public void setPhaseResourceUsages() {
+        ThreadContext threadContext = searchRequestContext.getThreadContextSupplier().get();
+        List<String> taskResourceUsages = threadContext.getResponseHeaders().get(TASK_RESOURCE_USAGE);
+        if (taskResourceUsages != null && taskResourceUsages.size() > 0) {
+            searchRequestContext.recordPhaseResourceUsage(taskResourceUsages.get(0));
+        }
     }
 
     private void onShardResultConsumed(Result result, SearchShardIterator shardIt) {
@@ -843,16 +854,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
         shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
         return shardRequest;
-    }
-
-    @Override
-    public List<TaskResourceInfo> getPhaseResourceUsageFromResults() {
-        return results.getAtomicArray()
-            .asList()
-            .stream()
-            .filter(a -> a.remoteAddress() != null)
-            .map(SearchPhaseResult::getTaskResourceInfo)
-            .collect(Collectors.toList());
     }
 
     /**

@@ -32,7 +32,6 @@
 package org.opensearch.action.search;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.dfs.AggregatedDfs;
@@ -44,7 +43,6 @@ import org.opensearch.transport.Transport;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * This search phase fans out to every shards to execute a distributed search with a pre-collected distributed frequencies for all
@@ -83,14 +81,6 @@ final class DfsQueryPhase extends SearchPhase {
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         context.addReleasable(queryResult);
-    }
-
-    @Override
-    public List<TaskResourceInfo> getPhaseResourceUsageFromResults() {
-        return searchResults.stream()
-            .filter(a -> a.remoteAddress() != null)
-            .map(SearchPhaseResult::getTaskResourceInfo)
-            .collect(Collectors.toList());
     }
 
     @Override

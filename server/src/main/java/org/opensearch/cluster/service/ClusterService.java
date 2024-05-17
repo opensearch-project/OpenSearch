@@ -262,24 +262,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         return indexingPressureService;
     }
 
-    /**
-     * Getter for {@link TaskResourceTrackingService}, This method exposes task level resource usage for other plugins to use.
-     *
-     * @return TaskResourceTrackingService
-     */
-    public TaskResourceTrackingService getTaskResourceTrackingService() {
-        return taskResourceTrackingService;
-    }
-
-    /**
-     * Setter for {@link TaskResourceTrackingService}
-     *
-     * @param taskResourceTrackingService taskResourceTrackingService
-     */
-    public void setTaskResourceTrackingService(TaskResourceTrackingService taskResourceTrackingService) {
-        this.taskResourceTrackingService = taskResourceTrackingService;
-    }
-
     public ClusterApplierService getClusterApplierService() {
         return clusterApplierService;
     }

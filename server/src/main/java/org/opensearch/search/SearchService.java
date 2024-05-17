@@ -73,7 +73,12 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageInfo;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -138,6 +143,7 @@ import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.Scheduler.Cancellable;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -161,6 +167,7 @@ import java.util.function.LongSupplier;
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_RESOURCE_USAGE;
 
 /**
  * The main search service
@@ -554,7 +561,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchContext context = createContext(readerContext, request, task, true)
         ) {
             dfsPhase.execute(context);
-            context.dfsResult().injectInitialResourceUsage(context);
+            writeTaskResourceUsage(task);
             return context.dfsResult();
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
@@ -650,7 +657,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
-                context.queryResult().injectInitialResourceUsage(context);
+                writeTaskResourceUsage(task);
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -676,7 +683,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             executor.success();
         }
         QueryFetchSearchResult result = new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
-        result.injectInitialResourceUsage(context);
+        writeTaskResourceUsage(context.getTask());
         return result;
     }
 
@@ -709,7 +716,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searchContext.queryResult(),
                     searchContext.shardTarget()
                 );
-                scrollQuerySearchResult.injectInitialResourceUsage(searchContext);
+                writeTaskResourceUsage(task);
                 return scrollQuerySearchResult;
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
@@ -741,7 +748,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                 searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
-                searchContext.queryResult().injectInitialResourceUsage(searchContext);
+                writeTaskResourceUsage(task);
                 return searchContext.queryResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -795,7 +802,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     fetchSearchResult,
                     searchContext.shardTarget()
                 );
-                scrollQueryFetchSearchResult.injectInitialResourceUsage(searchContext);
+                writeTaskResourceUsage(task);
                 return scrollQueryFetchSearchResult;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -827,7 +834,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     executor.success();
                 }
-                searchContext.fetchResult().injectInitialResourceUsage(searchContext);
+                writeTaskResourceUsage(task);
                 return searchContext.fetchResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -1051,9 +1058,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.setTask(task);
             // pre process
             queryPhase.preProcess(context);
-            context.usageInfo = task.getActiveThreadResourceInfo(Thread.currentThread().getId(), ResourceStatsType.WORKER_STATS)
-                .getResourceUsageInfo()
-                .getStatsInfo();
         } catch (Exception e) {
             context.close();
             throw e;
@@ -1132,6 +1136,45 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
+    }
+
+    protected void writeTaskResourceUsage(SearchShardTask task) {
+        // Get resource usages when task starts
+        Map<ResourceStats, ResourceUsageInfo.ResourceStatsInfo> startValues = task.getActiveThreadResourceInfo(
+            Thread.currentThread().getId(),
+            ResourceStatsType.WORKER_STATS
+        ).getResourceUsageInfo().getStatsInfo();
+
+        // Get current resource usages
+        ResourceUsageMetric[] endValues = TaskResourceTrackingService.getResourceUsageMetricsForThread(Thread.currentThread().getId());
+        long cpu = -1, mem = -1;
+        for (ResourceUsageMetric endValue : endValues) {
+            if (endValue.getStats() == ResourceStats.MEMORY) {
+                mem = endValue.getValue();
+            } else if (endValue.getStats() == ResourceStats.CPU) {
+                cpu = endValue.getValue();
+            }
+        }
+        if (cpu == -1 || mem == -1) {
+            logger.debug("Invalid resource usage value, cpu [{}], memory [{}]: ", cpu, mem);
+            return;
+        }
+
+        // initial resource usages when the task started
+        TaskResourceInfo taskResourceInfo = new TaskResourceInfo.Builder().setAction(task.getAction())
+            .setTaskId(task.getId())
+            .setParentTaskId(task.getParentTaskId().getId())
+            .setNodeId(clusterService.localNode().getId())
+            .setTaskResourceUsage(
+                new TaskResourceUsage(
+                    cpu - startValues.get(ResourceStats.CPU).getStartValue(),
+                    mem - startValues.get(ResourceStats.MEMORY).getStartValue()
+                )
+            )
+            .build();
+
+        threadPool.getThreadContext().removeResponseHeader(TASK_RESOURCE_USAGE);
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
     }
 
     private void freeAllContextForIndex(Index index) {
@@ -1759,7 +1802,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             super(in);
             this.canMatch = in.readBoolean();
             this.estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
-            readResourceUsage(in);
         }
 
         public CanMatchResponse(boolean canMatch, MinAndMax<?> estimatedMinAndMax) {
@@ -1772,8 +1814,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             super.writeTo(out);
             out.writeBoolean(canMatch);
             out.writeOptionalWriteable(estimatedMinAndMax);
-
-            writeResourceUsage(out);
         }
 
         public boolean canMatch() {

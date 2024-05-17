@@ -62,7 +62,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
         super(in);
         contextId = new ShardSearchContextId(in);
         hits = new SearchHits(in);
-        readResourceUsage(in);
     }
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -109,6 +108,5 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
         hits.writeTo(out);
-        writeResourceUsage(out);
     }
 }

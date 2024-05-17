@@ -53,12 +53,12 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         Setting.Property.NodeScope
     );
     public static final String TASK_ID = "TASK_ID";
+    public static final String TASK_RESOURCE_USAGE = "TASK_RESOURCE_USAGE";
 
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
     private final ConcurrentMapLong<Task> resourceAwareTasks = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
     private final List<TaskCompletionListener> taskCompletionListeners = new ArrayList<>();
-    private final List<TaskStartListener> taskStartListeners = new ArrayList<>();
     private final ThreadPool threadPool;
     private volatile boolean taskResourceTrackingEnabled;
 
@@ -99,17 +99,6 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
         logger.debug("Starting resource tracking for task: {}", task.getId());
         resourceAwareTasks.put(task.getId(), task);
-
-        List<Exception> exceptions = new ArrayList<>();
-        for (TaskStartListener listener : taskStartListeners) {
-            try {
-                listener.onTaskStarts(task);
-            } catch (Exception e) {
-                exceptions.add(e);
-            }
-        }
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
-
         return addTaskIdToThreadContext(task);
     }
 
@@ -283,19 +272,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         void onTaskCompleted(Task task);
     }
 
-    /**
-     * Listener that gets invoked when a task execution starts.
-     */
-    @PublicApi(since = "2.2.0")
-    public interface TaskStartListener {
-        void onTaskStarts(Task task);
-    }
-
     public void addTaskCompletionListener(TaskCompletionListener listener) {
         this.taskCompletionListeners.add(listener);
-    }
-
-    public void addTaskStartListener(TaskStartListener listener) {
-        this.taskStartListeners.add(listener);
     }
 }
