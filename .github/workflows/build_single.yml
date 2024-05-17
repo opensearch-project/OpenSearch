@@ -1,4 +1,4 @@
-name: Build packages (single)
+run-name: Build packages (single) ${{ inputs.id }}
 
 # This workflow runs when any of the following occur:
 # - Run from another worklow of GH API
@@ -26,6 +26,11 @@ on:
         description: "Package architecture"
         type: string
         default: amd64
+      id:
+        description: "ID used to identify the workflow uniquely."
+        type: string
+        required: false
+
   workflow_dispatch:
     inputs:
       revision:
@@ -54,6 +59,10 @@ on:
           - amd64
           - x86_64
         default: amd64
+      id:
+        description: "ID used to identify the workflow uniquely."
+        type: string
+        required: false
 
 jobs:
   call-build-workflow:
