@@ -15,6 +15,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
@@ -33,7 +34,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -42,15 +46,28 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.AsyncStaleFileDeletion;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.RETAINED_MANIFESTS;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.SKIP_CLEANUP_STATE_CHANGES;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.CLUSTER_STATE_PATH_TOKEN;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.GLOBAL_METADATA_PATH_TOKEN;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_PATH_TOKEN;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_FILE_PREFIX;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_PATH_TOKEN;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.SETTING_METADATA;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.TEMPLATES_METADATA;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.encodeString;
 import static org.opensearch.gateway.remote.RemoteClusterStateServiceTests.generateClusterStateWithOneIndex;
 import static org.opensearch.gateway.remote.RemoteClusterStateServiceTests.nodesWithLocalNodeClusterManager;
@@ -133,6 +150,81 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
         super.tearDown();
         remoteClusterStateCleanupManager.close();
         threadPool.shutdown();
+    }
+
+    public void testDeleteClusterMetadata() throws IOException {
+        String clusterUUID = "clusterUUID";
+        String clusterName = "test-cluster";
+        List<BlobMetadata> inactiveBlobs = Arrays.asList(
+            new PlainBlobMetadata("manifest1.dat", 1L),
+            new PlainBlobMetadata("manifest2.dat", 1L),
+            new PlainBlobMetadata("manifest3.dat", 1L)
+        );
+        List<BlobMetadata> activeBlobs = Arrays.asList(
+            new PlainBlobMetadata("manifest4.dat", 1L),
+            new PlainBlobMetadata("manifest5.dat", 1L)
+        );
+        UploadedIndexMetadata index1Metadata = new UploadedIndexMetadata("index1", "indexUUID1", "index_metadata1");
+        UploadedIndexMetadata index2Metadata = new UploadedIndexMetadata("index2", "indexUUID2", "index_metadata2");
+        UploadedIndexMetadata index1UpdatedMetadata = new UploadedIndexMetadata("index1", "indexUUID1", "index_metadata1_updated");
+        UploadedMetadataAttribute coordinationMetadata = new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination_metadata");
+        UploadedMetadataAttribute templateMetadata = new UploadedMetadataAttribute(TEMPLATES_METADATA, "template_metadata");
+        UploadedMetadataAttribute settingMetadata = new UploadedMetadataAttribute(SETTING_METADATA, "settings_metadata");
+        UploadedMetadataAttribute coordinationMetadataUpdated = new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination_metadata_updated");
+        UploadedMetadataAttribute templateMetadataUpdated = new UploadedMetadataAttribute(TEMPLATES_METADATA, "template_metadata_updated");
+        UploadedMetadataAttribute settingMetadataUpdated = new UploadedMetadataAttribute(SETTING_METADATA, "settings_metadata_updated");
+        ClusterMetadataManifest manifest1 = ClusterMetadataManifest.builder()
+            .indices(List.of(index1Metadata))
+            .globalMetadataFileName("global_metadata")
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .codecVersion(CODEC_V1)
+            .stateUUID(randomAlphaOfLength(10))
+            .clusterUUID(clusterUUID)
+            .nodeId("nodeA")
+            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
+            .previousClusterUUID(ClusterState.UNKNOWN_UUID)
+            .committed(true)
+            .build();
+        ClusterMetadataManifest manifest2 = ClusterMetadataManifest.builder(manifest1)
+            .indices(List.of(index1Metadata, index2Metadata))
+            .codecVersion(CODEC_V2)
+            .globalMetadataFileName(null)
+            .coordinationMetadata(coordinationMetadata)
+            .templatesMetadata(templateMetadata)
+            .settingMetadata(settingMetadata)
+            .build();
+        ClusterMetadataManifest manifest3 = ClusterMetadataManifest.builder(manifest2)
+            .indices(List.of(index1UpdatedMetadata, index2Metadata))
+            .settingMetadata(settingMetadataUpdated)
+            .build();
+
+        // active manifest have reference to index1Updated, index2, settingsUpdated, coordinationUpdated, templates, templatesUpdated
+        ClusterMetadataManifest manifest4 = ClusterMetadataManifest.builder(manifest3)
+            .coordinationMetadata(coordinationMetadataUpdated)
+            .build();
+        ClusterMetadataManifest manifest5 = ClusterMetadataManifest.builder(manifest4)
+            .templatesMetadata(templateMetadataUpdated)
+            .build();
+
+        when(remoteClusterStateService.fetchRemoteClusterMetadataManifest(eq(clusterName), eq(clusterUUID), any()))
+            .thenReturn(manifest4, manifest5, manifest1, manifest2, manifest3);
+        BlobContainer container = mock(BlobContainer.class);
+        when(blobStore.blobContainer(any())).thenReturn(container);
+        doNothing().when(container).deleteBlobsIgnoringIfNotExists(any());
+
+        remoteClusterStateCleanupManager.deleteClusterMetadata(clusterName, clusterUUID, activeBlobs, inactiveBlobs);
+        verify(container).deleteBlobsIgnoringIfNotExists(
+            List.of(new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + coordinationMetadata.getUploadedFilename() + ".dat",
+                new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + settingMetadata.getUploadedFilename() + ".dat",
+                new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + "global_metadata.dat")
+        );
+        verify(container).deleteBlobsIgnoringIfNotExists(
+            List.of(new BlobPath().add(INDEX_PATH_TOKEN).add(index1Metadata.getIndexUUID()).buildAsString() + index1Metadata.getUploadedFilePath() + ".dat")
+        );
+        Set<String> staleManifest = new HashSet<>();
+        inactiveBlobs.forEach(blob -> staleManifest.add(new BlobPath().add(MANIFEST_PATH_TOKEN).buildAsString() + blob.name()));
+        verify(container).deleteBlobsIgnoringIfNotExists(new ArrayList<>(staleManifest));
     }
 
     public void testDeleteStaleClusterUUIDs() throws IOException {
@@ -322,7 +414,7 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
         assertEquals(1, callCount.get());
     }
 
-    public void testRemoteCleanupSchedulesEvenAfterFailure() throws InterruptedException {
+    public void testRemoteCleanupSchedulesEvenAfterFailure() {
         remoteClusterStateCleanupManager.start();
         RemoteClusterStateCleanupManager spyManager = spy(remoteClusterStateCleanupManager);
         AtomicInteger callCount = new AtomicInteger(0);

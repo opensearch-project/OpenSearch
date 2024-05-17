@@ -148,7 +148,19 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         }
     }
 
-    private void deleteClusterMetadata(
+    private void addStaleGlobalMetadataPath(String fileName, Set<String> filesToKeep, Set<String> staleGlobalMetadataPaths) {
+        if (!filesToKeep.contains(fileName)) {
+            String[] splitPath = fileName.split("/");
+            staleGlobalMetadataPaths.add(
+                new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
+                    splitPath[splitPath.length - 1]
+                )
+            );
+        }
+    }
+
+    // visible for testing
+    void deleteClusterMetadata(
         String clusterName,
         String clusterUUID,
         List<BlobMetadata> activeManifestBlobMetadata,
@@ -167,7 +179,15 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                 );
                 clusterMetadataManifest.getIndices()
                     .forEach(uploadedIndexMetadata -> filesToKeep.add(uploadedIndexMetadata.getUploadedFilename()));
-                filesToKeep.add(clusterMetadataManifest.getGlobalMetadataFileName());
+                if (clusterMetadataManifest.getCodecVersion() == ClusterMetadataManifest.CODEC_V1) {
+                    filesToKeep.add(clusterMetadataManifest.getGlobalMetadataFileName());
+                } else if (clusterMetadataManifest.getCodecVersion() >= ClusterMetadataManifest.CODEC_V2) {
+                    filesToKeep.add(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename());
+                    filesToKeep.add(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename());
+                    filesToKeep.add(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename());
+                    clusterMetadataManifest.getCustomMetadataMap().values().forEach(attribute -> filesToKeep.add(attribute.getUploadedFilename()));
+                }
+                logger.info(filesToKeep);
             });
             staleManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = remoteClusterStateService.fetchRemoteClusterMetadataManifest(
@@ -176,14 +196,17 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                     blobMetadata.name()
                 );
                 staleManifestPaths.add(new BlobPath().add(MANIFEST_PATH_TOKEN).buildAsString() + blobMetadata.name());
-                if (filesToKeep.contains(clusterMetadataManifest.getGlobalMetadataFileName()) == false) {
-                    String[] globalMetadataSplitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
-                    staleGlobalMetadataPaths.add(
-                        new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + GLOBAL_METADATA_FORMAT.blobName(
-                            globalMetadataSplitPath[globalMetadataSplitPath.length - 1]
-                        )
-                    );
+                if (clusterMetadataManifest.getCodecVersion() == ClusterMetadataManifest.CODEC_V1) {
+                    addStaleGlobalMetadataPath(clusterMetadataManifest.getGlobalMetadataFileName(), filesToKeep, staleGlobalMetadataPaths);
+                } else if (clusterMetadataManifest.getCodecVersion() >= ClusterMetadataManifest.CODEC_V2) {
+                    addStaleGlobalMetadataPath(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
+                    addStaleGlobalMetadataPath(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
+                    addStaleGlobalMetadataPath(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
+                    clusterMetadataManifest.getCustomMetadataMap().values().forEach(attribute -> {
+                        addStaleGlobalMetadataPath(attribute.getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
+                    });
                 }
+
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
                     if (filesToKeep.contains(uploadedIndexMetadata.getUploadedFilename()) == false) {
                         staleIndexMetadataPaths.add(
@@ -297,7 +320,8 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         );
     }
 
-    private void deleteStalePaths(String clusterName, String clusterUUID, List<String> stalePaths) throws IOException {
+    // package private for testing
+    void deleteStalePaths(String clusterName, String clusterUUID, List<String> stalePaths) throws IOException {
         logger.debug(String.format(Locale.ROOT, "Deleting stale files from remote - %s", stalePaths));
         getBlobStoreTransferService().deleteBlobs(
             remoteClusterStateService.getCusterMetadataBasePath(clusterName, clusterUUID),
