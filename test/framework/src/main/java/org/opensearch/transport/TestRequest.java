@@ -54,4 +54,8 @@ public class TestRequest extends TransportRequest {
         super.writeTo(out);
         out.writeString(value);
     }
+
+    public String getValue() {
+        return value;
+    }
 }

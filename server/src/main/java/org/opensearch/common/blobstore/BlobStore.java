@@ -75,6 +75,7 @@ public interface BlobStore extends Closeable {
      * Metrics for BlobStore interactions
      */
     enum Metric {
+        GENERIC_STATS("generic_stats"),
         REQUEST_SUCCESS("request_success_total"),
         REQUEST_FAILURE("request_failures_total"),
         REQUEST_LATENCY("request_time_in_millis"),
