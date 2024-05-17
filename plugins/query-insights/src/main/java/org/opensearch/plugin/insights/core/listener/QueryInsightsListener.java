@@ -14,8 +14,10 @@ import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
+import org.opensearch.action.search.SearchTask;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
@@ -25,13 +27,20 @@ import org.opensearch.tasks.Task;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_CPU_QUERIES_ENABLED;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_CPU_QUERIES_SIZE;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_CPU_QUERIES_WINDOW_SIZE;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_MEMORY_QUERIES_ENABLED;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_MEMORY_QUERIES_SIZE;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_MEMORY_QUERIES_WINDOW_SIZE;
 
 /**
  * The listener for query insights services.
@@ -46,6 +55,7 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     private static final Logger log = LogManager.getLogger(QueryInsightsListener.class);
 
     private final QueryInsightsService queryInsightsService;
+    private final ClusterService clusterService;
 
     /**
      * Constructor for QueryInsightsListener
@@ -55,6 +65,7 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
      */
     @Inject
     public QueryInsightsListener(final ClusterService clusterService, final QueryInsightsService queryInsightsService) {
+        this.clusterService = clusterService;
         this.queryInsightsService = queryInsightsService;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.LATENCY, v));
@@ -70,11 +81,49 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
                 v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).setWindowSize(v),
                 v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).validateWindowSize(v)
             );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(TOP_N_CPU_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.CPU, v));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                TOP_N_CPU_QUERIES_SIZE,
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.CPU).setTopNSize(v),
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.CPU).validateTopNSize(v)
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                TOP_N_CPU_QUERIES_WINDOW_SIZE,
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.CPU).setWindowSize(v),
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.CPU).validateWindowSize(v)
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(TOP_N_MEMORY_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.MEMORY, v));
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                TOP_N_MEMORY_QUERIES_SIZE,
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.MEMORY).setTopNSize(v),
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.MEMORY).validateTopNSize(v)
+            );
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                TOP_N_MEMORY_QUERIES_WINDOW_SIZE,
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.MEMORY).setWindowSize(v),
+                v -> this.queryInsightsService.getTopQueriesService(MetricType.MEMORY).validateWindowSize(v)
+            );
         this.setEnableTopQueries(MetricType.LATENCY, clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_ENABLED));
         this.queryInsightsService.getTopQueriesService(MetricType.LATENCY)
             .setTopNSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_SIZE));
         this.queryInsightsService.getTopQueriesService(MetricType.LATENCY)
             .setWindowSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_WINDOW_SIZE));
+        this.setEnableTopQueries(MetricType.CPU, clusterService.getClusterSettings().get(TOP_N_CPU_QUERIES_ENABLED));
+        this.queryInsightsService.getTopQueriesService(MetricType.CPU)
+            .setTopNSize(clusterService.getClusterSettings().get(TOP_N_CPU_QUERIES_SIZE));
+        this.queryInsightsService.getTopQueriesService(MetricType.CPU)
+            .setWindowSize(clusterService.getClusterSettings().get(TOP_N_CPU_QUERIES_WINDOW_SIZE));
+        this.setEnableTopQueries(MetricType.MEMORY, clusterService.getClusterSettings().get(TOP_N_MEMORY_QUERIES_ENABLED));
+        this.queryInsightsService.getTopQueriesService(MetricType.MEMORY)
+            .setTopNSize(clusterService.getClusterSettings().get(TOP_N_MEMORY_QUERIES_SIZE));
+        this.queryInsightsService.getTopQueriesService(MetricType.MEMORY)
+            .setWindowSize(clusterService.getClusterSettings().get(TOP_N_MEMORY_QUERIES_WINDOW_SIZE));
     }
 
     /**
@@ -124,6 +173,18 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
 
     @Override
     public void onRequestEnd(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
+        SearchTask searchTask = context.getTask();
+        List<TaskResourceInfo> tasksResourceUsages = searchRequestContext.getPhaseResourceUsage();
+        tasksResourceUsages.add(
+            new TaskResourceInfo(
+                searchTask.getAction(),
+                searchTask.getId(),
+                searchTask.getParentTaskId().getId(),
+                clusterService.localNode().getId(),
+                searchTask.getTotalResourceStats()
+            )
+        );
+
         final SearchRequest request = context.getRequest();
         try {
             Map<MetricType, Number> measurements = new HashMap<>();
@@ -133,12 +194,25 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - searchRequestContext.getAbsoluteStartNanos())
                 );
             }
+            if (queryInsightsService.isCollectionEnabled(MetricType.CPU)) {
+                measurements.put(
+                    MetricType.CPU,
+                    tasksResourceUsages.stream().map(a -> a.getTaskResourceUsage().getCpuTimeInNanos()).mapToLong(Long::longValue).sum()
+                );
+            }
+            if (queryInsightsService.isCollectionEnabled(MetricType.MEMORY)) {
+                measurements.put(
+                    MetricType.MEMORY,
+                    tasksResourceUsages.stream().map(a -> a.getTaskResourceUsage().getMemoryInBytes()).mapToLong(Long::longValue).sum()
+                );
+            }
             Map<Attribute, Object> attributes = new HashMap<>();
             attributes.put(Attribute.SEARCH_TYPE, request.searchType().toString().toLowerCase(Locale.ROOT));
             attributes.put(Attribute.SOURCE, request.source().toString(FORMAT_PARAMS));
             attributes.put(Attribute.TOTAL_SHARDS, context.getNumShards());
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());
+            attributes.put(Attribute.TASKS_RESOURCE_USAGES, tasksResourceUsages);
 
             Map<String, Object> labels = new HashMap<>();
             // Retrieve user provided label if exists

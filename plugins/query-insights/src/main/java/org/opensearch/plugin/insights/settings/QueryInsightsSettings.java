@@ -81,6 +81,10 @@ public class QueryInsightsSettings {
     public static final String TOP_N_QUERIES_SETTING_PREFIX = "search.insights.top_queries";
     /** Default prefix for top N queries by latency feature */
     public static final String TOP_N_LATENCY_QUERIES_PREFIX = TOP_N_QUERIES_SETTING_PREFIX + ".latency";
+    /** Default prefix for top N queries by cpu feature */
+    public static final String TOP_N_CPU_QUERIES_PREFIX = TOP_N_QUERIES_SETTING_PREFIX + ".cpu";
+    /** Default prefix for top N queries by memory feature */
+    public static final String TOP_N_MEMORY_QUERIES_PREFIX = TOP_N_QUERIES_SETTING_PREFIX + ".memory";
     /**
      * Boolean setting for enabling top queries by latency.
      */
@@ -106,6 +110,66 @@ public class QueryInsightsSettings {
      */
     public static final Setting<TimeValue> TOP_N_LATENCY_QUERIES_WINDOW_SIZE = Setting.positiveTimeSetting(
         TOP_N_LATENCY_QUERIES_PREFIX + ".window_size",
+        DEFAULT_WINDOW_SIZE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Boolean setting for enabling top queries by cpu.
+     */
+    public static final Setting<Boolean> TOP_N_CPU_QUERIES_ENABLED = Setting.boolSetting(
+        TOP_N_CPU_QUERIES_PREFIX + ".enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Int setting to define the top n size for top queries by cpu.
+     */
+    public static final Setting<Integer> TOP_N_CPU_QUERIES_SIZE = Setting.intSetting(
+        TOP_N_CPU_QUERIES_PREFIX + ".top_n_size",
+        DEFAULT_TOP_N_SIZE,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Time setting to define the window size in seconds for top queries by cpu.
+     */
+    public static final Setting<TimeValue> TOP_N_CPU_QUERIES_WINDOW_SIZE = Setting.positiveTimeSetting(
+        TOP_N_CPU_QUERIES_PREFIX + ".window_size",
+        DEFAULT_WINDOW_SIZE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Boolean setting for enabling top queries by memory.
+     */
+    public static final Setting<Boolean> TOP_N_MEMORY_QUERIES_ENABLED = Setting.boolSetting(
+        TOP_N_MEMORY_QUERIES_PREFIX + ".enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Int setting to define the top n size for top queries by memory.
+     */
+    public static final Setting<Integer> TOP_N_MEMORY_QUERIES_SIZE = Setting.intSetting(
+        TOP_N_MEMORY_QUERIES_PREFIX + ".top_n_size",
+        DEFAULT_TOP_N_SIZE,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Time setting to define the window size in seconds for top queries by memory.
+     */
+    public static final Setting<TimeValue> TOP_N_MEMORY_QUERIES_WINDOW_SIZE = Setting.positiveTimeSetting(
+        TOP_N_MEMORY_QUERIES_PREFIX + ".window_size",
         DEFAULT_WINDOW_SIZE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

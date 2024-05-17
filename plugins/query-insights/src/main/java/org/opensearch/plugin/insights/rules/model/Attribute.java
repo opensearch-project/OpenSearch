@@ -45,6 +45,10 @@ public enum Attribute {
      */
     NODE_ID,
     /**
+     * Tasks level resource usages in this request
+     */
+    TASKS_RESOURCE_USAGES,
+    /**
      * Custom search request labels
      */
     LABELS;
