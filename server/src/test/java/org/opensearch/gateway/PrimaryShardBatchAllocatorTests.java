@@ -137,16 +137,35 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             .routingTable(routingTableBuilder.build())
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
             .build();
-        RoutingAllocation newIndexRoutingAllocation = new RoutingAllocation(noAllocationDeciders(), new RoutingNodes(state, false), state, null, null, System.nanoTime());
+        RoutingAllocation newIndexRoutingAllocation = new RoutingAllocation(
+            noAllocationDeciders(),
+            new RoutingNodes(state, false),
+            state,
+            null,
+            null,
+            System.nanoTime()
+        );
 
-        ShardRouting primaryShard1 = newIndexRoutingAllocation.routingTable().getIndicesRouting().get("test").shard(shard1.id()).primaryShard();
-        ShardRouting primaryShard2 = newIndexRoutingAllocation.routingTable().getIndicesRouting().get("test").shard(shard2.id()).primaryShard();
+        ShardRouting primaryShard1 = newIndexRoutingAllocation.routingTable()
+            .getIndicesRouting()
+            .get("test")
+            .shard(shard1.id())
+            .primaryShard();
+        ShardRouting primaryShard2 = newIndexRoutingAllocation.routingTable()
+            .getIndicesRouting()
+            .get("test")
+            .shard(shard2.id())
+            .primaryShard();
 
         List<ShardRouting> shards = new ArrayList<>();
         shards.add(primaryShard1);
         shards.add(primaryShard2);
 
-        HashMap<ShardRouting, AllocateUnassignedDecision> allDecisions = batchAllocator.makeAllocationDecision(shards, newIndexRoutingAllocation, logger);
+        HashMap<ShardRouting, AllocateUnassignedDecision> allDecisions = batchAllocator.makeAllocationDecision(
+            shards,
+            newIndexRoutingAllocation,
+            logger
+        );
         // verify we get decisions for all the shards
         assertEquals(shards.size(), allDecisions.size());
         assertEquals(shards, new ArrayList<>(allDecisions.keySet()));
