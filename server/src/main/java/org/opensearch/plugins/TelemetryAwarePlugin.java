@@ -11,6 +11,7 @@ package org.opensearch.plugins;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -34,6 +35,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public interface TelemetryAwarePlugin {
 
     /**

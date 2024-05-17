@@ -275,6 +275,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -621,6 +622,18 @@ public class Node implements Closeable {
                 final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
                 if (telemetrySettings.isTracingFeatureEnabled() || telemetrySettings.isMetricsFeatureEnabled()) {
                     List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
+                    List<TelemetryPlugin> telemetryPluginsImplementingTelemetryAware = telemetryPlugins.stream()
+                        .filter(a -> TelemetryAwarePlugin.class.isAssignableFrom(a.getClass()))
+                        .collect(toList());
+                    if (telemetryPluginsImplementingTelemetryAware.isEmpty() == false) {
+                        throw new IllegalStateException(
+                            String.format(
+                                Locale.ROOT,
+                                "Telemetry plugins %s should not implement TelemetryAwarePlugin interface",
+                                telemetryPluginsImplementingTelemetryAware
+                            )
+                        );
+                    }
                     TelemetryModule telemetryModule = new TelemetryModule(telemetryPlugins, telemetrySettings);
                     if (telemetrySettings.isTracingFeatureEnabled()) {
                         tracerFactory = new TracerFactory(telemetrySettings, telemetryModule.getTelemetry(), threadPool.getThreadContext());

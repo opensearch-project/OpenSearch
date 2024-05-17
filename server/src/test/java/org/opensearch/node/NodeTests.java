@@ -43,6 +43,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
@@ -62,10 +63,14 @@ import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.TelemetryAwarePlugin;
+import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.telemetry.Telemetry;
+import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.NodeRoles;
@@ -79,6 +84,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
@@ -430,6 +436,15 @@ public class NodeTests extends OpenSearchTestCase {
         }
     }
 
+    public void testTelemetryPluginShouldNOTImplementTelemetryAwarePlugin() throws IOException {
+        Settings.Builder settings = baseSettings();
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockTelemetryPlugin.class);
+        FeatureFlagSetter.set(FeatureFlags.TELEMETRY);
+        settings.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
+        assertThrows(IllegalStateException.class, () -> new MockNode(settings.build(), plugins));
+    }
+
     private static class MockTelemetryAwareComponent {
         private final Tracer tracer;
         private final MetricsRegistry metricsRegistry;
@@ -468,6 +483,19 @@ public class NodeTests extends OpenSearchTestCase {
             return List.of(new MockTelemetryAwareComponent(tracer, metricsRegistry));
         }
 
+    }
+
+    public static class MockTelemetryPlugin extends Plugin implements TelemetryPlugin, TelemetryAwarePlugin {
+
+        @Override
+        public Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings) {
+            return Optional.empty();
+        }
+
+        @Override
+        public String getName() {
+            return null;
+        }
     }
 
     public static class MockCircuitBreakerPlugin extends Plugin implements CircuitBreakerPlugin {
