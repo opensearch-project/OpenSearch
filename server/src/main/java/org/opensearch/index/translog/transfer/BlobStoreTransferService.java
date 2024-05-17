@@ -18,7 +18,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.FetchBlobResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
@@ -200,9 +200,9 @@ public class BlobStoreTransferService implements TransferService {
         return blobStore.blobContainer((BlobPath) path).readBlob(fileName);
     }
 
-    @ExperimentalApi
     @Override
-    public FetchBlobResult downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
+    @ExperimentalApi
+    public InputStreamWithMetadata downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
         assert blobStore.isBlobMetadataEnabled();
         return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }

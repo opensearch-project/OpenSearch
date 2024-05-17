@@ -354,6 +354,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private volatile TimeValue clusterDefaultRefreshInterval;
     private final SearchRequestStats searchRequestStats;
+    private final Supplier<RepositoriesService> repositoriesServiceSupplier;
 
     @Override
     protected void doStart() {
@@ -482,6 +483,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         this.remoteDirectoryFactory = remoteDirectoryFactory;
+        this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.translogFactorySupplier = getTranslogFactorySupplier(
             repositoriesServiceSupplier,
             threadPool,
@@ -511,6 +513,10 @@ public class IndicesService extends AbstractLifecycleComponent
             IndexService indexService = entry.getValue();
             indexService.onRefreshIntervalChange();
         }
+    }
+
+    public Supplier<RepositoriesService> getRepositoriesServiceSupplier() {
+        return repositoriesServiceSupplier;
     }
 
     private static BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(

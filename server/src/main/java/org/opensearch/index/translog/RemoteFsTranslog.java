@@ -111,7 +111,7 @@ public class RemoteFsTranslog extends Translog {
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
-        isTranslogMetadataEnabled = isTranslogMetadataEnabled(indexSettings().isTranslogMetadataEnabled(), blobStoreRepository);
+        isTranslogMetadataEnabled = indexSettings().isTranslogMetadataEnabled();
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -159,10 +159,6 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    private static boolean isTranslogMetadataEnabled(boolean isTranslogMetadataEnabled, BlobStoreRepository blobStoreRepository) {
-        return blobStoreRepository.blobStore().isBlobMetadataEnabled() && isTranslogMetadataEnabled;
-    }
-
     // visible for testing
     RemoteTranslogTransferTracker getRemoteTranslogTracker() {
         return remoteTranslogTransferTracker;
@@ -187,7 +183,6 @@ public class RemoteFsTranslog extends Translog {
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
         // We use a dummy stats tracker to ensure the flow doesn't break.
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
-        isTranslogMetadataEnabled = isTranslogMetadataEnabled(isTranslogMetadataEnabled, blobStoreRepository);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
@@ -619,7 +614,6 @@ public class RemoteFsTranslog extends Translog {
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
         // We use a dummy stats tracker to ensure the flow doesn't break.
         // TODO: To be revisited as part of https://github.com/opensearch-project/OpenSearch/issues/7567
-        isTranslogMetadataEnabled = isTranslogMetadataEnabled(isTranslogMetadataEnabled, blobStoreRepository);
         RemoteTranslogTransferTracker remoteTranslogTransferTracker = new RemoteTranslogTransferTracker(shardId, 1000);
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(

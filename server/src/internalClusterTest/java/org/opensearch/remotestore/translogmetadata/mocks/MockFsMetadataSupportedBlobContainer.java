@@ -12,7 +12,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.FetchBlobResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
@@ -169,14 +169,15 @@ public class MockFsMetadataSupportedBlobContainer extends FsBlobContainer implem
 
     // during readBlobWithMetadata call we separately download translog.ckp file and return it as metadata.
     @Override
-    public FetchBlobResult readBlobWithMetadata(String blobName) throws IOException {
-        InputStream inputStream = readBlob(blobName);
+    public InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
         String ckpFileName = getCheckpointFileName(blobName);
-        InputStream ckpInputStream = readBlob(ckpFileName);
-        String ckpString = convertToBase64(ckpInputStream);
-        Map<String, String> metadata = new HashMap<>();
-        metadata.put(CHECKPOINT_FILE_DATA_KEY, ckpString);
-        return new FetchBlobResult(inputStream, metadata);
+        InputStream inputStream = readBlob(blobName);
+        try (InputStream ckpInputStream = readBlob(ckpFileName)) {
+            String ckpString = convertToBase64(ckpInputStream);
+            Map<String, String> metadata = new HashMap<>();
+            metadata.put(CHECKPOINT_FILE_DATA_KEY, ckpString);
+            return new InputStreamWithMetadata(inputStream, metadata);
+        }
     }
 
     @Override

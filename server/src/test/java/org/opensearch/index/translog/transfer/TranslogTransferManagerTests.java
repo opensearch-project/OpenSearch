@@ -15,7 +15,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.FetchBlobResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
@@ -649,16 +649,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         AtomicInteger translogTransferFailed = new AtomicInteger();
 
         isTranslogMetadataEnabled = true;
-        translogTransferManager = new TranslogTransferManager(
-            shardId,
-            transferService,
-            remoteBaseTransferPath.add(TRANSLOG.getName()),
-            remoteBaseTransferPath.add(METADATA.getName()),
-            tracker,
-            remoteTranslogTransferTracker,
-            DefaultRemoteStoreSettings.INSTANCE,
-            isTranslogMetadataEnabled
-        );
 
         doNothing().when(transferService)
             .uploadBlob(
@@ -694,7 +684,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         };
 
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+        translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
             remoteBaseTransferPath.add(TRANSLOG.getName()),
@@ -754,7 +744,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         metadata.put(CHECKPOINT_FILE_DATA_KEY, ckpDataString);
         when(transferService.downloadBlobWithMetadata(any(BlobPath.class), eq("translog-23.tlog"))).thenAnswer(invocation -> {
             Thread.sleep(delayForBlobDownload);
-            return new FetchBlobResult(new ByteArrayInputStream(tlogBytes), metadata);
+            return new InputStreamWithMetadata(new ByteArrayInputStream(tlogBytes), metadata);
         });
     }
 

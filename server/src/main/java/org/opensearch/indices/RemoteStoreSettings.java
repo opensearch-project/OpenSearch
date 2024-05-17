@@ -85,7 +85,7 @@ public class RemoteStoreSettings {
      * repositories that supports metadata read and write with metadata and is applicable for only remote store enabled clusters.
      */
     @ExperimentalApi
-    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA = Setting.boolSetting(
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_TRANSLOG_METADATA = Setting.boolSetting(
         "cluster.remote_store.index.translog.translog_metadata",
         true,
         Property.NodeScope,
@@ -147,8 +147,8 @@ public class RemoteStoreSettings {
         pathType = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING, this::setPathType);
 
-        isTranslogMetadataEnabled = clusterSettings.get(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_TRANSLOG_TRANSLOG_METADATA, this::setTranslogMetadataEnabled);
+        isTranslogMetadataEnabled = clusterSettings.get(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA, this::setTranslogMetadataEnabled);
 
         pathHashAlgorithm = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING, this::setPathHashAlgorithm);

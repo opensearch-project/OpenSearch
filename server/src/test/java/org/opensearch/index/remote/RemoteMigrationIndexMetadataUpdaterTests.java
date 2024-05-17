@@ -303,7 +303,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
                     "dummy",
                     RemoteStoreEnums.PathHashAlgorithm.NAME,
                     "dummy",
-                    RemoteStoreEnums.TRANSLOG_METADATA,
+                    IndexMetadata.TRANSLOG_METADATA_KEY,
                     "dummy"
                 )
             )

@@ -22,7 +22,7 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class FetchBlobResult implements Closeable {
+public class InputStreamWithMetadata implements Closeable {
 
     /**
      * Downloaded blob InputStream
@@ -42,7 +42,7 @@ public class FetchBlobResult implements Closeable {
         return metadata;
     }
 
-    public FetchBlobResult(InputStream inputStream, Map<String, String> metadata) {
+    public InputStreamWithMetadata(InputStream inputStream, Map<String, String> metadata) {
         this.inputStream = inputStream;
         this.metadata = metadata;
     }

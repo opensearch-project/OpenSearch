@@ -170,8 +170,8 @@ public class RemoteMigrationIndexMetadataUpdater {
     public static boolean indexHasRemoteCustomMetadata(IndexMetadata indexMetadata) {
         Map<String, String> customMetadata = indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY);
         return Objects.nonNull(customMetadata)
-            && Objects.nonNull(customMetadata.get(PathType.NAME))
-            && Objects.nonNull(customMetadata.get(RemoteStoreEnums.TRANSLOG_METADATA));
+            && (Objects.nonNull(customMetadata.get(PathType.NAME))
+                || Objects.nonNull(customMetadata.get(IndexMetadata.TRANSLOG_METADATA_KEY)));
     }
 
     public static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, String segmentRepository, String translogRepository) {

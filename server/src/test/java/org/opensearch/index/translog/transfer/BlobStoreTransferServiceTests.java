@@ -169,9 +169,13 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
     }
 
     public void testBuildTransferFileMetadata_InputStreamExceedsLimit() {
-        byte[] largeData = new byte[1025]; // 1025 bytes, exceeding the 1KB limit
+        byte[] largeData = new byte[10250]; // 10250 bytes, exceeding the 1KB limit
         InputStream largeInputStream = new ByteArrayInputStream(largeData);
-        assertThrows(AssertionError.class, () -> BlobStoreTransferService.buildTransferFileMetadata(largeInputStream));
+        AssertionError assertionError = assertThrows(
+            AssertionError.class,
+            () -> BlobStoreTransferService.buildTransferFileMetadata(largeInputStream)
+        );
+        assertEquals(assertionError.getMessage(), "Input stream exceeds 1KB limit");
     }
 
     public void testBuildTransferFileMetadata_SmallInputStreamOptimization() throws IOException {

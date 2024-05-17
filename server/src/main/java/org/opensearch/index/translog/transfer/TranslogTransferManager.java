@@ -16,7 +16,7 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.FetchBlobResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -300,13 +300,13 @@ public class TranslogTransferManager {
         try {
             if (withMetadata) {
                 try (
-                    FetchBlobResult fetchBlobResult = transferService.downloadBlobWithMetadata(
+                    InputStreamWithMetadata inputStreamWithMetadata = transferService.downloadBlobWithMetadata(
                         remoteDataTransferPath.add(primaryTerm),
                         fileName
                     )
                 ) {
-                    InputStream inputStream = fetchBlobResult.getInputStream();
-                    metadata = fetchBlobResult.getMetadata();
+                    InputStream inputStream = inputStreamWithMetadata.getInputStream();
+                    metadata = inputStreamWithMetadata.getMetadata();
 
                     bytesToRead = inputStream.available();
                     Files.copy(inputStream, filePath);

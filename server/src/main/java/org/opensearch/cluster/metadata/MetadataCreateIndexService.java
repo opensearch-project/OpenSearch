@@ -90,7 +90,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.remote.RemoteStoreCustomMetadataResolver;
-import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -105,6 +104,7 @@ import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -213,8 +213,9 @@ public class MetadataCreateIndexService {
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
+        Supplier<RepositoriesService> repositoriesServiceSupplier = indicesService.getRepositoriesServiceSupplier();
         remoteStoreCustomMetadataResolver = isRemoteDataAttributePresent(settings)
-            ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier)
+            ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
             : null;
     }
 
@@ -591,7 +592,7 @@ public class MetadataCreateIndexService {
 
         // Determine if the ckp would be stored as translog metadata
         boolean isTranslogMetadataEnabled = remoteStoreCustomMetadataResolver.isTranslogMetadataEnabled();
-        remoteCustomData.put(RemoteStoreEnums.TRANSLOG_METADATA, Boolean.toString(isTranslogMetadataEnabled));
+        remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(isTranslogMetadataEnabled));
 
         // Determine the path type for use using the remoteStorePathResolver.
         RemoteStorePathStrategy newPathStrategy = remoteStoreCustomMetadataResolver.getPathStrategy();
@@ -599,7 +600,9 @@ public class MetadataCreateIndexService {
         if (Objects.nonNull(newPathStrategy.getHashAlgorithm())) {
             remoteCustomData.put(PathHashAlgorithm.NAME, newPathStrategy.getHashAlgorithm().name());
         }
-        logger.trace(() -> new ParameterizedMessage("Added newStrategy={}, replaced oldStrategy={}", remoteCustomData, existingCustomData));
+        logger.trace(
+            () -> new ParameterizedMessage("Added newCustomData={}, replaced oldCustomData={}", remoteCustomData, existingCustomData)
+        );
         tmpImdBuilder.putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, remoteCustomData);
     }
 
