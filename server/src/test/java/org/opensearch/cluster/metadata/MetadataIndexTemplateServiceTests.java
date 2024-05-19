@@ -2043,7 +2043,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         IndicesService indicesServices = mock(IndicesService.class);
         RepositoriesService repositoriesService = mock(RepositoriesService.class);
-        when(indicesServices.getRepositoriesServiceSupplier()).thenReturn(() -> repositoriesService);
+        // when(indicesServices.getRepositoriesServiceSupplier()).thenReturn(() -> repositoriesService);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,
@@ -2058,7 +2058,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             new SystemIndices(Collections.emptyMap()),
             true,
             new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            null
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
             clusterService,

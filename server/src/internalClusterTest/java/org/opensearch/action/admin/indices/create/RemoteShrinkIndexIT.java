@@ -49,6 +49,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.VersionUtils;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -65,6 +66,11 @@ public class RemoteShrinkIndexIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected boolean forbidPrivateIndexSettings() {
         return false;
+    }
+
+    @Before
+    public void setup() {
+        asyncUploadMockFsRepo = false;
     }
 
     public Settings indexSettings() {

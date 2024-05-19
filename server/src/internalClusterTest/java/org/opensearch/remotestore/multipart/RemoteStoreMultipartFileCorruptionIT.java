@@ -13,22 +13,11 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
-import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
-
-import java.util.Collection;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class RemoteStoreMultipartFileCorruptionIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockFsRepositoryPlugin.class)).collect(Collectors.toList());
-    }
 
     protected Settings remoteStoreIndexSettings() {
         return Settings.builder()

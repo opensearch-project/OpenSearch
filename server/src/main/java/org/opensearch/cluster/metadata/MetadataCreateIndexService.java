@@ -194,7 +194,8 @@ public class MetadataCreateIndexService {
         final SystemIndices systemIndices,
         final boolean forbidPrivateIndexSettings,
         final AwarenessReplicaBalance awarenessReplicaBalance,
-        final RemoteStoreSettings remoteStoreSettings
+        final RemoteStoreSettings remoteStoreSettings,
+        final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -213,7 +214,6 @@ public class MetadataCreateIndexService {
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
         Supplier<Version> minNodeVersionSupplier = () -> clusterService.state().nodes().getMinNodeVersion();
-        Supplier<RepositoriesService> repositoriesServiceSupplier = indicesService.getRepositoriesServiceSupplier();
         remoteStoreCustomMetadataResolver = isRemoteDataAttributePresent(settings)
             ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
             : null;

@@ -208,8 +208,16 @@ public class RemoteStoreUtils {
         Map<String, String> remoteCustomData = new HashMap<>();
         Version minNodeVersion = discoveryNodes.getMinNodeVersion();
 
+        // TODO: During the document replication to a remote store migration, there should be a check to determine if the registered
+        // translog blobstore supports custom metadata or not.
+        // Currently, the blobStoreMetadataEnabled flag is set to false because the integration tests run on the local file system, which
+        // does not support custom metadata.
+        // https://github.com/opensearch-project/OpenSearch/issues/13745
+        boolean blobStoreMetadataEnabled = false;
         boolean translogMetadata = Version.CURRENT.compareTo(minNodeVersion) <= 0
-            && CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.get(clusterSettings);
+            && CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.get(clusterSettings)
+            && blobStoreMetadataEnabled;
+
         remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(translogMetadata));
 
         RemoteStoreEnums.PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0

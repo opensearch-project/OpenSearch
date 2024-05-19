@@ -24,6 +24,7 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetada
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -46,6 +47,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
+
+    @Before
+    public void setup() {
+        asyncUploadMockFsRepo = false;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
