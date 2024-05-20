@@ -59,6 +59,7 @@ import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterInfoService;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -605,21 +606,10 @@ public class Node implements Closeable {
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class))
             );
 
-            List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
-            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
-            clusterService.addStateApplier(scriptService);
-            resourcesToClose.add(clusterService);
-            final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
-            if (consistentSettings.isEmpty() == false) {
-                clusterService.addLocalNodeMasterListener(
-                    new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
-                );
-            }
-
             TracerFactory tracerFactory;
             MetricsRegistryFactory metricsRegistryFactory;
             if (FeatureFlags.isEnabled(TELEMETRY)) {
-                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, clusterService.getClusterSettings());
+                final TelemetrySettings telemetrySettings = new TelemetrySettings(settings, settingsModule.getClusterSettings());
                 if (telemetrySettings.isTracingFeatureEnabled() || telemetrySettings.isMetricsFeatureEnabled()) {
                     List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
                     List<TelemetryPlugin> telemetryPluginsImplementingTelemetryAware = telemetryPlugins.stream()
@@ -659,6 +649,24 @@ public class Node implements Closeable {
             resourcesToClose.add(tracer::close);
             resourcesToClose.add(metricsRegistry::close);
 
+            final ClusterManagerMetrics clusterManagerMetrics = new ClusterManagerMetrics(metricsRegistry);
+
+            List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
+            final ClusterService clusterService = new ClusterService(
+                settings,
+                settingsModule.getClusterSettings(),
+                threadPool,
+                clusterManagerMetrics
+            );
+            clusterService.addStateApplier(scriptService);
+            resourcesToClose.add(clusterService);
+            final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
+            if (consistentSettings.isEmpty() == false) {
+                clusterService.addLocalNodeMasterListener(
+                    new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
+                );
+            }
+
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
 
@@ -686,7 +694,8 @@ public class Node implements Closeable {
                 clusterPlugins,
                 clusterInfoService,
                 snapshotsInfoService,
-                threadPool.getThreadContext()
+                threadPool.getThreadContext(),
+                clusterManagerMetrics
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
