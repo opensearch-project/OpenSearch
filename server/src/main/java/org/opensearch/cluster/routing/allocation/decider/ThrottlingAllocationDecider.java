@@ -44,7 +44,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 
-import java.util.Locale;
 import java.util.function.BiFunction;
 
 import static org.opensearch.cluster.routing.allocation.decider.Decision.THROTTLE;
@@ -286,7 +285,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     return allocation.decision(
                         THROTTLE,
                         NAME,
-                        "reached the limit of outgoing shard recoveries [%d] on the node [%s] which holds the primary, " + "cluster setting [%s=%d]",
+                        "reached the limit of outgoing shard recoveries [%d] on the node [%s] which holds the primary, "
+                            + "cluster setting [%s=%d]",
                         primaryNodeOutRecoveries,
                         primaryShard.currentNodeId(),
                         CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING.getKey(),
@@ -296,7 +296,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     return allocation.decision(
                         THROTTLE,
                         NAME,
-                        "reached the limit of outgoing shard recoveries [%d] on the node [%s] which holds the primary, " + "cluster setting [%s=%d] (can also be set via [%s])",
+                        "reached the limit of outgoing shard recoveries [%d] on the node [%s] which holds the primary, "
+                            + "cluster setting [%s=%d] (can also be set via [%s])",
                         primaryNodeOutRecoveries,
                         primaryShard.currentNodeId(),
                         CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
