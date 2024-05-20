@@ -23,6 +23,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -381,6 +382,36 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertNoLagAndTotalUploadsFailed(segmentTracker, 1);
     }
 
+    public void testSegmentUploadTimeout() throws Exception {
+        // This covers 2 cases - 1) isRetry=false, shouldRetry=true 2) isRetry=true, shouldRetry=false
+        // Succeed on 2nd attempt
+        int succeedOnAttempt = 1;
+        // We spy on IndexShard.isPrimaryStarted() to validate that we have tried running remote time as per the expectation.
+        CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
+        // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
+        // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
+        CountDownLatch successLatch = new CountDownLatch(2);
+        Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
+            succeedOnAttempt,
+            refreshCountLatch,
+            successLatch,
+            1,
+            new CountDownLatch(0),
+            true,
+            true
+        );
+        tuple.v2().getRemoteSegmentTransferTracker(indexShard.shardId).getTotalUploadsFailed();
+        assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
+        assertBusy(() -> assertEquals(1, successLatch.getCount()));
+        RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
+        RemoteSegmentTransferTracker segmentTracker = trackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
+        assertBusy(() -> {
+            assertTrue(segmentTracker.getTotalUploadsFailed() > 1);
+            assertTrue(segmentTracker.getTotalUploadsSucceeded() < 2);
+        });
+        indexShard.getThreadPool().shutdownNow();
+    }
+
     /**
      * Tests retry flow after snapshot and metadata files have been uploaded to remote store in the failed attempt.
      * Snapshot and metadata files created in failed attempt should not break retry.
@@ -480,6 +511,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             successLatch,
             checkpointPublishSucceedOnAttempt,
             reachedCheckpointPublishLatch,
+            false,
             false
         );
 
@@ -531,7 +563,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             successLatch,
             succeedCheckpointPublishOnAttempt,
             reachedCheckpointPublishLatch,
-            true
+            true,
+            false
         );
     }
 
@@ -541,7 +574,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         CountDownLatch successLatch,
         int succeedCheckpointPublishOnAttempt,
         CountDownLatch reachedCheckpointPublishLatch,
-        boolean mockPrimaryTerm
+        boolean mockPrimaryTerm,
+        boolean testUploadTimeout
     ) throws IOException {
         // Create index shard that we will be using to mock different methods in IndexShard for the unit test
         indexShard = newStartedShard(
@@ -575,9 +609,22 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // Mock (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
         Store remoteStore = mock(Store.class);
         when(shard.remoteStore()).thenReturn(remoteStore);
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
-            (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
-                .getDelegate();
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
+        RemoteDirectory remoteDirectory = mock(RemoteDirectory.class);
+        ;
+        if (testUploadTimeout) {
+            remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+                remoteDirectory,
+                mock(RemoteDirectory.class),
+                mock(RemoteStoreLockManager.class),
+                indexShard.getThreadPool(),
+                indexShard.shardId
+            );
+        } else {
+            remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore()
+                .directory()).getDelegate()).getDelegate();
+        }
+
         FilterDirectory remoteStoreFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(remoteSegmentStoreDirectory));
         when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
 
@@ -649,11 +696,27 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         RemoteStoreSettings remoteStoreSettings = mock(RemoteStoreSettings.class);
         when(remoteStoreSettings.getMinRemoteSegmentMetadataFiles()).thenReturn(10);
         when(shard.getRemoteStoreSettings()).thenReturn(remoteStoreSettings);
+        if (testUploadTimeout) {
+            when(remoteStoreSettings.getClusterRemoteSegmentTransferTimeout()).thenReturn(TimeValue.timeValueMillis(10));
+            doAnswer(invocation -> {
+                ActionListener<Void> actionListener = invocation.getArgument(5);
+                indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    try {
+                        Thread.sleep(30000);
+                    } catch (InterruptedException e) {
+                        logger.warn("interrupted sleep");
+                    }
+                    actionListener.onResponse(null);
+                });
+                return true;
+            }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(ActionListener.class), any(Boolean.class));
+        }
+
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(
             shard,
             emptyCheckpointPublisher,
             tracker,
-            DefaultRemoteStoreSettings.INSTANCE
+            remoteStoreSettings
         );
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteStoreStatsTrackerFactory);

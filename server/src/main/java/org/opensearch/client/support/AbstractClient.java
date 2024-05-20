@@ -923,11 +923,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<RemoteStoreStatsResponse> remoteStoreStats(final RemoteStoreStatsRequest request) {
-            return execute(RemoteStoreStatsAction.INSTANCE, request);
-        }
-
-        @Override
         public RemoteStoreStatsRequestBuilder prepareRemoteStoreStats(String index, String shardId) {
             RemoteStoreStatsRequestBuilder remoteStoreStatsRequestBuilder = new RemoteStoreStatsRequestBuilder(
                 this,
