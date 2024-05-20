@@ -41,6 +41,7 @@ import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 
@@ -87,7 +88,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             indexShard.refresh("test");
         }
 
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
@@ -804,7 +805,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             return null;
         }).when(emptyCheckpointPublisher).publish(any(), any());
 
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
