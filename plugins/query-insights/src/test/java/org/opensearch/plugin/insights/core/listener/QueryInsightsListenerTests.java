@@ -184,7 +184,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
 
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(false);
         when(queryInsightsService.isCollectionEnabled(MetricType.CPU)).thenReturn(false);
-        when(queryInsightsService.isCollectionEnabled(MetricType.MEMORY)).thenReturn(false);
+        when(queryInsightsService.isCollectionEnabled(MetricType.JVM)).thenReturn(false);
         queryInsightsListener.setEnableTopQueries(MetricType.LATENCY, false);
         assertFalse(queryInsightsListener.isEnabled());
     }

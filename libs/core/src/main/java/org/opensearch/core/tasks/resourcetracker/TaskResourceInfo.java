@@ -98,6 +98,9 @@ public class TaskResourceInfo implements Writeable, ToXContentObject {
         return builder;
     }
 
+    /**
+     * Builder for {@link TaskResourceInfo}
+     */
     public static class Builder {
         private TaskResourceUsage taskResourceUsage;
         private String action;

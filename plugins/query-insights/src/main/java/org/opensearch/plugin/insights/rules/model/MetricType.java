@@ -35,7 +35,7 @@ public enum MetricType implements Comparator<Number> {
     /**
      * JVM heap usage metric type
      */
-    MEMORY;
+    JVM;
 
     /**
      * Read a MetricType from a StreamInput
@@ -93,9 +93,10 @@ public enum MetricType implements Comparator<Number> {
     public int compare(final Number a, final Number b) {
         switch (this) {
             case LATENCY:
-            case CPU:
-            case MEMORY:
                 return Long.compare(a.longValue(), b.longValue());
+            case JVM:
+            case CPU:
+                return Double.compare(a.doubleValue(), b.doubleValue());
         }
         return -1;
     }
@@ -109,9 +110,10 @@ public enum MetricType implements Comparator<Number> {
     Number parseValue(final Object o) {
         switch (this) {
             case LATENCY:
-            case CPU:
-            case MEMORY:
                 return (Long) o;
+            case JVM:
+            case CPU:
+                return (Double) o;
             default:
                 return (Number) o;
         }

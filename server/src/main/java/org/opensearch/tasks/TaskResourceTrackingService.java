@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -40,7 +39,6 @@ import static org.opensearch.core.tasks.resourcetracker.ResourceStatsType.WORKER
 /**
  * Service that helps track resource usage of tasks running on a node.
  */
-@PublicApi(since = "2.2.0")
 @SuppressForbidden(reason = "ThreadMXBean#getThreadAllocatedBytes")
 public class TaskResourceTrackingService implements RunnableTaskExecutionListener {
 
@@ -267,7 +265,6 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     /**
      * Listener that gets invoked when a task execution completes.
      */
-    @PublicApi(since = "2.2.0")
     public interface TaskCompletionListener {
         void onTaskCompleted(Task task);
     }

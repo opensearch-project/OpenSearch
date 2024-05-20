@@ -39,7 +39,7 @@ public class SearchQueryRecordTests extends OpenSearchTestCase {
 
     public void testAllMetricTypes() {
         Set<MetricType> allMetrics = MetricType.allMetricTypes();
-        Set<MetricType> expected = new HashSet<>(Arrays.asList(MetricType.LATENCY, MetricType.CPU, MetricType.MEMORY));
+        Set<MetricType> expected = new HashSet<>(Arrays.asList(MetricType.LATENCY, MetricType.CPU, MetricType.JVM));
         assertEquals(expected, allMetrics);
     }
 

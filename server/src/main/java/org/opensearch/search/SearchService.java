@@ -79,6 +79,7 @@ import org.opensearch.core.tasks.resourcetracker.ResourceUsageInfo;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
+import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -1138,43 +1139,53 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return searchContext;
     }
 
-    protected void writeTaskResourceUsage(SearchShardTask task) {
-        // Get resource usages when task starts
-        Map<ResourceStats, ResourceUsageInfo.ResourceStatsInfo> startValues = task.getActiveThreadResourceInfo(
-            Thread.currentThread().getId(),
-            ResourceStatsType.WORKER_STATS
-        ).getResourceUsageInfo().getStatsInfo();
-
-        // Get current resource usages
-        ResourceUsageMetric[] endValues = TaskResourceTrackingService.getResourceUsageMetricsForThread(Thread.currentThread().getId());
-        long cpu = -1, mem = -1;
-        for (ResourceUsageMetric endValue : endValues) {
-            if (endValue.getStats() == ResourceStats.MEMORY) {
-                mem = endValue.getValue();
-            } else if (endValue.getStats() == ResourceStats.CPU) {
-                cpu = endValue.getValue();
+    private void writeTaskResourceUsage(SearchShardTask task) {
+        try {
+            // Get resource usages when task starts
+            ThreadResourceInfo threadResourceInfo = task.getActiveThreadResourceInfo(
+                Thread.currentThread().getId(),
+                ResourceStatsType.WORKER_STATS
+            );
+            if (threadResourceInfo == null) {
+                return;
             }
-        }
-        if (cpu == -1 || mem == -1) {
-            logger.debug("Invalid resource usage value, cpu [{}], memory [{}]: ", cpu, mem);
-            return;
-        }
+            Map<ResourceStats, ResourceUsageInfo.ResourceStatsInfo> startValues = threadResourceInfo.getResourceUsageInfo().getStatsInfo();
+            if (startValues.containsKey(ResourceStats.CPU) && startValues.containsKey(ResourceStats.MEMORY)) {
+                return;
+            }
+            // Get current resource usages
+            ResourceUsageMetric[] endValues = TaskResourceTrackingService.getResourceUsageMetricsForThread(Thread.currentThread().getId());
+            long cpu = -1, mem = -1;
+            for (ResourceUsageMetric endValue : endValues) {
+                if (endValue.getStats() == ResourceStats.MEMORY) {
+                    mem = endValue.getValue();
+                } else if (endValue.getStats() == ResourceStats.CPU) {
+                    cpu = endValue.getValue();
+                }
+            }
+            if (cpu == -1 || mem == -1) {
+                logger.debug("Invalid resource usage value, cpu [{}], memory [{}]: ", cpu, mem);
+                return;
+            }
 
-        // initial resource usages when the task started
-        TaskResourceInfo taskResourceInfo = new TaskResourceInfo.Builder().setAction(task.getAction())
-            .setTaskId(task.getId())
-            .setParentTaskId(task.getParentTaskId().getId())
-            .setNodeId(clusterService.localNode().getId())
-            .setTaskResourceUsage(
-                new TaskResourceUsage(
-                    cpu - startValues.get(ResourceStats.CPU).getStartValue(),
-                    mem - startValues.get(ResourceStats.MEMORY).getStartValue()
+            // Build task resource usage info
+            TaskResourceInfo taskResourceInfo = new TaskResourceInfo.Builder().setAction(task.getAction())
+                .setTaskId(task.getId())
+                .setParentTaskId(task.getParentTaskId().getId())
+                .setNodeId(clusterService.localNode().getId())
+                .setTaskResourceUsage(
+                    new TaskResourceUsage(
+                        cpu - startValues.get(ResourceStats.CPU).getStartValue(),
+                        mem - startValues.get(ResourceStats.MEMORY).getStartValue()
+                    )
                 )
-            )
-            .build();
+                .build();
 
-        threadPool.getThreadContext().removeResponseHeader(TASK_RESOURCE_USAGE);
-        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
+            threadPool.getThreadContext().removeResponseHeader(TASK_RESOURCE_USAGE);
+            threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
+        } catch (Exception e) {
+            logger.debug("Error during writing task resource usage: ", e);
+        }
     }
 
     private void freeAllContextForIndex(Index index) {

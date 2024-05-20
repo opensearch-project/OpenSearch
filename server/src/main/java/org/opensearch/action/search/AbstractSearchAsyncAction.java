@@ -627,9 +627,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     public void setPhaseResourceUsages() {
         ThreadContext threadContext = searchRequestContext.getThreadContextSupplier().get();
-        List<String> taskResourceUsages = threadContext.getResponseHeaders().get(TASK_RESOURCE_USAGE);
-        if (taskResourceUsages != null && taskResourceUsages.size() > 0) {
-            searchRequestContext.recordPhaseResourceUsage(taskResourceUsages.get(0));
+        if (threadContext != null) {
+            List<String> taskResourceUsages = threadContext.getResponseHeaders().get(TASK_RESOURCE_USAGE);
+            if (taskResourceUsages != null && taskResourceUsages.size() > 0) {
+                searchRequestContext.recordPhaseResourceUsage(taskResourceUsages.get(0));
+            }
         }
     }
 
