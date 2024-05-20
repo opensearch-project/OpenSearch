@@ -295,7 +295,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         remoteStoreSettings.getClusterRemoteSegmentTransferTimeout().millis(),
                         TimeUnit.MILLISECONDS
                     ) == false) {
-                        throw new InterruptedException("Timeout while waiting for remote segment transfer to complete");
+                        throw new SegmentUploadFailedException("Timeout while waiting for remote segment transfer to complete");
                     }
                 } catch (EngineException e) {
                     logger.warn("Exception while reading SegmentInfosSnapshot", e);
