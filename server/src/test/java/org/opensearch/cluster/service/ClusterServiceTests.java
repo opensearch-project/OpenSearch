@@ -10,6 +10,7 @@ package org.opensearch.cluster.service;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.junit.After;
@@ -26,11 +27,11 @@ public class ClusterServiceTests extends OpenSearchTestCase {
 
     public void testDeprecatedGetMasterServiceBWC() {
         try (
-            ClusterService clusterService = new ClusterService(
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool
-            )
+            );
         ) {
             MasterService masterService = clusterService.getMasterService();
             ClusterManagerService clusterManagerService = clusterService.getClusterManagerService();
