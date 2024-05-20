@@ -11,6 +11,7 @@ package org.opensearch.index.remote;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.remote.RemoteStoreEnums.DataCategory;
@@ -25,7 +26,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-@PublicApi(since = "2.14.0")
+@InternalApi
 @ExperimentalApi
 public class RemoteStorePathStrategy {
 
