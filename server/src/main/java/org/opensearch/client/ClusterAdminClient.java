@@ -322,6 +322,8 @@ public interface ClusterAdminClient extends OpenSearchClient {
 
     void remoteStoreStats(RemoteStoreStatsRequest request, ActionListener<RemoteStoreStatsResponse> listener);
 
+    ActionFuture<RemoteStoreStatsResponse> remoteStoreStats(RemoteStoreStatsRequest request);
+
     RemoteStoreStatsRequestBuilder prepareRemoteStoreStats(String index, String shardId);
 
     /**

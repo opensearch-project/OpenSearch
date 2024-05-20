@@ -76,46 +76,49 @@ public class MockFsAsyncBlobContainer extends FsBlobContainer implements AsyncMu
             });
             thread.start();
         }
-        try {
-            if (!latch.await(TRANSFER_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
-                throw new IOException("Timed out waiting for file transfer to complete for " + writeContext.getFileName());
-            }
-        } catch (InterruptedException e) {
-            throw new IOException("Await interrupted on CountDownLatch, transfer failed for " + writeContext.getFileName());
-        }
-        try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
-            outputStream.write(buffer);
-        }
-        if (writeContext.getFileSize() != totalContentRead.get()) {
-            throw new IOException(
-                "Incorrect content length read for file "
-                    + writeContext.getFileName()
-                    + ", actual file size: "
-                    + writeContext.getFileSize()
-                    + ", bytes read: "
-                    + totalContentRead.get()
-            );
-        }
 
-        try {
-            // bulks need to succeed for segment files to be generated
-            if (isSegmentFile(writeContext.getFileName()) && triggerDataIntegrityFailure) {
-                completionListener.onFailure(
-                    new RuntimeException(
-                        new CorruptIndexException(
-                            "Data integrity check failure for file: " + writeContext.getFileName(),
-                            writeContext.getFileName()
+        Thread thread = new Thread(() -> {
+            try {
+                try {
+                    if (!latch.await(TRANSFER_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+                        throw new IOException("Timed out waiting for file transfer to complete for " + writeContext.getFileName());
+                    }
+                } catch (InterruptedException e) {
+                    throw new IOException("Await interrupted on CountDownLatch, transfer failed for " + writeContext.getFileName());
+                }
+                try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
+                    outputStream.write(buffer);
+                }
+                if (writeContext.getFileSize() != totalContentRead.get()) {
+                    throw new IOException(
+                        "Incorrect content length read for file "
+                            + writeContext.getFileName()
+                            + ", actual file size: "
+                            + writeContext.getFileSize()
+                            + ", bytes read: "
+                            + totalContentRead.get()
+                    );
+                }
+
+                // bulks need to succeed for segment files to be generated
+                if (isSegmentFile(writeContext.getFileName()) && triggerDataIntegrityFailure) {
+                    completionListener.onFailure(
+                        new RuntimeException(
+                            new CorruptIndexException(
+                                "Data integrity check failure for file: " + writeContext.getFileName(),
+                                writeContext.getFileName()
+                            )
                         )
-                    )
-                );
-            } else {
-                writeContext.getUploadFinalizer().accept(true);
-                completionListener.onResponse(null);
+                    );
+                } else {
+                    writeContext.getUploadFinalizer().accept(true);
+                    completionListener.onResponse(null);
+                }
+            } catch (Exception e) {
+                completionListener.onFailure(e);
             }
-        } catch (Exception e) {
-            completionListener.onFailure(e);
-        }
-
+        });
+        thread.start();
     }
 
     @Override

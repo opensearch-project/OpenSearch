@@ -110,7 +110,7 @@ public class RemoteStoreSettings {
      */
     public static final Setting<TimeValue> CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.remote_store.segment.transfer_timeout",
-        TimeValue.timeValueHours(3),
+        TimeValue.timeValueHours(1),
         TimeValue.timeValueMinutes(10),
         Property.NodeScope,
         Property.Dynamic
