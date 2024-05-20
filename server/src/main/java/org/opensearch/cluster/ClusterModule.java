@@ -36,21 +36,7 @@ import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.index.NodeMappingRefreshAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
-import org.opensearch.cluster.metadata.ComponentTemplateMetadata;
-import org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata;
-import org.opensearch.cluster.metadata.DataStreamMetadata;
-import org.opensearch.cluster.metadata.IndexGraveyard;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
-import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
-import org.opensearch.cluster.metadata.MetadataIndexStateService;
-import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
-import org.opensearch.cluster.metadata.MetadataMappingService;
-import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
-import org.opensearch.cluster.metadata.RepositoriesMetadata;
-import org.opensearch.cluster.metadata.ViewMetadata;
-import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
+import org.opensearch.cluster.metadata.*;
 import org.opensearch.cluster.routing.DelayedAllocationService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -213,6 +199,13 @@ public class ClusterModule extends AbstractModule {
             DecommissionAttributeMetadata.TYPE,
             DecommissionAttributeMetadata::new,
             DecommissionAttributeMetadata::readDiffFrom
+        );
+
+        registerMetadataCustom(
+            entries,
+            ResourceLimitGroupMetadata.TYPE,
+            ResourceLimitGroupMetadata::new,
+            ResourceLimitGroupMetadata::readDiffFrom
         );
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));

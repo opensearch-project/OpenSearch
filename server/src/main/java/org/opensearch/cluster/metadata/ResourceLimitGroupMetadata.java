@@ -131,6 +131,15 @@ public class ResourceLimitGroupMetadata implements Metadata.Custom {
         return new ResourceLimitGroupMetadataDiff((ResourceLimitGroupMetadata) previousState, this);
     }
 
+    /**
+     * @param in
+     * @return the metadata diff for {@link ResourceLimitGroupMetadata} objects
+     * @throws IOException
+     */
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+        return new ResourceLimitGroupMetadataDiff(in);
+    }
+
     @Override
     public EnumSet<Metadata.XContentContext> context() {
         return ALL_CONTEXTS;
