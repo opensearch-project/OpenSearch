@@ -104,16 +104,21 @@ public class FingerprintProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument document) {
         // we should deduplicate and sort the field names to make sure we can get consistent hash value
         final List<String> sortedFields;
+        Set<String> metadataFields = document.getMetadata()
+            .keySet()
+            .stream()
+            .map(IngestDocument.Metadata::getFieldName)
+            .collect(Collectors.toSet());
+        // metadata fields such as _index, _id and _routing are ignored
         if (includeAllFields) {
             Set<String> existingFields = new HashSet<>(document.getSourceAndMetadata().keySet());
-            Set<String> metadataFields = document.getMetadata()
-                .keySet()
-                .stream()
-                .map(IngestDocument.Metadata::getFieldName)
-                .collect(Collectors.toSet());
             sortedFields = existingFields.stream().filter(field -> !metadataFields.contains(field)).sorted().collect(Collectors.toList());
         } else {
-            sortedFields = fields.stream().distinct().sorted().collect(Collectors.toList());
+            sortedFields = fields.stream()
+                .distinct()
+                .filter(field -> !metadataFields.contains(field))
+                .sorted()
+                .collect(Collectors.toList());
         }
         assert (!sortedFields.isEmpty());
 

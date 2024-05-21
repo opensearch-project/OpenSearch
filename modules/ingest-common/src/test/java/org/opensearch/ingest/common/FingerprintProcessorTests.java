@@ -16,6 +16,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -137,6 +138,29 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
         );
         processorWithIgnoreMissing.execute(ingestDocument);
         assertThat(ingestDocument.hasField(targetField), equalTo(false));
+    }
+
+    public void testIgnoreMetadataFields() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        List<String> metadataFields = ingestDocument.getMetadata()
+            .keySet()
+            .stream()
+            .map(IngestDocument.Metadata::getFieldName)
+            .collect(Collectors.toList());
+
+        String existingFieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomAlphaOfLength(10));
+        List<String> fields = List.of(existingFieldName, metadataFields.get(randomIntBetween(0, metadataFields.size() - 1)));
+
+        String targetField = "fingerprint";
+        String algorithm = randomFrom(List.of("MD5", "SHA-1", "SHA-256"));
+        Processor processor = createFingerprintProcessor(fields, false, targetField, algorithm, false);
+
+        processor.execute(ingestDocument);
+        String fingerprint = ingestDocument.getFieldValue(targetField, String.class);
+
+        processor = createFingerprintProcessor(List.of(existingFieldName), false, targetField, algorithm, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(targetField, String.class), equalTo(fingerprint));
     }
 
     private FingerprintProcessor createFingerprintProcessor(
