@@ -125,6 +125,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
             ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
             final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
+            final SortedSetDocValues globalOrdinalValues = source.globalOrdinalsValues(ctx);
             final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {
                 emptyCollectorsUsed++;
@@ -179,7 +180,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
-        // We need to build a copy because the returned Aggregation needs remain usable after
+        // We need to build a copy because the returned Aggregation needs to remain usable after
         // this Aggregator (and its HLL++ counters) is released.
         AbstractHyperLogLogPlusPlus copy = counts.clone(owningBucketOrdinal, BigArrays.NON_RECYCLING_INSTANCE);
         return new InternalCardinality(name, copy, metadata());
@@ -322,6 +323,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     bits.set((int) ord);
                 }
             }
+            // for this owning bucket ord, save the values of current doc as value ordinals bits
+            // visitedOrds (array with index as owning bucket, value as bits)
+            // ordinals is number array, each element representing a text or term, and sorted by the values
         }
 
         @Override
@@ -336,6 +340,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
                 try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
                     final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+                    // for every ordinal, we want the hash of its value
                     for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
                         ? allVisitedOrds.nextSetBit(ord + 1)
                         : Long.MAX_VALUE) {
@@ -347,6 +352,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                         final BitArray bits = visitedOrds.get(bucket);
                         if (bits != null) {
+                            // for every ordinal of this bucket, we collect by using its hash
                             for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
                                 ? bits.nextSetBit(ord + 1)
                                 : Long.MAX_VALUE) {

@@ -31,7 +31,7 @@ import java.util.List;
  * rest of the search space, so this term's subscorer DISI can be safely removed from list of subscorer to process.
  * <p>
  * 2. {@link #removeAllDISIsOnCurrentDoc()} breaks the invariant of Conjuction DISI i.e. the docIDs of all sub-scorers should be
- * less than or equal to current docID iterator is pointing to. When we remove elements from priority, it results in heapify action, which modifies
+ * less than or equal to current docID iterator is pointing to. When we remove elements from disi priority queue, it results in heapify action, which modifies
  * the top of the priority queye, which represents the current docID for subscorers here. To address this, we are wrapping the
  * iterator with {@link SlowDocIdPropagatorDISI} which keeps the iterator pointing to last docID before {@link #removeAllDISIsOnCurrentDoc()}
  * is called and updates this docID only when next() or advance() is called.
@@ -97,7 +97,6 @@ public class DisjunctionWithDynamicPruningScorer extends Scorer {
 
     private static class SlowDocIdPropagatorDISI extends DocIdSetIterator {
         DocIdSetIterator disi;
-
         Integer curDocId;
 
         SlowDocIdPropagatorDISI(DocIdSetIterator disi, Integer curDocId) {
@@ -145,11 +144,6 @@ public class DisjunctionWithDynamicPruningScorer extends Scorer {
     @Override
     public TwoPhaseIterator twoPhaseIterator() {
         return twoPhase;
-    }
-
-    @Override
-    public float getMaxScore(int i) throws IOException {
-        return 0;
     }
 
     private class TwoPhase extends TwoPhaseIterator {
@@ -231,7 +225,6 @@ public class DisjunctionWithDynamicPruningScorer extends Scorer {
         }
     }
 
-
     @Override
     public final int docID() {
         return subScorers.top().doc;
@@ -261,5 +254,10 @@ public class DisjunctionWithDynamicPruningScorer extends Scorer {
             children.add(new ChildScorable(scorer.scorer, "SHOULD"));
         }
         return children;
+    }
+
+    @Override
+    public float getMaxScore(int i) throws IOException {
+        return 0;
     }
 }
