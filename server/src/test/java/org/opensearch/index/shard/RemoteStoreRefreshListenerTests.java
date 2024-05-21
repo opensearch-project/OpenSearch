@@ -384,13 +384,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     public void testSegmentUploadTimeout() throws Exception {
-        // This covers 2 cases - 1) isRetry=false, shouldRetry=true 2) isRetry=true, shouldRetry=false
-        // Succeed on 2nd attempt
+        // This covers the case were segment upload fails due to timeout
         int succeedOnAttempt = 1;
         // We spy on IndexShard.isPrimaryStarted() to validate that we have tried running remote time as per the expectation.
         CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
-        // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
-        // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
         CountDownLatch successLatch = new CountDownLatch(2);
         Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
             succeedOnAttempt,
@@ -401,7 +398,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             true,
             true
         );
-        tuple.v2().getRemoteSegmentTransferTracker(indexShard.shardId).getTotalUploadsFailed();
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(1, successLatch.getCount()));
         RemoteStoreStatsTrackerFactory trackerFactory = tuple.v2();
@@ -410,6 +406,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             assertTrue(segmentTracker.getTotalUploadsFailed() > 1);
             assertTrue(segmentTracker.getTotalUploadsSucceeded() < 2);
         });
+        // shutdown threadpool for avoid leaking threads
         indexShard.getThreadPool().shutdownNow();
     }
 
@@ -612,7 +609,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(shard.remoteStore()).thenReturn(remoteStore);
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
         RemoteDirectory remoteDirectory = mock(RemoteDirectory.class);
-        ;
+
         if (testUploadTimeout) {
             remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
                 remoteDirectory,
@@ -705,7 +702,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                     try {
                         Thread.sleep(30000);
                     } catch (InterruptedException e) {
-                        logger.warn("interrupted sleep");
+                        logger.warn("copyFrom thread interrupted during sleep");
                     }
                     actionListener.onResponse(null);
                 });
