@@ -11,7 +11,7 @@
 
 opensearchplugin {
   description 'OpenSearch ResourceLimitGroup Plugin.'
-  classname 'org.opensearch.plugin.resource_limit_group.ResourceLimitGroupPlugin'
+  classname 'org.opensearch.plugin.rlg.ResourceLimitGroupPlugin'
 }
 
 dependencies {
