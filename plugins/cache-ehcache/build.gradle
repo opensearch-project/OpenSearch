@@ -94,10 +94,10 @@ tasks.named("bundlePlugin").configure {
 
 test {
   // TODO: Adding permission in plugin-security.policy doesn't seem to work.
-  systemProperty 'tests.security.manager', 'false'
+  //systemProperty 'tests.security.manager', 'false'
 }
 
 internalClusterTest {
   // TODO: Remove this later once we have a way.
-  systemProperty 'tests.security.manager', 'false'
+  //systemProperty 'tests.security.manager', 'false'
 }

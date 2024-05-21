@@ -9,5 +9,16 @@
 grant {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "getClassLoader";
+  permission java.io.FilePermission "/private/tmp/request_cache/-", "read";
+  permission java.io.FilePermission "/private/tmp/request_cache/-", "write"; // TODO: Where on earth is this /private prefix coming from?
+  permission java.io.FilePermission "/tmp/request_cache/-", "read";
+  permission java.io.FilePermission "/tmp/request_cache/-", "write";
+  permission java.io.FilePermission "/private/tmp/request_cache", "read";
+  permission java.io.FilePermission "/private/tmp/request_cache", "write";
+  permission java.io.FilePermission "/tmp/request_cache", "read";
+  permission java.io.FilePermission "/tmp/request_cache", "write";
 };
 

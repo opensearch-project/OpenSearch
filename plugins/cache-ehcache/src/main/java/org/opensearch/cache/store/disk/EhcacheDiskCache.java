@@ -42,6 +42,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -145,10 +147,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         } else {
             this.diskCacheAlias = builder.diskCacheAlias;
         }
-        this.storagePath = builder.storagePath;
+        /*this.storagePath = builder.storagePath;
         if (this.storagePath == null || this.storagePath.isBlank()) {
             throw new IllegalArgumentException("Storage path shouldn't be null or empty");
-        }
+        }*/
+        this.storagePath = "/tmp/request_cache/" + UUID.randomUUID() + "/"; // TODO: TEST ONLY
         if (builder.threadPoolAlias == null || builder.threadPoolAlias.isBlank()) {
             this.threadPoolAlias = THREAD_POOL_ALIAS_PREFIX + "DiskWrite#" + UNIQUE_ID;
         } else {
@@ -175,33 +178,34 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
 
     @SuppressWarnings({ "rawtypes" })
     private Cache<ICacheKey, ByteArrayWrapper> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
+        return AccessController.doPrivileged((PrivilegedAction<Cache<ICacheKey, ByteArrayWrapper>>) () -> {
         try {
-            return this.cacheManager.createCache(
+             return this.cacheManager.createCache(
                 this.diskCacheAlias,
                 CacheConfigurationBuilder.newCacheConfigurationBuilder(
-                    ICacheKey.class,
-                    ByteArrayWrapper.class,
-                    ResourcePoolsBuilder.newResourcePoolsBuilder().disk(maxWeightInBytes, MemoryUnit.B)
-                ).withExpiry(new ExpiryPolicy<>() {
-                    @Override
-                    public Duration getExpiryForCreation(ICacheKey key, ByteArrayWrapper value) {
-                        return INFINITE;
-                    }
+                        ICacheKey.class,
+                        ByteArrayWrapper.class,
+                        ResourcePoolsBuilder.newResourcePoolsBuilder().disk(maxWeightInBytes, MemoryUnit.B)
+                    ).withExpiry(new ExpiryPolicy<>() {
+                        @Override
+                        public Duration getExpiryForCreation(ICacheKey key, ByteArrayWrapper value) {
+                            return INFINITE;
+                        }
 
-                    @Override
-                    public Duration getExpiryForAccess(ICacheKey key, Supplier<? extends ByteArrayWrapper> value) {
-                        return expireAfterAccess;
-                    }
+                        @Override
+                        public Duration getExpiryForAccess(ICacheKey key, Supplier<? extends ByteArrayWrapper> value) {
+                            return expireAfterAccess;
+                        }
 
-                    @Override
-                    public Duration getExpiryForUpdate(
-                        ICacheKey key,
-                        Supplier<? extends ByteArrayWrapper> oldValue,
-                        ByteArrayWrapper newValue
-                    ) {
-                        return INFINITE;
-                    }
-                })
+                        @Override
+                        public Duration getExpiryForUpdate(
+                            ICacheKey key,
+                            Supplier<? extends ByteArrayWrapper> oldValue,
+                            ByteArrayWrapper newValue
+                        ) {
+                            return INFINITE;
+                        }
+                    })
                     .withService(getListenerConfiguration(builder))
                     .withService(
                         new OffHeapDiskStoreConfiguration(
@@ -226,6 +230,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             logger.error("Ehcache disk cache initialization failed: {}", ex.getMessage());
             throw ex;
         }
+        });
     }
 
     private CacheEventListenerConfigurationBuilder getListenerConfiguration(Builder<K, V> builder) {
@@ -252,25 +257,27 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @SuppressForbidden(reason = "Ehcache uses File.io")
     private PersistentCacheManager buildCacheManager() {
         // In case we use multiple ehCaches, we can define this cache manager at a global level.
-        return CacheManagerBuilder.newCacheManagerBuilder()
-            .with(CacheManagerBuilder.persistence(new File(storagePath)))
+        return AccessController.doPrivileged((PrivilegedAction<PersistentCacheManager>) () -> {
+            return CacheManagerBuilder.newCacheManagerBuilder()
+                .with(CacheManagerBuilder.persistence(new File(storagePath)))
 
-            .using(
-                PooledExecutionServiceConfigurationBuilder.newPooledExecutionServiceConfigurationBuilder()
-                    .defaultPool(THREAD_POOL_ALIAS_PREFIX + "Default#" + UNIQUE_ID, 1, 3) // Default pool used for other tasks
-                    // like event listeners
-                    .pool(
-                        this.threadPoolAlias,
-                        (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
-                            .get(DISK_WRITE_MIN_THREADS_KEY)
-                            .get(settings),
-                        (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
-                            .get(DISK_WRITE_MAXIMUM_THREADS_KEY)
-                            .get(settings)
-                    )
-                    .build()
-            )
-            .build(true);
+                .using(
+                    PooledExecutionServiceConfigurationBuilder.newPooledExecutionServiceConfigurationBuilder()
+                        .defaultPool(THREAD_POOL_ALIAS_PREFIX + "Default#" + UNIQUE_ID, 1, 3) // Default pool used for other tasks
+                        // like event listeners
+                        .pool(
+                            this.threadPoolAlias,
+                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
+                                .get(DISK_WRITE_MIN_THREADS_KEY)
+                                .get(settings),
+                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
+                                .get(DISK_WRITE_MAXIMUM_THREADS_KEY)
+                                .get(settings)
+                        )
+                        .build()
+                )
+                .build(true);
+        });
     }
 
     @Override
