@@ -18,7 +18,11 @@ config_dir=/etc/wazuh-indexer
 data_dir=/var/lib/wazuh-indexer
 log_dir=/var/log/wazuh-indexer
 pid_dir=/var/run/wazuh-indexer
+tmp_dir=/var/log/wazuh-indexer/tmp
 
+
+# Create needed directories
+mkdir -p ${tmp_dir}
 
 # Set owner
 chown -R wazuh-indexer.wazuh-indexer ${product_dir}
@@ -26,6 +30,7 @@ chown -R wazuh-indexer.wazuh-indexer ${config_dir}
 chown -R wazuh-indexer.wazuh-indexer ${log_dir}
 chown -R wazuh-indexer.wazuh-indexer ${data_dir}
 chown -R wazuh-indexer.wazuh-indexer ${pid_dir}
+chown -R wazuh-indexer.wazuh-indexer ${tmp_dir}
 
 # Reload systemctl daemon
 if command -v systemctl > /dev/null; then

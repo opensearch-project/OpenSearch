@@ -27,6 +27,7 @@
 %define data_dir %{_sharedstatedir}/%{name}
 %define log_dir %{_localstatedir}/log/%{name}
 %define pid_dir %{_localstatedir}/run/%{name}
+%define tmp_dir %{log_dir}/tmp
 %{!?_version: %define _version 0.0.0 }
 %{!?_architecture: %define _architecture x86_64 }
 
@@ -65,6 +66,7 @@ cd %{_topdir} && pwd
 # Create necessary directories
 mkdir -p %{buildroot}%{pid_dir}
 mkdir -p %{buildroot}%{product_dir}/plugins
+mkdir -p %{buildroot}%{tmp_dir}
 
 # Install directories/files
 cp -a etc usr var %{buildroot}

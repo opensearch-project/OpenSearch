@@ -19,6 +19,7 @@ Type=notify
 RuntimeDirectory=wazuh-indexer
 PrivateTmp=true
 Environment=OPENSEARCH_HOME=/usr/share/wazuh-indexer
+Environment=OPENSEARCH_TMPDIR=/var/log/wazuh-indexer/tmp
 Environment=OPENSEARCH_PATH_CONF=${path.conf}
 Environment=PID_DIR=/run/wazuh-indexer
 Environment=OPENSEARCH_SD_NOTIFY=true
