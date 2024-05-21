@@ -121,7 +121,7 @@ public class BlobStoreTransferService implements TransferService {
                 totalBytesRead += bytesRead;
                 if (totalBytesRead > 1024) {
                     // We enforce a limit of 1KB on the size of the checkpoint file.
-                    throw new AssertionError("Input stream exceeds 1KB limit");
+                    throw new IOException("Input stream exceeds 1KB limit");
                 }
             }
 

@@ -81,12 +81,13 @@ public class MockFsMetadataSupportedBlobContainer extends MockFsAsyncBlobContain
     @Override
     public InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
         String ckpFileName = getCheckpointFileName(blobName);
-        InputStream inputStream = readBlob(blobName);
-        try (InputStream ckpInputStream = readBlob(ckpFileName)) {
-            String ckpString = convertToBase64(ckpInputStream);
-            Map<String, String> metadata = new HashMap<>();
-            metadata.put(CHECKPOINT_FILE_DATA_KEY, ckpString);
-            return new InputStreamWithMetadata(inputStream, metadata);
+        try (InputStream inputStream = readBlob(blobName)) {
+            try (InputStream ckpInputStream = readBlob(ckpFileName)) {
+                String ckpString = convertToBase64(ckpInputStream);
+                Map<String, String> metadata = new HashMap<>();
+                metadata.put(CHECKPOINT_FILE_DATA_KEY, ckpString);
+                return new InputStreamWithMetadata(inputStream, metadata);
+            }
         }
     }
 }
