@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -37,12 +38,12 @@ import org.opensearch.search.aggregations.bucket.composite.CompositeAggregator;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
 import org.opensearch.search.aggregations.bucket.composite.RoundingValuesSource;
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
+import org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
@@ -188,7 +189,7 @@ public final class FastFilterRewriteHelper {
         private final SearchContext context;
 
         private String fieldName;
-        private long[][] ranges;
+        private Ranges ranges;
 
         // debug info related fields
         public int leaf;
@@ -230,8 +231,8 @@ public final class FastFilterRewriteHelper {
             }
         }
 
-        public long[][] buildRanges(LeafReaderContext leaf) throws IOException {
-            long[][] ranges = this.aggregationType.buildRanges(leaf, context);
+        public Ranges buildRanges(LeafReaderContext leaf) throws IOException {
+            Ranges ranges = this.aggregationType.buildRanges(leaf, context);
             if (ranges != null) {
                 logger.debug("Ranges built for shard {} segment {}", context.indexShard().shardId(), leaf.ord);
             }
@@ -250,10 +251,12 @@ public final class FastFilterRewriteHelper {
     interface AggregationType {
         boolean isRewriteable(Object parent, int subAggLength);
 
-        long[][] buildRanges(SearchContext ctx) throws IOException;
+        Ranges buildRanges(SearchContext ctx) throws IOException;
 
-        long[][] buildRanges(LeafReaderContext leaf, SearchContext ctx) throws IOException;
+        Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx) throws IOException;
     }
+
+
 
     /**
      * For date histogram aggregation
@@ -286,13 +289,13 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public long[][] buildRanges(SearchContext context) throws IOException {
+        public Ranges buildRanges(SearchContext context) throws IOException {
             long[] bounds = getDateHistoAggBounds(context, fieldType.name());
             logger.debug("Bounds are {} for shard {}", bounds, context.indexShard().shardId());
             return buildRanges(context, bounds);
         }
 
-        private long[][] buildRanges(SearchContext context, long[] bounds) throws IOException {
+        private Ranges buildRanges(SearchContext context, long[] bounds) throws IOException {
             bounds = processHardBounds(bounds);
             if (bounds == null) {
                 return null;
@@ -320,7 +323,7 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public long[][] buildRanges(LeafReaderContext leaf, SearchContext context) throws IOException {
+        public Ranges buildRanges(LeafReaderContext leaf, SearchContext context) throws IOException {
             long[] bounds = getSegmentBounds(leaf, fieldType.name());
             logger.debug("Bounds are {} for shard {} segment {}", bounds, context.indexShard().shardId(), leaf.ord);
             return buildRanges(context, bounds);
@@ -353,6 +356,47 @@ public final class FastFilterRewriteHelper {
         public DateFieldMapper.DateFieldType getFieldType() {
             assert fieldType instanceof DateFieldMapper.DateFieldType;
             return (DateFieldMapper.DateFieldType) fieldType;
+        }
+    }
+
+    public static class RangeAggregationType implements FastFilterRewriteHelper.AggregationType {
+
+        private final ValuesSource.Numeric source;
+        private final Range[] ranges;
+
+        public RangeAggregationType(ValuesSource.Numeric source, Range[] ranges) {
+            this.source = source;
+            this.ranges = ranges;
+        }
+
+        @Override
+        public boolean isRewriteable(Object parent, int subAggLength) {
+            if (parent == null && subAggLength == 0) {
+                // don't accept values source with scripts
+                if (source instanceof ValuesSource.Numeric.FieldData) {
+                    // ranges are already sorted by from and then to
+                    // we want ranges not overlapping with each other
+                    double prevTo = ranges[0].getTo();
+                    for (int i = 1; i < ranges.length; i++) {
+                        if (prevTo > ranges[i].getFrom()) {
+                            return false;
+                        }
+                        prevTo = ranges[i].getTo();
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public Ranges buildRanges(SearchContext ctx) throws IOException {
+            return new Ranges(new byte[][]{}, new byte[][]{});
+        }
+
+        @Override
+        public Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx) throws IOException {
+            return new Ranges(new byte[][]{}, new byte[][]{});
         }
     }
 
@@ -407,7 +451,7 @@ public final class FastFilterRewriteHelper {
         if (!fastFilterContext.rangesBuiltAtShardLevel && !segmentMatchAll(fastFilterContext.context, ctx)) {
             return false;
         }
-        long[][] ranges = fastFilterContext.ranges;
+        Ranges ranges = fastFilterContext.ranges;
         if (ranges == null) {
             logger.debug(
                 "Shard {} segment {} functionally match all documents. Build the fast filter",
@@ -445,7 +489,7 @@ public final class FastFilterRewriteHelper {
      * Creates the date ranges from date histo aggregations using its interval,
      * and min/max boundaries
      */
-    private static long[][] createRangesFromAgg(
+    private static Ranges createRangesFromAgg(
         final SearchContext context,
         final DateFieldMapper.DateFieldType fieldType,
         final long interval,
@@ -491,7 +535,18 @@ public final class FastFilterRewriteHelper {
             }
         }
 
-        return ranges;
+        byte[][] mins = new byte[ranges.length][];
+        byte[][] maxs = new byte[ranges.length][];
+        for (int i = 0; i < ranges.length; i++) {
+            byte[] min = new byte[8];
+            byte[] max = new byte[8];
+            LongPoint.encodeDimension(ranges[i][0], min, 0);
+            LongPoint.encodeDimension(ranges[i][1], max, 0);
+            mins[i] = min;
+            maxs[i] = max;
+        }
+
+        return new Ranges(mins, maxs);
     }
 
     /**
@@ -499,35 +554,42 @@ public final class FastFilterRewriteHelper {
      */
     private static DebugInfo multiRangesTraverse(
         final PointValues.PointTree tree,
-        final long[][] ranges,
+        final Ranges ranges,
         final BiConsumer<Long, Integer> incrementDocCount,
         final DateFieldMapper.DateFieldType fieldType,
         final int maxNumNonZeroRanges
     ) throws IOException {
         // ranges are connected and in ascending order
-        Iterator<long[]> rangeIter = Arrays.stream(ranges).iterator();
-        long[] activeRange = rangeIter.next();
+        // Iterator<long[]> rangeIter = Arrays.stream(ranges).iterator();
+        // long[] activeRange = rangeIter.next();
+        //
+        // // make sure the first range at least crosses the min value of the tree
+        // DebugInfo debugInfo = new DebugInfo();
+        // if (activeRange[0] > NumericUtils.sortableBytesToLong(tree.getMaxPackedValue(), 0)) {
+        //     logger.debug("No ranges match the query, skip the fast filter optimization");
+        //     return debugInfo;
+        // }
+        // while (activeRange[1] < NumericUtils.sortableBytesToLong(tree.getMinPackedValue(), 0)) {
+        //     if (!rangeIter.hasNext()) {
+        //         logger.debug("No ranges match the query, skip the fast filter optimization");
+        //         return debugInfo;
+        //     }
+        //     activeRange = rangeIter.next();
+        // }
 
-        // make sure the first range at least crosses the min value of the tree
         DebugInfo debugInfo = new DebugInfo();
-        if (activeRange[0] > NumericUtils.sortableBytesToLong(tree.getMaxPackedValue(), 0)) {
+        int activeIndex = ranges.firstRange(tree.getMinPackedValue(), tree.getMaxPackedValue());
+        if (activeIndex < 0) {
             logger.debug("No ranges match the query, skip the fast filter optimization");
             return debugInfo;
-        }
-        while (activeRange[1] < NumericUtils.sortableBytesToLong(tree.getMinPackedValue(), 0)) {
-            if (!rangeIter.hasNext()) {
-                logger.debug("No ranges match the query, skip the fast filter optimization");
-                return debugInfo;
-            }
-            activeRange = rangeIter.next();
         }
 
         RangeCollectorForPointTree collector = new RangeCollectorForPointTree(
             incrementDocCount,
             fieldType,
-            rangeIter,
             maxNumNonZeroRanges,
-            activeRange
+            ranges,
+            activeIndex
         );
 
         final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(8);
@@ -540,6 +602,40 @@ public final class FastFilterRewriteHelper {
         collector.finalizePreviousRange();
 
         return debugInfo;
+    }
+
+    private static final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(8);
+
+    private static int compareByteValue(byte[] value1, byte[] value2) {
+        return comparator.compare(value1, 0, value2, 0);
+    }
+
+    public static class Ranges {
+        byte[][] min;
+        byte[][] max;
+        int size;
+
+        Ranges(byte[][] min, byte[][] max) {
+            this.min = min;
+            this.max = max;
+            assert min.length == max.length;
+            this.size =  min.length;
+        }
+
+        // method to return the first range
+        public int firstRange(byte[] globalMin, byte[] globalMax) {
+            if (compareByteValue(min[0], globalMax) > 0) {
+                return -1;
+            }
+            int i = 0;
+            while (compareByteValue(max[i], globalMin) < 0) {
+                i++;
+                if (i >= size) {
+                    return -1;
+                }
+            }
+            return i;
+        }
     }
 
     private static void intersectWithRanges(
@@ -651,9 +747,12 @@ public final class FastFilterRewriteHelper {
         private final DateFieldMapper.DateFieldType fieldType;
         private int counter = 0;
 
-        private long[] activeRange;
+        // private long[] activeRange;
         private byte[][] activeRangeAsByteArray;
-        private final Iterator<long[]> rangeIter;
+        // private final Iterator<long[]> rangeIter;
+
+        private Ranges ranges;
+        private int activeIndex;
 
         private int visitedRange = 0;
         private final int maxNumNonZeroRange;
@@ -661,15 +760,15 @@ public final class FastFilterRewriteHelper {
         public RangeCollectorForPointTree(
             BiConsumer<Long, Integer> incrementDocCount,
             DateFieldMapper.DateFieldType fieldType,
-            Iterator<long[]> rangeIter,
             int maxNumNonZeroRange,
-            long[] activeRange
+            Ranges ranges,
+            int activeIndex
         ) {
             this.incrementDocCount = incrementDocCount;
             this.fieldType = fieldType;
-            this.rangeIter = rangeIter;
             this.maxNumNonZeroRange = maxNumNonZeroRange;
-            this.activeRange = activeRange;
+            this.ranges = ranges;
+            this.activeIndex = activeIndex;
             this.activeRangeAsByteArray = activeRangeAsByteArray();
         }
 
@@ -683,9 +782,10 @@ public final class FastFilterRewriteHelper {
 
         private void finalizePreviousRange() {
             if (counter > 0) {
-                logger.debug("finalize previous range: {}", activeRange[0]);
+                long range = LongPoint.decodeDimension(ranges.min[activeIndex],0);
+                logger.debug("finalize previous range: {}", range);
                 logger.debug("counter: {}", counter);
-                incrementDocCount.accept(fieldType.convertNanosToMillis(activeRange[0]), counter);
+                incrementDocCount.accept(fieldType.convertNanosToMillis(range), counter);
                 counter = 0;
             }
         }
@@ -697,10 +797,13 @@ public final class FastFilterRewriteHelper {
             // the new value may not be contiguous to the previous one
             // so try to find the first next range that cross the new value
             while (comparator.apply(activeRangeAsByteArray[1], value) < 0) {
-                if (!rangeIter.hasNext()) {
+                // if (!rangeIter.hasNext()) {
+                //     return true;
+                // }
+                // activeRange = rangeIter.next();
+                if (++activeIndex >= ranges.size) {
                     return true;
                 }
-                activeRange = rangeIter.next();
                 activeRangeAsByteArray = activeRangeAsByteArray();
             }
             visitedRange++;
@@ -708,11 +811,12 @@ public final class FastFilterRewriteHelper {
         }
 
         private byte[][] activeRangeAsByteArray() {
-            byte[] lower = new byte[8];
-            byte[] upper = new byte[8];
-            NumericUtils.longToSortableBytes(activeRange[0], lower, 0);
-            NumericUtils.longToSortableBytes(activeRange[1], upper, 0);
-            return new byte[][] { lower, upper };
+            // byte[] lower = new byte[8];
+            // byte[] upper = new byte[8];
+            // NumericUtils.longToSortableBytes(activeRange[0], lower, 0);
+            // NumericUtils.longToSortableBytes(activeRange[1], upper, 0);
+            // return new byte[][] { lower, upper };
+            return new byte[][] { ranges.min[activeIndex], ranges.max[activeIndex] };
         }
     }
 

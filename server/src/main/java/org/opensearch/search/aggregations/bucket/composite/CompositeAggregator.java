@@ -74,6 +74,7 @@ import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper.AbstractDateHistogramAggregationType;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
@@ -180,7 +181,7 @@ public final class CompositeAggregator extends BucketsAggregator {
     /**
      * Currently the filter rewrite is only supported for date histograms
      */
-    public class CompositeAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
+    public class CompositeAggregationType extends AbstractDateHistogramAggregationType {
         private final RoundingValuesSource valuesSource;
         private long afterKey = -1L;
 

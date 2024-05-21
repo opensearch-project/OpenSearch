@@ -54,6 +54,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 
@@ -245,6 +246,8 @@ public class RangeAggregator extends BucketsAggregator {
 
     final double[] maxTo;
 
+    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
+
     public RangeAggregator(
         String name,
         AggregatorFactories factories,
@@ -258,7 +261,6 @@ public class RangeAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
@@ -266,15 +268,28 @@ public class RangeAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
 
-        this.ranges = ranges;
+        this.ranges = ranges; // sorted by the from then to
+
+        // if the range connect with each other, we can try apply the optimization
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
+        fastFilterContext.setAggregationType(
+            new FastFilterRewriteHelper.RangeAggregationType(
+                valuesSource,
+                ranges
+            )
+        );
+        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            fastFilterContext.buildRanges();
+        }
 
         maxTo = new double[this.ranges.length];
         maxTo[0] = this.ranges[0].to;
         for (int i = 1; i < this.ranges.length; ++i) {
             maxTo[i] = Math.max(this.ranges[i].to, maxTo[i - 1]);
         }
-
     }
+
+
 
     @Override
     public ScoreMode scoreMode() {
@@ -293,6 +308,7 @@ public class RangeAggregator extends BucketsAggregator {
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     for (int i = 0, lo = 0; i < valuesCount; ++i) {
+                        // for each value of the document
                         final double value = values.nextValue();
                         lo = collect(doc, value, bucket, lo);
                     }
