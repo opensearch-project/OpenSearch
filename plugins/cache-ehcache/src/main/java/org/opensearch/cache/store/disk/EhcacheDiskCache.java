@@ -147,11 +147,10 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         } else {
             this.diskCacheAlias = builder.diskCacheAlias;
         }
-        /*this.storagePath = builder.storagePath;
+        this.storagePath = builder.storagePath;
         if (this.storagePath == null || this.storagePath.isBlank()) {
             throw new IllegalArgumentException("Storage path shouldn't be null or empty");
-        }*/
-        this.storagePath = "/tmp/request_cache/" + UUID.randomUUID() + "/"; // TODO: TEST ONLY
+        }
         if (builder.threadPoolAlias == null || builder.threadPoolAlias.isBlank()) {
             this.threadPoolAlias = THREAD_POOL_ALIAS_PREFIX + "DiskWrite#" + UNIQUE_ID;
         } else {
@@ -178,11 +177,12 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
 
     @SuppressWarnings({ "rawtypes" })
     private Cache<ICacheKey, ByteArrayWrapper> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
+        // Creating the cache requires permissions specified in plugin-security.policy
         return AccessController.doPrivileged((PrivilegedAction<Cache<ICacheKey, ByteArrayWrapper>>) () -> {
-        try {
-             return this.cacheManager.createCache(
-                this.diskCacheAlias,
-                CacheConfigurationBuilder.newCacheConfigurationBuilder(
+            try {
+                return this.cacheManager.createCache(
+                    this.diskCacheAlias,
+                    CacheConfigurationBuilder.newCacheConfigurationBuilder(
                         ICacheKey.class,
                         ByteArrayWrapper.class,
                         ResourcePoolsBuilder.newResourcePoolsBuilder().disk(maxWeightInBytes, MemoryUnit.B)
@@ -206,30 +206,30 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                             return INFINITE;
                         }
                     })
-                    .withService(getListenerConfiguration(builder))
-                    .withService(
-                        new OffHeapDiskStoreConfiguration(
-                            this.threadPoolAlias,
-                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
-                                .get(DISK_WRITE_CONCURRENCY_KEY)
-                                .get(settings),
-                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings)
+                        .withService(getListenerConfiguration(builder))
+                        .withService(
+                            new OffHeapDiskStoreConfiguration(
+                                this.threadPoolAlias,
+                                (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
+                                    .get(DISK_WRITE_CONCURRENCY_KEY)
+                                    .get(settings),
+                                (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings)
+                            )
                         )
-                    )
-                    .withKeySerializer(new KeySerializerWrapper(keySerializer))
-                    .withValueSerializer(new ByteArrayWrapperSerializer())
+                        .withKeySerializer(new KeySerializerWrapper(keySerializer))
+                        .withValueSerializer(new ByteArrayWrapperSerializer())
                 // We pass ByteArrayWrapperSerializer as ehcache's value serializer. If V is an interface, and we pass its
                 // serializer directly to ehcache, ehcache requires the classes match exactly before/after serialization.
                 // This is not always feasible or necessary, like for BytesReference. So, we handle the value serialization
                 // before V hits ehcache.
-            );
-        } catch (IllegalArgumentException ex) {
-            logger.error("Ehcache disk cache initialization failed due to illegal argument: {}", ex.getMessage());
-            throw ex;
-        } catch (IllegalStateException ex) {
-            logger.error("Ehcache disk cache initialization failed: {}", ex.getMessage());
-            throw ex;
-        }
+                );
+            } catch (IllegalArgumentException ex) {
+                logger.error("Ehcache disk cache initialization failed due to illegal argument: {}", ex.getMessage());
+                throw ex;
+            } catch (IllegalStateException ex) {
+                logger.error("Ehcache disk cache initialization failed: {}", ex.getMessage());
+                throw ex;
+            }
         });
     }
 
@@ -257,6 +257,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @SuppressForbidden(reason = "Ehcache uses File.io")
     private PersistentCacheManager buildCacheManager() {
         // In case we use multiple ehCaches, we can define this cache manager at a global level.
+        // Creating the cache manager also requires permissions specified in plugin-security.policy
         return AccessController.doPrivileged((PrivilegedAction<PersistentCacheManager>) () -> {
             return CacheManagerBuilder.newCacheManagerBuilder()
                 .with(CacheManagerBuilder.persistence(new File(storagePath)))
