@@ -10,8 +10,16 @@ package org.opensearch.index.shard;
 
 import java.io.IOException;
 
+/**
+ * Exception to be thrown when a segment upload fails.
+ */
 public class SegmentUploadFailedException extends IOException {
 
+    /**
+     * Creates a new SegmentUploadFailedException.
+     *
+     * @param message error message 
+     */
     public SegmentUploadFailedException(String message) {
         super(message);
     }
