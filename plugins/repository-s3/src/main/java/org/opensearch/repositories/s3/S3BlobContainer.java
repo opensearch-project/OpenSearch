@@ -325,7 +325,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                             );
                         }
                     }
-                    listener.onResponse(new ReadContext(blobSize, blobPartInputStreamFutures, blobChecksum));
+                    listener.onResponse(new ReadContext.Builder(blobSize, blobPartInputStreamFutures).blobChecksum(blobChecksum).build());
                 } catch (Exception ex) {
                     listener.onFailure(ex);
                 }
