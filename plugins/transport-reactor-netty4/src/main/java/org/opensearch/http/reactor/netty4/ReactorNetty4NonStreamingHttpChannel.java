@@ -23,13 +23,13 @@ import reactor.core.publisher.FluxSink;
 import reactor.netty.http.server.HttpServerRequest;
 import reactor.netty.http.server.HttpServerResponse;
 
-class NonStreamingHttpChannel implements HttpChannel {
+class ReactorNetty4NonStreamingHttpChannel implements HttpChannel {
     private final HttpServerRequest request;
     private final HttpServerResponse response;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
     private final FluxSink<HttpContent> emitter;
 
-    NonStreamingHttpChannel(HttpServerRequest request, HttpServerResponse response, FluxSink<HttpContent> emitter) {
+    ReactorNetty4NonStreamingHttpChannel(HttpServerRequest request, HttpServerResponse response, FluxSink<HttpContent> emitter) {
         this.request = request;
         this.response = response;
         this.emitter = emitter;

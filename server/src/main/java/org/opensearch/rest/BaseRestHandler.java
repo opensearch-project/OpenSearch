@@ -201,6 +201,16 @@ public abstract class BaseRestHandler implements RestHandler {
     protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**
+     * Streaming REST requests are handled by preparing a streaming channel consumer that represents the execution of
+     * the request against a channel.
+     *
+     * @opensearch.api
+     */
+    @FunctionalInterface
+    @PublicApi(since = "2.15.0")
+    protected interface StreamingRestChannelConsumer extends CheckedConsumer<StreamingRestChannel, Exception> {}
+
+    /**
      * Prepare the request for execution. Implementations should consume all request params before
      * returning the runnable for actual execution. Unconsumed params will immediately terminate
      * execution of the request. However, some params are only used in processing the response;
@@ -316,6 +326,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         public boolean allowSystemIndexAccessByDefault() {
             return delegate.allowSystemIndexAccessByDefault();
+        }
+
+        @Override
+        public boolean supportsStreaming() {
+            return delegate.supportsStreaming();
         }
     }
 
