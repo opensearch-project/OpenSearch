@@ -18,7 +18,7 @@ public class SegmentUploadFailedException extends IOException {
     /**
      * Creates a new SegmentUploadFailedException.
      *
-     * @param message error message 
+     * @param message error message
      */
     public SegmentUploadFailedException(String message) {
         super(message);
