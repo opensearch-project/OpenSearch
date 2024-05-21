@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * Base interface for Query Insights exporters
  */
-public interface AbstractExporter extends Closeable {
+public interface QueryInsightsExporter extends Closeable {
     /**
      * Export a list of SearchQueryRecord to the exporter sink
      *
@@ -31,6 +31,5 @@ public interface AbstractExporter extends Closeable {
      *
      * @throws IOException IOException
      */
-    @Override
     void close() throws IOException;
 }

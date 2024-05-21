@@ -38,6 +38,10 @@ public class QueryInsightsSettings {
      */
     public static final int QUERY_RECORD_QUEUE_CAPACITY = 1000;
     /**
+     * Max number of records that can be exported to avoid overhead
+     */
+    public static final int MAX_EXPORT_SIZE = 1000;
+    /**
      * Time interval for record queue consumer to run
      */
     public static final TimeValue QUERY_RECORD_QUEUE_DRAIN_INTERVAL = new TimeValue(5, TimeUnit.SECONDS);

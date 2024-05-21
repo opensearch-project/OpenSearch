@@ -33,7 +33,7 @@ public class QueryInsightsExporterFactory {
      */
     private final Logger logger = LogManager.getLogger();
     final private Client client;
-    final private Set<AbstractExporter> exporters;
+    final private Set<QueryInsightsExporter> exporters;
 
     /**
      * Constructor of QueryInsightsExporterFactory
@@ -90,10 +90,10 @@ public class QueryInsightsExporterFactory {
      *
      * @param type The type of exporter to create
      * @param indexPattern the index pattern if creating a index exporter
-     * @return AbstractExporter the created exporter sink
+     * @return QueryInsightsExporter the created exporter sink
      */
-    public AbstractExporter createExporter(SinkType type, String indexPattern) {
-        AbstractExporter exporter;
+    public QueryInsightsExporter createExporter(SinkType type, String indexPattern) {
+        QueryInsightsExporter exporter;
         switch (type) {
             case LOCAL_INDEX:
                 exporter = new LocalIndexExporter(client, DateTimeFormat.forPattern(indexPattern));
@@ -106,14 +106,28 @@ public class QueryInsightsExporterFactory {
     }
 
     /**
+     * Update an exporter based on provided parameters
+     *
+     * @param exporter The exporter to update
+     * @param indexPattern the index pattern if creating a index exporter
+     * @return QueryInsightsExporter the updated exporter sink
+     */
+    public QueryInsightsExporter updateExporter(QueryInsightsExporter exporter, String indexPattern) {
+        if (exporter.getClass() == LocalIndexExporter.class) {
+            ((LocalIndexExporter) exporter).setIndexPattern(DateTimeFormat.forPattern(indexPattern));
+        }
+        return exporter;
+    }
+
+    /**
      * Close an exporter
      *
      * @param exporter the exporter to close
      */
-    public void closeExporter(AbstractExporter exporter) throws IOException {
+    public void closeExporter(QueryInsightsExporter exporter) throws IOException {
         if (exporter != null) {
-            this.exporters.remove(exporter);
             exporter.close();
+            this.exporters.remove(exporter);
         }
     }
 
@@ -122,13 +136,12 @@ public class QueryInsightsExporterFactory {
      *
      */
     public void closeAllExporters() {
-        for (AbstractExporter exporter : exporters) {
+        for (QueryInsightsExporter exporter : exporters) {
             try {
-                exporter.close();
+                closeExporter(exporter);
             } catch (IOException e) {
                 logger.error("Fail to close query insights exporter, error: ", e);
             }
         }
-        this.exporters.clear();
     }
 }

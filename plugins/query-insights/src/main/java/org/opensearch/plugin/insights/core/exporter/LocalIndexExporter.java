@@ -17,6 +17,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
+import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
@@ -26,13 +27,13 @@ import java.util.List;
 /**
  * Local index exporter for exporting query insights data to local OpenSearch indices.
  */
-public final class LocalIndexExporter implements AbstractExporter {
+public final class LocalIndexExporter implements QueryInsightsExporter {
     /**
      * Logger of the local index exporter
      */
     private final Logger logger = LogManager.getLogger();
     private final Client client;
-    private final DateTimeFormatter indexPattern;
+    private DateTimeFormatter indexPattern;
 
     /**
      * Constructor of LocalIndexExporter
@@ -46,19 +47,42 @@ public final class LocalIndexExporter implements AbstractExporter {
     }
 
     /**
+     * Getter of indexPattern
+     *
+     * @return indexPattern
+     */
+    public DateTimeFormatter getIndexPattern() {
+        return indexPattern;
+    }
+
+    /**
+     * Setter of indexPattern
+     *
+     * @param indexPattern index pattern
+     * @return the current LocalIndexExporter
+     */
+    public LocalIndexExporter setIndexPattern(DateTimeFormatter indexPattern) {
+        this.indexPattern = indexPattern;
+        return this;
+    }
+
+    /**
      * Export a list of SearchQueryRecord to a local index
      *
      * @param records list of {@link SearchQueryRecord}
      * @return True if export succeed, false otherwise
      */
     @Override
-    public boolean export(final List<SearchQueryRecord> records) {
+    public boolean export(List<SearchQueryRecord> records) {
         if (records == null || records.size() == 0) {
             return true;
         }
         try {
             final String index = getDateTimeFromFormat();
             final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk().setTimeout(TimeValue.timeValueMinutes(1));
+            if (records.size() > QueryInsightsSettings.MAX_EXPORT_SIZE) {
+                records = records.subList(0, QueryInsightsSettings.MAX_EXPORT_SIZE);
+            }
             for (SearchQueryRecord record : records) {
                 bulkRequestBuilder.add(
                     new IndexRequest(index).source(record.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
@@ -76,7 +100,9 @@ public final class LocalIndexExporter implements AbstractExporter {
      * Close the exporter sink
      */
     @Override
-    public void close() {}
+    public void close() {
+        logger.debug("Closing the LocalIndexExporter..");
+    }
 
     private String getDateTimeFromFormat() {
         return indexPattern.print(DateTime.now(DateTimeZone.UTC));

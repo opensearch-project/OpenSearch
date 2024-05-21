@@ -50,4 +50,17 @@ public enum SinkType {
     public static Set<SinkType> allSinkTypes() {
         return Arrays.stream(values()).collect(Collectors.toSet());
     }
+
+    /**
+     * Get Sink type from exporter
+     *
+     * @param exporter
+     * @return SinkType associated with this exporter
+     */
+    public static SinkType getSinkTypeFromExporter(QueryInsightsExporter exporter) {
+        if (exporter.getClass().equals(LocalIndexExporter.class)) {
+            return SinkType.LOCAL_INDEX;
+        }
+        return SinkType.DEBUG;
+    }
 }

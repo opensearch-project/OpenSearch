@@ -10,7 +10,7 @@ package org.opensearch.plugin.insights.core.service;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.plugin.insights.core.exporter.AbstractExporter;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporter;
 import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporterFactory;
 import org.opensearch.plugin.insights.core.exporter.SinkType;
 import org.opensearch.plugin.insights.rules.model.MetricType;
@@ -88,7 +88,7 @@ public class TopQueriesService {
     /**
      * Exporter for exporting top queries data
      */
-    private AbstractExporter exporter;
+    private QueryInsightsExporter exporter;
 
     TopQueriesService(
         final MetricType metricType,
@@ -209,15 +209,23 @@ public class TopQueriesService {
      * @param settings exporter config {@link Settings}
      */
     public void setExporter(final Settings settings) {
-        // Disable exporter if exporter type is set to null
-        if (settings.get(EXPORTER_TYPE) == null) {
+        if (settings.get(EXPORTER_TYPE) != null) {
+            SinkType expectedType = SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE));
+            if (exporter != null && expectedType == SinkType.getSinkTypeFromExporter(exporter)) {
+                queryInsightsExporterFactory.updateExporter(
+                    exporter,
+                    settings.get(EXPORT_INDEX, DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN)
+                );
+            } else {
+                this.exporter = queryInsightsExporterFactory.createExporter(
+                    SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE)),
+                    settings.get(EXPORT_INDEX, DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN)
+                );
+            }
+        } else {
+            // Disable exporter if exporter type is set to null
             this.exporter = null;
-            return;
         }
-        this.exporter = queryInsightsExporterFactory.createExporter(
-            SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE)),
-            settings.get(EXPORT_INDEX, DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN)
-        );
     }
 
     /**

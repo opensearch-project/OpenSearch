@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * Debug exporter for development purpose
  */
-public final class DebugExporter implements AbstractExporter {
+public final class DebugExporter implements QueryInsightsExporter {
     /**
      * Logger of the debug exporter
      */
@@ -44,5 +44,7 @@ public final class DebugExporter implements AbstractExporter {
      * Close the debugger exporter sink
      */
     @Override
-    public void close() {}
+    public void close() {
+        logger.debug("Closing the DebugExporter..");
+    }
 }
