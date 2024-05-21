@@ -9,7 +9,9 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.common.util.Streak;
+import org.opensearch.search.ResourceType;
 
+import java.util.EnumMap;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
@@ -19,29 +21,18 @@ import java.util.function.IntSupplier;
  * @opensearch.internal
  */
 public class NodeDuressTrackers {
+    private final EnumMap<ResourceType, NodeDuressTracker> duressTrackers;
 
-    private final NodeDuressTracker heapDuressTracker;
-    private final NodeDuressTracker cpuDuressTracker;
-
-    public NodeDuressTrackers(final NodeDuressTracker heapDuressTracker, final NodeDuressTracker cpuDuressTracker) {
-        this.heapDuressTracker = heapDuressTracker;
-        this.cpuDuressTracker = cpuDuressTracker;
+    public NodeDuressTrackers(EnumMap<ResourceType, NodeDuressTracker> duressTrackers) {
+        this.duressTrackers = duressTrackers;
     }
 
     /**
-     * Method to check the heap duress
-     * @return true if heap is in duress
+     * Method to check the {@link ResourceType} in duress
+     * @return Boolean
      */
-    public boolean isHeapInDuress() {
-        return heapDuressTracker.test();
-    }
-
-    /**
-     * Method to check the CPU duress
-     * @return true if cpu is in duress
-     */
-    public boolean isCPUInDuress() {
-        return cpuDuressTracker.test();
+    public boolean isResourceInDuress(ResourceType resourceType) {
+        return duressTrackers.get(resourceType).test();
     }
 
     /**
@@ -49,7 +40,7 @@ public class NodeDuressTrackers {
      * @return true if node is in duress because of either system resource
      */
     public boolean isNodeInDuress() {
-        return isCPUInDuress() || isHeapInDuress();
+        return isResourceInDuress(ResourceType.CPU) || isResourceInDuress(ResourceType.JVM);
     }
 
     /**

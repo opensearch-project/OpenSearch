@@ -18,6 +18,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
+import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -29,6 +30,7 @@ import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers;
+import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
 import org.opensearch.tasks.CancellableTask;
@@ -43,11 +45,13 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.DoubleSupplier;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -61,7 +65,14 @@ import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.isHea
  */
 public class SearchBackpressureService extends AbstractLifecycleComponent implements TaskCompletionListener {
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
-
+    private static final List<Class<? extends SearchBackpressureTask>> TRACKED_TASK_TYPES = List.of(SearchTask.class, SearchShardTask.class);
+    private static final Map<TaskResourceUsageTrackerType, Function<NodeDuressTrackers, Boolean>> trackerApplyConditions =
+        Map.of(
+            TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.CPU),
+            TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER, (nodeDuressTrackers) ->
+                isHeapTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.JVM),
+            TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER, (nodeDuressTrackers) -> true
+            );
     private volatile Scheduler.Cancellable scheduledFuture;
 
     private final SearchBackpressureSettings settings;
@@ -86,16 +97,16 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             taskResourceTrackingService,
             threadPool,
             System::nanoTime,
-            new NodeDuressTrackers(
-                new NodeDuressTrackers.NodeDuressTracker(
+            new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {{
+                put(ResourceType.CPU, new NodeDuressTracker(
                     () -> ProcessProbe.getInstance().getProcessCpuPercent() / 100.0 >= settings.getNodeDuressSettings().getCpuThreshold(),
                     () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
-                ),
-                new NodeDuressTrackers.NodeDuressTracker(
+                ));
+                put(ResourceType.JVM, new NodeDuressTracker(
                     () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings().getHeapThreshold(),
                     () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
-                )
-            ),
+                ));
+            }}),
             getTrackers(
                 settings.getSearchTaskSettings()::getCpuTimeNanosThreshold,
                 settings.getSearchTaskSettings()::getHeapVarianceThreshold,
@@ -170,6 +181,11 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
         List<CancellableTask> searchTasks = getTaskByType(SearchTask.class);
         List<CancellableTask> searchShardTasks = getTaskByType(SearchShardTask.class);
+        final Map<Class<? extends SearchBackpressureTask>, List<CancellableTask>> cancellableTasks =
+            Map.of(
+                SearchTask.class, searchTasks,
+                SearchShardTask.class, searchShardTasks
+            );
 
         // Force-refresh usage stats of these tasks before making a cancellation decision.
         taskResourceTrackingService.refreshResourceStats(searchTasks.toArray(new Task[0]));
@@ -177,11 +193,15 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
         List<TaskCancellation> taskCancellations = new ArrayList<>();
 
-        taskCancellations = addHeapBasedTaskCancellations(taskCancellations, searchTasks, searchShardTasks);
-
-        taskCancellations = addCPUBasedTaskCancellations(taskCancellations, searchTasks, searchShardTasks);
-
-        taskCancellations = addElapsedTimeBasedTaskCancellations(taskCancellations, searchTasks, searchShardTasks);
+        for (TaskResourceUsageTrackerType trackerType: TaskResourceUsageTrackerType.values()) {
+            if (shouldApply(trackerType)) {
+                addResourceTrackerBasedCancellations(
+                    trackerType,
+                    taskCancellations,
+                    cancellableTasks
+                );
+            }
+        }
 
         // Since these cancellations might be duplicate due to multiple trackers causing cancellation for same task
         // We need to merge them
@@ -219,73 +239,30 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         }
     }
 
-    private List<TaskCancellation> addElapsedTimeBasedTaskCancellations(
-        List<TaskCancellation> taskCancellations,
-        List<CancellableTask> searchTasks,
-        List<CancellableTask> searchShardTasks
-    ) {
-        final Optional<TaskResourceUsageTrackers.TaskResourceUsageTracker> searchTaskElapsedTimeTracker =
-            getTaskResourceUsageTrackersByType(SearchTask.class).getElapsedTimeTracker();
-        final Optional<TaskResourceUsageTrackers.TaskResourceUsageTracker> searchShardTaskElapsedTimeTracker =
-            getTaskResourceUsageTrackersByType(SearchShardTask.class).getElapsedTimeTracker();
-
-        addTaskCancellationsFromTaskResourceUsageTracker(taskCancellations, searchTasks, searchTaskElapsedTimeTracker, SearchTask.class);
-
-        addTaskCancellationsFromTaskResourceUsageTracker(
-            taskCancellations,
-            searchShardTasks,
-            searchShardTaskElapsedTimeTracker,
-            SearchShardTask.class
-        );
-
-        return taskCancellations;
+    private boolean shouldApply(TaskResourceUsageTrackerType trackerType) {
+        return trackerApplyConditions.get(trackerType).apply(nodeDuressTrackers);
     }
 
-    private List<TaskCancellation> addCPUBasedTaskCancellations(
+    private List<TaskCancellation> addResourceTrackerBasedCancellations(
+        TaskResourceUsageTrackerType type,
         List<TaskCancellation> taskCancellations,
-        List<CancellableTask> searchTasks,
-        List<CancellableTask> searchShardTasks
+        Map<Class<? extends SearchBackpressureTask>, List<CancellableTask>> cancellableTasks
     ) {
-        if (nodeDuressTrackers.isCPUInDuress()) {
-            final Optional<TaskResourceUsageTrackers.TaskResourceUsageTracker> searchTaskCPUUsageTracker =
-                getTaskResourceUsageTrackersByType(SearchTask.class).getCpuUsageTracker();
-            final Optional<TaskResourceUsageTrackers.TaskResourceUsageTracker> searchShardTaskCPUUsageTracker =
-                getTaskResourceUsageTrackersByType(SearchShardTask.class).getCpuUsageTracker();
-
-            addTaskCancellationsFromTaskResourceUsageTracker(taskCancellations, searchTasks, searchTaskCPUUsageTracker, SearchTask.class);
+        for (Class<? extends SearchBackpressureTask> taskType: TRACKED_TASK_TYPES) {
+            final Optional<TaskResourceUsageTrackers.TaskResourceUsageTracker> taskResourceTracker =
+                getTaskResourceUsageTrackersByType(taskType).getTracker(type);
 
             addTaskCancellationsFromTaskResourceUsageTracker(
                 taskCancellations,
-                searchShardTasks,
-                searchShardTaskCPUUsageTracker,
-                SearchShardTask.class
+                cancellableTasks.get(taskType),
+                taskResourceTracker,
+                taskType
             );
         }
+
         return taskCancellations;
     }
 
-    private List<TaskCancellation> addHeapBasedTaskCancellations(
-        List<TaskCancellation> taskCancellations,
-        List<CancellableTask> searchTasks,
-        List<CancellableTask> searchShardTasks
-    ) {
-        if (isHeapTrackingSupported() && nodeDuressTrackers.isHeapInDuress()) {
-            final Optional<TaskResourceUsageTrackers.TaskResourceUsageTracker> searchTaskHeapUsageTracker =
-                getTaskResourceUsageTrackersByType(SearchTask.class).getHeapUsageTracker();
-            final Optional<TaskResourceUsageTrackers.TaskResourceUsageTracker> searchShardTaskHeapUsageTracker =
-                getTaskResourceUsageTrackersByType(SearchShardTask.class).getHeapUsageTracker();
-
-            addTaskCancellationsFromTaskResourceUsageTracker(taskCancellations, searchTasks, searchTaskHeapUsageTracker, SearchTask.class);
-
-            addTaskCancellationsFromTaskResourceUsageTracker(
-                taskCancellations,
-                searchShardTasks,
-                searchShardTaskHeapUsageTracker,
-                SearchShardTask.class
-            );
-        }
-        return taskCancellations;
-    }
 
     private void addTaskCancellationsFromTaskResourceUsageTracker(
         List<TaskCancellation> taskCancellations,

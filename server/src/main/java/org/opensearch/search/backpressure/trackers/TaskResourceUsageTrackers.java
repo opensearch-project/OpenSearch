@@ -27,9 +27,6 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public class TaskResourceUsageTrackers {
-    private TaskResourceUsageTracker cpuUsageTracker;
-    private TaskResourceUsageTracker heapUsageTracker;
-    private TaskResourceUsageTracker elapsedTimeTracker;
     private final EnumMap<TaskResourceUsageTrackerType, TaskResourceUsageTracker> all;
 
     public TaskResourceUsageTrackers() {
@@ -41,7 +38,6 @@ public class TaskResourceUsageTrackers {
      * @param cpuUsageTracker
      */
     public void addCpuUsageTracker(final TaskResourceUsageTracker cpuUsageTracker) {
-        this.cpuUsageTracker = cpuUsageTracker;
         all.put(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, cpuUsageTracker);
     }
 
@@ -50,7 +46,6 @@ public class TaskResourceUsageTrackers {
      * @param heapUsageTracker
      */
     public void addHeapUsageTracker(final TaskResourceUsageTracker heapUsageTracker) {
-        this.heapUsageTracker = heapUsageTracker;
         all.put(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER, heapUsageTracker);
     }
 
@@ -59,7 +54,6 @@ public class TaskResourceUsageTrackers {
      * @param elapsedTimeTracker
      */
     public void addElapsedTimeTracker(final TaskResourceUsageTracker elapsedTimeTracker) {
-        this.elapsedTimeTracker = elapsedTimeTracker;
         all.put(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER, elapsedTimeTracker);
     }
 
@@ -67,24 +61,8 @@ public class TaskResourceUsageTrackers {
      * getter for cpuUsageTracker
      * @return
      */
-    public Optional<TaskResourceUsageTracker> getCpuUsageTracker() {
-        return Optional.ofNullable(cpuUsageTracker);
-    }
-
-    /**
-     * getter for heapUsageTacker
-     * @return
-     */
-    public Optional<TaskResourceUsageTracker> getHeapUsageTracker() {
-        return Optional.ofNullable(heapUsageTracker);
-    }
-
-    /**
-     * getter for elapsedTimeTracker
-     * @return
-     */
-    public Optional<TaskResourceUsageTracker> getElapsedTimeTracker() {
-        return Optional.ofNullable(elapsedTimeTracker);
+    public Optional<TaskResourceUsageTracker> getTracker(TaskResourceUsageTrackerType type) {
+        return Optional.ofNullable(all.get(type));
     }
 
     /**
