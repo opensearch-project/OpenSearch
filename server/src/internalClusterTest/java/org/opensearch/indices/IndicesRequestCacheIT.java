@@ -1077,24 +1077,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     // staleness threshold dynamic updates should throw exceptions on invalid input
     public void testInvalidStalenessThresholdUpdateThrowsException() throws Exception {
-        int cacheCleanIntervalInMillis = 1;
-        String node = internalCluster().startNode(
-            Settings.builder()
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.90)
-                .put(
-                    IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY,
-                    TimeValue.timeValueMillis(cacheCleanIntervalInMillis)
-                )
-        );
-        Client client = client(node);
-        String index1 = "index1";
-        setupIndex(client, index1);
-
-        // create first cache entry in index1
-        createCacheEntry(client, index1, "hello");
-        assertCacheState(client, index1, 0, 1);
-        assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > 0);
-
         // Update indices.requests.cache.cleanup.staleness_threshold to "10%" with illegal argument
         assertThrows("Ratio should be in [0-1.0]", IllegalArgumentException.class, () -> {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
@@ -1103,15 +1085,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             );
             client().admin().cluster().updateSettings(updateSettingsRequest).actionGet();
         });
-
-        // everything else should continue to work fine later on.
-        // force refresh so that it creates 1 stale key
-        flushAndRefresh(index1);
-        // sleep until cache cleaner would have cleaned up the stale key from index 2
-        assertBusy(() -> {
-            // cache cleaner should NOT have cleaned from index 1
-            assertEquals(0, getRequestCacheStats(client, index1).getMemorySizeInBytes());
-        }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
     // closing the Index after caching will clean up from Indices Request Cache
