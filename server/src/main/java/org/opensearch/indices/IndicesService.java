@@ -54,6 +54,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
@@ -123,7 +124,6 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.recovery.RecoveryStats;
 import org.opensearch.index.refresh.RefreshStats;
-import org.opensearch.index.remote.RemoteStorePathType;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
@@ -216,10 +216,11 @@ public class IndicesService extends AbstractLifecycleComponent
         IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>,
         IndexService.ShardStoreDeleter {
     private static final Logger logger = LogManager.getLogger(IndicesService.class);
+    public static final String INDICES_CACHE_CLEANUP_INTERVAL_SETTING_KEY = "indices.cache.cleanup_interval";
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING = Setting.positiveTimeSetting(
-        "indices.cache.cleanup_interval",
+        INDICES_CACHE_CLEANUP_INTERVAL_SETTING_KEY,
         TimeValue.timeValueMinutes(1),
         Property.NodeScope
     );
@@ -250,17 +251,6 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
-     * Used to specify the default translog buffer interval for remote store backed indexes.
-     */
-    public static final Setting<TimeValue> CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING = Setting.timeSetting(
-        "cluster.remote_store.translog.buffer_interval",
-        IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL,
-        IndexSettings.MINIMUM_REMOTE_TRANSLOG_BUFFER_INTERVAL,
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
-    /**
      * This setting is used to set the refresh interval when the {@code index.refresh_interval} index setting is not
      * provided during index creation or when the existing {@code index.refresh_interval} index setting is set as null.
      * This comes handy when the user wants to set a default refresh interval across all indexes created in a cluster
@@ -284,8 +274,8 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public static final Setting<TimeValue> CLUSTER_MINIMUM_INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.minimum.index.refresh_interval",
-        IndexSettings.MINIMUM_REFRESH_INTERVAL,
-        IndexSettings.MINIMUM_REFRESH_INTERVAL,
+        TimeValue.ZERO,
+        TimeValue.ZERO,
         new ClusterMinimumRefreshIntervalValidator(),
         Property.NodeScope,
         Property.Dynamic
@@ -314,18 +304,6 @@ public class IndicesService extends AbstractLifecycleComponent
         false,
         Property.NodeScope,
         Property.Final
-    );
-
-    /**
-     * This setting is used to set the remote store blob store path prefix strategy. This setting is effective only for
-     * remote store enabled cluster.
-     */
-    public static final Setting<RemoteStorePathType> CLUSTER_REMOTE_STORE_PATH_PREFIX_TYPE_SETTING = new Setting<>(
-        "cluster.remote_store.index.path.prefix.type",
-        RemoteStorePathType.FIXED.toString(),
-        RemoteStorePathType::parseString,
-        Property.NodeScope,
-        Property.Dynamic
     );
 
     /**
@@ -366,7 +344,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
     private final RecoverySettings recoverySettings;
-
+    private final RemoteStoreSettings remoteStoreSettings;
     @Nullable
     private final OpenSearchThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
@@ -375,8 +353,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private volatile TimeValue clusterDefaultRefreshInterval;
-    private volatile TimeValue clusterRemoteTranslogBufferInterval;
-
     private final SearchRequestStats searchRequestStats;
 
     @Override
@@ -411,7 +387,8 @@ public class IndicesService extends AbstractLifecycleComponent
         SearchRequestStats searchRequestStats,
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         RecoverySettings recoverySettings,
-        CacheService cacheService
+        CacheService cacheService,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -428,7 +405,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return Optional.empty();
             }
             return Optional.of(new IndexShardCacheEntity(indexService.getShard(shardId.id())));
-        }), cacheService, threadPool);
+        }), cacheService, threadPool, clusterService);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -509,16 +486,15 @@ public class IndicesService extends AbstractLifecycleComponent
             repositoriesServiceSupplier,
             threadPool,
             remoteStoreStatsTrackerFactory,
-            settings
+            settings,
+            remoteStoreSettings
         );
         this.searchRequestStats = searchRequestStats;
         this.clusterDefaultRefreshInterval = CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING, this::onRefreshIntervalUpdate);
-        this.clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(clusterService.getSettings());
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING, this::setClusterRemoteTranslogBufferInterval);
         this.recoverySettings = recoverySettings;
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     /**
@@ -541,7 +517,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
         RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-        Settings settings
+        Settings settings,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         return (indexSettings, shardRouting) -> {
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
@@ -549,14 +526,16 @@ public class IndicesService extends AbstractLifecycleComponent
                     repositoriesServiceSupplier,
                     threadPool,
                     indexSettings.getRemoteStoreTranslogRepository(),
-                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
+                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId()),
+                    remoteStoreSettings
                 );
             } else if (isRemoteDataAttributePresent(settings) && shardRouting.primary()) {
                 return new RemoteBlobStoreInternalTranslogFactory(
                     repositoriesServiceSupplier,
                     threadPool,
                     RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo(indexSettings.getNodeSettings()),
-                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId())
+                    remoteStoreStatsTrackerFactory.getRemoteTranslogTransferTracker(shardRouting.shardId()),
+                    remoteStoreSettings
                 );
             }
             return new InternalTranslogFactory();
@@ -923,8 +902,8 @@ public class IndicesService extends AbstractLifecycleComponent
             remoteDirectoryFactory,
             translogFactorySupplier,
             this::getClusterDefaultRefreshInterval,
-            this::getClusterRemoteTranslogBufferInterval,
-            this.recoverySettings
+            this.recoverySettings,
+            this.remoteStoreSettings
         );
     }
 
@@ -947,7 +926,7 @@ public class IndicesService extends AbstractLifecycleComponent
             if (idxSettings.isRemoteSnapshot()) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
-            if (idxSettings.isSegRepEnabledOrRemoteNode() || idxSettings.isRemoteNode()) {
+            if (idxSettings.isSegRepEnabledOrRemoteNode() || idxSettings.isAssignedOnRemoteNode()) {
                 return new NRTReplicationEngineFactory();
             }
             return new InternalEngineFactory();
@@ -1035,7 +1014,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode,
-        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final DiscoveryNodes discoveryNodes
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -1050,7 +1030,8 @@ public class IndicesService extends AbstractLifecycleComponent
             remoteStoreStatsTrackerFactory,
             repositoriesService,
             targetNode,
-            sourceNode
+            sourceNode,
+            discoveryNodes
         );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
@@ -2029,6 +2010,9 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param defaultRefreshInterval value of cluster default index refresh interval setting
      */
     private static void validateRefreshIntervalSettings(TimeValue minimumRefreshInterval, TimeValue defaultRefreshInterval) {
+        if (defaultRefreshInterval.millis() < 0) {
+            return;
+        }
         if (minimumRefreshInterval.compareTo(defaultRefreshInterval) > 0) {
             throw new IllegalArgumentException(
                 "cluster minimum index refresh interval ["
@@ -2044,12 +2028,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return this.clusterDefaultRefreshInterval;
     }
 
-    // Exclusively for testing, please do not use it elsewhere.
-    public TimeValue getClusterRemoteTranslogBufferInterval() {
-        return clusterRemoteTranslogBufferInterval;
-    }
-
-    private void setClusterRemoteTranslogBufferInterval(TimeValue clusterRemoteTranslogBufferInterval) {
-        this.clusterRemoteTranslogBufferInterval = clusterRemoteTranslogBufferInterval;
+    public RemoteStoreSettings getRemoteStoreSettings() {
+        return this.remoteStoreSettings;
     }
 }

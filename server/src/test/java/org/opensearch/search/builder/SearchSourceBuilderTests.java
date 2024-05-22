@@ -53,6 +53,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.RandomQueryBuilder;
 import org.opensearch.index.query.Rewriteable;
+import org.opensearch.script.Script;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -311,6 +312,51 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testDerivedFieldsParsingAndSerialization() throws IOException {
+        {
+            String restContent = "{\n"
+                + "  \"derived\": {\n"
+                + "    \"duration\": {\n"
+                + "      \"type\": \"long\",\n"
+                + "      \"script\": \"emit(doc['test'])\"\n"
+                + "    },\n"
+                + "    \"ip_from_message\": {\n"
+                + "      \"type\": \"keyword\",\n"
+                + "      \"script\": \"emit(doc['message'])\"\n"
+                + "    }\n"
+                + "  },\n"
+                + "    \"query\" : {\n"
+                + "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n"
+                + "     }\n"
+                + "}";
+
+            String expectedContent =
+                "{\"query\":{\"match\":{\"content\":{\"query\":\"foo bar\",\"operator\":\"OR\",\"prefix_length\":0,\"max_expansions\":50,\"fuzzy_transpositions\":true,\"lenient\":false,\"zero_terms_query\":\"NONE\",\"auto_generate_synonyms_phrase_query\":true,\"boost\":1.0}}},"
+                    + "\"derived\":{"
+                    + "\"duration\":{\"type\":\"long\",\"script\":\"emit(doc['test'])\"},\"ip_from_message\":{\"type\":\"keyword\",\"script\":\"emit(doc['message'])\"},\"derived_field\":{\"type\":\"keyword\",\"script\":{\"source\":\"emit(doc['message']\",\"lang\":\"painless\"}}}}";
+
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder.derivedField("derived_field", "keyword", new Script("emit(doc['message']"));
+                searchSourceBuilder = rewrite(searchSourceBuilder);
+                assertEquals(2, searchSourceBuilder.getDerivedFieldsObject().size());
+                assertEquals(1, searchSourceBuilder.getDerivedFields().size());
+
+                try (BytesStreamOutput output = new BytesStreamOutput()) {
+                    searchSourceBuilder.writeTo(output);
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                        SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
+                        String actualContent = deserializedBuilder.toString();
+                        assertEquals(expectedContent, actualContent);
+                        assertEquals(searchSourceBuilder.hashCode(), deserializedBuilder.hashCode());
+                        assertNotSame(searchSourceBuilder, deserializedBuilder);
+                    }
+                }
+            }
+        }
+
+    }
+
     public void testAggsParsing() throws IOException {
         {
             String restContent = "{\n"
@@ -525,7 +571,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testNegativeFromErrors() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(-2));
-        assertEquals("[from] parameter cannot be negative", expected.getMessage());
+        assertEquals("[from] parameter cannot be negative, found [-2]", expected.getMessage());
     }
 
     public void testNegativeSizeErrors() {
@@ -534,6 +580,42 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals("[size] parameter cannot be negative, found [" + randomSize + "]", expected.getMessage());
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
+    }
+
+    public void testParseFromAndSize() throws IOException {
+        int negativeFrom = randomIntBetween(-100, -1);
+        String restContent = " { \"from\": \"" + negativeFrom + "\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException expected = expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchSourceBuilder.fromXContent(parser)
+            );
+            assertEquals("[from] parameter cannot be negative, found [" + negativeFrom + "]", expected.getMessage());
+        }
+
+        int validFrom = randomIntBetween(0, 100);
+        restContent = " { \"from\": \"" + validFrom + "\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            assertEquals(validFrom, searchSourceBuilder.from());
+        }
+
+        int negativeSize = randomIntBetween(-100, -1);
+        restContent = " { \"size\": \"" + negativeSize + "\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException expected = expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchSourceBuilder.fromXContent(parser)
+            );
+            assertEquals("[size] parameter cannot be negative, found [" + negativeSize + "]", expected.getMessage());
+        }
+
+        int validSize = randomIntBetween(0, 100);
+        restContent = " { \"size\": \"" + validSize + "\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+            assertEquals(validSize, searchSourceBuilder.size());
+        }
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {

@@ -126,7 +126,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             )
         );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildFastFilter();
+            fastFilterContext.setFieldName(valuesSourceConfig.fieldType().name());
+            fastFilterContext.buildRanges();
         }
     }
 
@@ -255,6 +256,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("total_buckets", bucketOrds.size());
+        if (fastFilterContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
+            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
+            add.accept("leaf_visited", fastFilterContext.leaf);
+            add.accept("inner_visited", fastFilterContext.inner);
+        }
     }
 
     /**

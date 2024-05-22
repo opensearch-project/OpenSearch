@@ -11,6 +11,7 @@ package org.opensearch.index.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlocks;
@@ -48,6 +49,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 
 /**
@@ -158,7 +160,12 @@ public class RemoteStoreRestoreService {
                 throw new IllegalStateException("Unable to restore remote index metadata", e);
             }
         } else {
-            for (String indexName : indexNames) {
+            List<String> filteredIndices = filterIndices(
+                List.of(currentState.metadata().getConcreteAllIndices()),
+                indexNames,
+                IndicesOptions.fromOptions(true, true, true, true)
+            );
+            for (String indexName : filteredIndices) {
                 IndexMetadata indexMetadata = currentState.metadata().index(indexName);
                 if (indexMetadata == null) {
                     logger.warn("Index restore is not supported for non-existent index. Skipping: {}", indexName);
