@@ -34,7 +34,7 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  */
 public class FingerprintProcessor extends AbstractProcessor {
     public static final String TYPE = "fingerprint";
-    private static final Set<String> HASH_METHODS = Set.of("MD5", "SHA-1", "SHA-256");
+    private static final Set<String> HASH_METHODS = Set.of("MD5", "SHA-1", "SHA-256", "SHA3-256");
 
     // fields used to generate hash value
     private final List<String> fields;
@@ -71,7 +71,7 @@ public class FingerprintProcessor extends AbstractProcessor {
         }
 
         if (!HASH_METHODS.contains(hashMethod.toUpperCase(Locale.ROOT))) {
-            throw new IllegalArgumentException("hash method must be MD5, SHA-1 or SHA-256");
+            throw new IllegalArgumentException("hash method must be MD5, SHA-1 or SHA-256 or SHA3-256");
         }
         this.fields = fields;
         this.includeAllFields = includeAllFields;
@@ -157,6 +157,8 @@ public class FingerprintProcessor extends AbstractProcessor {
         }
         concatenatedFields.append("|");
 
+        System.out.println(concatenatedFields);
+
         MessageDigest messageDigest = HashMethod.fromMethodName(hashMethod);
         assert (messageDigest != null);
         messageDigest.update(concatenatedFields.toString().getBytes(StandardCharsets.UTF_8));
@@ -207,7 +209,8 @@ public class FingerprintProcessor extends AbstractProcessor {
     enum HashMethod {
         MD5(MessageDigests.md5()),
         SHA1(MessageDigests.sha1()),
-        SHA256(MessageDigests.sha256());
+        SHA256(MessageDigests.sha256()),
+        SHA3256(MessageDigests.sha3256());
 
         private final MessageDigest messageDigest;
 
@@ -224,6 +227,8 @@ public class FingerprintProcessor extends AbstractProcessor {
                     return SHA1.messageDigest;
                 case "SHA-256":
                     return SHA256.messageDigest;
+                case "SHA3-256":
+                    return SHA3256.messageDigest;
                 default:
                     return null;
             }
@@ -257,7 +262,7 @@ public class FingerprintProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "fingerprint");
             String hashMethod = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "hash_method", "SHA-1");
             if (!HASH_METHODS.contains(hashMethod.toUpperCase(Locale.ROOT))) {
-                throw newConfigurationException(TYPE, processorTag, "hash_method", "hash method must be MD5, SHA-1 or SHA-256");
+                throw newConfigurationException(TYPE, processorTag, "hash_method", "hash method must be MD5, SHA-1, SHA-256 or SHA3-256");
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             return new FingerprintProcessor(processorTag, description, fields, includeAllFields, targetField, hashMethod, ignoreMissing);

@@ -71,7 +71,7 @@ teardown:
           }
 
   - do:
-      catch: /hash method must be MD5\, SHA\-1 or SHA\-256/
+      catch: /hash method must be MD5\, SHA\-1, SHA\-256 or SHA3\-256/
       ingest.put_pipeline:
         id: "1"
         body:  >

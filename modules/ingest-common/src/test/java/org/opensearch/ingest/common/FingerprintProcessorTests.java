@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FingerprintProcessorTests extends OpenSearchTestCase {
+    private final List<String> hashMethods = List.of("MD5", "SHA-1", "SHA-256", "SHA3-256");
 
     public void testGenerateFingerprint() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -41,7 +42,7 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
             targetField = randomAlphaOfLength(10);
         }
 
-        String hashMethod = randomFrom(List.of("MD5", "SHA-1", "SHA-256"));
+        String hashMethod = randomFrom(hashMethods);
         Processor processor = createFingerprintProcessor(fields, includeAllFields, targetField, hashMethod, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(targetField), equalTo(true));
@@ -51,13 +52,7 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
         assertThrows(
             "fields cannot be empty",
             IllegalArgumentException.class,
-            () -> createFingerprintProcessor(
-                Collections.emptyList(),
-                false,
-                "fingerprint",
-                randomFrom(List.of("MD5", "SHA-1", "SHA-256")),
-                false
-            )
+            () -> createFingerprintProcessor(Collections.emptyList(), false, "fingerprint", randomFrom(hashMethods), false)
         );
 
         List<String> fields = new ArrayList<>();
@@ -66,37 +61,25 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
         assertThrows(
             "field path cannot be null nor empty",
             IllegalArgumentException.class,
-            () -> createFingerprintProcessor(fields, false, null, randomFrom(List.of("MD5", "SHA-1", "SHA-256")), false)
+            () -> createFingerprintProcessor(fields, false, null, randomFrom(List.of("MD5", "SHA-1", "SHA-256", "SHA3-256")), false)
         );
 
         assertThrows(
-            "hash method must be MD5, SHA-1 or SHA-256",
+            "hash method must be MD5, SHA-1, SHA-256 or SHA3-256",
             IllegalArgumentException.class,
-            () -> createFingerprintProcessor(
-                Collections.emptyList(),
-                false,
-                "fingerprint",
-                randomFrom(List.of("MD5", "SHA-1", "SHA-256")),
-                false
-            )
+            () -> createFingerprintProcessor(Collections.emptyList(), false, "fingerprint", randomFrom(hashMethods), false)
         );
 
         assertThrows(
             "either fields or include_all_fields can be set",
             IllegalArgumentException.class,
-            () -> createFingerprintProcessor(
-                Collections.emptyList(),
-                true,
-                "fingerprint",
-                randomFrom(List.of("MD5", "SHA-1", "SHA-256")),
-                false
-            )
+            () -> createFingerprintProcessor(Collections.emptyList(), true, "fingerprint", randomFrom(hashMethods), false)
         );
 
         assertThrows(
             "either fields or include_all_fields must be set",
             IllegalArgumentException.class,
-            () -> createFingerprintProcessor(null, false, "fingerprint", randomFrom(List.of("MD5", "SHA-1", "SHA-256")), false)
+            () -> createFingerprintProcessor(null, false, "fingerprint", randomFrom(hashMethods), false)
         );
     }
 
@@ -107,7 +90,7 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
         assertThrows(
             "field path cannot be null nor empty",
             IllegalArgumentException.class,
-            () -> createFingerprintProcessor(fields, false, null, randomFrom(List.of("MD5", "SHA-1", "SHA-256")), false)
+            () -> createFingerprintProcessor(fields, false, null, randomFrom(hashMethods), false)
         );
     }
 
@@ -115,13 +98,7 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String nonExistingFieldName = RandomDocumentPicks.randomNonExistingFieldName(random(), ingestDocument);
         List<String> nonExistingFields = List.of(nonExistingFieldName);
-        Processor processor = createFingerprintProcessor(
-            nonExistingFields,
-            false,
-            "fingerprint",
-            randomFrom(List.of("MD5", "SHA-1", "SHA-256")),
-            false
-        );
+        Processor processor = createFingerprintProcessor(nonExistingFields, false, "fingerprint", randomFrom(hashMethods), false);
         assertThrows(
             "field [" + nonExistingFieldName + "] doesn't exist",
             IllegalArgumentException.class,
@@ -133,7 +110,7 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
             nonExistingFields,
             false,
             "fingerprint",
-            randomFrom(List.of("MD5", "SHA-1", "SHA-256")),
+            randomFrom(hashMethods),
             true
         );
         processorWithIgnoreMissing.execute(ingestDocument);
@@ -152,7 +129,7 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
         List<String> fields = List.of(existingFieldName, metadataFields.get(randomIntBetween(0, metadataFields.size() - 1)));
 
         String targetField = "fingerprint";
-        String algorithm = randomFrom(List.of("MD5", "SHA-1", "SHA-256"));
+        String algorithm = randomFrom(hashMethods);
         Processor processor = createFingerprintProcessor(fields, false, targetField, algorithm, false);
 
         processor.execute(ingestDocument);

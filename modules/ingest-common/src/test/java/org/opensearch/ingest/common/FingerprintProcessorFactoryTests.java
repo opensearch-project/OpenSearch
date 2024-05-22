@@ -107,7 +107,7 @@ public class FingerprintProcessorFactoryTests extends OpenSearchTestCase {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch (OpenSearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[hash_method] hash method must be MD5, SHA-1 or SHA-256"));
+            assertThat(e.getMessage(), equalTo("[hash_method] hash method must be MD5, SHA-1, SHA-256 or SHA3-256"));
         }
     }
 }
