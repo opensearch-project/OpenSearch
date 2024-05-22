@@ -32,6 +32,7 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
@@ -79,16 +80,16 @@ public interface BlobContainer {
     InputStream readBlob(String blobName) throws IOException;
 
     /**
-     * Creates a new {@link BlobDownloadResponse} for the given blob name.
+     * Creates a new {@link FetchBlobResult} for the given blob name.
      *
      * @param   blobName
      *          The name of the blob to get an {@link InputStream} for.
-     * @return  The {@link BlobDownloadResponse} of the blob.
+     * @return  The {@link FetchBlobResult} of the blob.
      * @throws  NoSuchFileException if the blob does not exist
      * @throws  IOException if the blob can not be read.
      */
     @ExperimentalApi
-    default BlobDownloadResponse readBlobWithMetadata(String blobName) throws IOException {
+    default FetchBlobResult readBlobWithMetadata(String blobName) throws IOException {
         throw new UnsupportedOperationException("readBlobWithMetadata is not implemented yet");
     };
 
@@ -166,9 +167,9 @@ public interface BlobContainer {
     default void writeBlobWithMetadata(
         String blobName,
         InputStream inputStream,
-        Map<String, String> metadata,
         long blobSize,
-        boolean failIfAlreadyExists
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata
     ) throws IOException {
         throw new UnsupportedOperationException("writeBlobWithMetadata is not implemented yet");
     };
@@ -219,7 +220,7 @@ public interface BlobContainer {
     default void writeBlobAtomicWithMetadata(
         String blobName,
         InputStream inputStream,
-        Map<String, String> metadata,
+        @Nullable Map<String, String> metadata,
         long blobSize,
         boolean failIfAlreadyExists
     ) throws IOException {

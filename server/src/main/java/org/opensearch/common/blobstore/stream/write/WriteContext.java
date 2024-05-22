@@ -52,7 +52,7 @@ public class WriteContext {
         CheckedConsumer<Boolean, IOException> uploadFinalizer,
         boolean doRemoteDataIntegrityCheck,
         @Nullable Long expectedChecksum,
-        Map<String, String> metadata
+        @Nullable Map<String, String> metadata
     ) {
         this.fileName = fileName;
         this.streamContextSupplier = streamContextSupplier;
