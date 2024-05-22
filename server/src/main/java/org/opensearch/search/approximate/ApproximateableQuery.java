@@ -32,21 +32,26 @@ public final class ApproximateableQuery extends Query {
     private Weight originalQueryWeight, approximationQueryWeight;
 
     public ApproximateableQuery(Query originalQuery, Query approximationQuery) {
-       this(originalQuery, approximationQuery, null, null);
+        this(originalQuery, approximationQuery, null, null);
     }
 
-    public ApproximateableQuery(Query originalQuery, Query approximationQuery, Weight originalQueryWeight, Weight approximationQueryWeight){
+    public ApproximateableQuery(
+        Query originalQuery,
+        Query approximationQuery,
+        Weight originalQueryWeight,
+        Weight approximationQueryWeight
+    ) {
         this.originalQuery = originalQuery;
         this.approximationQuery = approximationQuery;
         this.originalQueryWeight = originalQueryWeight;
         this.approximationQueryWeight = approximationQueryWeight;
     }
 
-    public void setOriginalQueryWeight(Weight originalQueryWeight){
+    public void setOriginalQueryWeight(Weight originalQueryWeight) {
         this.originalQueryWeight = originalQueryWeight;
     }
 
-    public void setApproximationQueryWeight(Weight approximationQueryWeight){
+    public void setApproximationQueryWeight(Weight approximationQueryWeight) {
         this.approximationQueryWeight = approximationQueryWeight;
     }
 
@@ -95,7 +100,8 @@ public final class ApproximateableQuery extends Query {
                 return new ScorerSupplier() {
                     @Override
                     public Scorer get(long l) throws IOException {
-                        // TODO: we need to figure out how to compute the cost of running two different queries, by default return the original query's scoreSupplier
+                        // TODO: we need to figure out how to compute the cost of running two different queries, by default return the
+                        // original query's scoreSupplier
                         return originalQueryScoreSupplier.get(l);
                     }
 
@@ -122,7 +128,6 @@ public final class ApproximateableQuery extends Query {
         };
     }
 
-
     @Override
     public String toString(String s) {
         return "ApproximateableQuery(originalQuery="
@@ -141,7 +146,7 @@ public final class ApproximateableQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if(!sameClassAs(o)){
+        if (!sameClassAs(o)) {
             return false;
         }
         ApproximateableQuery that = (ApproximateableQuery) o;

@@ -48,7 +48,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
         this(field, lowerPoint, upperPoint, numDims, 10_000);
     }
 
-    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size){
+    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size) {
         checkArgs(field, lowerPoint, upperPoint);
         this.field = field;
         if (numDims <= 0) {
@@ -62,10 +62,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
         }
         if (lowerPoint.length != upperPoint.length) {
             throw new IllegalArgumentException(
-                "lowerPoint has length="
-                    + lowerPoint.length
-                    + " but upperPoint has different length="
-                    + upperPoint.length);
+                "lowerPoint has length=" + lowerPoint.length + " but upperPoint has different length=" + upperPoint.length
+            );
         }
         this.numDims = numDims;
         this.bytesPerDim = lowerPoint.length / numDims;
@@ -74,11 +72,11 @@ public abstract class ApproximatePointRangeQuery extends Query {
         this.upperPoint = upperPoint;
     }
 
-    public int getSize(){
+    public int getSize() {
         return this.size;
     }
 
-    public void setSize(int size){
+    public void setSize(int size) {
         this.size = size;
     }
 
@@ -126,9 +124,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
                         return PointValues.Relation.CELL_OUTSIDE_QUERY;
                     }
 
-                    crosses |=
-                        comparator.compare(minPackedValue, offset, lowerPoint, offset) < 0
-                            || comparator.compare(maxPackedValue, offset, upperPoint, offset) > 0;
+                    crosses |= comparator.compare(minPackedValue, offset, lowerPoint, offset) < 0
+                        || comparator.compare(maxPackedValue, offset, upperPoint, offset) > 0;
                 }
 
                 if (crosses) {
@@ -256,7 +253,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
                             + "\" was indexed with numIndexDimensions="
                             + values.getNumIndexDimensions()
                             + " but this query has numDims="
-                            + numDims);
+                            + numDims
+                    );
                 }
                 if (bytesPerDim != values.getBytesPerDimension()) {
                     throw new IllegalArgumentException(
@@ -265,7 +263,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
                             + "\" was indexed with bytesPerDim="
                             + values.getBytesPerDimension()
                             + " but this query has bytesPerDim="
-                            + bytesPerDim);
+                            + bytesPerDim
+                    );
                 }
                 return true;
             }
@@ -275,7 +274,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 assert pointTree.moveToParent() == false;
             }
 
-            private long intersect(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count, long docCount) throws IOException {
+            private long intersect(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count, long docCount)
+                throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount >= count) {
                     return 0;
@@ -303,8 +303,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
                             // Leaf node; scan and filter all points in this block:
                             if (docCount <= count) {
                                 pointTree.visitDocValues(visitor);
-                            }
-                            else break;
+                            } else break;
                         }
                         break;
                     default:
@@ -363,8 +362,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
                     return new ScorerSupplier() {
                         @Override
                         public Scorer get(long leadCost) {
-                            return new ConstantScoreScorer(
-                                weight, score(), scoreMode, DocIdSetIterator.all(reader.maxDoc()));
+                            return new ConstantScoreScorer(weight, score(), scoreMode, DocIdSetIterator.all(reader.maxDoc()));
                         }
 
                         @Override
@@ -389,7 +387,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
                                 // by computing the set of documents that do NOT match the range
                                 final FixedBitSet result = new FixedBitSet(reader.maxDoc());
                                 result.set(0, reader.maxDoc());
-                                long[] cost = new long[]{reader.maxDoc()};
+                                long[] cost = new long[] { reader.maxDoc() };
                                 intersect(values.getPointTree(), getInverseIntersectVisitor(result, cost), size);
                                 final DocIdSetIterator iterator = new BitSetIterator(result, cost[0]);
                                 return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
@@ -432,8 +430,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 }
 
                 if (reader.hasDeletions() == false) {
-                    if (relate(values.getMinPackedValue(), values.getMaxPackedValue())
-                        == PointValues.Relation.CELL_INSIDE_QUERY) {
+                    if (relate(values.getMinPackedValue(), values.getMaxPackedValue()) == PointValues.Relation.CELL_INSIDE_QUERY) {
                         return values.getDocCount();
                     }
                     // only 1D: we have the guarantee that it will actually run fast since there are at most 2
@@ -463,40 +460,36 @@ public abstract class ApproximatePointRangeQuery extends Query {
             private long pointCount(
                 PointValues.PointTree pointTree,
                 BiFunction<byte[], byte[], PointValues.Relation> nodeComparator,
-                Predicate<byte[]> leafComparator)
-                throws IOException {
-                final long[] matchingNodeCount = {0};
+                Predicate<byte[]> leafComparator
+            ) throws IOException {
+                final long[] matchingNodeCount = { 0 };
                 // create a custom IntersectVisitor that records the number of leafNodes that matched
-                final PointValues.IntersectVisitor visitor =
-                    new PointValues.IntersectVisitor() {
-                        @Override
-                        public void visit(int docID) {
-                            // this branch should be unreachable
-                            throw new UnsupportedOperationException(
-                                "This IntersectVisitor does not perform any actions on a "
-                                    + "docID="
-                                    + docID
-                                    + " node being visited");
-                        }
+                final PointValues.IntersectVisitor visitor = new PointValues.IntersectVisitor() {
+                    @Override
+                    public void visit(int docID) {
+                        // this branch should be unreachable
+                        throw new UnsupportedOperationException(
+                            "This IntersectVisitor does not perform any actions on a " + "docID=" + docID + " node being visited"
+                        );
+                    }
 
-                        @Override
-                        public void visit(int docID, byte[] packedValue) {
-                            if (leafComparator.test(packedValue)) {
-                                matchingNodeCount[0]++;
-                            }
+                    @Override
+                    public void visit(int docID, byte[] packedValue) {
+                        if (leafComparator.test(packedValue)) {
+                            matchingNodeCount[0]++;
                         }
+                    }
 
-                        @Override
-                        public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                            return nodeComparator.apply(minPackedValue, maxPackedValue);
-                        }
-                    };
+                    @Override
+                    public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+                        return nodeComparator.apply(minPackedValue, maxPackedValue);
+                    }
+                };
                 pointCount(visitor, pointTree, matchingNodeCount);
                 return matchingNodeCount[0];
             }
 
-            private void pointCount(
-                PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] matchingNodeCount)
+            private void pointCount(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, long[] matchingNodeCount)
                 throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 switch (r) {
@@ -509,10 +502,10 @@ public abstract class ApproximatePointRangeQuery extends Query {
                         matchingNodeCount[0] += pointTree.size();
                         return;
                     case CELL_CROSSES_QUERY:
-            /*
-            The cell crosses the shape boundary, or the cell fully contains the query, so we fall
-            through and do full counting.
-            */
+                        /*
+                        The cell crosses the shape boundary, or the cell fully contains the query, so we fall
+                        through and do full counting.
+                        */
                         if (pointTree.moveToChild()) {
                             do {
                                 pointCount(visitor, pointTree, matchingNodeCount);
@@ -597,13 +590,9 @@ public abstract class ApproximatePointRangeQuery extends Query {
             int startOffset = bytesPerDim * i;
 
             sb.append('[');
-            sb.append(
-                toString(
-                    i, ArrayUtil.copyOfSubArray(lowerPoint, startOffset, startOffset + bytesPerDim)));
+            sb.append(toString(i, ArrayUtil.copyOfSubArray(lowerPoint, startOffset, startOffset + bytesPerDim)));
             sb.append(" TO ");
-            sb.append(
-                toString(
-                    i, ArrayUtil.copyOfSubArray(upperPoint, startOffset, startOffset + bytesPerDim)));
+            sb.append(toString(i, ArrayUtil.copyOfSubArray(upperPoint, startOffset, startOffset + bytesPerDim)));
             sb.append(']');
         }
 

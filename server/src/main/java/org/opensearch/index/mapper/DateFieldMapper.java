@@ -82,8 +82,8 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.document.LongPoint.pack;
 import static org.opensearch.common.time.DateUtils.toLong;
+import static org.apache.lucene.document.LongPoint.pack;
 
 /**
  * A {@link FieldMapper} for dates.
@@ -467,16 +467,24 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query query = new ApproximateableQuery(new PointRangeQuery(name(), pack(new long[]{l}).bytes, pack(new long[]{u}).bytes, new long[]{l}.length) {
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                Query query = new ApproximateableQuery(
+                    new PointRangeQuery(name(), pack(new long[] { l }).bytes, pack(new long[] { u }).bytes, new long[] { l }.length) {
+                        protected String toString(int dimension, byte[] value) {
+                            return Long.toString(LongPoint.decodeDimension(value, 0));
+                        }
+                    },
+                    new ApproximatePointRangeQuery(
+                        name(),
+                        pack(new long[] { l }).bytes,
+                        pack(new long[] { u }).bytes,
+                        new long[] { l }.length
+                    ) {
+                        @Override
+                        protected String toString(int dimension, byte[] value) {
+                            return Long.toString(LongPoint.decodeDimension(value, 0));
+                        }
                     }
-                }, new ApproximatePointRangeQuery(name(), pack(new long[]{l}).bytes, pack(new long[]{u}).bytes, new long[]{l}.length) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                });
+                );
                 if (hasDocValues()) {
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);

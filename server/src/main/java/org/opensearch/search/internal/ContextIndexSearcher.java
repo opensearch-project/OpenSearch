@@ -34,7 +34,6 @@ package org.opensearch.search.internal;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -57,7 +56,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -71,8 +69,6 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.index.mapper.DateFieldMapper;
-import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
@@ -329,10 +325,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // catch early terminated exception and rethrow?
         Bits liveDocs = ctx.reader().getLiveDocs();
         BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
-        if(isApproximateableRangeQuery()){
+        if (isApproximateableRangeQuery()) {
             ApproximateableQuery query = ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery());
-            if (searchContext.size() > 10_000)
-                ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSize(searchContext.size());
+            if (searchContext.size() > 10_000) ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSize(searchContext.size());
             weight = query.getApproximationQueryWeight();
         }
         if (liveDocsBitSet == null) {
@@ -426,18 +421,21 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     }
 
-    private boolean isApproximateableRangeQuery(){
-        boolean isTopLevelRangeQuery = searchContext.query() instanceof IndexOrDocValuesQuery &&
-            ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery()).getOriginalQuery() instanceof PointRangeQuery;
+    private boolean isApproximateableRangeQuery() {
+        boolean isTopLevelRangeQuery = searchContext.query() instanceof IndexOrDocValuesQuery
+            && ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery())
+                .getOriginalQuery() instanceof PointRangeQuery;
 
         boolean hasSort = false;
 
-        if (searchContext.request() != null && searchContext.request().source() != null ) {
+        if (searchContext.request() != null && searchContext.request().source() != null) {
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
-            if (primarySortField != null && primarySortField.missing() == null && Objects.equals(searchContext.trackTotalHitsUpTo(), SearchContext.TRACK_TOTAL_HITS_DISABLED)) {
-                    hasSort = true;
+            if (primarySortField != null
+                && primarySortField.missing() == null
+                && Objects.equals(searchContext.trackTotalHitsUpTo(), SearchContext.TRACK_TOTAL_HITS_DISABLED)) {
+                hasSort = true;
             }
-            }
+        }
 
         return isTopLevelRangeQuery && !hasSort;
     }
