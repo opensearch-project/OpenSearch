@@ -65,7 +65,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     public XContentParser parseObject() throws IOException {
         builder.startObject();
         StringBuilder path = new StringBuilder(fieldTypeName);
-        parseToken(path, null);
+        parseToken(path, null, true);
         builder.field(this.fieldTypeName, keyList);
         builder.field(this.fieldTypeName + VALUE_SUFFIX, valueList);
         builder.field(this.fieldTypeName + VALUE_AND_PATH_SUFFIX, valueAndPathList);
@@ -74,8 +74,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         return JsonXContent.jsonXContent.createParser(this.xContentRegistry, this.deprecationHandler, String.valueOf(jString));
     }
 
-    private void parseToken(StringBuilder path, String currentFieldName) throws IOException {
-
+    private void parseToken(StringBuilder path, String currentFieldName, boolean popName) throws IOException {
         while (this.parser.nextToken() != Token.END_OBJECT) {
             if (this.parser.currentName() != null) {
                 currentFieldName = this.parser.currentName();
@@ -100,16 +99,18 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
                     this.keyList.add(fieldNameSuffix);
                 }
             } else if (this.parser.currentToken() == Token.START_ARRAY) {
-                parseToken(path, currentFieldName);
+                parseToken(path, currentFieldName, false);
                 break;
             } else if (this.parser.currentToken() == Token.END_ARRAY) {
                 // skip
             } else if (this.parser.currentToken() == Token.START_OBJECT) {
-                parseToken(path, currentFieldName);
-                int dotIndex = path.lastIndexOf(DOT_SYMBOL, path.length());
+                parseToken(path, currentFieldName, true);
 
-                if (dotIndex != -1 && path.length() > currentFieldName.length()) {
-                    path.setLength(path.length() - currentFieldName.length() - 1);
+                if (popName) {
+                    int dotIndex = path.lastIndexOf(DOT_SYMBOL);
+                    if (dotIndex != -1) {
+                        path.setLength(path.length() - currentFieldName.length() - 1);
+                    }
                 }
             } else {
                 if (!path.toString().contains(currentFieldName)) {
@@ -118,12 +119,15 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
                 parseValue(parsedFields);
                 this.valueList.add(parsedFields.toString());
                 this.valueAndPathList.add(path + EQUAL_SYMBOL + parsedFields);
-                int dotIndex = path.lastIndexOf(DOT_SYMBOL, path.length());
-                if (dotIndex != -1 && path.length() > currentFieldName.length()) {
-                    path.setLength(path.length() - currentFieldName.length() - 1);
+
+                if (popName) {
+                    int dotIndex = path.lastIndexOf(DOT_SYMBOL);
+
+                    if (dotIndex != -1) {
+                        path.setLength(path.length() - currentFieldName.length() - 1);
+                    }
                 }
             }
-
         }
     }
 
