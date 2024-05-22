@@ -34,8 +34,9 @@ public interface TaskClient {
      * Claim task from TaskStore/Queue. This ensures no 2 Offline Nodes work on the same task.
      *
      * @param taskId TaskId of the task to be claimed
+     * @return true if task is claimed successfully, false otherwise
      */
-    void claimTask(TaskId taskId);
+    boolean claimTask(TaskId taskId);
 
     /**
      * Get task from TaskStore/Queue
