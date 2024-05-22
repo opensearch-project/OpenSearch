@@ -22,6 +22,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.DoubleAdder;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -115,6 +116,16 @@ public class ResourceLimitGroupTestUtils {
             assertEquals(groupOne.getEnforcement(), groupTwo.getEnforcement());
             assertEquals(groupOne.getCreatedAt(), groupTwo.getCreatedAt());
             assertEquals(groupOne.getUpdatedAt(), groupTwo.getUpdatedAt());
+        }
+    }
+
+    public static void assertInflightValuesAreZero(ResourceLimitGroupPersistenceService resourceLimitGroupPersistenceService) {
+        assertEquals(0, resourceLimitGroupPersistenceService.getInflightCreateResourceLimitGroupRequestCount().get());
+        Map<String, DoubleAdder> inflightResourceMap = resourceLimitGroupPersistenceService.getInflightResourceLimitValues();
+        if (inflightResourceMap != null) {
+            for (String resourceName: inflightResourceMap.keySet()) {
+                assertEquals(0, inflightResourceMap.get(resourceName).intValue());
+            }
         }
     }
 }

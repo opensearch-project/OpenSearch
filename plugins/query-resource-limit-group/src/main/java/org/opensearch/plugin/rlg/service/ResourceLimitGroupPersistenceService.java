@@ -49,7 +49,7 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
     private static final String CREATE_RESOURCE_LIMIT_GROUP_THROTTLING_KEY = "create-resource-limit-group";
     private static final String UPDATE_RESOURCE_LIMIT_GROUP_THROTTLING_KEY = "update-resource-limit-group";
     private static final String DELETE_RESOURCE_LIMIT_GROUP_THROTTLING_KEY = "delete-resource-limit-group";
-    private static AtomicInteger inflightCreateResourceLimitGroupRequestCount;
+    private final AtomicInteger inflightCreateResourceLimitGroupRequestCount;
     private final Map<String, DoubleAdder> inflightResourceLimitValues;
     private volatile int maxResourceLimitGroupCount;
     final ThrottlingKey createResourceLimitGroupThrottlingKey;
@@ -107,70 +107,7 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
 
     @Override
     public void update(ResourceLimitGroup resourceLimitGroup, ActionListener<UpdateResourceLimitGroupResponse> listener) {
-        ClusterState currentState = clusterService.state();
-        Map<String, ResourceLimitGroup> currentGroupsMap = currentState.metadata().resourceLimitGroups();
-        List<ResourceLimitGroup> currentGroupsList = new ArrayList<>(currentGroupsMap.values());
-        String name = resourceLimitGroup.getName();
-
-        if (!currentGroupsMap.containsKey(name)) {
-            logger.warn("No Resource Limit Group exists with the provided name: {}", name);
-            Exception e = new RuntimeException("No Resource Limit Group exists with the provided name: " + name);
-            UpdateResourceLimitGroupResponse response = new UpdateResourceLimitGroupResponse();
-            response.setRestStatus(RestStatus.NOT_FOUND);
-            listener.onFailure(e);
-            return;
-        }
-
-        // check if there's any resource allocation that exceed limit of 1.0
-        if (resourceLimitGroup.getResourceLimits() != null) {
-            String resourceNameWithThresholdExceeded = "";
-            for (ResourceLimit resourceLimit : resourceLimitGroup.getResourceLimits()) {
-                String resourceName = resourceLimit.getResourceName();
-                double existingUsage = calculateExistingUsage(resourceName, currentGroupsList, name);
-                double newGroupUsage = getResourceLimitValue(resourceName, resourceLimitGroup);
-                inflightResourceLimitValues.computeIfAbsent(resourceName, k -> new DoubleAdder()).add(newGroupUsage);
-                double totalUsage = existingUsage + inflightResourceLimitValues.get(resourceName).doubleValue();
-                if (totalUsage > 1) {
-                    resourceNameWithThresholdExceeded = resourceName;
-                }
-            }
-            if (!resourceNameWithThresholdExceeded.isEmpty()) {
-                Exception e = new RuntimeException(
-                    "Total resource allocation for " + resourceNameWithThresholdExceeded + " will go above the max limit of 1.0"
-                );
-                UpdateResourceLimitGroupResponse response = new UpdateResourceLimitGroupResponse();
-                response.setRestStatus(RestStatus.CONFLICT);
-                listener.onFailure(e);
-                return;
-            }
-        }
-
-        // build the resource limit group with updated fields
-        ResourceLimitGroup existingGroup = currentGroupsMap.get(name);
-        String uuid = existingGroup.getUUID();
-        String createdAt = existingGroup.getCreatedAt();
-        String updatedAt = resourceLimitGroup.getUpdatedAt();
-        List<ResourceLimit> resourceLimit;
-        if (resourceLimitGroup.getResourceLimits() == null || resourceLimitGroup.getResourceLimits().isEmpty()) {
-            resourceLimit = existingGroup.getResourceLimits();
-        } else {
-            resourceLimit = new ArrayList<>(existingGroup.getResourceLimits());
-            Map<String, Double> resourceLimitMap = resourceLimitGroup.getResourceLimits()
-                .stream()
-                .collect(Collectors.toMap(ResourceLimit::getResourceName, ResourceLimit::getValue));
-            for (ResourceLimit rl : resourceLimit) {
-                String currResourceName = rl.getResourceName();
-                if (resourceLimitMap.containsKey(currResourceName)) {
-                    rl.setValue(resourceLimitMap.get(currResourceName));
-                }
-            }
-        }
-        String enforcement = resourceLimitGroup.getEnforcement() == null
-            ? existingGroup.getEnforcement()
-            : resourceLimitGroup.getEnforcement();
-
-        ResourceLimitGroup updatedGroup = new ResourceLimitGroup(name, uuid, resourceLimit, enforcement, createdAt, updatedAt);
-        updateInClusterStateMetadata(existingGroup, resourceLimitGroup, updatedGroup, listener);
+        updateInClusterStateMetadata(resourceLimitGroup, listener);
     }
 
     @Override
@@ -256,10 +193,6 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
     ClusterState saveResourceLimitGroupInClusterState(final ResourceLimitGroup resourceLimitGroup, final ClusterState currentClusterState) {
         final Metadata metadata = currentClusterState.metadata();
         String groupName = resourceLimitGroup.getName();
-        if (metadata.resourceLimitGroups().containsKey(groupName)) {
-            logger.warn("Resource Limit Group with name {} already exists. Not creating a new one.", groupName);
-            throw new RuntimeException("Resource Limit Group with name " + groupName + " already exists. Not creating a new one.");
-        }
         final List<ResourceLimitGroup> previousGroups = new ArrayList<>(metadata.resourceLimitGroups().values());
 
         // check if there's any resource allocation that exceed limit of 1.0
@@ -278,6 +211,10 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
         boolean groupCountExceeded = inflightCreateResourceLimitGroupRequestCount.incrementAndGet() + previousGroups
             .size() > maxResourceLimitGroupCount;
 
+        if (metadata.resourceLimitGroups().containsKey(groupName)) {
+            logger.warn("Resource Limit Group with name {} already exists. Not creating a new one.", groupName);
+            throw new RuntimeException("Resource Limit Group with name " + groupName + " already exists. Not creating a new one.");
+        }
         if (!resourceNameWithThresholdExceeded.isEmpty()) {
             logger.error("Total resource allocation for {} will go above the max limit of 1.0", resourceNameWithThresholdExceeded);
             throw new RuntimeException(
@@ -324,19 +261,16 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
 
     /**
      * Modify cluster state to update the Resource Limit Group
-     * @param existingGroup {@link ResourceLimitGroup} - the existing resource limit group that we want to update
-     * @param updatedGroup {@link ResourceLimitGroup} - the resource limit group we're updating to
+     * @param toUpdateGroup {@link ResourceLimitGroup} - the resource limit group that we want to update
      */
     void updateInClusterStateMetadata(
-        ResourceLimitGroup existingGroup,
         ResourceLimitGroup toUpdateGroup,
-        ResourceLimitGroup updatedGroup,
         ActionListener<UpdateResourceLimitGroupResponse> listener
     ) {
         clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return updateResourceLimitGroupInClusterState(existingGroup, updatedGroup, currentState);
+                return updateResourceLimitGroupInClusterState(toUpdateGroup, currentState);
             }
 
             @Override
@@ -356,6 +290,9 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 restoreInflightValues(toUpdateGroup);
+                String name = toUpdateGroup.getName();
+                assert newState.metadata().resourceLimitGroups().containsKey(name);
+                ResourceLimitGroup updatedGroup = newState.metadata().resourceLimitGroups().get(name);
                 UpdateResourceLimitGroupResponse response = new UpdateResourceLimitGroupResponse(updatedGroup);
                 response.setRestStatus(RestStatus.OK);
                 listener.onResponse(response);
@@ -365,16 +302,69 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
 
     /**
      * Modify cluster state to update the existing Resource Limit Group
-     * @param existingGroup {@link ResourceLimitGroup} - the existing resource limit group that we want to update
-     * @param updatedGroup {@link ResourceLimitGroup} - the resource limit group we're updating to
+     * @param resourceLimitGroup {@link ResourceLimitGroup} - the resource limit group that we want to update
      * @param currentState - current cluster state
      */
     public ClusterState updateResourceLimitGroupInClusterState(
-        ResourceLimitGroup existingGroup,
-        ResourceLimitGroup updatedGroup,
+        ResourceLimitGroup resourceLimitGroup,
         ClusterState currentState
     ) {
         final Metadata metadata = currentState.metadata();
+        Map<String, ResourceLimitGroup> currentGroupsMap = currentState.metadata().resourceLimitGroups();
+        List<ResourceLimitGroup> currentGroupsList = new ArrayList<>(currentGroupsMap.values());
+        String name = resourceLimitGroup.getName();
+        String resourceNameWithThresholdExceeded = "";
+
+        // check if there's any resource allocation that exceed limit of 1.0
+        if (resourceLimitGroup.getResourceLimits() != null) {
+            for (ResourceLimit resourceLimit : resourceLimitGroup.getResourceLimits()) {
+                String resourceName = resourceLimit.getResourceName();
+                double existingUsage = calculateExistingUsage(resourceName, currentGroupsList, name);
+                double newGroupUsage = getResourceLimitValue(resourceName, resourceLimitGroup);
+                inflightResourceLimitValues.computeIfAbsent(resourceName, k -> new DoubleAdder()).add(newGroupUsage);
+                double totalUsage = existingUsage + inflightResourceLimitValues.get(resourceName).doubleValue();
+                if (totalUsage > 1) {
+                    resourceNameWithThresholdExceeded = resourceName;
+                }
+            }
+        }
+
+        if (!currentGroupsMap.containsKey(name)) {
+            logger.warn("No Resource Limit Group exists with the provided name: {}", name);
+            throw new RuntimeException("No Resource Limit Group exists with the provided name: " + name);
+        }
+        if (!resourceNameWithThresholdExceeded.isEmpty()) {
+            logger.error("Total resource allocation for {} will go above the max limit of 1.0", resourceNameWithThresholdExceeded);
+            throw new RuntimeException(
+                "Total resource allocation for " + resourceNameWithThresholdExceeded + " will go above the max limit of 1.0"
+            );
+        }
+
+        // build the resource limit group with updated fields
+        ResourceLimitGroup existingGroup = currentGroupsMap.get(name);
+        String uuid = existingGroup.getUUID();
+        String createdAt = existingGroup.getCreatedAt();
+        String updatedAt = resourceLimitGroup.getUpdatedAt();
+        List<ResourceLimit> resourceLimit;
+        if (resourceLimitGroup.getResourceLimits() == null || resourceLimitGroup.getResourceLimits().isEmpty()) {
+            resourceLimit = existingGroup.getResourceLimits();
+        } else {
+            resourceLimit = new ArrayList<>(existingGroup.getResourceLimits());
+            Map<String, Double> resourceLimitMap = resourceLimitGroup.getResourceLimits()
+                .stream()
+                .collect(Collectors.toMap(ResourceLimit::getResourceName, ResourceLimit::getValue));
+            for (ResourceLimit rl : resourceLimit) {
+                String currResourceName = rl.getResourceName();
+                if (resourceLimitMap.containsKey(currResourceName)) {
+                    rl.setValue(resourceLimitMap.get(currResourceName));
+                }
+            }
+        }
+        String enforcement = resourceLimitGroup.getEnforcement() == null
+            ? existingGroup.getEnforcement()
+            : resourceLimitGroup.getEnforcement();
+
+        ResourceLimitGroup updatedGroup = new ResourceLimitGroup(name, uuid, resourceLimit, enforcement, createdAt, updatedAt);
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(metadata).removeResourceLimitGroup(existingGroup.getName()).put(updatedGroup).build())
             .build();
@@ -456,5 +446,19 @@ public class ResourceLimitGroupPersistenceService implements Persistable<Resourc
             resultGroups = List.of(currentGroupsMap.get(name));
         }
         return resultGroups;
+    }
+
+    /**
+     * inflightCreateResourceLimitGroupRequestCount getter
+     */
+    public AtomicInteger getInflightCreateResourceLimitGroupRequestCount() {
+        return inflightCreateResourceLimitGroupRequestCount;
+    }
+
+    /**
+     * inflightResourceLimitValues getter
+     */
+    public Map<String, DoubleAdder> getInflightResourceLimitValues() {
+        return inflightResourceLimitValues;
     }
 }

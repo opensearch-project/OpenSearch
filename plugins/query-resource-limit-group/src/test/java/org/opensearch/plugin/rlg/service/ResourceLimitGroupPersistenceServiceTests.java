@@ -24,21 +24,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.MONITOR;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.NAME_NONE_EXISTED;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.NAME_ONE;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.NAME_TWO;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.SANDBOX_MAX_SETTING_NAME;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.TIMESTAMP_ONE;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.clusterState;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.compareResourceLimitGroups;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.prepareSandboxPersistenceService;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.resourceLimitGroupList;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.resourceLimitGroupMap;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.resourceLimitGroupOne;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.resourceLimitGroupPersistenceService;
-import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.resourceLimitGroupTwo;
 import static org.mockito.Mockito.mock;
+import static org.opensearch.plugin.rlg.ResourceLimitGroupTestUtils.*;
 
 public class ResourceLimitGroupPersistenceServiceTests extends OpenSearchTestCase {
 
@@ -47,6 +34,7 @@ public class ResourceLimitGroupPersistenceServiceTests extends OpenSearchTestCas
         assertEquals(1, groups.size());
         ResourceLimitGroup resourceLimitGroup = groups.get(0);
         compareResourceLimitGroups(List.of(resourceLimitGroupOne), List.of(resourceLimitGroup));
+        assertInflightValuesAreZero(resourceLimitGroupPersistenceService);
     }
 
     public void testGetAllResourceLimitGroups() {
@@ -56,6 +44,7 @@ public class ResourceLimitGroupPersistenceServiceTests extends OpenSearchTestCas
         assertTrue(currentNAME.contains(NAME_ONE));
         assertTrue(currentNAME.contains(NAME_TWO));
         compareResourceLimitGroups(resourceLimitGroupList, res);
+        assertInflightValuesAreZero(resourceLimitGroupPersistenceService);
     }
 
     public void testGetZeroResourceLimitGroups() {
@@ -68,6 +57,7 @@ public class ResourceLimitGroupPersistenceServiceTests extends OpenSearchTestCas
         );
         List<ResourceLimitGroup> res = sandboxPersistenceService.getFromClusterStateMetadata(NAME_NONE_EXISTED, clusterState);
         assertEquals(0, res.size());
+        assertInflightValuesAreZero(resourceLimitGroupPersistenceService);
     }
 
     public void testDeleteSingleResourceLimitGroup() {
@@ -76,12 +66,14 @@ public class ResourceLimitGroupPersistenceServiceTests extends OpenSearchTestCas
         assertEquals(1, afterDeletionGroups.size());
         List<ResourceLimitGroup> oldSandbox = List.of(resourceLimitGroupMap.get(NAME_ONE));
         compareResourceLimitGroups(new ArrayList<>(afterDeletionGroups.values()), oldSandbox);
+        assertInflightValuesAreZero(resourceLimitGroupPersistenceService);
     }
 
     public void testDeleteAllResourceLimitGroups() {
         ClusterState newClusterState = resourceLimitGroupPersistenceService.deleteResourceLimitGroupInClusterState(null, clusterState);
         Map<String, ResourceLimitGroup> sandboxes = newClusterState.getMetadata().resourceLimitGroups();
         assertEquals(0, sandboxes.size());
+        assertInflightValuesAreZero(resourceLimitGroupPersistenceService);
     }
 
     public void testDeleteNonExistedResourceLimitGroup() {
@@ -92,31 +84,36 @@ public class ResourceLimitGroupPersistenceServiceTests extends OpenSearchTestCas
     }
 
     public void testUpdateResourceLimitGroupAllFields() {
-        ResourceLimitGroup current = resourceLimitGroupOne;
-        ResourceLimitGroup updated = resourceLimitGroupTwo;
-        ClusterState newClusterState = resourceLimitGroupPersistenceService.updateResourceLimitGroupInClusterState(
-            current,
-            updated,
-            clusterState
-        );
-        List<ResourceLimitGroup> updatedSandboxes = new ArrayList<>(newClusterState.getMetadata().resourceLimitGroups().values());
-        assertEquals(1, updatedSandboxes.size());
-        compareResourceLimitGroups(List.of(updated), updatedSandboxes);
-    }
-
-    public void testUpdateResourceLimitGroupResourceLimitOnly() {
-        ResourceLimitGroup current = resourceLimitGroupOne;
-        String updatedTime = "2024-04-28 23:02:21";
+        String updatedTime = "2024-04-28 23:02:22";
         ResourceLimitGroup updated = new ResourceLimitGroup(
             NAME_ONE,
-            resourceLimitGroupOne.getUUID(),
-            List.of(new ResourceLimitGroup.ResourceLimit("jvm", 0.1)),
+            UUID_ONE,
+            List.of(new ResourceLimitGroup.ResourceLimit("jvm", 0.15)),
             MONITOR,
             TIMESTAMP_ONE,
             updatedTime
         );
         ClusterState newClusterState = resourceLimitGroupPersistenceService.updateResourceLimitGroupInClusterState(
-            current,
+            updated,
+            clusterState
+        );
+        List<ResourceLimitGroup> updatedSandboxes = new ArrayList<>(newClusterState.getMetadata().resourceLimitGroups().values());
+        assertEquals(2, updatedSandboxes.size());
+        compareResourceLimitGroups(List.of(resourceLimitGroupTwo, updated), updatedSandboxes);
+        assertInflightValuesAreZero(resourceLimitGroupPersistenceService);
+    }
+
+    public void testUpdateResourceLimitGroupResourceLimitOnly() {
+        String updatedTime = "2024-04-28 23:02:21";
+        ResourceLimitGroup updated = new ResourceLimitGroup(
+            NAME_ONE,
+            resourceLimitGroupOne.getUUID(),
+            List.of(new ResourceLimitGroup.ResourceLimit("jvm", 0.13)),
+            MONITOR,
+            TIMESTAMP_ONE,
+            updatedTime
+        );
+        ClusterState newClusterState = resourceLimitGroupPersistenceService.updateResourceLimitGroupInClusterState(
             updated,
             clusterState
         );
@@ -125,6 +122,7 @@ public class ResourceLimitGroupPersistenceServiceTests extends OpenSearchTestCas
         assertTrue(updatedSandboxesMap.containsKey(NAME_ONE));
         assertTrue(updatedSandboxesMap.containsKey(NAME_TWO));
         compareResourceLimitGroups(List.of(updated), List.of(updatedSandboxesMap.get(NAME_ONE)));
+        assertInflightValuesAreZero(resourceLimitGroupPersistenceService);
     }
 
     public void testCreateResourceLimitGroup() {
@@ -139,6 +137,7 @@ public class ResourceLimitGroupPersistenceServiceTests extends OpenSearchTestCas
         assertEquals(1, updatedGroupsMap.size());
         assertTrue(updatedGroupsMap.containsKey(NAME_ONE));
         compareResourceLimitGroups(List.of(resourceLimitGroupOne), List.of(updatedGroupsMap.get(NAME_ONE)));
+        assertInflightValuesAreZero(resourceLimitGroupPersistenceService);
     }
 
     public void testCreateAnotherResourceLimitGroup() {
@@ -152,6 +151,7 @@ public class ResourceLimitGroupPersistenceServiceTests extends OpenSearchTestCas
         Map<String, ResourceLimitGroup> updatedGroupsMap = newClusterState.getMetadata().resourceLimitGroups();
         assertEquals(2, updatedGroupsMap.size());
         compareResourceLimitGroups(resourceLimitGroupList, new ArrayList<>(updatedGroupsMap.values()));
+        assertInflightValuesAreZero(resourceLimitGroupPersistenceService);
     }
 
     public void testCreateResourceLimitGroupDuplicateName() {
