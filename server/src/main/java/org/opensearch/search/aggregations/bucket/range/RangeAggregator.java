@@ -63,6 +63,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -272,12 +273,7 @@ public class RangeAggregator extends BucketsAggregator {
 
         // if the range connect with each other, we can try apply the optimization
         fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
-        fastFilterContext.setAggregationType(
-            new FastFilterRewriteHelper.RangeAggregationType(
-                valuesSource,
-                ranges
-            )
-        );
+        fastFilterContext.setAggregationType(new FastFilterRewriteHelper.RangeAggregationType(valuesSource, ranges));
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
             fastFilterContext.buildRanges();
         }
@@ -289,8 +285,6 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-
-
     @Override
     public ScoreMode scoreMode() {
         if (valuesSource != null && valuesSource.needsScores()) {
@@ -301,6 +295,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -446,4 +441,14 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        if (fastFilterContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
+            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
+            add.accept("leaf_visited", fastFilterContext.leaf);
+            add.accept("inner_visited", fastFilterContext.inner);
+        }
+    }
 }

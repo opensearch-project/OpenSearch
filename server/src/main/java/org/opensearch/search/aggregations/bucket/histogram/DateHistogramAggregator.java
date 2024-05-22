@@ -162,9 +162,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+        boolean optimized = fastFilterContext.tryFastFilterAggregation(
             ctx,
-            fastFilterContext,
             (key, count) -> incrementBucketDocCount(
                 FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
                 count
