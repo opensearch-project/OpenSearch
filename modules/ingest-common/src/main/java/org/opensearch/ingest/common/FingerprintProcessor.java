@@ -157,8 +157,6 @@ public class FingerprintProcessor extends AbstractProcessor {
         }
         concatenatedFields.append("|");
 
-        System.out.println(concatenatedFields);
-
         MessageDigest messageDigest = HashMethod.fromMethodName(hashMethod);
         assert (messageDigest != null);
         messageDigest.update(concatenatedFields.toString().getBytes(StandardCharsets.UTF_8));
