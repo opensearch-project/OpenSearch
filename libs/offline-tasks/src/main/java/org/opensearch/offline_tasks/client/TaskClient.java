@@ -6,11 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks;
+package org.opensearch.offline_tasks.client;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.offline_tasks.task.Task;
 import org.opensearch.offline_tasks.task.TaskId;
+import org.opensearch.offline_tasks.task.TaskStatus;
 
 import java.util.List;
 
@@ -60,25 +61,19 @@ public interface TaskClient {
     void cancelTask(TaskId taskId);
 
     /**
-     * List all unassigned tasks
-     *
-     * @return list of all the task which are note not assigned to any worker
+     * List all tasks with a particular {@param taskStatus} considering {@param listTaskStatus}
+     * @param taskStatus status of the tasks to be listed
+     * @param taskListQueryParams params to filter the tasks to be listed
+     * @return list of all the task matching the taskStatus
      */
-    List<Task> getUnassignedTasks();
+    List<Task> getTasks(TaskStatus taskStatus, TaskListQueryParams taskListQueryParams);
 
     /**
-     * List all active tasks
-     *
-     * @return list of all the task which are running on any worker
+     * List all tasks considering {@param listTaskStatus}
+     * @param taskListQueryParams params to filter the tasks to be listed
+     * @return list of all the task matching the taskStatus
      */
-    List<Task> getActiveTasks();
-
-    /**
-     * List all completed tasks
-     *
-     * @return list of all the task which have completed execution
-     */
-    List<Task> getCompletedTasks();
+    List<Task> getTasks(TaskListQueryParams taskListQueryParams);
 
     /**
      * Sends task heart beat to Task Store/Queue

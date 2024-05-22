@@ -40,6 +40,7 @@ public class Task {
      * Constructor for Task
      *
      * @param taskId Task identifier
+     * @param taskStatus Task status
      * @param params Task Params
      * @param taskType Task Type
      */

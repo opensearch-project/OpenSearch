@@ -179,7 +179,7 @@ import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
-import org.opensearch.offline_tasks.TaskClient;
+import org.opensearch.offline_tasks.client.TaskClient;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;

@@ -8,9 +8,12 @@
 
 package org.opensearch.offline_tasks.task;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Task status enum
  */
+@ExperimentalApi
 public enum TaskStatus {
 
     /**

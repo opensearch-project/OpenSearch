@@ -11,7 +11,7 @@ package org.opensearch.plugins;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.offline_tasks.TaskClient;
+import org.opensearch.offline_tasks.client.TaskClient;
 import org.opensearch.threadpool.ThreadPool;
 
 /**
