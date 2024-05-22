@@ -222,7 +222,7 @@ public final class RequestOptions {
             RequestConfig requestConfig
         ) {
             this.headers = new ArrayList<>(headers);
-            this.queryParams = new HashMap<>();
+            this.queryParams = new HashMap<>(queryParams);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
             this.warningsHandler = warningsHandler;
             this.requestConfig = requestConfig;
