@@ -187,7 +187,6 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                     filesToKeep.add(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename());
                     clusterMetadataManifest.getCustomMetadataMap().values().forEach(attribute -> filesToKeep.add(attribute.getUploadedFilename()));
                 }
-                logger.info(filesToKeep);
             });
             staleManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = remoteClusterStateService.fetchRemoteClusterMetadataManifest(
@@ -202,9 +201,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                     addStaleGlobalMetadataPath(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
                     addStaleGlobalMetadataPath(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
                     addStaleGlobalMetadataPath(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
-                    clusterMetadataManifest.getCustomMetadataMap().values().forEach(attribute -> {
-                        addStaleGlobalMetadataPath(attribute.getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
-                    });
+                    clusterMetadataManifest.getCustomMetadataMap().values().forEach(attribute -> addStaleGlobalMetadataPath(attribute.getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths));
                 }
 
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
