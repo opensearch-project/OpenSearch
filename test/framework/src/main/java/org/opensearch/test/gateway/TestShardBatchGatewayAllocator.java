@@ -31,6 +31,14 @@ import java.util.Set;
 
 public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator {
 
+    public TestShardBatchGatewayAllocator() {
+
+    }
+
+    public TestShardBatchGatewayAllocator(long maxBatchSize) {
+        super(maxBatchSize);
+    }
+
     Map<String /* node id */, Map<ShardId, ShardRouting>> knownAllocations = new HashMap<>();
     DiscoveryNodes currentNodes = DiscoveryNodes.EMPTY_NODES;
     Map<String, ReplicationCheckpoint> shardIdNodeToReplicationCheckPointMap = new HashMap<>();
