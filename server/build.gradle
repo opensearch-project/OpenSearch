@@ -380,6 +380,7 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/opensearch/client/documentation/placeholder.txt'
     // Ignore for protobuf generated code
     excludes << 'org/opensearch/extensions/proto/*'
+    excludes << 'org/opensearch/server/proto/*'
 }
 
 tasks.test {

@@ -38,8 +38,10 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.server.proto.QueryFetchSearchResultProto;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * Query fetch result
@@ -51,8 +53,16 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
 
+    private QueryFetchSearchResultProto.QueryFetchSearchResult queryFetchSearchResultProto;
+
     public QueryFetchSearchResult(StreamInput in) throws IOException {
         super(in);
+        queryResult = new QuerySearchResult(in);
+        fetchResult = new FetchSearchResult(in);
+    }
+
+    public QueryFetchSearchResult(InputStream in) throws IOException {
+        this.queryFetchSearchResultProto = QueryFetchSearchResultProto.QueryFetchSearchResult.parseFrom(in);
         queryResult = new QuerySearchResult(in);
         fetchResult = new FetchSearchResult(in);
     }
