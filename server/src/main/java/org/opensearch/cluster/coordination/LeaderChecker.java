@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
@@ -354,11 +355,11 @@ public class LeaderChecker {
 
         void leaderFailed(Exception e) {
             if (isClosed.compareAndSet(false, true)) {
+                clusterManagerMetrics.incrementCounter(clusterManagerMetrics.leaderCheckFailureCounter, 1.0);
                 transportService.getThreadPool().generic().execute(new Runnable() {
                     @Override
                     public void run() {
                         onLeaderFailure.accept(e);
-                        clusterManagerMetrics.incrementCounter(clusterManagerMetrics.leaderCheckFailureCounter, 1.0);
                     }
 
                     @Override

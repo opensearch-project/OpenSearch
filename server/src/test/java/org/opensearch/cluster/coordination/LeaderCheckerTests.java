@@ -34,6 +34,7 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.opensearch.cluster.node.DiscoveryNode;

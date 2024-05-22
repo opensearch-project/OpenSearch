@@ -32,8 +32,8 @@
 package org.opensearch.discovery;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.coordination.ClusterManagerMetrics;
 import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.node.DiscoveryNode;
