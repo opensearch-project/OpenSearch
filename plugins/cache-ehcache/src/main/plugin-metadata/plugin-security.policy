@@ -12,7 +12,5 @@ grant {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "getClassLoader";
-
-  permission java.io.FilePermission "${path.data}/nodes/{node.id}/-", "read, write";
 };
 
