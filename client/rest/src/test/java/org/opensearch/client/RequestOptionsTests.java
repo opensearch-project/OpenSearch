@@ -39,7 +39,9 @@ import org.opensearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedRespon
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -84,6 +86,41 @@ public class RequestOptionsTests extends RestClientTestCase {
         try {
             options.getHeaders()
                 .add(new RequestOptions.ReqHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3)));
+            fail("expected failure");
+        } catch (UnsupportedOperationException e) {
+            assertNull(e.getMessage());
+        }
+    }
+
+    public void testAddQueryParam() {
+        try {
+            randomBuilder().addQueryParam(null, randomAsciiLettersOfLengthBetween(3, 10));
+            fail("expected failure");
+        } catch (NullPointerException e) {
+            assertEquals("query parameter name cannot be null", e.getMessage());
+        }
+
+        try {
+            randomBuilder().addQueryParam(randomAsciiLettersOfLengthBetween(3, 10), null);
+            fail("expected failure");
+        } catch (NullPointerException e) {
+            assertEquals("query parameter value cannot be null", e.getMessage());
+        }
+
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        int numQueryParams = between(0, 5);
+        Map<String, String> queryParams = new HashMap<>();
+        for (int i = 0; i < numQueryParams; i++) {
+            String name = randomAsciiAlphanumOfLengthBetween(5, 10);
+            String value = randomAsciiAlphanumOfLength(3);
+            queryParams.put(name, value);
+            builder.addQueryParam(name, value);
+        }
+        RequestOptions options = builder.build();
+        assertEquals(queryParams, options.getQueryParams());
+
+        try {
+            options.getQueryParams().put(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3));
             fail("expected failure");
         } catch (UnsupportedOperationException e) {
             assertNull(e.getMessage());
@@ -142,6 +179,13 @@ public class RequestOptionsTests extends RestClientTestCase {
             int headerCount = between(1, 5);
             for (int i = 0; i < headerCount; i++) {
                 builder.addHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
+            }
+        }
+
+        if (randomBoolean()) {
+            int queryParamCount = between(1, 5);
+            for (int i = 0; i < queryParamCount; i++) {
+                builder.addQueryParam(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
             }
         }
 

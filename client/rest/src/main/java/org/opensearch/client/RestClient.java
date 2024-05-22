@@ -832,6 +832,7 @@ public class RestClient implements Closeable {
         InternalRequest(Request request) {
             this.request = request;
             Map<String, String> params = new HashMap<>(request.getParameters());
+            params.putAll(request.getOptions().getQueryParams());
             // ignore is a special parameter supported by the clients, shouldn't be sent to es
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
