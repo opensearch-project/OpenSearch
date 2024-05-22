@@ -22,6 +22,11 @@ public class Task {
     private final TaskId taskId;
 
     /**
+     * Depicts latest state of the Task
+     */
+    private final TaskStatus taskStatus;
+
+    /**
      * Various params to used for Task execution
      */
     private final TaskParams params;
@@ -38,8 +43,9 @@ public class Task {
      * @param params Task Params
      * @param taskType Task Type
      */
-    public Task(TaskId taskId, TaskParams params, TaskType taskType) {
+    public Task(TaskId taskId, TaskStatus taskStatus, TaskParams params, TaskType taskType) {
         this.taskId = taskId;
+        this.taskStatus = taskStatus;
         this.params = params;
         this.taskType = taskType;
     }
@@ -50,6 +56,14 @@ public class Task {
      */
     public TaskId getTaskId() {
         return taskId;
+    }
+
+    /**
+     * Get TaskStatus
+     * @return TaskStatus
+     */
+    public TaskStatus getTaskStatus() {
+        return taskStatus;
     }
 
     /**
