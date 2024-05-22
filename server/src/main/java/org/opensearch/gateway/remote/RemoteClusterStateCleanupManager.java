@@ -185,7 +185,9 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                     filesToKeep.add(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename());
                     filesToKeep.add(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename());
                     filesToKeep.add(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename());
-                    clusterMetadataManifest.getCustomMetadataMap().values().forEach(attribute -> filesToKeep.add(attribute.getUploadedFilename()));
+                    clusterMetadataManifest.getCustomMetadataMap()
+                        .values()
+                        .forEach(attribute -> filesToKeep.add(attribute.getUploadedFilename()));
                 }
             });
             staleManifestBlobMetadata.forEach(blobMetadata -> {
@@ -198,10 +200,26 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                 if (clusterMetadataManifest.getCodecVersion() == ClusterMetadataManifest.CODEC_V1) {
                     addStaleGlobalMetadataPath(clusterMetadataManifest.getGlobalMetadataFileName(), filesToKeep, staleGlobalMetadataPaths);
                 } else if (clusterMetadataManifest.getCodecVersion() >= ClusterMetadataManifest.CODEC_V2) {
-                    addStaleGlobalMetadataPath(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
-                    addStaleGlobalMetadataPath(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
-                    addStaleGlobalMetadataPath(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths);
-                    clusterMetadataManifest.getCustomMetadataMap().values().forEach(attribute -> addStaleGlobalMetadataPath(attribute.getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths));
+                    addStaleGlobalMetadataPath(
+                        clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename(),
+                        filesToKeep,
+                        staleGlobalMetadataPaths
+                    );
+                    addStaleGlobalMetadataPath(
+                        clusterMetadataManifest.getSettingsMetadata().getUploadedFilename(),
+                        filesToKeep,
+                        staleGlobalMetadataPaths
+                    );
+                    addStaleGlobalMetadataPath(
+                        clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename(),
+                        filesToKeep,
+                        staleGlobalMetadataPaths
+                    );
+                    clusterMetadataManifest.getCustomMetadataMap()
+                        .values()
+                        .forEach(
+                            attribute -> addStaleGlobalMetadataPath(attribute.getUploadedFilename(), filesToKeep, staleGlobalMetadataPaths)
+                        );
                 }
 
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {

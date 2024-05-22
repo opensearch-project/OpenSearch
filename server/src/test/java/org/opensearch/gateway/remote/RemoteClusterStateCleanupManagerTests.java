@@ -36,8 +36,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -46,10 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
@@ -76,7 +71,9 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -170,7 +167,10 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
         UploadedMetadataAttribute coordinationMetadata = new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination_metadata");
         UploadedMetadataAttribute templateMetadata = new UploadedMetadataAttribute(TEMPLATES_METADATA, "template_metadata");
         UploadedMetadataAttribute settingMetadata = new UploadedMetadataAttribute(SETTING_METADATA, "settings_metadata");
-        UploadedMetadataAttribute coordinationMetadataUpdated = new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination_metadata_updated");
+        UploadedMetadataAttribute coordinationMetadataUpdated = new UploadedMetadataAttribute(
+            COORDINATION_METADATA,
+            "coordination_metadata_updated"
+        );
         UploadedMetadataAttribute templateMetadataUpdated = new UploadedMetadataAttribute(TEMPLATES_METADATA, "template_metadata_updated");
         UploadedMetadataAttribute settingMetadataUpdated = new UploadedMetadataAttribute(SETTING_METADATA, "settings_metadata_updated");
         ClusterMetadataManifest manifest1 = ClusterMetadataManifest.builder()
@@ -203,24 +203,33 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
         ClusterMetadataManifest manifest4 = ClusterMetadataManifest.builder(manifest3)
             .coordinationMetadata(coordinationMetadataUpdated)
             .build();
-        ClusterMetadataManifest manifest5 = ClusterMetadataManifest.builder(manifest4)
-            .templatesMetadata(templateMetadataUpdated)
-            .build();
+        ClusterMetadataManifest manifest5 = ClusterMetadataManifest.builder(manifest4).templatesMetadata(templateMetadataUpdated).build();
 
-        when(remoteClusterStateService.fetchRemoteClusterMetadataManifest(eq(clusterName), eq(clusterUUID), any()))
-            .thenReturn(manifest4, manifest5, manifest1, manifest2, manifest3);
+        when(remoteClusterStateService.fetchRemoteClusterMetadataManifest(eq(clusterName), eq(clusterUUID), any())).thenReturn(
+            manifest4,
+            manifest5,
+            manifest1,
+            manifest2,
+            manifest3
+        );
         BlobContainer container = mock(BlobContainer.class);
         when(blobStore.blobContainer(any())).thenReturn(container);
         doNothing().when(container).deleteBlobsIgnoringIfNotExists(any());
 
         remoteClusterStateCleanupManager.deleteClusterMetadata(clusterName, clusterUUID, activeBlobs, inactiveBlobs);
         verify(container).deleteBlobsIgnoringIfNotExists(
-            List.of(new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + coordinationMetadata.getUploadedFilename() + ".dat",
+            List.of(
+                new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + coordinationMetadata.getUploadedFilename() + ".dat",
                 new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + settingMetadata.getUploadedFilename() + ".dat",
-                new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + "global_metadata.dat")
+                new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + "global_metadata.dat"
+            )
         );
         verify(container).deleteBlobsIgnoringIfNotExists(
-            List.of(new BlobPath().add(INDEX_PATH_TOKEN).add(index1Metadata.getIndexUUID()).buildAsString() + index1Metadata.getUploadedFilePath() + ".dat")
+            List.of(
+                new BlobPath().add(INDEX_PATH_TOKEN).add(index1Metadata.getIndexUUID()).buildAsString()
+                    + index1Metadata.getUploadedFilePath()
+                    + ".dat"
+            )
         );
         Set<String> staleManifest = new HashSet<>();
         inactiveBlobs.forEach(blob -> staleManifest.add(new BlobPath().add(MANIFEST_PATH_TOKEN).buildAsString() + blob.name()));
@@ -297,11 +306,11 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
         BlobPath blobPath = new BlobPath().add("random-path");
         when((blobStoreRepository.basePath())).thenReturn(blobPath);
         remoteClusterStateCleanupManager.start();
-        remoteClusterStateCleanupManager.deleteStaleUUIDsClusterMetadata("cluster1", Arrays.asList("cluster-uuid1"));
+        remoteClusterStateCleanupManager.deleteStaleUUIDsClusterMetadata("cluster1", List.of("cluster-uuid1"));
         try {
             assertBusy(() -> {
                 // wait for stats to get updated
-                assertTrue(remoteClusterStateCleanupManager.getStats() != null);
+                assertNotNull(remoteClusterStateCleanupManager.getStats());
                 assertEquals(0, remoteClusterStateCleanupManager.getStats().getSuccessCount());
                 assertEquals(1, remoteClusterStateCleanupManager.getStats().getCleanupAttemptFailedCount());
             });
