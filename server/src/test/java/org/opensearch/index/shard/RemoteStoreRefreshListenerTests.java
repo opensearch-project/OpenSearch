@@ -384,7 +384,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     public void testSegmentUploadTimeout() throws Exception {
-        // This covers the case were segment upload fails due to timeout
+        // This covers the case where segment upload fails due to timeout
         int succeedOnAttempt = 1;
         // We spy on IndexShard.isPrimaryStarted() to validate that we have tried running remote time as per the expectation.
         CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);

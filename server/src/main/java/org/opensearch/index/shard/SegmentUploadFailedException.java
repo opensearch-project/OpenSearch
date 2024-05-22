@@ -12,6 +12,8 @@ import java.io.IOException;
 
 /**
  * Exception to be thrown when a segment upload fails.
+ *
+ * @opensearch.internal
  */
 public class SegmentUploadFailedException extends IOException {
 
