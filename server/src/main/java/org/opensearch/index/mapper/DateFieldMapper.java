@@ -40,6 +40,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
@@ -61,6 +62,8 @@ import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateableQuery;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -79,6 +82,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.apache.lucene.document.LongPoint.pack;
 import static org.opensearch.common.time.DateUtils.toLong;
 
 /**
@@ -463,7 +467,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query query = LongPoint.newRangeQuery(name(), l, u);
+                Query query = new ApproximateableQuery(new PointRangeQuery(name(), pack(new long[]{l}).bytes, pack(new long[]{u}).bytes, new long[]{l}.length) {
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                }, new ApproximatePointRangeQuery(name(), pack(new long[]{l}).bytes, pack(new long[]{u}).bytes, new long[]{l}.length) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                });
                 if (hasDocValues()) {
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);

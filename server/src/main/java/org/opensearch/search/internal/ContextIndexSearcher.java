@@ -34,6 +34,7 @@ package org.opensearch.search.internal;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -46,14 +47,17 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -67,8 +71,12 @@ import org.apache.lucene.util.SparseFixedBitSet;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateableQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
@@ -283,6 +291,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 searchLeaf(leaves.get(i), weight, collector);
             }
         }
+
         searchContext.bucketCollectorProcessor().processPostCollection(collector);
     }
 
@@ -320,6 +329,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // catch early terminated exception and rethrow?
         Bits liveDocs = ctx.reader().getLiveDocs();
         BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
+        if(isApproximateableRangeQuery()){
+            ApproximateableQuery query = ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery());
+            if (searchContext.size() > 10_000)
+                ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSize(searchContext.size());
+            weight = query.getApproximationQueryWeight();
+        }
         if (liveDocsBitSet == null) {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
@@ -409,6 +424,22 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 return null;
             }
 
+    }
+
+    private boolean isApproximateableRangeQuery(){
+        boolean isTopLevelRangeQuery = searchContext.query() instanceof IndexOrDocValuesQuery &&
+            ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery()).getOriginalQuery() instanceof PointRangeQuery;
+
+        boolean hasSort = false;
+
+        if (searchContext.request() != null && searchContext.request().source() != null ) {
+            FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
+            if (primarySortField != null && primarySortField.missing() == null && Objects.equals(searchContext.trackTotalHitsUpTo(), SearchContext.TRACK_TOTAL_HITS_DISABLED)) {
+                    hasSort = true;
+            }
+            }
+
+        return isTopLevelRangeQuery && !hasSort;
     }
 
     static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled)
