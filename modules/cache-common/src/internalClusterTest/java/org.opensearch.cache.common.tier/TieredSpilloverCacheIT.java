@@ -550,7 +550,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
 
         @Override
         public Map<String, ICache.Factory> getCacheFactoryMap() {
-            return Map.of(MockDiskCache.MockDiskCacheFactory.NAME, new MockDiskCache.MockDiskCacheFactory(0, 1000));
+            return Map.of(MockDiskCache.MockDiskCacheFactory.NAME, new MockDiskCache.MockDiskCacheFactory(0, 1000, false));
         }
 
         @Override

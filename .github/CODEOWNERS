@@ -1,5 +1,5 @@
 # CODEOWNERS manages notifications, not PR approvals
-# For PR approvals see /.github/workflows/maintainer-approval.yml 
+# For PR approvals see /.github/workflows/maintainer-approval.yml
 
 # Files have a single rule applied, the last match decides the owner
 # If you would like to more specifically apply ownership, include existing owner in new sub fields
@@ -24,4 +24,4 @@
 
 /.github/ @peternied
 
-/MAINTAINERS.md @anasalkouz @andrross @Bukhtawar @CEHENKLE @dblock @dbwiddis @dreamer-89 @gbbafna @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @peternied @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @tlfeng @VachaShah
+/MAINTAINERS.md @anasalkouz @andrross @Bukhtawar @CEHENKLE @dblock @dbwiddis @dreamer-89 @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @peternied @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @tlfeng @VachaShah

@@ -18,14 +18,21 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.opensearch.test.gateway.TestShardBatchGatewayAllocator;
@@ -222,6 +229,21 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         assertEquals(0, testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch().size());
     }
 
+    public void testDeDuplicationOfReplicaShardsAcrossBatch() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final DiscoveryNode node = newNode("node1");
+        // number of replicas is greater than batch size - to ensure shardRouting gets de-duped across batch
+        createRoutingWithDifferentUnAssignedInfo(shardId, node, 50);
+        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(10);
+
+        // only replica shard should be in the batch
+        Set<String> replicaBatches = testShardsBatchGatewayAllocator.createAndUpdateBatches(testAllocation, false);
+        assertEquals(1, replicaBatches.size());
+        ShardsBatchGatewayAllocator.ShardsBatch shardsBatch = testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch()
+            .get(replicaBatches.iterator().next());
+        assertEquals(1, shardsBatch.getBatchedShards().size());
+    }
+
     public void testGetBatchIdExisting() {
         createIndexAndUpdateClusterState(2, 1020, 1);
         // get all shardsRoutings for test index
@@ -343,6 +365,59 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime()
         );
+    }
+
+    private void createRoutingWithDifferentUnAssignedInfo(ShardId primaryShardId, DiscoveryNode node, int numberOfReplicas) {
+
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(primaryShardId, node.getId(), true, ShardRoutingState.STARTED);
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(primaryShardId.getIndexName())
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(numberOfReplicas)
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId()))
+            )
+            .build();
+
+        IndexRoutingTable.Builder isd = IndexRoutingTable.builder(primaryShardId.getIndex())
+            .addIndexShard(new IndexShardRoutingTable.Builder(primaryShardId).addShard(primaryShard).build());
+
+        for (int i = 0; i < numberOfReplicas; i++) {
+            isd.addShard(
+                ShardRouting.newUnassigned(
+                    primaryShardId,
+                    false,
+                    RecoverySource.PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(
+                        UnassignedInfo.Reason.REPLICA_ADDED,
+                        "message for replica-copy " + i,
+                        null,
+                        0,
+                        System.nanoTime(),
+                        System.currentTimeMillis(),
+                        false,
+                        UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                        Collections.emptySet()
+                    )
+                )
+            );
+        }
+
+        RoutingTable routingTable = RoutingTable.builder().add(isd).build();
+        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+        testAllocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.emptyList()),
+            new RoutingNodes(clusterState, false),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+
     }
 
     // call this after index creation and update cluster state

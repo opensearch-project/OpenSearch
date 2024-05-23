@@ -26,13 +26,20 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Base64;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.opensearch.index.translog.transfer.TranslogTransferManager.CHECKPOINT_FILE_DATA_KEY;
 
 public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
 
@@ -144,4 +151,37 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
                 .build()
         );
     }
+
+    public void testBuildTransferFileMetadata_EmptyInputStream() throws IOException {
+        InputStream emptyInputStream = new ByteArrayInputStream(new byte[0]);
+        Map<String, String> metadata = BlobStoreTransferService.buildTransferFileMetadata(emptyInputStream);
+        assertTrue(metadata.containsKey(CHECKPOINT_FILE_DATA_KEY));
+        assertEquals("", metadata.get(CHECKPOINT_FILE_DATA_KEY));
+    }
+
+    public void testBuildTransferFileMetadata_NonEmptyInputStream() throws IOException {
+        String inputData = "This is a test input stream.";
+        InputStream inputStream = new ByteArrayInputStream(inputData.getBytes(StandardCharsets.UTF_8));
+        Map<String, String> metadata = BlobStoreTransferService.buildTransferFileMetadata(inputStream);
+        assertTrue(metadata.containsKey(CHECKPOINT_FILE_DATA_KEY));
+        String expectedBase64String = Base64.getEncoder().encodeToString(inputData.getBytes(StandardCharsets.UTF_8));
+        assertEquals(expectedBase64String, metadata.get(CHECKPOINT_FILE_DATA_KEY));
+    }
+
+    public void testBuildTransferFileMetadata_InputStreamExceedsLimit() {
+        byte[] largeData = new byte[1025]; // 1025 bytes, exceeding the 1KB limit
+        InputStream largeInputStream = new ByteArrayInputStream(largeData);
+        IOException exception = assertThrows(IOException.class, () -> BlobStoreTransferService.buildTransferFileMetadata(largeInputStream));
+        assertEquals(exception.getMessage(), "Input stream exceeds 1KB limit");
+    }
+
+    public void testBuildTransferFileMetadata_SmallInputStreamOptimization() throws IOException {
+        String inputData = "Small input";
+        InputStream inputStream = new ByteArrayInputStream(inputData.getBytes(StandardCharsets.UTF_8));
+        Map<String, String> metadata = BlobStoreTransferService.buildTransferFileMetadata(inputStream);
+        assertTrue(metadata.containsKey(CHECKPOINT_FILE_DATA_KEY));
+        String expectedBase64String = Base64.getEncoder().encodeToString(inputData.getBytes(StandardCharsets.UTF_8));
+        assertEquals(expectedBase64String, metadata.get(CHECKPOINT_FILE_DATA_KEY));
+    }
+
 }

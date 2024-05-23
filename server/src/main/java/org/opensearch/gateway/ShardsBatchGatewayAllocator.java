@@ -117,14 +117,17 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     // for tests
     protected ShardsBatchGatewayAllocator() {
+        this(DEFAULT_SHARD_BATCH_SIZE);
+    }
+
+    protected ShardsBatchGatewayAllocator(long batchSize) {
         this.rerouteService = null;
         this.batchStartedAction = null;
         this.primaryShardBatchAllocator = null;
         this.batchStoreAction = null;
         this.replicaShardBatchAllocator = null;
-        this.maxBatchSize = DEFAULT_SHARD_BATCH_SIZE;
+        this.maxBatchSize = batchSize;
     }
-
     // for tests
 
     @Override
@@ -228,13 +231,13 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             batchEntry.getValue().getBatchedShards().forEach(shardId -> currentBatchedShards.put(shardId, batchEntry.getKey()));
         }
 
-        Set<ShardRouting> newShardsToBatch = Sets.newHashSet();
+        Map<ShardId, ShardRouting> newShardsToBatch = new HashMap<>();
         Set<ShardId> batchedShardsToAssign = Sets.newHashSet();
         // add all unassigned shards to the batch if they are not already in a batch
         unassigned.forEach(shardRouting -> {
             if ((currentBatchedShards.containsKey(shardRouting.shardId()) == false) && (shardRouting.primary() == primary)) {
                 assert shardRouting.unassigned();
-                newShardsToBatch.add(shardRouting);
+                newShardsToBatch.put(shardRouting.shardId(), shardRouting);
             }
             // if shard is already batched update to latest shardRouting information in the batches
             // Replica shard assignment can be cancelled if we get a better match. These ShardRouting objects also
@@ -262,7 +265,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
         refreshShardBatches(currentBatches, batchedShardsToAssign, primary);
 
-        Iterator<ShardRouting> iterator = newShardsToBatch.iterator();
+        Iterator<ShardRouting> iterator = newShardsToBatch.values().iterator();
         assert maxBatchSize > 0 : "Shards batch size must be greater than 0";
 
         long batchSize = maxBatchSize;

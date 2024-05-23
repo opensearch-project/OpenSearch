@@ -81,6 +81,18 @@ public class RemoteStoreSettings {
     );
 
     /**
+     * This setting is used to disable uploading translog.ckp file as metadata to translog.tlog. This setting is effective only for
+     * repositories that supports metadata read and write with metadata and is applicable for only remote store enabled clusters.
+     */
+    @ExperimentalApi
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_TRANSLOG_METADATA = Setting.boolSetting(
+        "cluster.remote_store.index.translog.translog_metadata",
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * This setting is used to set the remote store blob store path hash algorithm strategy. This setting is effective only for
      * remote store enabled cluster. This setting will come to effect if the {@link #CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING}
      * is either {@code HASHED_PREFIX} or {@code HASHED_INFIX}.
@@ -105,12 +117,25 @@ public class RemoteStoreSettings {
         Property.NodeScope
     );
 
+    /**
+     * Controls timeout value while uploading segment files to remote segment store
+     */
+    public static final Setting<TimeValue> CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.remote_store.segment.transfer_timeout",
+        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueMinutes(10),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
+    private volatile TimeValue clusterRemoteSegmentTransferTimeout;
     private volatile RemoteStoreEnums.PathType pathType;
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
+    private volatile boolean isTranslogMetadataEnabled;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -134,11 +159,20 @@ public class RemoteStoreSettings {
         pathType = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING, this::setPathType);
 
+        isTranslogMetadataEnabled = clusterSettings.get(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA, this::setTranslogMetadataEnabled);
+
         pathHashAlgorithm = clusterSettings.get(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING, this::setPathHashAlgorithm);
 
         maxRemoteTranslogReaders = CLUSTER_REMOTE_MAX_TRANSLOG_READERS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_MAX_TRANSLOG_READERS, this::setMaxRemoteTranslogReaders);
+
+        clusterRemoteSegmentTransferTimeout = CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING,
+            this::setClusterRemoteSegmentTransferTimeout
+        );
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -161,8 +195,16 @@ public class RemoteStoreSettings {
         return clusterRemoteTranslogTransferTimeout;
     }
 
+    public TimeValue getClusterRemoteSegmentTransferTimeout() {
+        return clusterRemoteSegmentTransferTimeout;
+    }
+
     private void setClusterRemoteTranslogTransferTimeout(TimeValue clusterRemoteTranslogTransferTimeout) {
         this.clusterRemoteTranslogTransferTimeout = clusterRemoteTranslogTransferTimeout;
+    }
+
+    private void setClusterRemoteSegmentTransferTimeout(TimeValue clusterRemoteSegmentTransferTimeout) {
+        this.clusterRemoteSegmentTransferTimeout = clusterRemoteSegmentTransferTimeout;
     }
 
     @ExperimentalApi
@@ -177,6 +219,14 @@ public class RemoteStoreSettings {
 
     private void setPathType(RemoteStoreEnums.PathType pathType) {
         this.pathType = pathType;
+    }
+
+    private void setTranslogMetadataEnabled(boolean isTranslogMetadataEnabled) {
+        this.isTranslogMetadataEnabled = isTranslogMetadataEnabled;
+    }
+
+    public boolean isTranslogMetadataEnabled() {
+        return isTranslogMetadataEnabled;
     }
 
     private void setPathHashAlgorithm(RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm) {

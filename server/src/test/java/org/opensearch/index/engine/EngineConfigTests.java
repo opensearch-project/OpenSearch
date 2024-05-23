@@ -32,6 +32,13 @@ public class EngineConfigTests extends OpenSearchTestCase {
         defaultIndexSettings = IndexSettingsModule.newIndexSettings("test", defaultIndexMetadata.getSettings());
     }
 
+    public void testEngineConfig_DefaultValueFoUseCompoundFile() {
+        EngineConfig config = new EngineConfig.Builder().indexSettings(defaultIndexSettings)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .build();
+        assertTrue(config.useCompoundFile());
+    }
+
     public void testEngineConfig_DefaultValueForReadOnlyEngine() {
         EngineConfig config = new EngineConfig.Builder().indexSettings(defaultIndexSettings)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)

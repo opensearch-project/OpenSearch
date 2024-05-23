@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.transport;
+package org.opensearch.transport.nativeprotocol;
 
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.util.io.IOUtils;

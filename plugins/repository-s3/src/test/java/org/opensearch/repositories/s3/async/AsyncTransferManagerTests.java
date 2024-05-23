@@ -33,6 +33,7 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.blobstore.ZeroInputStream;
+import org.opensearch.repositories.s3.GenericStatsMetricPublisher;
 import org.opensearch.repositories.s3.StatsMetricPublisher;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -63,11 +65,19 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
     @Before
     public void setUp() throws Exception {
         s3AsyncClient = mock(S3AsyncClient.class);
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         asyncTransferManager = new AsyncTransferManager(
             ByteSizeUnit.MB.toBytes(5),
             Executors.newSingleThreadExecutor(),
             Executors.newSingleThreadExecutor(),
-            Executors.newSingleThreadExecutor()
+            Executors.newSingleThreadExecutor(),
+            new TransferSemaphoresHolder(
+                3,
+                Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
+                5,
+                TimeUnit.MINUTES,
+                genericStatsMetricPublisher
+            )
         );
         super.setUp();
     }

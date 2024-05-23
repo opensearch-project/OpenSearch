@@ -32,7 +32,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
 
     // The list of permitted dimensions. Should be ordered from "outermost" to "innermost", as you would like to
     // aggregate them in an API response.
-    private final List<String> dimensionNames;
+    protected final List<String> dimensionNames;
     // A tree structure based on dimension values, which stores stats values in its leaf nodes.
     // Non-leaf nodes have stats matching the sum of their children.
     // We use a tree structure, rather than a map with concatenated keys, to save on memory usage. If there are many leaf
@@ -115,7 +115,7 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         return statsRoot.getEntries();
     }
 
-    private void internalIncrement(List<String> dimensionValues, Consumer<Node> adder, boolean createNodesIfAbsent) {
+    protected void internalIncrement(List<String> dimensionValues, Consumer<Node> adder, boolean createNodesIfAbsent) {
         assert dimensionValues.size() == dimensionNames.size();
         // First try to increment without creating nodes
         boolean didIncrement = internalIncrementHelper(dimensionValues, statsRoot, 0, adder, false);
@@ -213,7 +213,10 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
         return statsRoot;
     }
 
-    static class Node {
+    /**
+     * Nodes that make up the tree in the stats holder.
+     */
+    protected static class Node {
         private final String dimensionValue;
         // Map from dimensionValue to the DimensionNode for that dimension value.
         final Map<String, Node> children;
@@ -245,23 +248,23 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
 
         // Functions for modifying internal CacheStatsCounter without callers having to be aware of CacheStatsCounter
 
-        void incrementHits() {
+        public void incrementHits() {
             this.stats.incrementHits();
         }
 
-        void incrementMisses() {
+        public void incrementMisses() {
             this.stats.incrementMisses();
         }
 
-        void incrementEvictions() {
+        public void incrementEvictions() {
             this.stats.incrementEvictions();
         }
 
-        void incrementSizeInBytes(long amountBytes) {
+        public void incrementSizeInBytes(long amountBytes) {
             this.stats.incrementSizeInBytes(amountBytes);
         }
 
-        void decrementSizeInBytes(long amountBytes) {
+        public void decrementSizeInBytes(long amountBytes) {
             this.stats.decrementSizeInBytes(amountBytes);
         }
 
@@ -295,6 +298,17 @@ public class DefaultCacheStatsHolder implements CacheStatsHolder {
 
         Node createChild(String dimensionValue, boolean createMapInChild) {
             return children.computeIfAbsent(dimensionValue, (key) -> new Node(dimensionValue, createMapInChild));
+        }
+
+        /**
+         * Return whether this is a leaf node which is at the lowest level of the tree.
+         * Does not return true if this is a node at a higher level whose children are still being constructed.
+         * @return if this is a leaf node at the lowest level
+         */
+        public boolean isAtLowestLevel() {
+            // Compare by value to the empty children map, to ensure we don't get false positives for nodes
+            // which are in the process of having children added
+            return children == EMPTY_CHILDREN_MAP;
         }
     }
 }

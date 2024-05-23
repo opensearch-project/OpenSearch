@@ -36,6 +36,9 @@ setup:
 
 ---
 "Include inner hits in top hits":
+  - skip:
+      version: " - 2.13.99"
+      reason: "the regression was fixed in 2.14.0"
   - do:
       search:
         rest_total_hits_as_int: true

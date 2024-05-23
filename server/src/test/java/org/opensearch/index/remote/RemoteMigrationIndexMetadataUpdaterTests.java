@@ -163,7 +163,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
                 .build(),
             logger
         );
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(builder, indexName);
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomMetadata(builder, indexName);
         assertCustomPathMetadataIsPresent(builder.build());
     }
 
@@ -186,7 +186,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
             logger
         );
 
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStorePathStrategy(builder, indexName);
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomMetadata(builder, indexName);
 
         assertCustomPathMetadataIsPresent(builder.build());
     }
@@ -298,7 +298,14 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         )
             .putCustom(
                 REMOTE_STORE_CUSTOM_KEY,
-                Map.of(RemoteStoreEnums.PathType.NAME, "dummy", RemoteStoreEnums.PathHashAlgorithm.NAME, "dummy")
+                Map.of(
+                    RemoteStoreEnums.PathType.NAME,
+                    "dummy",
+                    RemoteStoreEnums.PathHashAlgorithm.NAME,
+                    "dummy",
+                    IndexMetadata.TRANSLOG_METADATA_KEY,
+                    "dummy"
+                )
             )
             .build();
         return Metadata.builder().put(indexMetadata).build();

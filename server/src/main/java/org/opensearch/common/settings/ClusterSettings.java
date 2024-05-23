@@ -737,9 +737,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING,
+                RemoteStoreSettings.CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
-                RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS
+                RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA
             )
         )
     );

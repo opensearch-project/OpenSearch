@@ -41,6 +41,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -53,6 +56,8 @@ import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
+import org.opensearch.repositories.s3.async.TransferSemaphoresHolder;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.FixedExecutorBuilder;
@@ -69,6 +74,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -82,6 +89,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     private static final String PRIORITY_STREAM_READER = "priority_stream_reader";
     private static final String FUTURE_COMPLETION = "future_completion";
     private static final String STREAM_READER = "stream_reader";
+    private static final String LOW_TRANSFER_QUEUE_CONSUMER = "low_transfer_queue_consumer";
+    private static final String NORMAL_TRANSFER_QUEUE_CONSUMER = "normal_transfer_queue_consumer";
 
     protected final S3Service service;
     private final S3AsyncService s3AsyncService;
@@ -91,6 +100,12 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     private AsyncExecutorContainer urgentExecutorBuilder;
     private AsyncExecutorContainer priorityExecutorBuilder;
     private AsyncExecutorContainer normalExecutorBuilder;
+    private ExecutorService lowTransferQConsumerService;
+    private ExecutorService normalTransferQConsumerService;
+    private SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
+    private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
+    private TransferSemaphoresHolder transferSemaphoresHolder;
+    private GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
@@ -120,7 +135,34 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
                 TimeValue.timeValueMinutes(5)
             )
         );
+        executorBuilders.add(
+            new FixedExecutorBuilder(
+                settings,
+                LOW_TRANSFER_QUEUE_CONSUMER,
+                lowPriorityTransferQConsumers(settings),
+                10,
+                "thread_pool." + LOW_TRANSFER_QUEUE_CONSUMER
+            )
+        );
+        executorBuilders.add(
+            new FixedExecutorBuilder(
+                settings,
+                NORMAL_TRANSFER_QUEUE_CONSUMER,
+                normalPriorityTransferQConsumers(settings),
+                10,
+                "thread_pool." + NORMAL_TRANSFER_QUEUE_CONSUMER
+            )
+        );
         return executorBuilders;
+    }
+
+    private int lowPriorityTransferQConsumers(Settings settings) {
+        double lowPriorityAllocation = ((double) (100 - S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT.get(settings))) / 100;
+        return Math.max(2, (int) (lowPriorityAllocation * S3Repository.S3_TRANSFER_QUEUE_CONSUMERS.get(settings)));
+    }
+
+    private int normalPriorityTransferQConsumers(Settings settings) {
+        return S3Repository.S3_TRANSFER_QUEUE_CONSUMERS.get(settings);
     }
 
     static int halfNumberOfProcessors(int numberOfProcessors) {
@@ -189,7 +231,67 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             threadPool.executor(STREAM_READER),
             new AsyncTransferEventLoopGroup(normalEventLoopThreads)
         );
-        return Collections.emptyList();
+
+        this.lowTransferQConsumerService = threadPool.executor(LOW_TRANSFER_QUEUE_CONSUMER);
+        this.normalTransferQConsumerService = threadPool.executor(NORMAL_TRANSFER_QUEUE_CONSUMER);
+
+        // High number of permit allocation because each op acquiring permit performs disk IO, computation and network IO.
+        int availablePermits = Math.max(allocatedProcessors(clusterService.getSettings()) * 4, 10);
+        double priorityPermitAllocation = ((double) S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT.get(clusterService.getSettings()))
+            / 100;
+        int normalPriorityPermits = (int) (priorityPermitAllocation * availablePermits);
+        int lowPriorityPermits = availablePermits - normalPriorityPermits;
+
+        int normalPriorityConsumers = normalPriorityTransferQConsumers(clusterService.getSettings());
+        int lowPriorityConsumers = lowPriorityTransferQConsumers(clusterService.getSettings());
+
+        ByteSizeValue normalPriorityQCapacity = new ByteSizeValue(normalPriorityConsumers * 10L, ByteSizeUnit.GB);
+        ByteSizeValue lowPriorityQCapacity = new ByteSizeValue(lowPriorityConsumers * 20L, ByteSizeUnit.GB);
+
+        this.genericStatsMetricPublisher = new GenericStatsMetricPublisher(
+            normalPriorityQCapacity.getBytes(),
+            normalPriorityPermits,
+            lowPriorityQCapacity.getBytes(),
+            lowPriorityPermits
+        );
+
+        this.normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+            normalPriorityQCapacity,
+            normalTransferQConsumerService,
+            normalPriorityConsumers,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.NORMAL
+        );
+
+        LowPrioritySizeBasedBlockingQ lowPrioritySizeBasedBlockingQ = new LowPrioritySizeBasedBlockingQ(
+            lowPriorityQCapacity,
+            lowTransferQConsumerService,
+            lowPriorityConsumers,
+            genericStatsMetricPublisher
+        );
+        this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
+        this.transferSemaphoresHolder = new TransferSemaphoresHolder(
+            normalPriorityPermits,
+            lowPriorityPermits,
+            S3Repository.S3_PERMIT_WAIT_DURATION_MIN.get(clusterService.getSettings()),
+            TimeUnit.MINUTES,
+            genericStatsMetricPublisher
+        );
+
+        return CollectionUtils.arrayAsArrayList(this.normalPrioritySizeBasedBlockingQ, lowPrioritySizeBasedBlockingQ);
+    }
+
+    // New class because in core, components are injected via guice only by instance creation due to which
+    // same binding types fail.
+    private static final class LowPrioritySizeBasedBlockingQ extends SizeBasedBlockingQ {
+        public LowPrioritySizeBasedBlockingQ(
+            ByteSizeValue capacity,
+            ExecutorService executorService,
+            int consumers,
+            GenericStatsMetricPublisher genericStatsMetricPublisher
+        ) {
+            super(capacity, executorService, consumers, genericStatsMetricPublisher, QueueEventType.LOW);
+        }
     }
 
     // proxy method for testing
@@ -204,7 +306,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.get(clusterService.getSettings()).getBytes(),
             normalExecutorBuilder.getStreamReader(),
             priorityExecutorBuilder.getStreamReader(),
-            urgentExecutorBuilder.getStreamReader()
+            urgentExecutorBuilder.getStreamReader(),
+            transferSemaphoresHolder
         );
         return new S3Repository(
             metadata,
@@ -218,7 +321,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             normalExecutorBuilder,
             s3AsyncService,
             S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING.get(clusterService.getSettings()),
-            configPath
+            configPath,
+            normalPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher
         );
     }
 
@@ -263,7 +369,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
             S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
             S3Repository.REDIRECT_LARGE_S3_UPLOAD,
-            S3Repository.UPLOAD_RETRY_ENABLED
+            S3Repository.UPLOAD_RETRY_ENABLED,
+            S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT,
+            S3Repository.PERMIT_BACKED_TRANSFER_ENABLED
         );
     }
 

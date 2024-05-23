@@ -38,7 +38,6 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -48,7 +47,6 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +54,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -81,7 +80,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockFsRepositoryPlugin.class);
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class)).collect(Collectors.toList());
     }
 
     @Override
@@ -797,25 +796,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     // Test local only translog files which are not uploaded to remote store (no metadata present in remote)
     // Without the cleanup change in RemoteFsTranslog.createEmptyTranslog, this test fails with NPE.
     public void testLocalOnlyTranslogCleanupOnNodeRestart() throws Exception {
-        clusterSettingsSuppliedByTest = true;
-
-        // Overriding settings to use AsyncMultiStreamBlobContainer
-        Settings settings = Settings.builder()
-            .put(super.nodeSettings(1))
-            .put(
-                remoteStoreClusterSettings(
-                    REPOSITORY_NAME,
-                    segmentRepoPath,
-                    MockFsRepositoryPlugin.TYPE,
-                    REPOSITORY_2_NAME,
-                    translogRepoPath,
-                    MockFsRepositoryPlugin.TYPE
-                )
-            )
-            .build();
-
-        internalCluster().startClusterManagerOnlyNode(settings);
-        String dataNode = internalCluster().startDataOnlyNode(settings);
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
 
         // 1. Create index with 0 replica
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));

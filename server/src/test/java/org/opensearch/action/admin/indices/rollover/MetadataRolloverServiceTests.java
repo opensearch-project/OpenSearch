@@ -740,7 +740,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 systemIndices,
                 false,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                null
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -879,7 +880,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 systemIndices,
                 false,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                null
             );
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
@@ -1058,7 +1060,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
             new SystemIndices(emptyMap()),
             false,
             new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            null
         );
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
             clusterService,

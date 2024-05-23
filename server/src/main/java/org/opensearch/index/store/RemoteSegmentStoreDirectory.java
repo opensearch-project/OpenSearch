@@ -453,7 +453,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param context  IOContext to be used to open IndexInput of file during remote upload
      * @param listener Listener to handle upload callback events
      */
-    public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener) {
+    public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener, boolean lowPriorityUpload) {
         try {
             final String remoteFileName = getNewRemoteSegmentFilename(src);
             boolean uploaded = remoteDataDirectory.copyFrom(from, src, remoteFileName, context, () -> {
@@ -462,7 +462,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 } catch (IOException e) {
                     throw new RuntimeException("Exception in segment postUpload for file " + src, e);
                 }
-            }, listener);
+            }, listener, lowPriorityUpload);
             if (uploaded == false) {
                 copyFrom(from, src, src, context);
                 listener.onResponse(null);

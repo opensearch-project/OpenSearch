@@ -40,6 +40,7 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -159,6 +160,18 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         indices(indices);
         this.source = source;
+    }
+
+    /**
+     * Deep clone a SearchRequest
+     *
+     * @return a copy of the current SearchRequest
+     */
+    public SearchRequest deepCopy() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        this.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        return new SearchRequest(in);
     }
 
     /**

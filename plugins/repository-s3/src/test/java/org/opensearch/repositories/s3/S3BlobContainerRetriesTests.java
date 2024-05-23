@@ -67,6 +67,8 @@ import org.opensearch.repositories.blobstore.ZeroInputStream;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
+import org.opensearch.repositories.s3.async.TransferSemaphoresHolder;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -87,6 +89,8 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -114,7 +118,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private S3AsyncService asyncService;
     private ExecutorService futureCompletionService;
     private ExecutorService streamReaderService;
+    private ExecutorService remoteTransferRetry;
+    private ExecutorService transferQueueConsumerService;
+    private ScheduledExecutorService scheduler;
     private AsyncTransferEventLoopGroup transferNIOGroup;
+    private SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
+    private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
 
     @Before
     public void setUp() throws Exception {
@@ -125,7 +134,26 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         futureCompletionService = Executors.newSingleThreadExecutor();
         streamReaderService = Executors.newSingleThreadExecutor();
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
-
+        remoteTransferRetry = Executors.newFixedThreadPool(20);
+        transferQueueConsumerService = Executors.newFixedThreadPool(2);
+        scheduler = new ScheduledThreadPoolExecutor(1);
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
+        normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+            new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
+            transferQueueConsumerService,
+            2,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.NORMAL
+        );
+        lowPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+            new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
+            transferQueueConsumerService,
+            2,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.LOW
+        );
+        normalPrioritySizeBasedBlockingQ.start();
+        lowPrioritySizeBasedBlockingQ.start();
         // needed by S3AsyncService
         SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         super.setUp();
@@ -137,6 +165,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         streamReaderService.shutdown();
         futureCompletionService.shutdown();
+        remoteTransferRetry.shutdown();
+        transferQueueConsumerService.shutdown();
+        scheduler.shutdown();
+        normalPrioritySizeBasedBlockingQ.close();
+        lowPrioritySizeBasedBlockingQ.close();
         IOUtils.close(transferNIOGroup);
 
         if (previousOpenSearchPathConf != null) {
@@ -205,7 +238,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             streamReaderService,
             transferNIOGroup
         );
-
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         return new S3BlobContainer(
             BlobPath.cleanPath(),
             new S3BlobStore(
@@ -223,11 +256,21 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                     asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader(),
-                    asyncExecutorContainer.getStreamReader()
+                    asyncExecutorContainer.getStreamReader(),
+                    new TransferSemaphoresHolder(
+                        3,
+                        Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
+                        5,
+                        TimeUnit.MINUTES,
+                        genericStatsMetricPublisher
+                    )
                 ),
                 asyncExecutorContainer,
                 asyncExecutorContainer,
-                asyncExecutorContainer
+                asyncExecutorContainer,
+                normalPrioritySizeBasedBlockingQ,
+                lowPrioritySizeBasedBlockingQ,
+                genericStatsMetricPublisher
             )
         ) {
             @Override

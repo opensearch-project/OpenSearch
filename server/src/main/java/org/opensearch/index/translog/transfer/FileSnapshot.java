@@ -108,6 +108,8 @@ public class FileSnapshot implements Closeable {
 
         private final long primaryTerm;
         private Long checksum;
+        @Nullable
+        private InputStream metadataFileInputStream;
 
         public TransferFileSnapshot(Path path, long primaryTerm, Long checksum) throws IOException {
             super(path);
@@ -126,6 +128,14 @@ public class FileSnapshot implements Closeable {
 
         public long getPrimaryTerm() {
             return primaryTerm;
+        }
+
+        public void setMetadataFileInputStream(InputStream inputStream) {
+            this.metadataFileInputStream = inputStream;
+        }
+
+        public InputStream getMetadataFileInputStream() {
+            return metadataFileInputStream;
         }
 
         @Override
