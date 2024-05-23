@@ -47,6 +47,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
@@ -92,20 +93,12 @@ public class RequestOptionsTests extends RestClientTestCase {
         }
     }
 
-    public void testAddQueryParam() {
-        try {
-            randomBuilder().addQueryParam(null, randomAsciiLettersOfLengthBetween(3, 10));
-            fail("expected failure");
-        } catch (NullPointerException e) {
-            assertEquals("query parameter name cannot be null", e.getMessage());
-        }
+    public void testAddParameter() {
+        assertThrows("query parameter name cannot be null", NullPointerException.class,
+            () -> randomBuilder().addParameter(null, randomAsciiLettersOfLengthBetween(3, 10)));
 
-        try {
-            randomBuilder().addQueryParam(randomAsciiLettersOfLengthBetween(3, 10), null);
-            fail("expected failure");
-        } catch (NullPointerException e) {
-            assertEquals("query parameter value cannot be null", e.getMessage());
-        }
+        assertThrows("query parameter value cannot be null", NullPointerException.class,
+            () -> randomBuilder().addParameter(randomAsciiLettersOfLengthBetween(3, 10), null));
 
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         int numQueryParams = between(0, 5);
@@ -114,13 +107,13 @@ public class RequestOptionsTests extends RestClientTestCase {
             String name = randomAsciiAlphanumOfLengthBetween(5, 10);
             String value = randomAsciiAlphanumOfLength(3);
             queryParams.put(name, value);
-            builder.addQueryParam(name, value);
+            builder.addParameter(name, value);
         }
         RequestOptions options = builder.build();
-        assertEquals(queryParams, options.getQueryParams());
+        assertEquals(queryParams, options.getParameters());
 
         try {
-            options.getQueryParams().put(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3));
+            options.getParameters().put(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3));
             fail("expected failure");
         } catch (UnsupportedOperationException e) {
             assertNull(e.getMessage());
@@ -185,7 +178,7 @@ public class RequestOptionsTests extends RestClientTestCase {
         if (randomBoolean()) {
             int queryParamCount = between(1, 5);
             for (int i = 0; i < queryParamCount; i++) {
-                builder.addQueryParam(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
+                builder.addParameter(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
             }
         }
 

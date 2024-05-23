@@ -63,14 +63,14 @@ public final class RequestOptions {
     ).build();
 
     private final List<Header> headers;
-    private final Map<String, String> queryParams;
+    private final Map<String, String> parameters;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
     private final WarningsHandler warningsHandler;
     private final RequestConfig requestConfig;
 
     private RequestOptions(Builder builder) {
         this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
-        this.queryParams = Collections.unmodifiableMap(new HashMap<>(builder.queryParams));
+        this.parameters = Collections.unmodifiableMap(new HashMap<>(builder.parameters));
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
         this.warningsHandler = builder.warningsHandler;
         this.requestConfig = builder.requestConfig;
@@ -80,7 +80,7 @@ public final class RequestOptions {
      * Create a builder that contains these options but can be modified.
      */
     public Builder toBuilder() {
-        return new Builder(headers, queryParams, httpAsyncResponseConsumerFactory, warningsHandler, requestConfig);
+        return new Builder(headers, parameters, httpAsyncResponseConsumerFactory, warningsHandler, requestConfig);
     }
 
     /**
@@ -93,8 +93,8 @@ public final class RequestOptions {
     /**
      * Query parameters to attach to the request.
      */
-    public Map<String, String> getQueryParams() {
-        return queryParams;
+    public Map<String, String> getParameters() {
+        return parameters;
     }
 
     /**
@@ -155,11 +155,11 @@ public final class RequestOptions {
                 b.append(headers.get(h).toString());
             }
         }
-        if (queryParams.size() > 0) {
+        if (parameters.size() > 0) {
             if (comma) b.append(", ");
             comma = true;
             b.append("queryParams=");
-            b.append(queryParams.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(",")));
+            b.append(parameters.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(",")));
         }
         if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
             if (comma) b.append(", ");
@@ -189,7 +189,7 @@ public final class RequestOptions {
 
         RequestOptions other = (RequestOptions) obj;
         return headers.equals(other.headers)
-            && queryParams.equals(other.queryParams)
+            && parameters.equals(other.parameters)
             && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory)
             && Objects.equals(warningsHandler, other.warningsHandler);
     }
@@ -199,7 +199,7 @@ public final class RequestOptions {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(headers, queryParams, httpAsyncResponseConsumerFactory, warningsHandler);
+        return Objects.hash(headers, parameters, httpAsyncResponseConsumerFactory, warningsHandler);
     }
 
     /**
@@ -209,20 +209,20 @@ public final class RequestOptions {
      */
     public static class Builder {
         private final List<Header> headers;
-        private final Map<String, String> queryParams;
+        private final Map<String, String> parameters;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
         private WarningsHandler warningsHandler;
         private RequestConfig requestConfig;
 
         private Builder(
             List<Header> headers,
-            Map<String, String> queryParams,
+            Map<String, String> parameters,
             HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
             WarningsHandler warningsHandler,
             RequestConfig requestConfig
         ) {
             this.headers = new ArrayList<>(headers);
-            this.queryParams = new HashMap<>(queryParams);
+            this.parameters = new HashMap<>(parameters);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
             this.warningsHandler = warningsHandler;
             this.requestConfig = requestConfig;
@@ -256,10 +256,10 @@ public final class RequestOptions {
          * @param value the query parameter value
          * @throws NullPointerException if {@code name} or {@code value} is null.
          */
-        public Builder addQueryParam(String name, String value) {
+        public Builder addParameter(String name, String value) {
             Objects.requireNonNull(name, "query parameter name cannot be null");
             Objects.requireNonNull(value, "query parameter value cannot be null");
-            this.queryParams.put(name, value);
+            this.parameters.put(name, value);
             return this;
         }
 
