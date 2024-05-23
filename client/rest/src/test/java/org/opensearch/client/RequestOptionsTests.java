@@ -94,11 +94,17 @@ public class RequestOptionsTests extends RestClientTestCase {
     }
 
     public void testAddParameter() {
-        assertThrows("query parameter name cannot be null", NullPointerException.class,
-            () -> randomBuilder().addParameter(null, randomAsciiLettersOfLengthBetween(3, 10)));
+        assertThrows(
+            "query parameter name cannot be null",
+            NullPointerException.class,
+            () -> randomBuilder().addParameter(null, randomAsciiLettersOfLengthBetween(3, 10))
+        );
 
-        assertThrows("query parameter value cannot be null", NullPointerException.class,
-            () -> randomBuilder().addParameter(randomAsciiLettersOfLengthBetween(3, 10), null));
+        assertThrows(
+            "query parameter value cannot be null",
+            NullPointerException.class,
+            () -> randomBuilder().addParameter(randomAsciiLettersOfLengthBetween(3, 10), null)
+        );
 
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         int numQueryParams = between(0, 5);
