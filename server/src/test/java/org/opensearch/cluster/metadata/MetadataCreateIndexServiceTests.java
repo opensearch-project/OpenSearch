@@ -57,6 +57,7 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -88,6 +89,8 @@ import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -117,6 +120,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -157,6 +161,7 @@ import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLim
 import static org.opensearch.node.Node.NODE_ATTRIBUTES;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.getRemoteStoreTranslogRepo;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -177,6 +182,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     private CreateIndexClusterStateUpdateRequest request;
     private QueryShardContext queryShardContext;
     private ClusterSettings clusterSettings;
+    private IndicesService indicesServices;
+    private RepositoriesService repositoriesService;
+    private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private static final String segmentRepositoryNameAttributeKey = NODE_ATTRIBUTES.getKey()
         + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
     private static final String translogRepositoryNameAttributeKey = NODE_ATTRIBUTES.getKey()
@@ -189,6 +197,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     public void setup() throws Exception {
         super.setUp();
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        indicesServices = mock(IndicesService.class);
+        repositoriesServiceSupplier = mock(Supplier.class);
+        repositoriesService = mock(RepositoriesService.class);
     }
 
     @Before
@@ -703,7 +714,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
-                null,
+                indicesServices,
                 null,
                 null,
                 createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
@@ -714,7 +725,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 new SystemIndices(Collections.emptyMap()),
                 false,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
             );
             validateIndexName(
                 checkerService,
@@ -790,7 +802,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
-                null,
+                indicesServices,
                 null,
                 null,
                 createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
@@ -801,7 +813,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 new SystemIndices(Collections.singletonMap("foo", systemIndexDescriptors)),
                 false,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
             );
             // Check deprecations
             assertFalse(checkerService.validateDotIndex(".test2", false));
@@ -1216,7 +1229,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
             settings,
             clusterService,
-            null,
+            indicesServices,
             null,
             null,
             createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
@@ -1227,7 +1240,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             new SystemIndices(Collections.emptyMap()),
             true,
             new AwarenessReplicaBalance(settings, clusterService.getClusterSettings()),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            repositoriesServiceSupplier
         );
 
         List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(settings, false, Optional.empty());
@@ -1336,7 +1350,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         final MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
             forceClusterSettingEnabled,
             clusterService,
-            null,
+            indicesServices,
             null,
             null,
             createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
@@ -1347,7 +1361,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             new SystemIndices(Collections.emptyMap()),
             true,
             new AwarenessReplicaBalance(forceClusterSettingEnabled, clusterService.getClusterSettings()),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            repositoriesServiceSupplier
         );
         // Use DOCUMENT replication type setting for index creation
         final Settings indexSettings = Settings.builder().put(INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.DOCUMENT).build();
@@ -1462,7 +1477,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
-                null,
+                indicesServices,
                 null,
                 null,
                 createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
@@ -1473,7 +1488,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 new SystemIndices(Collections.emptyMap()),
                 true,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
             );
 
             final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
@@ -1497,7 +1513,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
-                null,
+                indicesServices,
                 null,
                 null,
                 createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
@@ -1508,7 +1524,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 new SystemIndices(Collections.emptyMap()),
                 true,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
             );
 
             final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
@@ -1537,7 +1554,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
-                null,
+                indicesServices,
                 null,
                 null,
                 createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
@@ -1548,7 +1565,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 new SystemIndices(Collections.emptyMap()),
                 true,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
             );
 
             final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(
@@ -1755,10 +1773,16 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
 
         ThreadPool threadPool = new TestThreadPool(getTestName());
+        BlobStoreRepository repositoryMock = mock(BlobStoreRepository.class);
+        when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
+        when(repositoriesService.repository(getRemoteStoreTranslogRepo(settings))).thenReturn(repositoryMock);
+        BlobStore blobStoreMock = mock(BlobStore.class);
+        when(repositoryMock.blobStore()).thenReturn(blobStoreMock);
+        when(blobStoreMock.isBlobMetadataEnabled()).thenReturn(randomBoolean());
         MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
             settings,
             clusterService,
-            null,
+            indicesServices,
             null,
             null,
             createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
@@ -1769,7 +1793,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             new SystemIndices(Collections.emptyMap()),
             true,
             new AwarenessReplicaBalance(settings, clusterService.getClusterSettings()),
-            remoteStoreSettings
+            remoteStoreSettings,
+            repositoriesServiceSupplier
         );
         CreateIndexClusterStateUpdateRequest request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = Settings.builder()
@@ -1882,7 +1907,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
                 clusterService,
-                null,
+                indicesServices,
                 null,
                 null,
                 createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
@@ -1893,7 +1918,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 new SystemIndices(Collections.emptyMap()),
                 true,
                 new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                DefaultRemoteStoreSettings.INSTANCE
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
             );
 
             final List<String> validationErrors = checkerService.getIndexSettingsValidationErrors(ilnSetting, true, Optional.empty());

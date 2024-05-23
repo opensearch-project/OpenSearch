@@ -2164,7 +2164,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     systemIndices,
                     false,
                     new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                    DefaultRemoteStoreSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    null
                 );
                 actions.put(
                     CreateIndexAction.INSTANCE,

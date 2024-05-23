@@ -512,5 +512,6 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
         logger.info("---> Asserting custom index metadata");
         IndexMetadata iMd = internalCluster().client().admin().cluster().prepareState().get().getState().metadata().index(index);
         assertNotNull(iMd.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY));
+        assertNotNull(iMd.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY).get(IndexMetadata.TRANSLOG_METADATA_KEY));
     }
 }

@@ -8,9 +8,13 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
@@ -26,7 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
 import static org.opensearch.index.remote.RemoteStoreUtils.URL_BASE64_CHARSET;
+import static org.opensearch.index.remote.RemoteStoreUtils.determineTranslogMetadataEnabled;
 import static org.opensearch.index.remote.RemoteStoreUtils.longToCompositeBase64AndBinaryEncoding;
 import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 import static org.opensearch.index.remote.RemoteStoreUtils.urlBase64ToLong;
@@ -40,6 +46,7 @@ import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.ME
 public class RemoteStoreUtilsTests extends OpenSearchTestCase {
 
     private static Map<Character, Integer> BASE64_CHARSET_IDX_MAP;
+    private static String index = "test-index";
 
     static {
         Map<Character, Integer> charToIndexMap = new HashMap<>();
@@ -341,4 +348,54 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         String binaryString = base64PartBinary + encodedValue.substring(1);
         return new BigInteger(binaryString, 2).longValue();
     }
+
+    public void testDeterdetermineTranslogMetadataEnabledWhenTrue() {
+        Metadata metadata = createIndexMetadataWithRemoteStoreSettings(index, 1);
+        IndexMetadata indexMetadata = metadata.index(index);
+        assertTrue(determineTranslogMetadataEnabled(indexMetadata));
+    }
+
+    public void testDeterdetermineTranslogMetadataEnabledWhenFalse() {
+        Metadata metadata = createIndexMetadataWithRemoteStoreSettings(index, 0);
+        IndexMetadata indexMetadata = metadata.index(index);
+        assertFalse(determineTranslogMetadataEnabled(indexMetadata));
+    }
+
+    public void testDeterdetermineTranslogMetadataEnabledWhenKeyNotFound() {
+        Metadata metadata = createIndexMetadataWithRemoteStoreSettings(index, 2);
+        IndexMetadata indexMetadata = metadata.index(index);
+        assertThrows(AssertionError.class, () -> determineTranslogMetadataEnabled(indexMetadata));
+    }
+
+    private static Metadata createIndexMetadataWithRemoteStoreSettings(String indexName, int option) {
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
+        indexMetadata.settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+                .put(IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "dummy-tlog-repo")
+                .put(IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.getKey(), "dummy-segment-repo")
+                .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), "SEGMENT")
+                .build()
+        ).putCustom(REMOTE_STORE_CUSTOM_KEY, getCustomDataMap(option)).build();
+        return Metadata.builder().put(indexMetadata).build();
+    }
+
+    private static Map<String, String> getCustomDataMap(int option) {
+        if (option > 1) {
+            return Map.of();
+        }
+        String value = (option == 1) ? "true" : "false";
+        return Map.of(
+            RemoteStoreEnums.PathType.NAME,
+            "dummy",
+            RemoteStoreEnums.PathHashAlgorithm.NAME,
+            "dummy",
+            IndexMetadata.TRANSLOG_METADATA_KEY,
+            value
+        );
+    }
+
 }

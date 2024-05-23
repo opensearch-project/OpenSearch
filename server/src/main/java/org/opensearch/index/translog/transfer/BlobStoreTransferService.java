@@ -18,7 +18,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.FetchBlobResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
@@ -28,16 +28,20 @@ import org.opensearch.index.translog.ChannelFactory;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import static org.opensearch.common.blobstore.BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC;
+import static org.opensearch.index.translog.transfer.TranslogTransferManager.CHECKPOINT_FILE_DATA_KEY;
 
 /**
  * Service that handles remote transfer of translog and checkpoint files
@@ -104,6 +108,30 @@ public class BlobStoreTransferService implements TransferService {
 
     }
 
+    // Builds a metadata map containing the Base64-encoded checkpoint file data associated with a translog file.
+    static Map<String, String> buildTransferFileMetadata(InputStream metadataInputStream) throws IOException {
+        Map<String, String> metadata = new HashMap<>();
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[128];
+            int bytesRead;
+            int totalBytesRead = 0;
+
+            while ((bytesRead = metadataInputStream.read(buffer)) != -1) {
+                byteArrayOutputStream.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+                if (totalBytesRead > 1024) {
+                    // We enforce a limit of 1KB on the size of the checkpoint file.
+                    throw new IOException("Input stream exceeds 1KB limit");
+                }
+            }
+
+            byte[] bytes = byteArrayOutputStream.toByteArray();
+            String metadataString = Base64.getEncoder().encodeToString(bytes);
+            metadata.put(CHECKPOINT_FILE_DATA_KEY, metadataString);
+        }
+        return metadata;
+    }
+
     private void uploadBlob(
         TransferFileSnapshot fileSnapshot,
         ActionListener<TransferFileSnapshot> listener,
@@ -113,6 +141,11 @@ public class BlobStoreTransferService implements TransferService {
 
         try {
             ChannelFactory channelFactory = FileChannel::open;
+            Map<String, String> metadata = null;
+            if (fileSnapshot.getMetadataFileInputStream() != null) {
+                metadata = buildTransferFileMetadata(fileSnapshot.getMetadataFileInputStream());
+            }
+
             long contentLength;
             try (FileChannel channel = channelFactory.open(fileSnapshot.getPath(), StandardOpenOption.READ)) {
                 contentLength = channel.size();
@@ -130,7 +163,8 @@ public class BlobStoreTransferService implements TransferService {
                 writePriority,
                 (size, position) -> new OffsetRangeFileInputStream(fileSnapshot.getPath(), size, position),
                 Objects.requireNonNull(fileSnapshot.getChecksum()),
-                remoteIntegrityEnabled
+                remoteIntegrityEnabled,
+                metadata
             );
             ActionListener<Void> completionListener = ActionListener.wrap(resp -> listener.onResponse(fileSnapshot), ex -> {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
@@ -168,7 +202,8 @@ public class BlobStoreTransferService implements TransferService {
 
     @Override
     @ExperimentalApi
-    public FetchBlobResult downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
+    public InputStreamWithMetadata downloadBlobWithMetadata(Iterable<String> path, String fileName) throws IOException {
+        assert blobStore.isBlobMetadataEnabled();
         return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }
 

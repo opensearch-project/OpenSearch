@@ -56,8 +56,10 @@ import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndexTemplateMissingException;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
@@ -2038,10 +2040,13 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        IndicesService indicesServices = mock(IndicesService.class);
+        RepositoriesService repositoriesService = mock(RepositoriesService.class);
+        // when(indicesServices.getRepositoriesServiceSupplier()).thenReturn(() -> repositoriesService);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,
-            null,
+            indicesServices,
             null,
             null,
             createTestShardLimitService(randomIntBetween(1, 1000), false),
@@ -2052,7 +2057,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             new SystemIndices(Collections.emptyMap()),
             true,
             new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            null
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
             clusterService,

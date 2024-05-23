@@ -763,6 +763,7 @@ public final class IndexSettings {
     private final boolean widenIndexSortType;
     private final boolean assignedOnRemoteNode;
     private final RemoteStorePathStrategy remoteStorePathStrategy;
+    private final boolean isTranslogMetadataEnabled;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -987,6 +988,8 @@ public final class IndexSettings {
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
         assignedOnRemoteNode = RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
         remoteStorePathStrategy = RemoteStoreUtils.determineRemoteStorePathStrategy(indexMetadata);
+
+        isTranslogMetadataEnabled = RemoteStoreUtils.determineTranslogMetadataEnabled(indexMetadata);
 
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
@@ -1910,5 +1913,9 @@ public final class IndexSettings {
 
     public RemoteStorePathStrategy getRemoteStorePathStrategy() {
         return remoteStorePathStrategy;
+    }
+
+    public boolean isTranslogMetadataEnabled() {
+        return isTranslogMetadataEnabled;
     }
 }

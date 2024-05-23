@@ -52,6 +52,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.util.concurrent.ExecutionException;
@@ -60,6 +61,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
@@ -139,6 +141,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
     }
 
     public void testCreateCloneIndexFailure() throws ExecutionException, InterruptedException {
+        asyncUploadMockFsRepo = false;
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         int numPrimaryShards = 1;
         prepareCreate("source").setSettings(

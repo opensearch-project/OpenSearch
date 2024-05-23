@@ -10,6 +10,8 @@ package org.opensearch.common.blobstore;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 
@@ -20,7 +22,7 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class FetchBlobResult {
+public class InputStreamWithMetadata implements Closeable {
 
     /**
      * Downloaded blob InputStream
@@ -40,9 +42,15 @@ public class FetchBlobResult {
         return metadata;
     }
 
-    public FetchBlobResult(InputStream inputStream, Map<String, String> metadata) {
+    public InputStreamWithMetadata(InputStream inputStream, Map<String, String> metadata) {
         this.inputStream = inputStream;
         this.metadata = metadata;
     }
 
+    @Override
+    public void close() throws IOException {
+        if (inputStream != null) {
+            inputStream.close();
+        }
+    }
 }

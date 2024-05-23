@@ -888,7 +888,8 @@ public class Node implements Closeable {
                 systemIndices,
                 forbidPrivateIndexSettings,
                 awarenessReplicaBalance,
-                remoteStoreSettings
+                remoteStoreSettings,
+                repositoriesServiceReference::get
             );
             pluginsService.filterPlugins(Plugin.class)
                 .forEach(
