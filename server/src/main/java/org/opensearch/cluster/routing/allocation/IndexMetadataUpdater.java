@@ -176,7 +176,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                         oldMetadata.settings(),
                         logger
                     );
-                    migrationImdUpdater.maybeUpdateRemoteStorePathStrategy(indexMetadataBuilder, index.getName());
+                    migrationImdUpdater.maybeUpdateRemoteStoreCustomMetadata(indexMetadataBuilder, index.getName());
                     migrationImdUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, index.getName());
                 }
             }
