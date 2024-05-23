@@ -80,16 +80,16 @@ public interface BlobContainer {
     InputStream readBlob(String blobName) throws IOException;
 
     /**
-     * Creates a new {@link FetchBlobResult} for the given blob name.
+     * Creates a new {@link InputStreamWithMetadata} for the given blob name.
      *
      * @param   blobName
      *          The name of the blob to get an {@link InputStream} for.
-     * @return  The {@link FetchBlobResult} of the blob.
+     * @return  The {@link InputStreamWithMetadata} of the blob.
      * @throws  NoSuchFileException if the blob does not exist
      * @throws  IOException if the blob can not be read.
      */
     @ExperimentalApi
-    default FetchBlobResult readBlobWithMetadata(String blobName) throws IOException {
+    default InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
         throw new UnsupportedOperationException("readBlobWithMetadata is not implemented yet");
     };
 
