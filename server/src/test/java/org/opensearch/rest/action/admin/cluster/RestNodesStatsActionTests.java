@@ -130,10 +130,12 @@ public class RestNodesStatsActionTests extends OpenSearchTestCase {
         );
     }
 
-    public void testIndexMetricsRequestWithoutIndicesMetric() throws IOException {
+    public void testIndexMetricsRequestWithoutIndicesAndCachesMetrics() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
         final Set<String> metrics = new HashSet<>(RestNodesStatsAction.METRICS.keySet());
         metrics.remove("indices");
+        // caches stats is handled separately
+        metrics.remove("caches");
         params.put("metric", randomSubsetOf(1, metrics).get(0));
         final String indexMetric = randomSubsetOf(1, RestNodesStatsAction.FLAGS.keySet()).get(0);
         params.put("index_metric", indexMetric);
@@ -148,6 +150,19 @@ public class RestNodesStatsActionTests extends OpenSearchTestCase {
                 containsString("request [/_nodes/stats] contains index metrics [" + indexMetric + "] but indices stats not requested")
             )
         );
+    }
+
+    public void testCacheStatsRequestWithInvalidCacheType() throws IOException {
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("metric", "caches");
+        final String cacheType = randomAlphaOfLength(64);
+        params.put("index_metric", cacheType);
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(request, mock(NodeClient.class))
+        );
+        assertThat(e, hasToString(containsString("request [/_nodes/stats] contains unrecognized cache type: [" + cacheType + "]")));
     }
 
     public void testIndexMetricsRequestOnAllRequest() throws IOException {
