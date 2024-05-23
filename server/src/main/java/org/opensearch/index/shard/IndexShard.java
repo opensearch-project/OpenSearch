@@ -4989,7 +4989,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
         Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
-        RemoteFsTranslog.cleanup(repository, shardId, getThreadPool(), indexSettings.getRemoteStorePathStrategy(), remoteStoreSettings);
+        RemoteFsTranslog.cleanup(
+            repository,
+            shardId,
+            getThreadPool(),
+            indexSettings.getRemoteStorePathStrategy(),
+            remoteStoreSettings,
+            indexSettings().isTranslogMetadataEnabled()
+        );
     }
 
     /*
@@ -5014,7 +5021,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
             logger,
-            shouldSeedRemoteStore()
+            shouldSeedRemoteStore(),
+            indexSettings().isTranslogMetadataEnabled()
         );
     }
 
