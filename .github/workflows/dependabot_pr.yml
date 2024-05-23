@@ -1,0 +1,63 @@
+name: Dependabot PR actions
+on: pull_request
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+    steps:
+      - name: GitHub App token
+        id: github_app_token
+        uses: tibdex/github-app-token@v2.1.0
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          installation_id: 22958780
+
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.github_app_token.outputs.token }}
+
+      - name: Update Gradle SHAs
+        run: |
+          ./gradlew updateSHAs
+
+      - name: Commit the changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Updating SHAs
+          branch: ${{ github.head_ref }}
+          commit_user_name: dependabot[bot]
+          commit_user_email: support@github.com
+          commit_options: '--signoff'
+
+      - name: Run spotless
+        run: |
+          ./gradlew spotlessApply
+
+      - name: Commit the changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Spotless formatting
+          branch: ${{ github.head_ref }}
+          commit_user_name: dependabot[bot]
+          commit_user_email: support@github.com
+          commit_options: '--signoff'
+
+      - name: Update the changelog
+        uses: dangoslen/dependabot-changelog-helper@v3
+        with:
+          version: 'Unreleased'
+
+      - name: Commit the changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update changelog"
+          branch: ${{ github.head_ref }}
+          commit_user_name: dependabot[bot]
+          commit_user_email: support@github.com
+          commit_options: '--signoff'
