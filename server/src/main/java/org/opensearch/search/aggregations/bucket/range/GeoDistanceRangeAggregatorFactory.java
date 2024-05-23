@@ -95,7 +95,8 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                     context,
                     parent,
                     cardinality,
-                    metadata
+                    metadata,
+                    null
                 );
             },
             true

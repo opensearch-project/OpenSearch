@@ -550,13 +550,10 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+        boolean optimized = fastFilterContext.tryFastFilterAggregation(
             ctx,
-            fastFilterContext,
-            (key, count) -> incrementBucketDocCount(
-                FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
-                count
-            )
+            this::incrementBucketDocCount,
+            (key) -> bucketOrds.add(0, preparedRounding.round((long) key))
         );
         if (optimized) throw new CollectionTerminatedException();
 

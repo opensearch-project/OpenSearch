@@ -10,7 +10,7 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -239,8 +239,16 @@ public final class FastFilterRewriteHelper {
             return ranges;
         }
 
-        public boolean tryFastFilterAggregation(final LeafReaderContext ctx, final BiConsumer<Long, Integer> incrementDocCount)
-            throws IOException {
+        /**
+         * Try to populate the bucket doc counts for aggregation
+         * <p>
+         * Usage: invoked at segment level — in getLeafCollector of aggregator
+         */
+        public boolean tryFastFilterAggregation(
+            final LeafReaderContext ctx,
+            final BiConsumer<Long, Long> incrementDocCount,
+            final Function<Object, Long> bucketOrd
+        ) throws IOException {
             this.segments++;
             if (!this.rewriteable) {
                 return false;
@@ -282,7 +290,7 @@ public final class FastFilterRewriteHelper {
                 }
             }
 
-            DebugInfo debugInfo = this.aggregationType.tryFastFilterAggregation(values, ranges, incrementDocCount);
+            DebugInfo debugInfo = this.aggregationType.tryFastFilterAggregation(values, ranges, incrementDocCount, bucketOrd);
             this.consumeDebugInfo(debugInfo);
 
             this.optimizedSegments++;
@@ -307,8 +315,12 @@ public final class FastFilterRewriteHelper {
 
         Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx) throws IOException;
 
-        DebugInfo tryFastFilterAggregation(PointValues values, Ranges ranges, BiConsumer<Long, Integer> incrementDocCount)
-            throws IOException;
+        DebugInfo tryFastFilterAggregation(
+            PointValues values,
+            Ranges ranges,
+            BiConsumer<Long, Long> incrementDocCount,
+            Function<Object, Long> bucketOrd
+        ) throws IOException;
     }
 
     /**
@@ -412,13 +424,26 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public DebugInfo tryFastFilterAggregation(PointValues values, Ranges ranges, BiConsumer<Long, Integer> incrementDocCount)
-            throws IOException {
+        public DebugInfo tryFastFilterAggregation(
+            PointValues values,
+            Ranges ranges,
+            BiConsumer<Long, Long> incrementDocCount,
+            Function<Object, Long> bucketOrd
+        ) throws IOException {
             int size = Integer.MAX_VALUE;
             if (this instanceof CompositeAggregator.CompositeAggregationType) {
                 size = ((CompositeAggregator.CompositeAggregationType) this).getSize();
             }
-            return multiRangesTraverse(values.getPointTree(), ranges, incrementDocCount, this.getFieldType(), size);
+
+            DateFieldMapper.DateFieldType fieldType = getFieldType();
+            BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
+                long rangeStart = LongPoint.decodeDimension(ranges.min[activeIndex], 0);
+                rangeStart = fieldType.convertNanosToMillis(rangeStart);
+                long ord = getBucketOrd(bucketOrd.apply(rangeStart));
+                incrementDocCount.accept(ord, (long) docCount);
+            };
+
+            return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
         }
     }
 
@@ -460,10 +485,18 @@ public final class FastFilterRewriteHelper {
             byte[][] mins = new byte[ranges.length][];
             byte[][] maxs = new byte[ranges.length][];
             for (int i = 0; i < ranges.length; i++) {
-                byte[] min = new byte[8];
-                byte[] max = new byte[8];
-                DoublePoint.encodeDimension(ranges[i].getFrom(), min, 0);
-                DoublePoint.encodeDimension(ranges[i].getTo(), max, 0);
+                double rangeMin = ranges[i].getFrom();
+                double rangeMax = ranges[i].getTo();
+
+                // byte[] min = new byte[8];
+                // byte[] max = new byte[8];
+                // LongPoint.encodeDimension((long) rangeMin, min, 0);
+                // LongPoint.encodeDimension((long) rangeMax, max, 0);
+
+                byte[] min = new byte[4];
+                byte[] max = new byte[4];
+                IntPoint.encodeDimension((int) rangeMin, min, 0);
+                IntPoint.encodeDimension((int) rangeMax, max, 0);
                 mins[i] = min;
                 maxs[i] = max;
             }
@@ -477,9 +510,20 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public DebugInfo tryFastFilterAggregation(PointValues values, Ranges ranges, BiConsumer<Long, Integer> incrementDocCount)
-            throws IOException {
-            return null;
+        public DebugInfo tryFastFilterAggregation(
+            PointValues values,
+            Ranges ranges,
+            BiConsumer<Long, Long> incrementDocCount,
+            Function<Object, Long> bucketOrd
+        ) throws IOException {
+            int size = Integer.MAX_VALUE;
+
+            BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
+                long ord = bucketOrd.apply(activeIndex);
+                incrementDocCount.accept(ord, (long) docCount);
+            };
+
+            return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
         }
     }
 
@@ -493,74 +537,6 @@ public final class FastFilterRewriteHelper {
         }
 
         return bucketOrd;
-    }
-
-    /**
-     * Try to get the bucket doc counts for the date histogram aggregation
-     * <p>
-     * Usage: invoked at segment level — in getLeafCollector of aggregator
-     *
-     * @param incrementDocCount takes in the bucket key value and the bucket count
-     */
-    public static boolean tryFastFilterAggregation(
-        final LeafReaderContext ctx,
-        FastFilterContext fastFilterContext,
-        final BiConsumer<Long, Integer> incrementDocCount
-    ) throws IOException {
-        fastFilterContext.segments++;
-        if (!fastFilterContext.rewriteable) {
-            return false;
-        }
-
-        if (ctx.reader().hasDeletions()) return false;
-
-        PointValues values = ctx.reader().getPointValues(fastFilterContext.fieldName);
-        if (values == null) return false;
-        // only proceed if every document corresponds to exactly one point
-        if (values.getDocCount() != values.size()) return false;
-
-        NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
-        if (docCountValues.nextDoc() != NO_MORE_DOCS) {
-            logger.debug(
-                "Shard {} segment {} has at least one document with _doc_count field, skip fast filter optimization",
-                fastFilterContext.context.indexShard().shardId(),
-                ctx.ord
-            );
-            return false;
-        }
-
-        // even if no ranges built at shard level, we can still perform the optimization
-        // when functionally match-all at segment level
-        if (!fastFilterContext.rangesBuiltAtShardLevel && !segmentMatchAll(fastFilterContext.context, ctx)) {
-            return false;
-        }
-        Ranges ranges = fastFilterContext.ranges;
-        if (ranges == null) {
-            logger.debug(
-                "Shard {} segment {} functionally match all documents. Build the fast filter",
-                fastFilterContext.context.indexShard().shardId(),
-                ctx.ord
-            );
-            ranges = fastFilterContext.buildRanges(ctx);
-            if (ranges == null) {
-                return false;
-            }
-        }
-
-        final AggregationType aggregationType = fastFilterContext.aggregationType;
-        assert aggregationType instanceof AbstractDateHistogramAggregationType;
-        final DateFieldMapper.DateFieldType fieldType = ((AbstractDateHistogramAggregationType) aggregationType).getFieldType();
-        int size = Integer.MAX_VALUE;
-        if (aggregationType instanceof CompositeAggregator.CompositeAggregationType) {
-            size = ((CompositeAggregator.CompositeAggregationType) aggregationType).getSize();
-        }
-        DebugInfo debugInfo = multiRangesTraverse(values.getPointTree(), ranges, incrementDocCount, fieldType, size);
-        fastFilterContext.consumeDebugInfo(debugInfo);
-
-        fastFilterContext.optimizedSegments++;
-        logger.debug("Fast filter optimization applied to shard {} segment {}", fastFilterContext.context.indexShard().shardId(), ctx.ord);
-        logger.debug("crossed leaf nodes: {}, inner nodes: {}", fastFilterContext.leaf, fastFilterContext.inner);
-        return true;
     }
 
     private static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
@@ -638,8 +614,7 @@ public final class FastFilterRewriteHelper {
     private static DebugInfo multiRangesTraverse(
         final PointValues.PointTree tree,
         final Ranges ranges,
-        final BiConsumer<Long, Integer> incrementDocCount,
-        final DateFieldMapper.DateFieldType fieldType,
+        final BiConsumer<Integer, Integer> incrementDocCount,
         final int maxNumNonZeroRanges
     ) throws IOException {
         DebugInfo debugInfo = new DebugInfo();
@@ -648,13 +623,7 @@ public final class FastFilterRewriteHelper {
             logger.debug("No ranges match the query, skip the fast filter optimization");
             return debugInfo;
         }
-        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(
-            incrementDocCount,
-            fieldType,
-            maxNumNonZeroRanges,
-            ranges,
-            activeIndex
-        );
+        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(incrementDocCount, maxNumNonZeroRanges, ranges, activeIndex);
         PointValues.IntersectVisitor visitor = getIntersectVisitor(collector);
         try {
             intersectWithRanges(visitor, tree, collector, debugInfo);
@@ -752,7 +721,7 @@ public final class FastFilterRewriteHelper {
             }
 
             private void visitPoints(byte[] packedValue, CheckedRunnable<IOException> collect) throws IOException {
-                if (comparator.compare(packedValue, 0, collector.activeRange[1], 0) > 0) {
+                if (compareByteValue(packedValue, collector.activeRange[1]) > 0) {
                     // need to move to next range
                     collector.finalizePreviousRange();
                     if (collector.iterateRangeEnd(packedValue)) {
@@ -797,8 +766,7 @@ public final class FastFilterRewriteHelper {
     }
 
     private static class RangeCollectorForPointTree {
-        private final BiConsumer<Long, Integer> incrementDocCount;
-        private final DateFieldMapper.DateFieldType fieldType;
+        private final BiConsumer<Integer, Integer> incrementRangeDocCount;
         private int counter = 0;
 
         private final Ranges ranges;
@@ -809,14 +777,12 @@ public final class FastFilterRewriteHelper {
         private final int maxNumNonZeroRange;
 
         public RangeCollectorForPointTree(
-            BiConsumer<Long, Integer> incrementDocCount,
-            DateFieldMapper.DateFieldType fieldType,
+            BiConsumer<Integer, Integer> incrementRangeDocCount,
             int maxNumNonZeroRange,
             Ranges ranges,
             int activeIndex
         ) {
-            this.incrementDocCount = incrementDocCount;
-            this.fieldType = fieldType;
+            this.incrementRangeDocCount = incrementRangeDocCount;
             this.maxNumNonZeroRange = maxNumNonZeroRange;
             this.ranges = ranges;
             this.activeIndex = activeIndex;
@@ -833,10 +799,9 @@ public final class FastFilterRewriteHelper {
 
         private void finalizePreviousRange() {
             if (counter > 0) {
-                long range = LongPoint.decodeDimension(ranges.min[activeIndex], 0);
-                logger.debug("finalize previous range: {}", range);
+                logger.debug("finalize previous range: {}", activeIndex);
                 logger.debug("counter: {}", counter);
-                incrementDocCount.accept(fieldType.convertNanosToMillis(range), counter);
+                incrementRangeDocCount.accept(activeIndex, counter);
                 counter = 0;
             }
         }

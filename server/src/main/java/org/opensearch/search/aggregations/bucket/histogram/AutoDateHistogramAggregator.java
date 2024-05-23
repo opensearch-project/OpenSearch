@@ -236,13 +236,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+        boolean optimized = fastFilterContext.tryFastFilterAggregation(
             ctx,
-            fastFilterContext,
-            (key, count) -> incrementBucketDocCount(
-                FastFilterRewriteHelper.getBucketOrd(getBucketOrds().add(0, preparedRounding.round(key))),
-                count
-            )
+            this::incrementBucketDocCount,
+            (key) -> getBucketOrds().add(0, preparedRounding.round((long) key))
         );
         if (optimized) throw new CollectionTerminatedException();
 

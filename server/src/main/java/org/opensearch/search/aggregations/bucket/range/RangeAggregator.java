@@ -32,6 +32,7 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -56,6 +57,7 @@ import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -260,7 +262,8 @@ public class RangeAggregator extends BucketsAggregator {
         SearchContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        ValuesSourceConfig config
     ) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
         assert valuesSource != null;
@@ -275,6 +278,7 @@ public class RangeAggregator extends BucketsAggregator {
         fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
         fastFilterContext.setAggregationType(new FastFilterRewriteHelper.RangeAggregationType(valuesSource, ranges));
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            fastFilterContext.setFieldName(config.fieldType().name());
             fastFilterContext.buildRanges();
         }
 
@@ -295,6 +299,13 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+
+        boolean optimized = fastFilterContext.tryFastFilterAggregation(
+            ctx,
+            this::incrementBucketDocCount,
+            (activeIndex) -> subBucketOrdinal(0, (int) activeIndex)
+        );
+        if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {

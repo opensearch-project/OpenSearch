@@ -164,10 +164,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         boolean optimized = fastFilterContext.tryFastFilterAggregation(
             ctx,
-            (key, count) -> incrementBucketDocCount(
-                FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
-                count
-            )
+            this::incrementBucketDocCount,
+            (key) -> bucketOrds.add(0, preparedRounding.round((long) key))
         );
         if (optimized) throw new CollectionTerminatedException();
 
