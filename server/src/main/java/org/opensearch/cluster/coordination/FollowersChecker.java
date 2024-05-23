@@ -417,6 +417,7 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
             transportService.getThreadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {
@@ -430,7 +431,6 @@ public class FollowersChecker {
                         followerCheckers.remove(discoveryNode);
                     }
                     onNodeFailure.accept(discoveryNode, reason);
-                    clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
                 }
 
                 @Override
