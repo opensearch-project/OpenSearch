@@ -107,16 +107,16 @@ public class RequestOptionsTests extends RestClientTestCase {
         );
 
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-        int numQueryParams = between(0, 5);
-        Map<String, String> queryParams = new HashMap<>();
-        for (int i = 0; i < numQueryParams; i++) {
+        int numParameters = between(0, 5);
+        Map<String, String> parameters = new HashMap<>();
+        for (int i = 0; i < numParameters; i++) {
             String name = randomAsciiAlphanumOfLengthBetween(5, 10);
             String value = randomAsciiAlphanumOfLength(3);
-            queryParams.put(name, value);
+            parameters.put(name, value);
             builder.addParameter(name, value);
         }
         RequestOptions options = builder.build();
-        assertEquals(queryParams, options.getParameters());
+        assertEquals(parameters, options.getParameters());
 
         try {
             options.getParameters().put(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3));

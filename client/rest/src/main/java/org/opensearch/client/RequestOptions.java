@@ -158,7 +158,7 @@ public final class RequestOptions {
         if (parameters.size() > 0) {
             if (comma) b.append(", ");
             comma = true;
-            b.append("queryParams=");
+            b.append("parameters=");
             b.append(parameters.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(",")));
         }
         if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
