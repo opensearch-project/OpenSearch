@@ -423,6 +423,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private boolean isApproximateableRangeQuery() {
         boolean isTopLevelRangeQuery = searchContext.query() instanceof IndexOrDocValuesQuery
+            && ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery() instanceof ApproximateableQuery
             && ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery())
                 .getOriginalQuery() instanceof PointRangeQuery;
 
