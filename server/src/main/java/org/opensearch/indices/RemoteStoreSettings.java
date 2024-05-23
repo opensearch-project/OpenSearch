@@ -117,9 +117,21 @@ public class RemoteStoreSettings {
         Property.NodeScope
     );
 
+    /**
+     * Controls timeout value while uploading segment files to remote segment store
+     */
+    public static final Setting<TimeValue> CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.remote_store.segment.transfer_timeout",
+        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueMinutes(10),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private volatile TimeValue clusterRemoteTranslogBufferInterval;
     private volatile int minRemoteSegmentMetadataFiles;
     private volatile TimeValue clusterRemoteTranslogTransferTimeout;
+    private volatile TimeValue clusterRemoteSegmentTransferTimeout;
     private volatile RemoteStoreEnums.PathType pathType;
     private volatile RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm;
     private volatile int maxRemoteTranslogReaders;
@@ -156,6 +168,11 @@ public class RemoteStoreSettings {
         maxRemoteTranslogReaders = CLUSTER_REMOTE_MAX_TRANSLOG_READERS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_REMOTE_MAX_TRANSLOG_READERS, this::setMaxRemoteTranslogReaders);
 
+        clusterRemoteSegmentTransferTimeout = CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING,
+            this::setClusterRemoteSegmentTransferTimeout
+        );
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -178,8 +195,16 @@ public class RemoteStoreSettings {
         return clusterRemoteTranslogTransferTimeout;
     }
 
+    public TimeValue getClusterRemoteSegmentTransferTimeout() {
+        return clusterRemoteSegmentTransferTimeout;
+    }
+
     private void setClusterRemoteTranslogTransferTimeout(TimeValue clusterRemoteTranslogTransferTimeout) {
         this.clusterRemoteTranslogTransferTimeout = clusterRemoteTranslogTransferTimeout;
+    }
+
+    private void setClusterRemoteSegmentTransferTimeout(TimeValue clusterRemoteSegmentTransferTimeout) {
+        this.clusterRemoteSegmentTransferTimeout = clusterRemoteSegmentTransferTimeout;
     }
 
     @ExperimentalApi
