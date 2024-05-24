@@ -138,7 +138,6 @@ public class RemoteStoreNodeAttribute {
 
         // Repository metadata built here will always be for a system repository.
         settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
-        settings.put("repositories.fs.location", "./fsdata");
 
         return new RepositoryMetadata(name, type, settings.build(), cryptoMetadata);
     }
