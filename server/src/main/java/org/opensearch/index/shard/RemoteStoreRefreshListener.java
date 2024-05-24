@@ -33,6 +33,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.ThreadPool;
@@ -45,6 +46,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -89,11 +91,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     private volatile long primaryTerm;
     private volatile Iterator<TimeValue> backoffDelayIterator;
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
+    private final RemoteStoreSettings remoteStoreSettings;
 
     public RemoteStoreRefreshListener(
         IndexShard indexShard,
         SegmentReplicationCheckpointPublisher checkpointPublisher,
-        RemoteSegmentTransferTracker segmentTracker
+        RemoteSegmentTransferTracker segmentTracker,
+        RemoteStoreSettings remoteStoreSettings
     ) {
         super(indexShard.getThreadPool());
         logger = Loggers.getLogger(getClass(), indexShard.shardId());
@@ -116,6 +120,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         this.segmentTracker = segmentTracker;
         resetBackOffDelayIterator();
         this.checkpointPublisher = checkpointPublisher;
+        this.remoteStoreSettings = remoteStoreSettings;
     }
 
     @Override
@@ -286,7 +291,12 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
                     // Start the segments files upload
                     uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener);
-                    latch.await();
+                    if (latch.await(
+                        remoteStoreSettings.getClusterRemoteSegmentTransferTimeout().millis(),
+                        TimeUnit.MILLISECONDS
+                    ) == false) {
+                        throw new SegmentUploadFailedException("Timeout while waiting for remote segment transfer to complete");
+                    }
                 } catch (EngineException e) {
                     logger.warn("Exception while reading SegmentInfosSnapshot", e);
                 }
