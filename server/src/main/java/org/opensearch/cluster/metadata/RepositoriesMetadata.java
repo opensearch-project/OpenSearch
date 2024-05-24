@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 
@@ -158,6 +159,30 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         }
         for (int i = 0; i < repositories.size(); i++) {
             if (repositories.get(i).equalsIgnoreGenerations(other.repositories.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Checks if this instance and the give instance share the same repositories, with option to skip checking for a list of repos.
+     * This will support
+     * @param other other repositories metadata
+     * @param reposToSkip list of repos to skip check for equality
+     * @return {@code true} iff both instances contain the same repositories apart from differences in generations, not including repos provided in reposToSkip.
+     */
+    public boolean  equalsIgnoreGenerationsWithRepoSkip(@Nullable RepositoriesMetadata other, List<String> reposToSkip) {
+        if (other == null) {
+            return false;
+        }
+        List<RepositoryMetadata> currentRepositories = repositories.stream().filter(repo-> !reposToSkip.contains(repo.name())).collect(Collectors.toList());
+        List<RepositoryMetadata> otherRepositories = other.repositories.stream().filter(repo-> !reposToSkip.contains(repo.name())).collect(Collectors.toList());
+        if (otherRepositories.size() != currentRepositories.size()) {
+            return false;
+        }
+        for (int i = 0; i < currentRepositories.size(); i++) {
+            if (currentRepositories.get(i).equalsIgnoreGenerations(otherRepositories.get(i)) == false) {
                 return false;
             }
         }

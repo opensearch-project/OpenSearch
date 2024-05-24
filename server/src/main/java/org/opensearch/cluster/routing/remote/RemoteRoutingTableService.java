@@ -45,18 +45,15 @@ public class RemoteRoutingTableService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteRoutingTableService.class);
     private final Settings settings;
     private final Supplier<RepositoriesService> repositoriesService;
-    private final ClusterSettings clusterSettings;
     private BlobStoreRepository blobStoreRepository;
 
     public RemoteRoutingTableService(
         Supplier<RepositoriesService> repositoriesService,
-        Settings settings,
-        ClusterSettings clusterSettings
+        Settings settings
     ) {
         assert isRemoteRoutingTableEnabled(settings) : "Remote routing table is not enabled";
         this.repositoriesService = repositoriesService;
         this.settings = settings;
-        this.clusterSettings = clusterSettings;
     }
 
     @Override

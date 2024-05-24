@@ -138,6 +138,7 @@ public class RemoteStoreNodeAttribute {
 
         // Repository metadata built here will always be for a system repository.
         settings.put(BlobStoreRepository.SYSTEM_REPOSITORY_SETTING.getKey(), true);
+        settings.put("repositories.fs.location", "./fsdata");
 
         return new RepositoryMetadata(name, type, settings.build(), cryptoMetadata);
     }
@@ -197,7 +198,7 @@ public class RemoteStoreNodeAttribute {
             && isRemoteClusterStateAttributePresent(settings);
     }
 
-    public static boolean isRemoteRoutingTableAttributePresent(Settings settings) {
+    private static boolean isRemoteRoutingTableAttributePresent(Settings settings) {
         return settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)
             .isEmpty() == false;
     }
@@ -250,6 +251,21 @@ public class RemoteStoreNodeAttribute {
                 : Objects.hash(repositoryMetadata.name(), repositoryMetadata.type(), repositoryMetadata.settings()));
         }
         return hashCode;
+    }
+
+    /**
+     * Checks if 2 instances are equal, with option to skip check for a list of repos.
+     *
+     * @param o other instance
+     * @param reposToSkip list of repos to skip check for equality
+     * @return {@code true} iff both instances are equal, not including the repositories in both instances if they are part of reposToSkip.
+     */
+    public boolean equalsWithRepoSkip(Object o, List<String> reposToSkip) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RemoteStoreNodeAttribute that = (RemoteStoreNodeAttribute) o;
+        return this.getRepositoriesMetadata().equalsIgnoreGenerationsWithRepoSkip(that.getRepositoriesMetadata(), reposToSkip);
     }
 
     @Override

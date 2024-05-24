@@ -258,7 +258,7 @@ public class RemoteClusterStateService implements Closeable {
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
 
         if (isRemoteRoutingTableEnabled(settings)) {
-            this.remoteRoutingTableService = new RemoteRoutingTableService(repositoriesService, settings, clusterSettings);
+            this.remoteRoutingTableService = new RemoteRoutingTableService(repositoriesService, settings);
         }
     }
 

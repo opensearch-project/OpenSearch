@@ -54,7 +54,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         Settings nodeSettings = Settings.builder().put(REMOTE_ROUTING_TABLE_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
 
-        remoteRoutingTableService = new RemoteRoutingTableService(repositoriesServiceSupplier, settings, clusterSettings);
+        remoteRoutingTableService = new RemoteRoutingTableService(repositoriesServiceSupplier, settings);
     }
 
     @After
@@ -69,8 +69,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             AssertionError.class,
             () -> new RemoteRoutingTableService(
                 repositoriesServiceSupplier,
-                settings,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                settings
             )
         );
     }
