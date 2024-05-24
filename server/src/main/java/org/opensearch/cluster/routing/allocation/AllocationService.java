@@ -173,6 +173,7 @@ public class AllocationService {
             routingNodes,
             clusterState,
             clusterInfoService.getClusterInfo(),
+            snapshotsInfoService,
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime()
         );
@@ -258,6 +259,7 @@ public class AllocationService {
             routingNodes,
             tmpState,
             clusterInfoService.getClusterInfo(),
+            snapshotsInfoService,
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime
         );
@@ -333,6 +335,7 @@ public class AllocationService {
             routingNodes,
             clusterState,
             clusterInfoService.getClusterInfo(),
+            snapshotsInfoService,
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime()
         );
@@ -360,6 +363,7 @@ public class AllocationService {
             clusterState.getRoutingNodes(),
             clusterState,
             clusterInfoService.getClusterInfo(),
+            snapshotsInfoService,
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime()
         );
@@ -493,6 +497,7 @@ public class AllocationService {
             routingNodes,
             clusterState,
             clusterInfoService.getClusterInfo(),
+            snapshotsInfoService,
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime()
         );
@@ -530,6 +535,7 @@ public class AllocationService {
             routingNodes,
             fixedClusterState,
             clusterInfoService.getClusterInfo(),
+            snapshotsInfoService,
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime()
         );

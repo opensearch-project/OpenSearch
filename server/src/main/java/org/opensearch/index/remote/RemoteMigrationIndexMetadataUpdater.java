@@ -18,6 +18,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.RepositoriesService;
 
 import java.util.List;
 import java.util.Map;
@@ -127,12 +128,16 @@ public class RemoteMigrationIndexMetadataUpdater {
      * @param indexMetadataBuilder Mutated {@link IndexMetadata.Builder} having the previous state updates
      * @param index                index name
      */
-    public void maybeUpdateRemoteStoreCustomMetadata(IndexMetadata.Builder indexMetadataBuilder, String index) {
+    public void maybeUpdateRemoteStoreCustomMetadata(
+        IndexMetadata.Builder indexMetadataBuilder,
+        String index,
+        RepositoriesService repositoriesService
+    ) {
         if (indexHasRemoteCustomMetadata(indexMetadata) == false) {
             logger.info("Adding remote store custom data for index [{}] during migration", index);
             indexMetadataBuilder.putCustom(
                 REMOTE_STORE_CUSTOM_KEY,
-                determineRemoteStoreCustomMetadataDuringMigration(clusterSettings, discoveryNodes)
+                determineRemoteStoreCustomMetadataDuringMigration(clusterSettings, discoveryNodes, repositoriesService)
             );
         } else {
             logger.debug("Index {} already has remote store custom data", index);

@@ -48,6 +48,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater;
+import org.opensearch.repositories.RepositoriesService;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -73,6 +74,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
     private final Logger logger = LogManager.getLogger(IndexMetadataUpdater.class);
     private final Map<ShardId, Updates> shardChanges = new HashMap<>();
     private boolean ongoingRemoteStoreMigration = false;
+    private RepositoriesService repositoriesService;
 
     @Override
     public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
@@ -176,7 +178,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                         oldMetadata.settings(),
                         logger
                     );
-                    migrationImdUpdater.maybeUpdateRemoteStoreCustomMetadata(indexMetadataBuilder, index.getName());
+                    migrationImdUpdater.maybeUpdateRemoteStoreCustomMetadata(indexMetadataBuilder, index.getName(), repositoriesService);
                     migrationImdUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, index.getName());
                 }
             }
@@ -406,6 +408,10 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
 
     public void setOngoingRemoteStoreMigration(boolean ongoingRemoteStoreMigration) {
         this.ongoingRemoteStoreMigration = ongoingRemoteStoreMigration;
+    }
+
+    public void setRepositoriesService(RepositoriesService repositoriesService) {
+        this.repositoriesService = repositoriesService;
     }
 
     private static class Updates {

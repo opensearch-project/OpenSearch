@@ -45,8 +45,11 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
+import org.opensearch.snapshots.SnapshotsInfoService;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -102,6 +105,18 @@ public class RoutingAllocation {
         restoreInProgressUpdater
     );
 
+    // Used for tests
+    public RoutingAllocation(
+        AllocationDeciders deciders,
+        RoutingNodes routingNodes,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime
+    ) {
+        this(deciders, routingNodes, clusterState, clusterInfo, null, shardSizeInfo, currentNanoTime);
+    }
+
     /**
      * Creates a new {@link RoutingAllocation}
      *  @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
@@ -114,6 +129,7 @@ public class RoutingAllocation {
         RoutingNodes routingNodes,
         ClusterState clusterState,
         ClusterInfo clusterInfo,
+        SnapshotsInfoService snapshotsInfoService,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
@@ -128,12 +144,28 @@ public class RoutingAllocation {
         this.currentNanoTime = currentNanoTime;
         if (isMigratingToRemoteStore(metadata)) {
             indexMetadataUpdater.setOngoingRemoteStoreMigration(true);
+            indexMetadataUpdater.setRepositoriesService(determineRepositoriesService(snapshotsInfoService));
         }
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
     public long getCurrentNanoTime() {
         return currentNanoTime;
+    }
+
+    /**
+     * Extracts instance of {@link RepositoriesService} to be used during the remote store migration flow
+     * Uses the {@link InternalSnapshotsInfoService} implementation of {@link SnapshotsInfoService}
+     * which is wired directly from {@link org.opensearch.cluster.ClusterModule} and the reference is passed through {@link AllocationService}
+     *
+     * @param snapshotsInfoService SnapshotsInfoService passed from ClusterModule through AllocationService
+     * @return RepositoriesService reference to be used in the remote migration flow
+     */
+    private RepositoriesService determineRepositoriesService(SnapshotsInfoService snapshotsInfoService) {
+        assert snapshotsInfoService != null : "Cannot have null snapshotsInfo during remote store migration";
+        RepositoriesService repositoriesService = ((InternalSnapshotsInfoService) snapshotsInfoService).getRepositoriesService().get();
+        assert repositoriesService != null : "Cannot have null repositoriesService during remote store migration";
+        return repositoriesService;
     }
 
     /**

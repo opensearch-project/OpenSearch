@@ -22,6 +22,7 @@ import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
@@ -36,6 +37,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_FAILRATE_SETTING;
@@ -117,6 +121,36 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                 )
                 .get()
                 .isAcknowledged()
+        );
+    }
+
+    public void enableEnhancedPrefixPath() {
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(
+                            CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(),
+                            RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name()
+                        )
+                        .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name())
+                        .build()
+                )
+                .get()
+        );
+    }
+
+    public void enableRemoteTranslogMetadata() {
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), "true"))
+                .get()
         );
     }
 

@@ -18,6 +18,8 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -33,6 +35,7 @@ import java.util.function.Function;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 /**
  * Utils for remote store
@@ -203,22 +206,25 @@ public class RemoteStoreUtils {
      */
     public static Map<String, String> determineRemoteStoreCustomMetadataDuringMigration(
         Settings clusterSettings,
-        DiscoveryNodes discoveryNodes
+        DiscoveryNodes discoveryNodes,
+        RepositoriesService repositoriesService
     ) {
         Map<String, String> remoteCustomData = new HashMap<>();
         Version minNodeVersion = discoveryNodes.getMinNodeVersion();
+        boolean blobStoreMetadataClusterSettingsEnabled = Version.V_2_15_0.compareTo(minNodeVersion) <= 0
+            && CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.get(clusterSettings);
 
-        // TODO: During the document replication to a remote store migration, there should be a check to determine if the registered
-        // translog blobstore supports custom metadata or not.
-        // Currently, the blobStoreMetadataEnabled flag is set to false because the integration tests run on the local file system, which
-        // does not support custom metadata.
-        // https://github.com/opensearch-project/OpenSearch/issues/13745
-        boolean blobStoreMetadataEnabled = false;
-        boolean translogMetadata = Version.CURRENT.compareTo(minNodeVersion) <= 0
-            && CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.get(clusterSettings)
-            && blobStoreMetadataEnabled;
-
-        remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(translogMetadata));
+        if (blobStoreMetadataClusterSettingsEnabled) {
+            String translogRepositoryName = RemoteStoreUtils.getRemoteStoreRepoName(discoveryNodes)
+                .get(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY);
+            if (((BlobStoreRepository) repositoriesService.repository(translogRepositoryName)).blobStore().isBlobMetadataEnabled()) {
+                logger.debug("Repository {} supports object metadata. Setting translog_metadata to true", translogRepositoryName);
+                remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(true));
+            } else {
+                logger.debug("Repository {} does not support object metadata. Setting translog_metadata to false", translogRepositoryName);
+                remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(false));
+            }
+        }
 
         RemoteStoreEnums.PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
             ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(clusterSettings)

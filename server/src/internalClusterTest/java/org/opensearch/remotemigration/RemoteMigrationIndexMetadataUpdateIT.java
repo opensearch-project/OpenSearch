@@ -18,6 +18,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteIndexPath;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
+
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.InternalTestCluster;
@@ -414,6 +415,8 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
 
         logger.info("---> Adding 3 remote enabled nodes");
         initDocRepToRemoteMigration();
+        enableEnhancedPrefixPath();
+        enableRemoteTranslogMetadata();
         addRemote = true;
         List<String> remoteEnabledNodes = internalCluster().startDataOnlyNodes(
             3,
@@ -598,6 +601,15 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
         logger.info("---> Asserting custom index metadata");
         IndexMetadata iMd = internalCluster().client().admin().cluster().prepareState().get().getState().metadata().index(index);
         assertNotNull(iMd.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY));
+        assertEquals(
+            iMd.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY).get(RemoteStoreEnums.PathHashAlgorithm.NAME),
+            RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name()
+        );
+        assertEquals(
+            iMd.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY).get(RemoteStoreEnums.PathType.NAME),
+            RemoteStoreEnums.PathType.HASHED_PREFIX.name()
+        );
         assertNotNull(iMd.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY).get(IndexMetadata.TRANSLOG_METADATA_KEY));
+        assertEquals(iMd.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY).get(IndexMetadata.TRANSLOG_METADATA_KEY), "false");
     }
 }

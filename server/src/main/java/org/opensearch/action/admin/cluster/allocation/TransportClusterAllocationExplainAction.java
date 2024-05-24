@@ -133,6 +133,7 @@ public class TransportClusterAllocationExplainAction extends TransportClusterMan
             routingNodes,
             state,
             clusterInfo,
+            snapshotsInfoService,
             snapshotsInfoService.snapshotShardSizes(),
             System.nanoTime()
         );

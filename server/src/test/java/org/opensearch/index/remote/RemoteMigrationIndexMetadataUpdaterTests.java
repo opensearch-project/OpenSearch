@@ -21,11 +21,20 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -33,12 +42,20 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
+import static org.opensearch.cluster.metadata.IndexMetadata.TRANSLOG_METADATA_KEY;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase {
     private final String indexName = "test-index";
+    private static final String TRANSLOG_REPO_NAME = "translog-repo";
+    private static final String SEGMENT_REPO_NAME = "segment-repo";
+    private static final String CLUSTER_STATE_REPO_KEY = Node.NODE_ATTRIBUTES.getKey()
+        + RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
     public void testMaybeAddRemoteIndexSettingsAllPrimariesAndReplicasOnRemote() throws IOException {
         Metadata metadata = createIndexMetadataWithDocrepSettings(indexName);
@@ -145,7 +162,7 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         assertDocrepSettingsApplied(indexMetadataBuilder.build());
     }
 
-    public void testMaybeUpdateRemoteStorePathStrategyExecutes() {
+    public void testMaybeUpdateRemoteStorePathStrategy() {
         Metadata currentMetadata = createIndexMetadataWithDocrepSettings(indexName);
         IndexMetadata existingIndexMetadata = currentMetadata.index(indexName);
         IndexMetadata.Builder builder = IndexMetadata.builder(existingIndexMetadata);
@@ -160,35 +177,49 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
                     RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name()
                 )
                 .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name())
+                .put(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), "false")
                 .build(),
             logger
         );
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomMetadata(builder, indexName);
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomMetadata(builder, indexName, mock(RepositoriesService.class));
         assertCustomPathMetadataIsPresent(builder.build());
+        assertCustomTranslogMetadataAbsent(builder.build());
     }
 
-    public void testMaybeUpdateRemoteStorePathStrategyDoesNotExecute() {
-        Metadata currentMetadata = createIndexMetadataWithRemoteStoreSettings(indexName);
+    public void testMaybeUpdateRemoteStorePathStrategyWithTranslogMetadata() {
+        Metadata currentMetadata = createIndexMetadataWithDocrepSettings(indexName);
         IndexMetadata existingIndexMetadata = currentMetadata.index(indexName);
-        IndexMetadata.Builder builder = IndexMetadata.builder(currentMetadata.index(indexName));
+        IndexMetadata.Builder builder = IndexMetadata.builder(existingIndexMetadata);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(IndexShardTestUtils.getFakeRemoteEnabledNode("1")).build();
+        Settings settings = Settings.builder()
+            .put(RemoteIndexPathUploader.TRANSLOG_REPO_NAME_KEY, TRANSLOG_REPO_NAME)
+            .put(RemoteIndexPathUploader.SEGMENT_REPO_NAME_KEY, TRANSLOG_REPO_NAME)
+            .put(CLUSTER_STATE_REPO_KEY, TRANSLOG_REPO_NAME)
+            .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(), RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name())
+            .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name())
+            // needed to prevent compressor based errors while mocking BlobStoreRepository
+            .put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), "false")
+            .build();
+        BlobPath basePath = BlobPath.cleanPath().add("test");
+        RepositoriesService repositoriesService = mock(RepositoriesService.class);
+        BlobStoreRepository repository = mock(BlobStoreRepository.class);
+        BlobStore blobStore = mock(BlobStore.class);
+        when(repository.blobStore()).thenReturn(blobStore);
+        when(repositoriesService.repository(anyString())).thenReturn(repository);
+        when(repository.basePath()).thenReturn(basePath);
+        when(repository.getCompressor()).thenReturn(new DeflateCompressor());
+        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
         RemoteMigrationIndexMetadataUpdater migrationIndexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
             discoveryNodes,
             mock(RoutingTable.class),
             existingIndexMetadata,
-            Settings.builder()
-                .put(
-                    CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING.getKey(),
-                    RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1.name()
-                )
-                .put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX.name())
-                .build(),
+            settings,
             logger
         );
-
-        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomMetadata(builder, indexName);
-
+        migrationIndexMetadataUpdater.maybeUpdateRemoteStoreCustomMetadata(builder, indexName, repositoriesService);
         assertCustomPathMetadataIsPresent(builder.build());
+        assertCustomTranslogMetadata(builder.build());
     }
 
     private RoutingTable createRoutingTableAllShardsStarted(
@@ -342,5 +373,13 @@ public class RemoteMigrationIndexMetadataUpdaterTests extends OpenSearchTestCase
         assertNotNull(indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY));
         assertNotNull(indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY).get(RemoteStoreEnums.PathType.NAME));
         assertNotNull(indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY).get(RemoteStoreEnums.PathHashAlgorithm.NAME));
+    }
+
+    private void assertCustomTranslogMetadataAbsent(IndexMetadata indexMetadata) {
+        assertNull(indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY).get(TRANSLOG_METADATA_KEY));
+    }
+
+    private void assertCustomTranslogMetadata(IndexMetadata indexMetadata) {
+        assertEquals(indexMetadata.getCustomData(REMOTE_STORE_CUSTOM_KEY).get(TRANSLOG_METADATA_KEY), "true");
     }
 }

@@ -91,7 +91,9 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     );
 
     private final ThreadPool threadPool;
-    private final Supplier<RepositoriesService> repositoriesService;
+
+    public final Supplier<RepositoriesService> repositoriesService;
+
     private final Supplier<RerouteService> rerouteService;
 
     /** contains the snapshot shards for which the size is known **/
@@ -360,6 +362,10 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             }
         }
         return Collections.unmodifiableSet(snapshotShards);
+    }
+
+    public Supplier<RepositoriesService> getRepositoriesService() {
+        return repositoriesService;
     }
 
     /**
