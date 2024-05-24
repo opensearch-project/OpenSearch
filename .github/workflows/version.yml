@@ -5,7 +5,7 @@ on:
     tags:
       - '*.*.*'
 
-jobs:  
+jobs:
   build:
     runs-on: ubuntu-latest
     steps:
@@ -17,7 +17,7 @@ jobs:
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
           installation_id: 22958780
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Fetch Tag and Version Information
         run: |
           TAG=$(echo "${GITHUB_REF#refs/*/}")
@@ -42,7 +42,7 @@ jobs:
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
           echo "NEXT_VERSION_UNDERSCORE=$NEXT_VERSION_UNDERSCORE" >> $GITHUB_ENV
           echo "NEXT_VERSION_ID=$NEXT_VERSION_ID" >> $GITHUB_ENV
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           ref: ${{ env.BASE }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -57,7 +57,7 @@ jobs:
           sed -i "s/CURRENT = $CURRENT_VERSION_UNDERSCORE;/CURRENT = $NEXT_VERSION_UNDERSCORE;/g" server/src/main/java/org/opensearch/Version.java
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ steps.github_app_token.outputs.token }}
           base: ${{ env.BASE }}
@@ -65,11 +65,13 @@ jobs:
           commit-message: Incremented version to ${{ env.NEXT_VERSION }}
           signoff: true
           delete-branch: true
+          labels: |
+            autocut
           title: '[AUTO] Incremented version to ${{ env.NEXT_VERSION }}.'
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and incremented the version from ${{ env.CURRENT_VERSION }} to ${{ env.NEXT_VERSION }}.
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           ref: ${{ env.BASE_X }}
           token: ${{ steps.github_app_token.outputs.token }}
@@ -82,7 +84,7 @@ jobs:
           sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ steps.github_app_token.outputs.token }}
           base: ${{ env.BASE_X }}
@@ -90,11 +92,13 @@ jobs:
           commit-message: Added bwc version ${{ env.NEXT_VERSION }}
           signoff: true
           delete-branch: true
+          labels: |
+            autocut
           title: '[AUTO] [${{ env.BASE_X }}] Added bwc version ${{ env.NEXT_VERSION }}.'
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and added a bwc version ${{ env.NEXT_VERSION }}.
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           ref: main
           token: ${{ steps.github_app_token.outputs.token }}
@@ -107,7 +111,7 @@ jobs:
           sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ steps.github_app_token.outputs.token }}
           base: main
@@ -115,6 +119,8 @@ jobs:
           commit-message: Added bwc version ${{ env.NEXT_VERSION }}
           signoff: true
           delete-branch: true
+          labels: |
+            autocut
           title: '[AUTO] [main] Added bwc version ${{ env.NEXT_VERSION }}.'
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and added a bwc version ${{ env.NEXT_VERSION }}.
