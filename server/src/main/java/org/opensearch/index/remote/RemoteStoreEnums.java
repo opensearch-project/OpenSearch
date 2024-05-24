@@ -36,6 +36,8 @@ import static org.opensearch.index.remote.RemoteStoreUtils.longToUrlBase64;
 @ExperimentalApi
 public class RemoteStoreEnums {
 
+    static final char REMOTE_STORE_DEDICATED_PREFIX_START_CHAR = '.';
+
     /**
      * Categories of the data in Remote store.
      */
@@ -112,7 +114,7 @@ public class RemoteStoreEnums {
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
                 return BlobPath.cleanPath()
-                    .add(hashAlgorithm.hash(pathInput))
+                    .add(REMOTE_STORE_DEDICATED_PREFIX_START_CHAR + hashAlgorithm.hash(pathInput))
                     .add(pathInput.basePath())
                     .add(pathInput.indexUUID())
                     .add(pathInput.shardId())
