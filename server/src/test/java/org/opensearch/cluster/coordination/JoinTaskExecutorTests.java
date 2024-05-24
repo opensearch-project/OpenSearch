@@ -996,7 +996,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         );
         final Settings settings = Settings.builder()
             .put(RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.getKey(), "true")
-            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, ROUTING_TABLE_REPO)
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                ROUTING_TABLE_REPO
+            )
             .put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true")
             .build();
         final Settings nodeSettings = Settings.builder().put(FeatureFlags.REMOTE_ROUTING_TABLE_EXPERIMENTAL, "true").build();
@@ -1026,7 +1029,10 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         );
         final Settings settings = Settings.builder()
             .put(RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.getKey(), "true")
-            .put(Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, ROUTING_TABLE_REPO)
+            .put(
+                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY,
+                ROUTING_TABLE_REPO
+            )
             .put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true")
             .build();
         final Settings nodeSettings = Settings.builder().put(FeatureFlags.REMOTE_ROUTING_TABLE_EXPERIMENTAL, "true").build();

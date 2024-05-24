@@ -65,13 +65,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
     public void testFailInitializationWhenRemoteRoutingDisabled() {
         final Settings settings = Settings.builder().build();
-        assertThrows(
-            AssertionError.class,
-            () -> new RemoteRoutingTableService(
-                repositoriesServiceSupplier,
-                settings
-            )
-        );
+        assertThrows(AssertionError.class, () -> new RemoteRoutingTableService(repositoriesServiceSupplier, settings));
     }
 
     public void testFailStartWhenRepositoryNotSet() {

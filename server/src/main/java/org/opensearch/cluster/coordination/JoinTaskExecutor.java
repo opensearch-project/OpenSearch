@@ -513,13 +513,16 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
         List<String> reposToSkip = new ArrayList<>();
         // Skip checking for remote routing table repo if feature is not enabled.
-        if(!RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(metadata.settings())) {
-            String joiningNodeRepoName = joiningNode.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
-            String existingNodeRepoName = existingNodes.get(0).getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
-            if(joiningNodeRepoName != null){
+        if (!RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(metadata.settings())) {
+            String joiningNodeRepoName = joiningNode.getAttributes()
+                .get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
+            String existingNodeRepoName = existingNodes.get(0)
+                .getAttributes()
+                .get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
+            if (joiningNodeRepoName != null) {
                 reposToSkip.add(joiningNodeRepoName);
             }
-            if(existingNodeRepoName != null) {
+            if (existingNodeRepoName != null) {
                 reposToSkip.add(existingNodeRepoName);
             }
         }
@@ -556,7 +559,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
-    private static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNode existingNode, List<String> reposToSkip) {
+    private static void ensureRemoteStoreNodesCompatibility(
+        DiscoveryNode joiningNode,
+        DiscoveryNode existingNode,
+        List<String> reposToSkip
+    ) {
         if (joiningNode.isRemoteStoreNode()) {
             if (existingNode.isRemoteStoreNode()) {
                 RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);

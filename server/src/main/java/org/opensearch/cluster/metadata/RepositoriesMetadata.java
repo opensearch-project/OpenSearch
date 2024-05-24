@@ -172,12 +172,16 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      * @param reposToSkip list of repos to skip check for equality
      * @return {@code true} iff both instances contain the same repositories apart from differences in generations, not including repos provided in reposToSkip.
      */
-    public boolean  equalsIgnoreGenerationsWithRepoSkip(@Nullable RepositoriesMetadata other, List<String> reposToSkip) {
+    public boolean equalsIgnoreGenerationsWithRepoSkip(@Nullable RepositoriesMetadata other, List<String> reposToSkip) {
         if (other == null) {
             return false;
         }
-        List<RepositoryMetadata> currentRepositories = repositories.stream().filter(repo-> !reposToSkip.contains(repo.name())).collect(Collectors.toList());
-        List<RepositoryMetadata> otherRepositories = other.repositories.stream().filter(repo-> !reposToSkip.contains(repo.name())).collect(Collectors.toList());
+        List<RepositoryMetadata> currentRepositories = repositories.stream()
+            .filter(repo -> !reposToSkip.contains(repo.name()))
+            .collect(Collectors.toList());
+        List<RepositoryMetadata> otherRepositories = other.repositories.stream()
+            .filter(repo -> !reposToSkip.contains(repo.name()))
+            .collect(Collectors.toList());
         if (otherRepositories.size() != currentRepositories.size()) {
             return false;
         }
