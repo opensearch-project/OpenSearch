@@ -110,6 +110,13 @@ public class DerivedField implements Writeable, ToXContentFragment {
         return properties;
     }
 
+    public String getNestedFieldType(String fieldName) {
+        if (properties == null || properties.isEmpty() || fieldName == null || fieldName.isEmpty()) {
+            return null;
+        }
+        return (String) properties.get(fieldName);
+    }
+
     public String getSourceIndexedField() {
         return sourceIndexedField;
     }

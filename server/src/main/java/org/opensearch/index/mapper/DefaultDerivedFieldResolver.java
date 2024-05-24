@@ -158,14 +158,10 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
     }
 
     private static String explicitTypeFromParent(DerivedField parentDerivedField, String subField) {
-        if (parentDerivedField == null
-            || parentDerivedField.getProperties() == null
-            || parentDerivedField.getProperties().isEmpty()
-            || subField == null
-            || subField.isEmpty()) {
+        if (parentDerivedField == null) {
             return null;
         }
-        return parentDerivedField.getProperties().get(subField);
+        return parentDerivedField.getNestedFieldType(subField);
     }
 
     ValueFetcher getValueFetcher(String fieldName, Script script, boolean ignoreMalformed) {

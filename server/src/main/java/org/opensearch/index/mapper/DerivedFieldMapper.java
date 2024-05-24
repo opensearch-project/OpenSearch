@@ -57,7 +57,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).script
         ).setSerializerCheck((id, ic, value) -> value != null);
 
-        private final Parameter<Map<String, String>> properties = new Parameter<>(
+        private final Parameter<Map<String, Object>> properties = new Parameter<>(
             "properties",
             true,
             Collections::emptyMap,
@@ -78,7 +78,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<Boolean> ignoreMalformed;
 
-        private static Map<String, String> parseProperties(String name, Object propertiesObject) {
+        private static Map<String, Object> parseProperties(String name, Object propertiesObject) {
             if (propertiesObject instanceof Map == false) {
                 throw new MapperParsingException(
                     "[properties] must be an object, got "
@@ -96,6 +96,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
                 if (value == null) {
                     throw new MapperParsingException("[properties] values can't be null (field [" + name + "])");
                 } else if (!(value instanceof String)) {
+                    // In the future, we can accept an Object too if needed
                     throw new MapperParsingException(
                         "[properties] values can only be strings, but got "
                             + value.getClass().getSimpleName()
@@ -107,7 +108,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
                     );
                 }
             }
-            return (Map<String, String>) properties;
+            return (Map<String, Object>) properties;
         }
 
         public Builder(String name, IndexAnalyzers indexAnalyzers, DateFormatter defaultDateFormatter, boolean defaultIgnoreMalformed) {
@@ -196,7 +197,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
     private final String type;
     private final Script script;
     private final String sourceIndexedField;
-    private final Map<String, String> properties;
+    private final Map<String, Object> properties;
     private final boolean ignoreMalformed;
     private final boolean defaultIgnoreMalformed;
     private final DateFormatter defaultDateFormatter;
