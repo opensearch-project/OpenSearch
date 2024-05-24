@@ -53,7 +53,6 @@ public class FieldTypeInferenceTests extends MapperServiceTestCase {
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
         int totalDocs = 10000;
         int docsPerLeafCount = 1000;
-        int leaves = 0;
         try (Directory dir = newDirectory()) {
             IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
             Document d = new Document();
@@ -61,7 +60,6 @@ public class FieldTypeInferenceTests extends MapperServiceTestCase {
                 iw.addDocument(d);
                 if ((i + 1) % docsPerLeafCount == 0) {
                     iw.commit();
-                    leaves++;
                 }
             }
             try (IndexReader reader = DirectoryReader.open(iw)) {
@@ -135,6 +133,77 @@ public class FieldTypeInferenceTests extends MapperServiceTestCase {
                         assertTrue(docsPerLeaf.get(0) >= 0 && docsPerLeaf.get(docsPerLeaf.size() - 1) < docsPerLeafCount);
                     }
                 }
+            }
+        }
+    }
+
+    public void testDeleteAllDocs() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {}));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
+        int totalDocs = 10000;
+        int docsPerLeafCount = 1000;
+        try (Directory dir = newDirectory()) {
+            IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+            Document d = new Document();
+            for (int i = 0; i < totalDocs; i++) {
+                iw.addDocument(d);
+                if ((i + 1) % docsPerLeafCount == 0) {
+                    iw.commit();
+                }
+            }
+            iw.deleteAll();
+            iw.commit();
+
+            try (IndexReader reader = DirectoryReader.open(iw)) {
+                iw.close();
+                FieldTypeInference typeInference = new FieldTypeInference("test_index", queryShardContext.getMapperService(), reader);
+                String[] fieldName = { "text_field" };
+                Mapper mapper = typeInference.infer(lookup -> documentMap.get(fieldName[0]));
+                assertNull(mapper);
+            }
+        }
+    }
+
+    public void testZeroDoc() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {}));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
+        try (Directory dir = newDirectory()) {
+            IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+            try (IndexReader reader = DirectoryReader.open(iw)) {
+                iw.close();
+                FieldTypeInference typeInference = new FieldTypeInference("test_index", queryShardContext.getMapperService(), reader);
+                String[] fieldName = { "text_field" };
+                Mapper mapper = typeInference.infer(lookup -> documentMap.get(fieldName[0]));
+                assertNull(mapper);
+            }
+        }
+    }
+
+    public void testSampleGeneration() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {}));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
+        int totalDocs = 10000;
+        int docsPerLeafCount = 1000;
+        try (Directory dir = newDirectory()) {
+            IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+            Document d = new Document();
+            for (int i = 0; i < totalDocs; i++) {
+                iw.addDocument(d);
+                if ((i + 1) % docsPerLeafCount == 0) {
+                    iw.commit();
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(iw)) {
+                iw.close();
+                FieldTypeInference typeInference = new FieldTypeInference("test_index", queryShardContext.getMapperService(), reader);
+                typeInference.setSampleSize(1000 - 1);
+                typeInference.infer(lookup -> documentMap.get("unknown_field"));
+                assertThrows(IllegalArgumentException.class, () -> typeInference.setSampleSize(1000 + 1));
+                typeInference.setSampleSize(1000);
+                typeInference.infer(lookup -> documentMap.get("unknown_field"));
             }
         }
     }

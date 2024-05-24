@@ -9,7 +9,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -18,12 +18,13 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * This class performs type inference by analyzing the _source documents. It uses a random sample of documents to infer the field type, similar to dynamic mapping type guessing logic.
@@ -57,7 +58,10 @@ public class FieldTypeInference {
     }
 
     public void setSampleSize(int sampleSize) {
-        this.sampleSize = Math.min(sampleSize, MAX_SAMPLE_SIZE_ALLOWED);
+        if (sampleSize > MAX_SAMPLE_SIZE_ALLOWED) {
+            throw new IllegalArgumentException("sample_size should be less than " + MAX_SAMPLE_SIZE_ALLOWED);
+        }
+        this.sampleSize = sampleSize;
     }
 
     public int getSampleSize() {
@@ -95,11 +99,8 @@ public class FieldTypeInference {
         private final ValueFetcher valueFetcher;
         private final IndexReader indexReader;
         private final SourceLookup sourceLookup;
-        private final int numLeaves;
         private final int[] docs;
         private int iter;
-        private int offset;
-        private LeafReaderContext leafReaderContext;
         private int leaf;
         private final int MAX_ATTEMPTS_TO_GENERATE_RANDOM_SAMPLES = 10000;
 
@@ -113,17 +114,16 @@ public class FieldTypeInference {
                 Math.max(sampleSize, MAX_ATTEMPTS_TO_GENERATE_RANDOM_SAMPLES)
             );
             this.iter = 0;
-            this.offset = 0;
-            this.leaf = 0;
-            this.numLeaves = indexReader.leaves().size();
+            this.leaf = -1;
             this.sourceLookup = new SourceLookup();
-            this.leafReaderContext = indexReader.leaves().get(leaf);
-            valueFetcher.setNextReader(leafReaderContext);
+            if (hasNext()) {
+                setNextLeaf();
+            }
         }
 
         @Override
         public boolean hasNext() {
-            return iter < docs.length && leaf < numLeaves;
+            return iter < docs.length && leaf < indexReader.leaves().size();
         }
 
         /**
@@ -131,13 +131,12 @@ public class FieldTypeInference {
          */
         @Override
         public List<Object> next() {
-            int docID = docs[iter] - offset;
-            if (docID >= leafReaderContext.reader().numDocs()) {
+            int docID = docs[iter] - indexReader.leaves().get(leaf).docBase;
+            if (docID >= indexReader.leaves().get(leaf).reader().numDocs()) {
                 setNextLeaf();
-                return next();
             }
             // deleted docs are getting used to infer type, which should be okay?
-            sourceLookup.setSegmentAndDocument(leafReaderContext, docID);
+            sourceLookup.setSegmentAndDocument(indexReader.leaves().get(leaf), docs[iter] - indexReader.leaves().get(leaf).docBase);
             try {
                 iter++;
                 return valueFetcher.fetchValues(sourceLookup);
@@ -147,29 +146,36 @@ public class FieldTypeInference {
         }
 
         private void setNextLeaf() {
-            offset += leafReaderContext.reader().numDocs();
-            leaf++;
-            if (leaf < numLeaves) {
-                leafReaderContext = indexReader.leaves().get(leaf);
-                valueFetcher.setNextReader(leafReaderContext);
+            int readerIndex = ReaderUtil.subIndex(docs[iter], indexReader.leaves());
+            if (readerIndex != leaf) {
+                leaf = readerIndex;
+            } else {
+                // this will only happen when leaves are exhausted and readerIndex will be indexReader.leaves()-1.
+                leaf++;
+            }
+            if (leaf < indexReader.leaves().size()) {
+                valueFetcher.setNextReader(indexReader.leaves().get(leaf));
             }
         }
 
         private static int[] getSortedRandomNum(int sampleSize, int upperBound, int attempts) {
-            Set<Integer> generatedNumbers = new HashSet<>();
+            Set<Integer> generatedNumbers = new TreeSet<>();
             Random random = Randomness.get();
             int itr = 0;
-            while (generatedNumbers.size() < sampleSize && itr++ < attempts) {
-                int randomNumber = random.nextInt(upperBound);
-                generatedNumbers.add(randomNumber);
+            if (upperBound <= 10 * sampleSize) {
+                List<Integer> numberList = new ArrayList<>();
+                for (int i = 0; i < upperBound; i++) {
+                    numberList.add(i);
+                }
+                Collections.shuffle(numberList, random);
+                generatedNumbers.addAll(numberList.subList(0, sampleSize));
+            } else {
+                while (generatedNumbers.size() < sampleSize && itr++ < attempts) {
+                    int randomNumber = random.nextInt(upperBound);
+                    generatedNumbers.add(randomNumber);
+                }
             }
-            int[] result = new int[generatedNumbers.size()];
-            int i = 0;
-            for (int number : generatedNumbers) {
-                result[i++] = number;
-            }
-            Arrays.sort(result);
-            return result;
+            return generatedNumbers.stream().mapToInt(Integer::valueOf).toArray();
         }
     }
 }
