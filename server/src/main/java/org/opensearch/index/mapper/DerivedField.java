@@ -8,6 +8,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -30,7 +31,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
     private final String type;
     private final Script script;
     private String sourceIndexedField;
-    private Map<String, String> properties;
+    private Map<String, Object> properties;
     private Boolean ignoreMalformed;
     private String format;
 
@@ -44,12 +45,14 @@ public class DerivedField implements Writeable, ToXContentFragment {
         name = in.readString();
         type = in.readString();
         script = new Script(in);
-        if (in.readBoolean()) {
-            properties = in.readMap(StreamInput::readString, StreamInput::readString);
+        if (in.getVersion().onOrAfter(Version.V_2_15_0)) {
+            if (in.readBoolean()) {
+                properties = in.readMap();
+            }
+            sourceIndexedField = in.readOptionalString();
+            format = in.readOptionalString();
+            ignoreMalformed = in.readOptionalBoolean();
         }
-        sourceIndexedField = in.readOptionalString();
-        format = in.readOptionalString();
-        ignoreMalformed = in.readOptionalBoolean();
     }
 
     @Override
@@ -57,15 +60,17 @@ public class DerivedField implements Writeable, ToXContentFragment {
         out.writeString(name);
         out.writeString(type);
         script.writeTo(out);
-        if (properties == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeMap(properties, StreamOutput::writeString, StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(Version.V_2_15_0)) {
+            if (properties == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeMap(properties);
+            }
+            out.writeOptionalString(sourceIndexedField);
+            out.writeOptionalString(format);
+            out.writeOptionalBoolean(ignoreMalformed);
         }
-        out.writeOptionalString(sourceIndexedField);
-        out.writeOptionalString(format);
-        out.writeOptionalBoolean(ignoreMalformed);
     }
 
     @Override
@@ -101,7 +106,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
         return script;
     }
 
-    public Map<String, String> getProperties() {
+    public Map<String, Object> getProperties() {
         return properties;
     }
 
@@ -117,7 +122,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
         return Boolean.TRUE.equals(ignoreMalformed);
     }
 
-    public void setProperties(Map<String, String> properties) {
+    public void setProperties(Map<String, Object> properties) {
         this.properties = properties;
     }
 

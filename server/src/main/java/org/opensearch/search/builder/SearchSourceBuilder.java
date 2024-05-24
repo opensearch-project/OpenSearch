@@ -1018,7 +1018,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         String name,
         String type,
         Script script,
-        Map<String, String> properties,
+        Map<String, Object> properties,
         String sourceIndexedField,
         String format,
         Boolean ignoreMalformed
