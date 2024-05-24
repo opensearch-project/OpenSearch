@@ -81,6 +81,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private final int precision;
     private final ValuesSource valuesSource;
 
+    private final ValuesSourceConfig valuesSourceConfig;
     private final FieldContext fieldContext;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
@@ -105,6 +106,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     ) throws IOException {
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here
+        this.valuesSourceConfig = valuesSourceConfig;
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         this.precision = precision;
         this.fieldContext = valuesSourceConfig.fieldContext();
@@ -148,6 +150,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 ordinalsCollectorsUsed++;
                 // return new DynamicPruningCollectorWrapper(new OrdinalsCollector(counts, ordinalValues, context.bigArrays()),
                 // context, ctx, fieldContext, source);
+                if (valuesSourceConfig.missing() != null) {
+                    return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+                }
                 return new CompetitiveCollector(
                     new OrdinalsCollector(counts, ordinalValues, context.bigArrays()),
                     source,
