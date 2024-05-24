@@ -8,7 +8,6 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
@@ -38,9 +37,13 @@ class DynamicPruningCollectorWrapper extends CardinalityAggregator.Collector {
     private final DocIdSetIterator disi;
     private final CardinalityAggregator.Collector delegateCollector;
 
-    DynamicPruningCollectorWrapper(CardinalityAggregator.Collector delegateCollector,
-                                   SearchContext context, LeafReaderContext ctx, FieldContext fieldContext,
-                                   ValuesSource.Bytes.WithOrdinals source) throws IOException {
+    DynamicPruningCollectorWrapper(
+        CardinalityAggregator.Collector delegateCollector,
+        SearchContext context,
+        LeafReaderContext ctx,
+        FieldContext fieldContext,
+        ValuesSource.Bytes.WithOrdinals source
+    ) throws IOException {
         this.ctx = ctx;
         this.delegateCollector = delegateCollector;
         final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
@@ -52,7 +55,7 @@ class DynamicPruningCollectorWrapper extends CardinalityAggregator.Collector {
             // this logic should be pluggable depending on the type of leaf bucket collector by CardinalityAggregator
             TermsEnum terms = ordinalValues.termsEnum();
             Weight weight = context.searcher().createWeight(context.searcher().rewrite(context.query()), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            Map<Long, Boolean> found = new HashMap<>();
+            Map<Long, Boolean> found = new HashMap<>(); // ord : found or not
             List<Scorer> subScorers = new ArrayList<>();
             while (terms.next() != null && !found.containsKey(terms.ord())) {
                 // TODO can we get rid of terms previously encountered in other segments?

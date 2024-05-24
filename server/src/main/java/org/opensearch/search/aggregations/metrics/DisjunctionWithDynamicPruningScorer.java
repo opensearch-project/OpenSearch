@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-
 /**
  * Clone of {@link org.apache.lucene.search} {@code DisjunctionScorer.java} in lucene with following modifications
  * <p>
@@ -45,8 +44,7 @@ public class DisjunctionWithDynamicPruningScorer extends Scorer {
 
     private Integer docID;
 
-    public DisjunctionWithDynamicPruningScorer(Weight weight, List<Scorer> subScorers)
-        throws IOException {
+    public DisjunctionWithDynamicPruningScorer(Weight weight, List<Scorer> subScorers) throws IOException {
         super(weight);
         if (subScorers.size() <= 1) {
             throw new IllegalArgumentException("There must be at least 2 subScorers");
@@ -90,9 +88,9 @@ public class DisjunctionWithDynamicPruningScorer extends Scorer {
 
     @Override
     public DocIdSetIterator iterator() {
-       DocIdSetIterator disi = getIterator();
-       docID = disi.docID();
-       return new SlowDocIdPropagatorDISI(getIterator(), docID);
+        DocIdSetIterator disi = getIterator();
+        docID = disi.docID();
+        return new SlowDocIdPropagatorDISI(getIterator(), docID);
     }
 
     private static class SlowDocIdPropagatorDISI extends DocIdSetIterator {
@@ -157,13 +155,12 @@ public class DisjunctionWithDynamicPruningScorer extends Scorer {
         private TwoPhase(DocIdSetIterator approximation, float matchCost) {
             super(approximation);
             this.matchCost = matchCost;
-            unverifiedMatches =
-                new PriorityQueue<DisiWrapper>(DisjunctionWithDynamicPruningScorer.this.subScorers.size()) {
-                    @Override
-                    protected boolean lessThan(DisiWrapper a, DisiWrapper b) {
-                        return a.matchCost < b.matchCost;
-                    }
-                };
+            unverifiedMatches = new PriorityQueue<DisiWrapper>(DisjunctionWithDynamicPruningScorer.this.subScorers.size()) {
+                @Override
+                protected boolean lessThan(DisiWrapper a, DisiWrapper b) {
+                    return a.matchCost < b.matchCost;
+                }
+            };
         }
 
         DisiWrapper getSubMatches() throws IOException {
@@ -183,7 +180,7 @@ public class DisjunctionWithDynamicPruningScorer extends Scorer {
             verifiedMatches = null;
             unverifiedMatches.clear();
 
-            for (DisiWrapper w = subScorers.topList(); w != null; ) {
+            for (DisiWrapper w = subScorers.topList(); w != null;) {
                 DisiWrapper next = w.next;
 
                 if (w.twoPhaseView == null) {

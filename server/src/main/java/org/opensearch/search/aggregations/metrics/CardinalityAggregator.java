@@ -35,7 +35,15 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DisiPriorityQueue;
+import org.apache.lucene.search.DisiWrapper;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -59,6 +67,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -137,8 +146,15 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             // only use ordinals if they don't increase memory usage by more than 25%
             if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
                 ordinalsCollectorsUsed++;
-                return new DynamicPruningCollectorWrapper(new OrdinalsCollector(counts, ordinalValues, context.bigArrays()),
-                    context, ctx, fieldContext, source);
+                // return new DynamicPruningCollectorWrapper(new OrdinalsCollector(counts, ordinalValues, context.bigArrays()),
+                // context, ctx, fieldContext, source);
+                return new CompetitiveCollector(
+                    new OrdinalsCollector(counts, ordinalValues, context.bigArrays()),
+                    source,
+                    ctx,
+                    context,
+                    fieldContext
+                );
             }
             ordinalsCollectorsOverheadTooHigh++;
         }
@@ -215,6 +231,110 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         public abstract void postCollect() throws IOException;
 
+    }
+
+    private static class CompetitiveCollector extends Collector {
+
+        private final Collector delegate;
+        private final DisiPriorityQueue pq;
+
+        CompetitiveCollector(
+            Collector delegate,
+            ValuesSource.Bytes.WithOrdinals source,
+            LeafReaderContext ctx,
+            SearchContext context,
+            FieldContext fieldContext
+        ) throws IOException {
+            this.delegate = delegate;
+
+            final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
+            TermsEnum terms = ordinalValues.termsEnum();
+            Map<BytesRef, Scorer> postingMap = new HashMap<>();
+            while (terms.next() != null) {
+                BytesRef term = terms.term();
+
+                TermQuery termQuery = new TermQuery(new Term(fieldContext.field(), term));
+                Weight subWeight = context.searcher().createWeight(termQuery, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                Scorer scorer = subWeight.scorer(ctx);
+
+                postingMap.put(term, scorer);
+            }
+            this.pq = new DisiPriorityQueue(postingMap.size());
+            for (Map.Entry<BytesRef, Scorer> entry : postingMap.entrySet()) {
+                pq.add(new DisiWrapper(entry.getValue()));
+            }
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            delegate.collect(doc, owningBucketOrd);
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            return new DisjunctionDISIWithPruning(pq);
+        }
+
+        @Override
+        public void postCollect() throws IOException {
+            delegate.postCollect();
+        }
+    }
+
+    private static class DisjunctionDISIWithPruning extends DocIdSetIterator {
+
+        final DisiPriorityQueue queue;
+
+        public DisjunctionDISIWithPruning(DisiPriorityQueue queue) {
+            this.queue = queue;
+        }
+
+        @Override
+        public int docID() {
+            return queue.top().doc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            // don't expect this to be called
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            // more than advance to the next doc >= target
+            // we also do the pruning of current doc here
+
+            DisiWrapper top = queue.top();
+
+            // after collecting the doc, before advancing to target
+            // we can safely remove all the iterators that having this doc
+            if (top.doc != -1) {
+                int curTopDoc = top.doc;
+                do {
+                    top.doc = top.approximation.advance(Integer.MAX_VALUE);
+                    top = queue.updateTop();
+                } while (top.doc == curTopDoc);
+            }
+
+            if (top.doc >= target) return top.doc;
+            do {
+                top.doc = top.approximation.advance(target);
+                top = queue.updateTop();
+            } while (top.doc < target);
+            return top.doc;
+        }
+
+        @Override
+        public long cost() {
+            // don't expect this to be called
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**

@@ -105,44 +105,58 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
         testAggregation(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
-            iw.addDocument(asList(
-                new KeywordField(fieldName, "1", Field.Store.NO),
-                new KeywordField(fieldName, "2", Field.Store.NO),
-                new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                new SortedSetDocValuesField(fieldName, new BytesRef("1")),
-                new SortedSetDocValuesField(fieldName, new BytesRef("2"))
-            ));
-            iw.addDocument(asList(
-                new KeywordField(fieldName, "2", Field.Store.NO),
-                new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                new SortedSetDocValuesField(fieldName, new BytesRef("2"))
-            ));
-            iw.addDocument(asList(
-                new KeywordField(fieldName, "1", Field.Store.NO),
-                new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                new SortedSetDocValuesField(fieldName, new BytesRef("1"))
-            ));
-            iw.addDocument(asList(
-                new KeywordField(fieldName, "2", Field.Store.NO),
-                new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                new SortedSetDocValuesField(fieldName, new BytesRef("2"))
-            ));
-            iw.addDocument(asList(
-                new KeywordField(fieldName, "3", Field.Store.NO),
-                new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                new SortedSetDocValuesField(fieldName, new BytesRef("3"))
-            ));
-            iw.addDocument(asList(
-                new KeywordField(fieldName, "4", Field.Store.NO),
-                new KeywordField(filterFieldName, "bar", Field.Store.NO),
-                new SortedSetDocValuesField(fieldName, new BytesRef("4"))
-            ));
-            iw.addDocument(asList(
-                new KeywordField(fieldName, "5", Field.Store.NO),
-                new KeywordField(filterFieldName, "bar", Field.Store.NO),
-                new SortedSetDocValuesField(fieldName, new BytesRef("5"))
-            ));
-            }, card -> {
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "1", Field.Store.NO),
+                    new KeywordField(fieldName, "2", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("1")),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "2", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "1", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("1"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "2", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "3", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("3"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "4", Field.Store.NO),
+                    new KeywordField(filterFieldName, "bar", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("4"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "5", Field.Store.NO),
+                    new KeywordField(filterFieldName, "bar", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("5"))
+                )
+            );
+        }, card -> {
             assertEquals(3.0, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         }, fieldType);
