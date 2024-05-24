@@ -42,26 +42,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Get changed files
-        id: changed-files-specific
-        uses: tj-actions/changed-files@v44
-        with:
-          files_ignore: |
-            release-notes/*.md
-            .github/**
-            ADMINS.md
-            CHANGELOG-3.0.md
-            CHANGELOG.md
-            CODE_OF_CONDUCT.md
-            CONTRIBUTING.md
-            DEVELOPER_GUIDE.md
-            MAINTAINERS.md
-            README.md
-            RELEASING.md
-            SECURITY.md
-            TESTING.md
-            TRIAGING.md
-
       - name: Setup environment variables (PR)
         if: github.event_name == 'pull_request_target'
         run: |
