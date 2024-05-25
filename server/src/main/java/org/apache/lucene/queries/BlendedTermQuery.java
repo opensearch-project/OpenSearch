@@ -120,6 +120,7 @@ public abstract class BlendedTermQuery extends Query {
         }
         int max = 0;
         long minSumTTF = Long.MAX_VALUE;
+        int minDocCount = Integer.MAX_VALUE;
         for (int i = 0; i < contexts.length; i++) {
             TermStates ctx = contexts[i];
             int df = ctx.docFreq();
@@ -133,10 +134,14 @@ public abstract class BlendedTermQuery extends Query {
                 // we need to find out the minimum sumTTF to adjust the statistics
                 // otherwise the statistics don't match
                 minSumTTF = Math.min(minSumTTF, reader.getSumTotalTermFreq(terms[i].field()));
+                minDocCount = Math.min(minDocCount, reader.getDocCount(terms[i].field()));
             }
         }
         if (maxDoc > minSumTTF) {
             maxDoc = (int) minSumTTF;
+        }
+        if (maxDoc > minDocCount) {
+            maxDoc = minDocCount;
         }
         if (max == 0) {
             return; // we are done that term doesn't exist at all
