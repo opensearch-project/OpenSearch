@@ -44,6 +44,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.SnapshotType;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -129,13 +130,15 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         final Map<IndexId, String> indexLookup = shardGenerations.indices()
             .stream()
             .collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
+        final SnapshotType expectedType = randomFrom(SnapshotType.FULL_COPY, SnapshotType.SHALLOW_COPY);
         RepositoryData newRepoData = repositoryData.addSnapshot(
             newSnapshot,
             randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
             randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
             shardGenerations,
             indexLookup,
-            indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
+            indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))),
+            expectedType
         );
         // verify that the new repository data has the new snapshot and its indices
         assertTrue(newRepoData.getSnapshotIds().contains(newSnapshot));
@@ -146,6 +149,7 @@ public class RepositoryDataTests extends OpenSearchTestCase {
                 assertEquals(snapshotIds.size(), 1); // if it was a new index, only the new snapshot should be in its set
             }
         }
+        assertTrue(newRepoData.getSnapshotType(newSnapshot) == expectedType);
         assertEquals(repositoryData.getGenId(), newRepoData.getGenId());
     }
 
@@ -154,11 +158,13 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         final Map<String, SnapshotId> snapshotIds = new HashMap<>(numSnapshots);
         final Map<String, SnapshotState> snapshotStates = new HashMap<>(numSnapshots);
         final Map<String, Version> snapshotVersions = new HashMap<>(numSnapshots);
+        final Map<String, SnapshotType> snapshotTypes = new HashMap<>(numSnapshots);
         for (int i = 0; i < numSnapshots; i++) {
             final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             snapshotIds.put(snapshotId.getUUID(), snapshotId);
             snapshotStates.put(snapshotId.getUUID(), randomFrom(SnapshotState.values()));
             snapshotVersions.put(snapshotId.getUUID(), randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
+            snapshotTypes.put(snapshotId.getUUID(), randomFrom(SnapshotType.FULL_COPY, SnapshotType.SHALLOW_COPY));
         }
         RepositoryData repositoryData = new RepositoryData(
             EMPTY_REPO_GEN,
@@ -167,7 +173,8 @@ public class RepositoryDataTests extends OpenSearchTestCase {
             Collections.emptyMap(),
             Collections.emptyMap(),
             ShardGenerations.EMPTY,
-            IndexMetaDataGenerations.EMPTY
+            IndexMetaDataGenerations.EMPTY,
+            Collections.emptyMap()
         );
         // test that initializing indices works
         Map<IndexId, List<SnapshotId>> indices = randomIndices(snapshotIds);
@@ -178,7 +185,8 @@ public class RepositoryDataTests extends OpenSearchTestCase {
             snapshotVersions,
             indices,
             ShardGenerations.EMPTY,
-            IndexMetaDataGenerations.EMPTY
+            IndexMetaDataGenerations.EMPTY,
+            snapshotTypes
         );
         List<SnapshotId> expected = new ArrayList<>(repositoryData.getSnapshotIds());
         Collections.sort(expected);
@@ -221,7 +229,8 @@ public class RepositoryDataTests extends OpenSearchTestCase {
             randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
             ShardGenerations.EMPTY,
             Collections.emptyMap(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            randomFrom(SnapshotType.SHALLOW_COPY, SnapshotType.FULL_COPY)
         );
         assertEquals(state, repositoryData.getSnapshotState(snapshotId));
         assertNull(repositoryData.getSnapshotState(new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())));
@@ -242,10 +251,12 @@ public class RepositoryDataTests extends OpenSearchTestCase {
         Map<String, SnapshotId> snapshotIds = new HashMap<>();
         Map<String, SnapshotState> snapshotStates = new HashMap<>();
         Map<String, Version> snapshotVersions = new HashMap<>();
+        Map<String, SnapshotType> snapshotTypes = new HashMap<>();
         for (SnapshotId snapshotId : parsedRepositoryData.getSnapshotIds()) {
             snapshotIds.put(snapshotId.getUUID(), snapshotId);
             snapshotStates.put(snapshotId.getUUID(), parsedRepositoryData.getSnapshotState(snapshotId));
             snapshotVersions.put(snapshotId.getUUID(), parsedRepositoryData.getVersion(snapshotId));
+            snapshotTypes.put(snapshotId.getUUID(), parsedRepositoryData.getSnapshotType(snapshotId));
         }
 
         final IndexId corruptedIndexId = randomFrom(parsedRepositoryData.getIndices().values());
@@ -273,7 +284,8 @@ public class RepositoryDataTests extends OpenSearchTestCase {
             snapshotVersions,
             indexSnapshots,
             shardGenBuilder.build(),
-            IndexMetaDataGenerations.EMPTY
+            IndexMetaDataGenerations.EMPTY,
+            snapshotTypes
         );
 
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
@@ -392,7 +404,8 @@ public class RepositoryDataTests extends OpenSearchTestCase {
             Version.CURRENT,
             shardGenerations,
             indexLookup,
-            newIdentifiers
+            newIdentifiers,
+            SnapshotType.FULL_COPY
         );
         assertEquals(
             newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(newSnapshot)),
@@ -430,7 +443,8 @@ public class RepositoryDataTests extends OpenSearchTestCase {
                 randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                 builder.build(),
                 indexLookup,
-                indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
+                indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))),
+                randomFrom(SnapshotType.FULL_COPY, SnapshotType.SHALLOW_COPY)
             );
         }
         return repositoryData;

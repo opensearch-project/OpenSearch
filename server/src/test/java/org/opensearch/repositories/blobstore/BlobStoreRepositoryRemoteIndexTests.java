@@ -32,10 +32,13 @@
 
 package org.opensearch.repositories.blobstore;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.Environment;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
@@ -43,19 +46,26 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.IndexMetaDataGenerations;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
+import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
+import org.opensearch.snapshots.SnapshotType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
@@ -64,6 +74,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -190,6 +201,11 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
             .sorted((s1, s2) -> s1.getName().compareTo(s2.getName()))
             .collect(Collectors.toList());
         assertThat(snapshotIds, equalTo(originalSnapshots));
+
+        // Validate that we have correct snapshot types in repository data.
+        assertSame(repositoryData.getSnapshotType(snapshotId1), SnapshotType.FULL_COPY);
+        assertSame(repositoryData.getSnapshotType(snapshotId2), SnapshotType.SHALLOW_COPY);
+        assertSame(repositoryData.getSnapshotType(snapshotId3), SnapshotType.FULL_COPY);
 
         // shallow copy shard metadata - getRemoteStoreShallowCopyShardMetadata
         RemoteStoreShardShallowCopySnapshot shardShallowCopySnapshot = repository.getRemoteStoreShallowCopyShardMetadata(
@@ -365,12 +381,83 @@ public class BlobStoreRepositoryRemoteIndexTests extends BlobStoreRepositoryHelp
 
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(snapshotRepositoryName);
-        List<SnapshotId> snapshotIds = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
-            .getSnapshotIds()
+        final RepositoryData repositoryData = OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+
+        List<SnapshotId> snapshotIds = repositoryData.getSnapshotIds()
             .stream()
             .sorted((s1, s2) -> s1.getName().compareTo(s2.getName()))
             .collect(Collectors.toList());
-        assertThat(snapshotIds, equalTo(originalSnapshots));
+        assertEquals(snapshotIds, originalSnapshots);
+
+        // Validate that we have correct snapshot types in repository data.
+        assertSame(repositoryData.getSnapshotType(snapshotId1), SnapshotType.SHALLOW_COPY);
+        assertSame(repositoryData.getSnapshotType(snapshotId2), SnapshotType.SHALLOW_COPY);
+        assertSame(repositoryData.getSnapshotType(snapshotId3), SnapshotType.SHALLOW_COPY);
+        assertSame(repositoryData.getSnapshotType(snapshotId4), SnapshotType.FULL_COPY);
+    }
+
+    public void testSnapshotTypesInRepositoryData() throws Exception {
+        final Client client = client();
+        final String snapshotRepositoryName = "test-repo";
+        final Path repoPath = OpenSearchIntegTestCase.randomRepoPath(node().settings());
+
+        logger.info("-->  creating snapshot repository");
+        Settings snapshotRepoSettings = Settings.builder().put(node().settings()).put("location", repoPath).build();
+        createRepository(client, snapshotRepositoryName, snapshotRepoSettings);
+
+        final String snapshotPrefix = "test-snap-";
+        logger.info("--> create full copy snapshots");
+        createRepository(client, snapshotRepositoryName, snapshotRepoSettings);
+        List<SnapshotId> fullCopySnapshots = createNSnapshots(snapshotRepositoryName, snapshotPrefix + "full", 2, new ArrayList<>());
+        Settings snapshotRepoSettingsForShallowCopy = Settings.builder()
+            .put(snapshotRepoSettings)
+            .put(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY.getKey(), true)
+            .build();
+        updateRepository(client, snapshotRepositoryName, snapshotRepoSettingsForShallowCopy);
+
+        List<SnapshotId> shallowCopySnapshots = createNSnapshots(snapshotRepositoryName, snapshotPrefix + "shallow", 2, new ArrayList<>());
+        RepositoryData repoData = getRepositoryData(snapshotRepositoryName);
+
+        logger.info("--> Strip snapshot type information from index-N blob");
+        final RepositoryData withoutVersions = new RepositoryData(
+            repoData.getGenId(),
+            repoData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID, Function.identity())),
+            repoData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID, repoData::getSnapshotState)),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            ShardGenerations.EMPTY,
+            IndexMetaDataGenerations.EMPTY,
+            Collections.emptyMap()
+        );
+
+        Files.write(
+            repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
+            BytesReference.toBytes(
+                BytesReference.bytes(withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))
+            ),
+            StandardOpenOption.TRUNCATE_EXISTING
+        );
+
+        logger.info("--> Deleting one random snapshot to trigger repository data update");
+        final SnapshotId snapshotToDelete = randomFrom(repoData.getSnapshotIds());
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(snapshotRepositoryName, snapshotToDelete.getName()).get());
+
+        // get updated repo data
+        repoData = getRepositoryData(snapshotRepositoryName);
+        assertNull(repoData.getSnapshotType(snapshotToDelete));
+        for (SnapshotId snapshotId : repoData.getSnapshotIds()) {
+            if (fullCopySnapshots.contains(snapshotId)) {
+                assertEquals(repoData.getSnapshotType(snapshotId), SnapshotType.FULL_COPY);
+            } else {
+                assertEquals(repoData.getSnapshotType(snapshotId), SnapshotType.SHALLOW_COPY);
+            }
+        }
+    }
+
+    private RepositoryData getRepositoryData(String repositoryName) {
+        final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
+        return OpenSearchBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
     }
 
 }
