@@ -21,6 +21,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -30,14 +31,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.comparesEqualTo;
-import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -89,17 +89,23 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
 
         final String shallowSnapshot = "shallow-snapshot";
-        createFullSnapshot(snapshotRepoName, shallowSnapshot);
-        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == 1);
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == 1);
+        SnapshotInfo snapshotInfo = createFullSnapshot(snapshotRepoName, shallowSnapshot);
+        assertEquals(1, getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length);
+        RepositoryData repositoryData = getRepositoryData(snapshotRepoName);
+        assertEquals(1, repositoryData.getSnapshotIds().size());
+        assertSame(repositoryData.getSnapshotType(snapshotInfo.snapshotId()), SnapshotType.SHALLOW_COPY);
 
+        // Delete snapshot
         assertAcked(startDeleteSnapshot(snapshotRepoName, shallowSnapshot).get());
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == 0);
-        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == 0);
+
+        // Get updated repository data.
+        repositoryData = getRepositoryData(snapshotRepoName);
+        assertEquals(0, repositoryData.getSnapshotIds().size());
+        assertEquals(0, getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length);
+        assertNull(repositoryData.getSnapshotType(snapshotInfo.snapshotId()));
     }
 
     // Deleting multiple shallow copy snapshots as part of single delete call with repo having only shallow copy snapshots.
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/9208")
     public void testDeleteMultipleShallowCopySnapshotsCase1() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
@@ -121,19 +127,39 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Creating some shallow copy snapshots
         int totalShallowCopySnapshotsCount = randomIntBetween(4, 10);
-        List<String> shallowCopySnapshots = createNSnapshots(snapshotRepoName, totalShallowCopySnapshotsCount);
-        List<String> snapshotsToBeDeleted = shallowCopySnapshots.subList(0, randomIntBetween(2, totalShallowCopySnapshotsCount));
+        List<SnapshotId> shallowCopySnapshots = createNSnapshots(snapshotRepoName, totalShallowCopySnapshotsCount);
+        List<SnapshotId> snapshotsToBeDeleted = shallowCopySnapshots.subList(0, randomIntBetween(2, totalShallowCopySnapshotsCount));
         int tobeDeletedSnapshotsCount = snapshotsToBeDeleted.size();
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == totalShallowCopySnapshotsCount);
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == totalShallowCopySnapshotsCount);
+
+        RepositoryData repositoryData = getRepositoryData(snapshotRepoName);
+        assert (repositoryData.getSnapshotIds().size() == totalShallowCopySnapshotsCount);
+
+        validateSnapshotTypes(repositoryData, shallowCopySnapshots, null, null);
         // Deleting subset of shallow copy snapshots
         assertAcked(
             clusterManagerClient.admin()
                 .cluster()
-                .prepareDeleteSnapshot(snapshotRepoName, snapshotsToBeDeleted.toArray(new String[0]))
+                .prepareDeleteSnapshot(snapshotRepoName, snapshotsToBeDeleted.stream().map(SnapshotId::getName).toArray(String[]::new))
                 .get()
         );
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == totalShallowCopySnapshotsCount - tobeDeletedSnapshotsCount);
+
+        // getting updated repository data
+        repositoryData = getRepositoryData(snapshotRepoName);
+        for (SnapshotId snapshotId : shallowCopySnapshots) {
+            if (snapshotsToBeDeleted.contains(snapshotId)) {
+                assertNull(repositoryData.getSnapshotType(snapshotId));
+            } else {
+                assertEquals(repositoryData.getSnapshotType(snapshotId), SnapshotType.SHALLOW_COPY);
+            }
+        }
+        validateSnapshotTypes(
+            repositoryData,
+            shallowCopySnapshots.stream().filter(snapId -> !snapshotsToBeDeleted.contains(snapId)).collect(Collectors.toList()),
+            null,
+            snapshotsToBeDeleted
+        );
+        assert (repositoryData.getSnapshotIds().size() == totalShallowCopySnapshotsCount - tobeDeletedSnapshotsCount);
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == totalShallowCopySnapshotsCount
             - tobeDeletedSnapshotsCount);
     }
@@ -141,7 +167,6 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
     // Deleting multiple shallow copy snapshots as part of single delete call with both partial and full copy snapshot present in the repo
     // And then deleting multiple full copy snapshots as part of single delete call with both partial and shallow copy snapshots present in
     // the repo
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8610")
     public void testDeleteMultipleShallowCopySnapshotsCase2() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
@@ -153,79 +178,121 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String snapshotRepoName = "snapshot-repo-name";
         final Path snapshotRepoPath = randomRepoPath();
         createRepository(snapshotRepoName, "mock", snapshotRepoSettingsForShallowCopy(snapshotRepoPath));
-        final String testIndex = "index-test";
+        final String testIndex = "remote-index-1";
         createIndexWithContent(testIndex);
+        ensureGreen(testIndex);
 
-        final String remoteStoreEnabledIndexName = "remote-index-1";
-        final Settings remoteStoreEnabledIndexSettings = getRemoteStoreBackedIndexSettings();
-        createIndex(remoteStoreEnabledIndexName, remoteStoreEnabledIndexSettings);
-        indexRandomDocs(remoteStoreEnabledIndexName, randomIntBetween(5, 10));
+        final String testIndex2 = "remote-index-2";
+        createIndexWithContent(testIndex2);
+        ensureGreen(testIndex, testIndex2);
 
         // Creating a partial shallow copy snapshot
         final String snapshot = "snapshot";
-        blockNodeWithIndex(snapshotRepoName, testIndex);
-        blockDataNode(snapshotRepoName, dataNode);
 
         final Client clusterManagerClient = internalCluster().clusterManagerClient();
+
+        int partialShallowCopySnapshotCount = 1;
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterManagerClient.admin()
             .cluster()
             .prepareCreateSnapshot(snapshotRepoName, snapshot)
             .setWaitForCompletion(true)
+            .setPartial(true)
             .execute();
 
+        blockNodeOnAnyFiles(snapshotRepoName, dataNode);
         awaitNumberOfSnapshotsInProgress(1);
         waitForBlock(dataNode, snapshotRepoName, TimeValue.timeValueSeconds(30L));
         internalCluster().restartNode(dataNode);
-        assertThat(snapshotFuture.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        SnapshotInfo partialSnapshotInfo = snapshotFuture.get().getSnapshotInfo();
+        assertEquals(partialSnapshotInfo.state(), SnapshotState.PARTIAL);
 
         unblockAllDataNodes(snapshotRepoName);
 
         ensureStableCluster(2, clusterManagerNode);
+        String[] initialLockFiles = getLockFilesInRemoteStore(testIndex2, REMOTE_REPO_NAME);
 
         // Creating some shallow copy snapshots
-        int totalShallowCopySnapshotsCount = randomIntBetween(4, 10);
-        List<String> shallowCopySnapshots = createNSnapshots(snapshotRepoName, totalShallowCopySnapshotsCount);
-        List<String> shallowCopySnapshotsToBeDeleted = shallowCopySnapshots.subList(0, randomIntBetween(2, totalShallowCopySnapshotsCount));
+        int fullShallowCopySnapshotsCount = randomIntBetween(4, 10);
+        List<SnapshotId> shallowCopySnapshots = createNSnapshots(snapshotRepoName, fullShallowCopySnapshotsCount);
+
+        List<SnapshotId> shallowCopySnapshotsToBeDeleted = shallowCopySnapshots.subList(
+            0,
+            randomIntBetween(2, fullShallowCopySnapshotsCount)
+        );
         int tobeDeletedShallowCopySnapshotsCount = shallowCopySnapshotsToBeDeleted.size();
-        totalShallowCopySnapshotsCount += 1; // Adding partial shallow snapshot here
+        // TODO: remove this line: successfulShallowCopySnapshotsCount += 1; // Adding partial shallow snapshot here
         // Updating the snapshot repository flag to disable shallow snapshots
         createRepository(snapshotRepoName, "mock", snapshotRepoPath);
         // Creating some full copy snapshots
         int totalFullCopySnapshotsCount = randomIntBetween(4, 10);
-        List<String> fullCopySnapshots = createNSnapshots(snapshotRepoName, totalFullCopySnapshotsCount);
-        List<String> fullCopySnapshotsToBeDeleted = fullCopySnapshots.subList(0, randomIntBetween(2, totalFullCopySnapshotsCount));
+        List<SnapshotId> fullCopySnapshots = createNSnapshots(snapshotRepoName, totalFullCopySnapshotsCount);
+        List<SnapshotId> fullCopySnapshotsToBeDeleted = fullCopySnapshots.stream()
+            .filter(snapshotId -> snapshotId != partialSnapshotInfo.snapshotId())
+            .collect(Collectors.toList())
+            .subList(0, randomIntBetween(2, totalFullCopySnapshotsCount));
         int tobeDeletedFullCopySnapshotsCount = fullCopySnapshotsToBeDeleted.size();
 
-        int totalSnapshotsCount = totalFullCopySnapshotsCount + totalShallowCopySnapshotsCount;
+        int totalSnapshotsCount = totalFullCopySnapshotsCount + fullShallowCopySnapshotsCount + partialShallowCopySnapshotCount;
 
-        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == totalShallowCopySnapshotsCount);
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == totalSnapshotsCount);
+        String[] lockFiles = getLockFilesInRemoteStore(testIndex2, REMOTE_REPO_NAME);
+
+        assertEquals(lockFiles.length - initialLockFiles.length, fullShallowCopySnapshotsCount);
+        RepositoryData repositoryData = getRepositoryData(snapshotRepoName);
+        assert (repositoryData.getSnapshotIds().size() == totalSnapshotsCount);
+
+        // Validate snapshot types list in repository data.
+        validateSnapshotTypes(repositoryData, shallowCopySnapshots, fullCopySnapshots, null);
+
         // Deleting subset of shallow copy snapshots
         assertAcked(
             clusterManagerClient.admin()
                 .cluster()
-                .prepareDeleteSnapshot(snapshotRepoName, shallowCopySnapshotsToBeDeleted.toArray(new String[0]))
+                .prepareDeleteSnapshot(
+                    snapshotRepoName,
+                    shallowCopySnapshotsToBeDeleted.stream().map(SnapshotId::getName).toArray(String[]::new)
+                )
                 .get()
         );
         totalSnapshotsCount -= tobeDeletedShallowCopySnapshotsCount;
-        totalShallowCopySnapshotsCount -= tobeDeletedShallowCopySnapshotsCount;
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == totalSnapshotsCount);
-        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == totalShallowCopySnapshotsCount);
+        fullShallowCopySnapshotsCount -= tobeDeletedShallowCopySnapshotsCount;
+        // Get updated repository data.
+        repositoryData = getRepositoryData(snapshotRepoName);
+        assert (repositoryData.getSnapshotIds().size() == totalSnapshotsCount);
+        assert (getLockFilesInRemoteStore(testIndex2, REMOTE_REPO_NAME).length - initialLockFiles.length == fullShallowCopySnapshotsCount);
+        // Validate snapshot types list in repository data.
+        validateSnapshotTypes(
+            repositoryData,
+            shallowCopySnapshots.stream().filter(snapId -> !shallowCopySnapshotsToBeDeleted.contains(snapId)).collect(Collectors.toList()),
+            fullCopySnapshots,
+            shallowCopySnapshotsToBeDeleted
+        );
 
         // Deleting subset of full copy snapshots
         assertAcked(
             clusterManagerClient.admin()
                 .cluster()
-                .prepareDeleteSnapshot(snapshotRepoName, fullCopySnapshotsToBeDeleted.toArray(new String[0]))
+                .prepareDeleteSnapshot(
+                    snapshotRepoName,
+                    fullCopySnapshotsToBeDeleted.stream().map(SnapshotId::getName).toArray(String[]::new)
+                )
                 .get()
         );
         totalSnapshotsCount -= tobeDeletedFullCopySnapshotsCount;
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == totalSnapshotsCount);
-        assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == totalShallowCopySnapshotsCount);
+        // Get updated repository data.
+        repositoryData = getRepositoryData(snapshotRepoName);
+        assert (repositoryData.getSnapshotIds().size() == totalSnapshotsCount);
+        assert (getLockFilesInRemoteStore(testIndex2, REMOTE_REPO_NAME).length - initialLockFiles.length == fullShallowCopySnapshotsCount);
+
+        // Validate snapshot types list in repository data.
+        validateSnapshotTypes(
+            repositoryData,
+            shallowCopySnapshots.stream().filter(snapId -> !shallowCopySnapshotsToBeDeleted.contains(snapId)).collect(Collectors.toList()),
+            fullCopySnapshots.stream().filter(snapId -> !fullCopySnapshotsToBeDeleted.contains(snapId)).collect(Collectors.toList()),
+            Stream.concat(shallowCopySnapshotsToBeDeleted.stream(), fullCopySnapshotsToBeDeleted.stream()).collect(Collectors.toList())
+        );
     }
 
     // Deleting subset of shallow and full copy snapshots as part of single delete call and then deleting all snapshots in the repo.
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8610")
     public void testDeleteMultipleShallowCopySnapshotsCase3() throws Exception {
         disableRepoConsistencyCheck("Remote store repository is being used in the test");
         final Path remoteStoreRepoPath = randomRepoPath();
@@ -248,40 +315,67 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Creating some shallow copy snapshots
         int totalShallowCopySnapshotsCount = randomIntBetween(4, 10);
-        List<String> shallowCopySnapshots = createNSnapshots(snapshotRepoName, totalShallowCopySnapshotsCount);
-        List<String> shallowCopySnapshotsToBeDeleted = shallowCopySnapshots.subList(0, randomIntBetween(2, totalShallowCopySnapshotsCount));
+        List<SnapshotId> shallowCopySnapshots = createNSnapshots(snapshotRepoName, totalShallowCopySnapshotsCount);
+        List<SnapshotId> shallowCopySnapshotsToBeDeleted = shallowCopySnapshots.subList(
+            0,
+            randomIntBetween(2, totalShallowCopySnapshotsCount)
+        );
         int tobeDeletedShallowCopySnapshotsCount = shallowCopySnapshotsToBeDeleted.size();
         // Updating the snapshot repository flag to disable shallow snapshots
         createRepository(snapshotRepoName, "mock", snapshotRepoPath);
         // Creating some full copy snapshots
         int totalFullCopySnapshotsCount = randomIntBetween(4, 10);
-        List<String> fullCopySnapshots = createNSnapshots(snapshotRepoName, totalFullCopySnapshotsCount);
-        List<String> fullCopySnapshotsToBeDeleted = fullCopySnapshots.subList(0, randomIntBetween(2, totalFullCopySnapshotsCount));
+        List<SnapshotId> fullCopySnapshots = createNSnapshots(snapshotRepoName, totalFullCopySnapshotsCount);
+        List<SnapshotId> fullCopySnapshotsToBeDeleted = fullCopySnapshots.subList(0, randomIntBetween(2, totalFullCopySnapshotsCount));
         int tobeDeletedFullCopySnapshotsCount = fullCopySnapshotsToBeDeleted.size();
 
         int totalSnapshotsCount = totalFullCopySnapshotsCount + totalShallowCopySnapshotsCount;
 
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == totalShallowCopySnapshotsCount);
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == totalSnapshotsCount);
+
+        RepositoryData repositoryData = getRepositoryData(snapshotRepoName);
+        assert (repositoryData.getSnapshotIds().size() == totalSnapshotsCount);
+        validateSnapshotTypes(repositoryData, shallowCopySnapshots, fullCopySnapshots, null);
         // Deleting subset of shallow copy snapshots and full copy snapshots
         assertAcked(
             clusterManagerClient.admin()
                 .cluster()
                 .prepareDeleteSnapshot(
                     snapshotRepoName,
-                    Stream.concat(shallowCopySnapshotsToBeDeleted.stream(), fullCopySnapshotsToBeDeleted.stream()).toArray(String[]::new)
+                    Stream.concat(
+                        shallowCopySnapshotsToBeDeleted.stream().map(SnapshotId::getName),
+                        fullCopySnapshotsToBeDeleted.stream().map(SnapshotId::getName)
+                    ).toArray(String[]::new)
                 )
                 .get()
         );
         totalSnapshotsCount -= (tobeDeletedShallowCopySnapshotsCount + tobeDeletedFullCopySnapshotsCount);
         totalShallowCopySnapshotsCount -= tobeDeletedShallowCopySnapshotsCount;
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == totalSnapshotsCount);
+        // Get updated repository data.
+        repositoryData = getRepositoryData(snapshotRepoName);
+        assert (repositoryData.getSnapshotIds().size() == totalSnapshotsCount);
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == totalShallowCopySnapshotsCount);
+
+        validateSnapshotTypes(
+            repositoryData,
+            shallowCopySnapshots.stream().filter(snapId -> !shallowCopySnapshotsToBeDeleted.contains(snapId)).collect(Collectors.toList()),
+            fullCopySnapshots.stream().filter(snapId -> !fullCopySnapshotsToBeDeleted.contains(snapId)).collect(Collectors.toList()),
+            Stream.concat(shallowCopySnapshotsToBeDeleted.stream(), fullCopySnapshotsToBeDeleted.stream()).collect(Collectors.toList())
+        );
 
         // Deleting all the remaining snapshots
         assertAcked(clusterManagerClient.admin().cluster().prepareDeleteSnapshot(snapshotRepoName, "*").get());
-        assert (getRepositoryData(snapshotRepoName).getSnapshotIds().size() == 0);
+        // Get updated repository data.
+        repositoryData = getRepositoryData(snapshotRepoName);
+        assert (repositoryData.getSnapshotIds().size() == 0);
         assert (getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME).length == 0);
+
+        validateSnapshotTypes(
+            repositoryData,
+            null,
+            null,
+            Stream.concat(shallowCopySnapshots.stream(), fullCopySnapshots.stream()).collect(Collectors.toList())
+        );
     }
 
     public void testRemoteStoreCleanupForDeletedIndex() throws Exception {
@@ -363,15 +457,38 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    private List<String> createNSnapshots(String repoName, int count) {
-        final List<String> snapshotNames = new ArrayList<>(count);
+    private List<SnapshotId> createNSnapshots(String repoName, int count) {
+        final List<SnapshotId> snapshotIds = new ArrayList<>(count);
         final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
         for (int i = 0; i < count; i++) {
             final String name = prefix + i;
-            createFullSnapshot(repoName, name);
-            snapshotNames.add(name);
+            SnapshotInfo snapshotInfo = createFullSnapshot(repoName, name);
+            snapshotIds.add(snapshotInfo.snapshotId());
         }
-        logger.info("--> created {} in [{}]", snapshotNames, repoName);
-        return snapshotNames;
+        logger.info("--> created {} in [{}]", snapshotIds, repoName);
+        return snapshotIds;
+    }
+
+    private void validateSnapshotTypes(
+        RepositoryData repositoryData,
+        List<SnapshotId> shallowSnaps,
+        List<SnapshotId> fullSnaps,
+        List<SnapshotId> shouldNotPresentSnaps
+    ) {
+        if (shallowSnaps != null) {
+            for (SnapshotId snapId : shallowSnaps) {
+                assertEquals(repositoryData.getSnapshotType(snapId), SnapshotType.SHALLOW_COPY);
+            }
+        }
+        if (fullSnaps != null) {
+            for (SnapshotId snapId : fullSnaps) {
+                assertEquals(repositoryData.getSnapshotType(snapId), SnapshotType.FULL_COPY);
+            }
+        }
+        if (shouldNotPresentSnaps != null) {
+            for (SnapshotId snapId : shouldNotPresentSnaps) {
+                assertNull(repositoryData.getSnapshotType(snapId));
+            }
+        }
     }
 }
