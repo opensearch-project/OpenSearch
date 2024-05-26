@@ -33,12 +33,15 @@ package org.opensearch.cluster;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.repositories.RepositoryOperation;
 
 import java.io.IOException;
@@ -101,11 +104,44 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
             builder.startObject();
             {
                 builder.field("repository", entry.repository);
+                if (params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API).equals(Metadata.CONTEXT_MODE_GATEWAY)) {
+                    builder.field("repository_state_id", entry.repositoryStateId);
+                } // else we don't serialize it
             }
             builder.endObject();
         }
         builder.endArray();
         return builder;
+    }
+
+    public static RepositoryCleanupInProgress fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        XContentParserUtils.ensureFieldName(parser, parser.currentToken(), TYPE);
+        parser.nextToken();
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+        List<Entry> entries = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            String repository = null;
+            long repositoryStateId = -1L;
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+                String currentFieldName = parser.currentName();
+                parser.nextToken();
+                if ("repository".equals(currentFieldName)) {
+                    repository = parser.text();
+                } else if ("repository_state_id".equals(currentFieldName)) {
+                    // only XContent parsed with {@link Metadata.CONTEXT_MODE_GATEWAY} will have the repository state id and can be deserialized
+                    repositoryStateId = parser.longValue();
+                } else {
+                    throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+                }
+            }
+            entries.add(new Entry(repository, repositoryStateId));
+        }
+        return new RepositoryCleanupInProgress(entries);
     }
 
     @Override

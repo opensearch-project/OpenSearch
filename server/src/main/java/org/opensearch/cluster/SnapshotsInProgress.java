@@ -34,6 +34,7 @@ package org.opensearch.cluster;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
@@ -45,6 +46,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoryOperation;
 import org.opensearch.repositories.RepositoryShardId;
@@ -53,6 +55,7 @@ import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -62,6 +65,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
+import static org.opensearch.core.xcontent.XContentParserUtils.parseStringList;
 
 /**
  * Meta data about snapshots that are currently executing
@@ -732,14 +739,230 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                         builder.field(SHARD, shardId.getId());
                         builder.field(STATE, status.state());
                         builder.field(NODE, status.nodeId());
+                        if (params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API).equals(Metadata.CONTEXT_MODE_GATEWAY)) {
+                            builder.field(INDEX_UUID, shardId.getIndex().getUUID());
+                            if (status.generation() != null) builder.field(GENERATION, status.generation());
+                            if (status.reason() != null) builder.field(REASON, status.reason());
+                        }
                     }
                     builder.endObject();
                 }
             }
             builder.endArray();
             builder.array(DATA_STREAMS, dataStreams.toArray(new String[0]));
+            if (params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API).equals(Metadata.CONTEXT_MODE_GATEWAY)) {
+                builder.field(VERSION, version);
+                if (failure != null) builder.field(FAILURE, failure);
+                if (source != null) {
+                    builder.field(SOURCE, source);
+                }
+                builder.field(USER_METADATA, userMetadata);
+                builder.startArray(CLONES);
+                for (RepositoryShardId shardId : clones.keySet()) {
+                    builder.startObject();
+                    builder.field(INDEX, shardId.index().getName());
+                    builder.field(INDEX_ID, shardId.index().getId());
+                    builder.field(SHARD, shardId.shardId());
+                    ShardSnapshotStatus status = clones.get(shardId);
+                    if (status.nodeId() != null) builder.field(NODE, status.nodeId());
+                    builder.field(STATE, status.state());
+                    if (status.generation() != null) builder.field(GENERATION, status.generation());
+                    if (status.reason() != null) builder.field(REASON, status.reason());
+                    builder.endObject();
+                }
+                builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
+            }
             builder.endObject();
             return builder;
+        }
+
+        public static Entry fromXContent(XContentParser parser) throws IOException {
+            String repository = null;
+            String snapshotName = null;
+            String snapshotUUID = null;
+            boolean includeGlobalState = false;
+            boolean partial = false;
+            String failure = null;
+            Version version = null;
+            SnapshotId source = null;
+            Map<String, Object> metadata = null;
+            byte state = -1;
+            List<IndexId> indices = new ArrayList<>();
+            long startTime = 0;
+            long repositoryStateId = -1L;
+            Map<ShardId, ShardSnapshotStatus> shards = new HashMap<>();
+            List<String> dataStreams = new ArrayList<>();
+            Map<RepositoryShardId, ShardSnapshotStatus> clones = new HashMap<>();
+            boolean remoteStoreIndexShallowCopy = false;
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String currentFieldName = parser.currentName();
+                parser.nextToken();
+
+                switch (currentFieldName) {
+                    case REPOSITORY:
+                        repository = parser.text();
+                        break;
+                    case SNAPSHOT:
+                        snapshotName = parser.text();
+                        break;
+                    case UUID:
+                        snapshotUUID = parser.text();
+                        break;
+                    case INCLUDE_GLOBAL_STATE:
+                        includeGlobalState = parser.booleanValue();
+                        break;
+                    case PARTIAL:
+                        partial = parser.booleanValue();
+                        break;
+                    case STATE:
+                        state = (byte) parser.intValue();
+                        break;
+                    case INDICES:
+                        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            indices.add(IndexId.fromXContent(parser));
+                        }
+                        break;
+                    case START_TIME_MILLIS:
+                        startTime = parser.longValue();
+                        break;
+                    case START_TIME:
+                        startTime = TimeValue.parseTimeValue(parser.text(), null, currentFieldName).millis();
+                        break;
+                    case REPOSITORY_STATE_ID:
+                        repositoryStateId = parser.longValue();
+                        break;
+                    case SHARDS:
+                        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            String index = null;
+                            String indexUUID = null;
+                            int shardId = -1;
+                            String nodeId = null;
+                            ShardState shardState = null;
+                            String reason = null;
+                            String generation = null;
+                            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                final String currentShardField = parser.currentName();
+                                parser.nextToken();
+                                switch (currentShardField) {
+                                    case INDEX:
+                                        index = parser.text();
+                                        break;
+                                    case SHARD:
+                                        shardId = parser.intValue();
+                                        break;
+                                    case INDEX_UUID:
+                                        indexUUID = parser.text();
+                                        break;
+                                    case NODE:
+                                        nodeId = parser.text();
+                                        break;
+                                    case STATE:
+                                        shardState = ShardState.fromValue((byte) parser.intValue());
+                                        break;
+                                    case REASON:
+                                        reason = parser.text();
+                                        break;
+                                    case GENERATION:
+                                        generation = parser.text();
+                                        break;
+                                    default:
+                                        throw new IllegalArgumentException("unknown field [" + currentShardField + "]");
+                                }
+                            }
+                            shards.put(new ShardId(index, indexUUID, shardId),
+                                reason != null ? new ShardSnapshotStatus(nodeId, shardState, reason, generation) :
+                                new ShardSnapshotStatus(nodeId, shardState, generation));
+                        }
+                        break;
+                    case DATA_STREAMS:
+                        dataStreams = parseStringList(parser);
+                        break;
+                    case FAILURE:
+                        failure = parser.text();
+                        break;
+                    case SOURCE:
+                        source = SnapshotId.fromXContent(parser);
+                        break;
+                    case USER_METADATA:
+                        metadata = parser.map();
+                        break;
+                    case CLONES:
+                        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            String index = null;
+                            String indexId = null;
+                            int shardId = -1;
+                            byte snapshotShardStatus = -1;
+                            String nodeId = null;
+                            String reason = null;
+                            String generation = null;
+                            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                currentFieldName = parser.currentName();
+                                parser.nextToken();
+                                switch (currentFieldName) {
+                                    case INDEX:
+                                        index = parser.text();
+                                        break;
+                                    case INDEX_ID:
+                                        indexId = parser.text();
+                                        break;
+                                    case SHARD:
+                                        shardId = parser.intValue();
+                                        break;
+                                    case STATE:
+                                        snapshotShardStatus = (byte) parser.intValue();
+                                        break;
+                                    case NODE:
+                                        nodeId = parser.text();
+                                        break;
+                                    case REASON:
+                                        reason = parser.text();
+                                        break;
+                                    case GENERATION:
+                                        generation = parser.text();
+                                        break;
+                                    default:
+                                        throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+                                }
+                            }
+                            clones.put(new RepositoryShardId(new IndexId(index, indexId), shardId),
+                                reason != null ? new ShardSnapshotStatus(nodeId, ShardState.fromValue(snapshotShardStatus), reason, generation) :
+                                new ShardSnapshotStatus(nodeId, ShardState.fromValue(snapshotShardStatus), generation));
+                        }
+                        break;
+                    case VERSION:
+                        version = Version.fromString(parser.text());
+                        break;
+                    case REMOTE_STORE_INDEX_SHALLOW_COPY:
+                        remoteStoreIndexShallowCopy = parser.booleanValue();
+                        break;
+                    default:
+                        throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+                }
+            }
+            Snapshot snapshot = new Snapshot(repository, new SnapshotId(snapshotName, snapshotUUID));
+            return new Entry(
+                snapshot,
+                includeGlobalState,
+                partial,
+                State.fromValue(state),
+                indices,
+                dataStreams,
+                startTime,
+                repositoryStateId,
+                shards,
+                failure,
+                metadata,
+                version,
+                source,
+                clones,
+                remoteStoreIndexShallowCopy
+            );
         }
 
         @Override
@@ -1057,6 +1280,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
     private static final String PARTIAL = "partial";
     private static final String STATE = "state";
+    private static final String VERSION = "version";
+    private static final String FAILURE = "failure";
+    private static final String SOURCE = "source";
+    private static final String USER_METADATA = "user_metadata";
+    private static final String CLONES = "clones";
+    private static final String REMOTE_STORE_INDEX_SHALLOW_COPY = "remote_store_index_shallow_copy";
     private static final String INDICES = "indices";
     private static final String DATA_STREAMS = "data_streams";
     private static final String START_TIME_MILLIS = "start_time_millis";
@@ -1064,6 +1293,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     private static final String REPOSITORY_STATE_ID = "repository_state_id";
     private static final String SHARDS = "shards";
     private static final String INDEX = "index";
+    private static final String INDEX_ID = "index_id";
+    private static final String INDEX_UUID = "index_uuid";
+    private static final String GENERATION = "generation";
+    private static final String REASON = "reason";
     private static final String SHARD = "shard";
     private static final String NODE = "node";
 
@@ -1075,6 +1308,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
         builder.endArray();
         return builder;
+    }
+
+    public static SnapshotsInProgress fromXContent(XContentParser parser) throws IOException {
+        ensureFieldName(parser, parser.currentToken(), SNAPSHOTS);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+        List<Entry> entries = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            entries.add(Entry.fromXContent(parser));
+        }
+        return SnapshotsInProgress.of(entries);
     }
 
     /**

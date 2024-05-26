@@ -32,18 +32,25 @@
 
 package org.opensearch.cluster;
 
+import org.elasticsearch.snapshots.SnapshotId;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -51,6 +58,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Meta data about restore processes that are currently executing
@@ -144,7 +153,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static class Entry {
+    public static class Entry implements ToXContentFragment {
         private final String uuid;
         private final State state;
         private final Snapshot snapshot;
@@ -235,6 +244,135 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         @Override
         public int hashCode() {
             return Objects.hash(uuid, snapshot, state, indices, shards);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            boolean isGatewayXContent = params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)
+                .equals(Metadata.CONTEXT_MODE_GATEWAY);
+            builder.startObject();
+            builder.field("snapshot", snapshot().getSnapshotId().getName());
+            builder.field("repository", snapshot().getRepository());
+            builder.field("state", state());
+            if (isGatewayXContent) {
+                builder.field("snapshot_uuid", snapshot().getSnapshotId().getUUID());
+                builder.field("uuid", uuid());
+            }
+            builder.startArray("indices");
+            {
+                for (String index : indices()) {
+                    builder.value(index);
+                }
+            }
+            builder.endArray();
+            builder.startArray("shards");
+            {
+                for (final Map.Entry<ShardId, ShardRestoreStatus> shardEntry : shards.entrySet()) {
+                    ShardId shardId = shardEntry.getKey();
+                    ShardRestoreStatus status = shardEntry.getValue();
+                    builder.startObject();
+                    {
+                        builder.field("index", shardId.getIndex());
+                        builder.field("shard", shardId.getId());
+                        builder.field("state", status.state());
+                        if (isGatewayXContent) {
+                            builder.field("index_uuid", shardId.getIndex().getUUID());
+                            if (status.nodeId() != null) builder.field("node_id", status.nodeId());
+                            if (status.reason() != null) builder.field("reason", status.reason());
+                        }
+                    }
+                    builder.endObject();
+                }
+            }
+
+            builder.endArray();
+            builder.endObject();
+            return builder;
+        }
+
+        public static Entry fromXContent(XContentParser parser) throws IOException {
+            if (parser.currentToken() == null) {
+                parser.nextToken();
+            }
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+            String snapshotName = null;
+            String snapshotRepository = null;
+            String snapshotUUID = null;
+            int state = -1;
+            String uuid = null;
+            List<String> indices = new ArrayList<>();
+            Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+                String currentFieldName = parser.currentName();
+                parser.nextToken();
+                switch (currentFieldName) {
+                    case "snapshot":
+                        snapshotName = parser.text();
+                        break;
+                    case "repository":
+                        snapshotRepository = parser.text();
+                        break;
+                    case "state":
+                        state = parser.intValue();
+                        break;
+                    case "snapshot_uuid":
+                        snapshotUUID = parser.text();
+                        break;
+                    case "uuid":
+                        uuid = parser.text();
+                        break;
+                    case "indices":
+                        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            indices.add(parser.text());
+                        }
+                        break;
+                    case "shards":
+                        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            String indexName = null;
+                            String indexUUID = null;
+                            int shardId = -1;
+                            int restoreState = -1;
+                            String nodeId = null;
+                            String reason = null;
+                            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+                                String currentShardFieldName = parser.currentName();
+                                parser.nextToken();
+                                switch (currentShardFieldName) {
+                                    case "index":
+                                        indexName = parser.text();
+                                        break;
+                                    case "shard":
+                                        shardId = parser.intValue();
+                                        break;
+                                    case "state":
+                                        restoreState = parser.intValue();
+                                        break;
+                                    case "index_uuid":
+                                        indexUUID = parser.text();
+                                        break;
+                                    case "node_id":
+                                        nodeId = parser.text();
+                                        break;
+                                    case "reason":
+                                        reason = parser.text();
+                                        break;
+                                    default:
+                                        throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+                                }
+                            }
+                            shards.put(new ShardId(indexName, indexUUID, shardId), new ShardRestoreStatus(nodeId, State.fromValue((byte) restoreState), reason));
+                        }
+                        break;
+                    default:
+                        throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+                }
+            }
+            return new Entry(uuid, new Snapshot(snapshotRepository, new SnapshotId(snapshotName, snapshotUUID)), State.fromValue((byte) state), indices, shards);
         }
     }
 
@@ -495,10 +633,23 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startArray("snapshots");
         for (final Entry entry : entries.values()) {
-            toXContent(entry, builder);
+            toXContent(entry, builder, ToXContent.EMPTY_PARAMS);
         }
         builder.endArray();
         return builder;
+    }
+
+    public static RestoreInProgress fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        final Map<String, Entry> entries = new HashMap<>();
+        XContentParserUtils.ensureFieldName(parser, parser.currentToken(), "snapshots");
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            final Entry entry = Entry.fromXContent(parser);
+            entries.put(entry.uuid, entry);
+        }
+        return new RestoreInProgress(entries);
     }
 
     /**
@@ -506,35 +657,33 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      *
      * @param entry   restore operation metadata
      * @param builder XContent builder
+     * @param params
      */
-    public void toXContent(Entry entry, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
-        builder.field("repository", entry.snapshot().getRepository());
-        builder.field("state", entry.state());
-        builder.startArray("indices");
-        {
-            for (String index : entry.indices()) {
-                builder.value(index);
-            }
-        }
-        builder.endArray();
-        builder.startArray("shards");
-        {
-            for (final Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards.entrySet()) {
-                ShardId shardId = shardEntry.getKey();
-                ShardRestoreStatus status = shardEntry.getValue();
-                builder.startObject();
-                {
-                    builder.field("index", shardId.getIndex());
-                    builder.field("shard", shardId.getId());
-                    builder.field("state", status.state());
-                }
-                builder.endObject();
-            }
-        }
-
-        builder.endArray();
-        builder.endObject();
+    public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        entry.toXContent(builder, params);
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

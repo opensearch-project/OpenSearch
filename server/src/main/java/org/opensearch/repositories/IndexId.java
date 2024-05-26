@@ -36,6 +36,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -43,6 +44,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Represents a single snapshotted index in the repository.
@@ -132,5 +135,26 @@ public final class IndexId implements Writeable, ToXContentObject {
         builder.field(ID, id);
         builder.endObject();
         return builder;
+    }
+
+    public static IndexId fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        String name = null;
+        String id = null;
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            String currentFieldName = parser.currentName();
+            parser.nextToken();
+            switch (currentFieldName) {
+                case NAME:
+                    name = parser.text();
+                    break;
+                case ID:
+                    id = parser.text();
+                    break;
+                default:
+                    throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+            }
+        }
+        return new IndexId(name, id);
     }
 }

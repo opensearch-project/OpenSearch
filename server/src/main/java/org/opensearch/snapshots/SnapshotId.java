@@ -38,6 +38,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -144,5 +146,24 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
         builder.field(UUID, uuid);
         builder.endObject();
         return builder;
+    }
+
+    public static SnapshotId fromXContent(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        String name = null;
+        String uuid = null;
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+            final String currentFieldName = parser.currentName();
+            parser.nextToken();
+            if (NAME.equals(currentFieldName)) {
+                name = parser.text();
+            } else if (UUID.equals(currentFieldName)) {
+                uuid = parser.text();
+            } else {
+                throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+            }
+        }
+        return new SnapshotId(name, uuid);
     }
 }
