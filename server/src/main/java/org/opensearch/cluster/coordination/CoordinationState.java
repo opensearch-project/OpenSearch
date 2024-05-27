@@ -104,6 +104,10 @@ public class CoordinationState {
         this.isRemoteStateEnabled = isRemoteStoreClusterStateEnabled(settings);
     }
 
+    public boolean isRemoteStateEnabled() {
+        return isRemoteStateEnabled;
+    }
+
     public long getCurrentTerm() {
         return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getCurrentTerm();
     }
@@ -449,6 +453,7 @@ public class CoordinationState {
             clusterState.version(),
             clusterState.term()
         );
+        logger.info("Setting last accepted state : term - {}, version - {}", clusterState.term(), clusterState.version());
         persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastAcceptedState(clusterState);
         assert getLastAcceptedState() == clusterState;
 
