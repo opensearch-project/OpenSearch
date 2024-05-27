@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote;
 
+import org.junit.Before;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
@@ -32,6 +33,11 @@ import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_INDEX_REFRES
 public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "test-index";
+
+    @Before
+    public void setup() {
+        asyncUploadMockFsRepo = false;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
