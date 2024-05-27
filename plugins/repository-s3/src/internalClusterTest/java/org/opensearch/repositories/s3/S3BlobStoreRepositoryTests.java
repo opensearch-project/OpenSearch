@@ -165,7 +165,6 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         return builder.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10735")
     @Override
     public void testRequestStats() throws Exception {
         final String repository = createRepository(randomName());
@@ -249,6 +248,8 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
+            GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
+
             return new S3Repository(
                 metadata,
                 registry,
@@ -263,7 +264,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
                 false,
                 null,
                 null,
-                null
+                genericStatsMetricPublisher
             ) {
 
                 @Override
