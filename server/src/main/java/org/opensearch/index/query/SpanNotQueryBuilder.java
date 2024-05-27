@@ -290,11 +290,11 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
         if (include != null) {
-            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(include);
+            include.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST));
         }
 
         if (exclude != null) {
-            visitor.getChildVisitor(BooleanClause.Occur.MUST_NOT).accept(exclude);
+            exclude.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST_NOT));
         }
     }
 }
