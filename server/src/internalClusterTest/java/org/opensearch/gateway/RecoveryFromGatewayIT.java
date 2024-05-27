@@ -56,6 +56,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.allocation.AllocationDecision;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
@@ -878,6 +879,21 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         assertFalse(health.isTimedOut());
         assertEquals(YELLOW, health.getStatus());
         assertEquals(2, health.getUnassignedShards());
+        // shard should be unassigned because of Allocation_Delayed
+        assertEquals(
+            AllocationDecision.ALLOCATION_DELAYED,
+            client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex("test")
+                .setShard(0)
+                .setPrimary(false)
+                .get()
+                .getExplanation()
+                .getShardAllocationDecision()
+                .getAllocateDecision()
+                .getAllocationDecision()
+        );
 
         logger.info("--> restarting the stopped nodes");
         internalCluster().startDataOnlyNode(
