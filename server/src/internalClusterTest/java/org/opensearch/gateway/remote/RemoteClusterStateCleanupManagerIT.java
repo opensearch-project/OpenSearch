@@ -8,7 +8,6 @@
 
 package org.opensearch.gateway.remote;
 
-import org.junit.Before;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
@@ -16,6 +15,7 @@ import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
