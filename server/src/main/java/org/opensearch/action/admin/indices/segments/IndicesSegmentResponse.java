@@ -47,11 +47,9 @@ import org.opensearch.index.engine.Segment;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Transport response for retrieving indices segment information
@@ -87,20 +85,19 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         }
         Map<String, IndexSegments> indicesSegments = new HashMap<>();
 
-        Set<String> indices = new HashSet<>();
+        Map<String, List<ShardSegments>> indicesShardSegments = new HashMap<>();
         for (ShardSegments shard : shards) {
-            indices.add(shard.getShardRouting().getIndexName());
+            List<ShardSegments> shardSegList = indicesShardSegments.get(shard.getShardRouting().getIndexName());
+            if (shardSegList == null) {
+                shardSegList = new ArrayList<>();
+                indicesShardSegments.put(shard.getShardRouting().getIndexName(), shardSegList);
+            }
+            shardSegList.add(shard);
+        }
+        for (Map.Entry<String, List<ShardSegments>> entry : indicesShardSegments.entrySet()) {
+            indicesSegments.put(entry.getKey(), new IndexSegments(entry.getKey(), entry.getValue().toArray(new ShardSegments[0])));
         }
 
-        for (String indexName : indices) {
-            List<ShardSegments> shards = new ArrayList<>();
-            for (ShardSegments shard : this.shards) {
-                if (shard.getShardRouting().getIndexName().equals(indexName)) {
-                    shards.add(shard);
-                }
-            }
-            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[0])));
-        }
         this.indicesSegments = indicesSegments;
         return indicesSegments;
     }
