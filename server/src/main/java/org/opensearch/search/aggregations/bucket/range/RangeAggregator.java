@@ -278,8 +278,7 @@ public class RangeAggregator extends BucketsAggregator {
         fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
         fastFilterContext.setAggregationType(new FastFilterRewriteHelper.RangeAggregationType(valuesSource, ranges));
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.setFieldName(config.fieldType().name());
-            fastFilterContext.buildRanges();
+            fastFilterContext.buildRanges(Objects.requireNonNull(config.fieldType()));
         }
 
         maxTo = new double[this.ranges.length];

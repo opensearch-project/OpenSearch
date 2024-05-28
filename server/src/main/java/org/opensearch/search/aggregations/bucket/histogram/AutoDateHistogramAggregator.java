@@ -64,6 +64,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongToIntFunction;
@@ -166,8 +167,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             )
         );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.setFieldName(valuesSourceConfig.fieldType().name());
-            fastFilterContext.buildRanges();
+            fastFilterContext.buildRanges(Objects.requireNonNull(valuesSourceConfig.fieldType()));
         }
     }
 

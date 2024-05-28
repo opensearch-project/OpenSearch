@@ -189,6 +189,7 @@ public final class FastFilterRewriteHelper {
         private final SearchContext context;
 
         private String fieldName;
+        private MappedFieldType fieldType;
         private Ranges ranges;
 
         // debug info related fields
@@ -196,10 +197,6 @@ public final class FastFilterRewriteHelper {
         public int inner;
         public int segments;
         public int optimizedSegments;
-
-        public void setFieldName(String fieldName) {
-            this.fieldName = fieldName;
-        }
 
         public FastFilterContext(SearchContext context) {
             this.context = context;
@@ -222,8 +219,10 @@ public final class FastFilterRewriteHelper {
             return rewriteable;
         }
 
-        public void buildRanges() throws IOException {
+        public void buildRanges(MappedFieldType fieldType) throws IOException {
             assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
+            this.fieldName = fieldType.name();
+            this.fieldType = fieldType;
             this.ranges = this.aggregationType.buildRanges(context);
             if (ranges != null) {
                 logger.debug("Ranges built for shard {}", context.indexShard().shardId());
