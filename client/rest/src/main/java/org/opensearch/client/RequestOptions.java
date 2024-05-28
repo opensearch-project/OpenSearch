@@ -91,7 +91,8 @@ public final class RequestOptions {
     }
 
     /**
-     * Query parameters to attach to the request.
+     * Query parameters to attach to the request. Any parameters present here
+     * will override matching parameters in the {@link Request}, if they exist.
      */
     public Map<String, String> getParameters() {
         return parameters;
@@ -250,7 +251,8 @@ public final class RequestOptions {
         }
 
         /**
-         * Add the provided query parameter to the request.
+         * Add the provided query parameter to the request. Any parameters added here
+         * will override matching parameters in the {@link Request}, if they exist.
          *
          * @param name  the query parameter name
          * @param value the query parameter value
