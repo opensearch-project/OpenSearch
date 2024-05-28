@@ -204,7 +204,7 @@ public class RemoteClusterStateService implements Closeable {
     private final List<IndexMetadataUploadListener> indexMetadataUploadListeners;
     private BlobStoreRepository blobStoreRepository;
     private BlobStoreTransferService blobStoreTransferService;
-    private RemoteRoutingTableService remoteRoutingTableService;
+    private Optional<RemoteRoutingTableService> remoteRoutingTableService;
     private volatile TimeValue slowWriteLoggingThreshold;
 
     private volatile TimeValue indexMetadataUploadTimeout;
@@ -256,10 +256,9 @@ public class RemoteClusterStateService implements Closeable {
         clusterSettings.addSettingsUpdateConsumer(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING, this::setMetadataManifestUploadTimeout);
         this.remoteStateStats = new RemotePersistenceStats();
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
-
-        if (isRemoteRoutingTableEnabled(settings)) {
-            this.remoteRoutingTableService = new RemoteRoutingTableService(repositoriesService, settings);
-        }
+        this.remoteRoutingTableService = isRemoteRoutingTableEnabled(settings)
+            ? Optional.of(new RemoteRoutingTableService(repositoriesService, settings))
+            : Optional.empty();
     }
 
     private BlobStoreTransferService getBlobStoreTransferService() {
@@ -756,8 +755,8 @@ public class RemoteClusterStateService implements Closeable {
         if (blobStoreRepository != null) {
             IOUtils.close(blobStoreRepository);
         }
-        if (this.remoteRoutingTableService != null) {
-            this.remoteRoutingTableService.close();
+        if (this.remoteRoutingTableService.isPresent()) {
+            this.remoteRoutingTableService.get().close();
         }
     }
 
@@ -770,8 +769,8 @@ public class RemoteClusterStateService implements Closeable {
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         blobStoreRepository = (BlobStoreRepository) repository;
-        if (this.remoteRoutingTableService != null) {
-            this.remoteRoutingTableService.start();
+        if (this.remoteRoutingTableService.isPresent()) {
+            this.remoteRoutingTableService.get().start();
         }
     }
 
@@ -947,7 +946,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     // Package private for unit test
-    RemoteRoutingTableService getRemoteRoutingTableService() {
+    Optional<RemoteRoutingTableService> getRemoteRoutingTableService() {
         return this.remoteRoutingTableService;
     }
 

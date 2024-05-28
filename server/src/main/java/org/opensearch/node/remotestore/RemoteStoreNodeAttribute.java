@@ -30,7 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.util.FeatureFlags.REMOTE_ROUTING_TABLE_EXPERIMENTAL;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 
 /**
  * This is an abstraction for validating and storing information specific to remote backed storage nodes.
@@ -53,6 +53,7 @@ public class RemoteStoreNodeAttribute {
     public static final String REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.routing_table.repository";
 
     private final RepositoriesMetadata repositoriesMetadata;
+    private final List<String> optionalRepos;
 
     public static List<String> SUPPORTED_DATA_REPO_NAME_ATTRIBUTES = List.of(
         REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
@@ -62,8 +63,18 @@ public class RemoteStoreNodeAttribute {
     /**
      * Creates a new {@link RemoteStoreNodeAttribute}
      */
-    public RemoteStoreNodeAttribute(DiscoveryNode node) {
+    public RemoteStoreNodeAttribute(DiscoveryNode node, Settings settings) {
         this.repositoriesMetadata = buildRepositoriesMetadata(node);
+        // For supporting feature launches where new repos are added, we can mark repos to be optional and ensure node joins are not
+        // impacted due to diff in repos.
+        this.optionalRepos = new ArrayList<>();
+        if (!RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings)) {
+            if (node.getAttributes().containsKey(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
+                optionalRepos.add(
+                    node.getAttributes().get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)
+                );
+            }
+        }
     }
 
     private String validateAttributeNonNull(DiscoveryNode node, String attributeKey) {
@@ -203,7 +214,7 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean isRemoteRoutingTableEnabled(Settings settings) {
-        return FeatureFlags.isEnabled(REMOTE_ROUTING_TABLE_EXPERIMENTAL)
+        return FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
             && RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.get(settings)
             && isRemoteRoutingTableAttributePresent(settings);
     }
@@ -253,18 +264,20 @@ public class RemoteStoreNodeAttribute {
     }
 
     /**
-     * Checks if 2 instances are equal, with option to skip check for a list of repos.
+     * Checks if 2 instances are equal, ignoring optionalRepos for both.
      *
      * @param o other instance
-     * @param reposToSkip list of repos to skip check for equality
-     * @return {@code true} iff both instances are equal, not including the repositories in both instances if they are part of reposToSkip.
+     * @return {@code true} iff both instances are equal, not including the repositories in both instances if they are part of optionalRepos.
      */
-    public boolean equalsWithRepoSkip(Object o, List<String> reposToSkip) {
+    public boolean equalsIgnoreOptionalRepo(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
         RemoteStoreNodeAttribute that = (RemoteStoreNodeAttribute) o;
-        return this.getRepositoriesMetadata().equalsIgnoreGenerationsWithRepoSkip(that.getRepositoriesMetadata(), reposToSkip);
+        List<String> reposToSkip = new ArrayList<>();
+        reposToSkip.addAll(this.optionalRepos);
+        reposToSkip.addAll(that.optionalRepos);
+        return this.getRepositoriesMetadata().equalsIgnoreGenerationsIgnoreOptionalRepos(that.getRepositoriesMetadata(), reposToSkip);
     }
 
     @Override

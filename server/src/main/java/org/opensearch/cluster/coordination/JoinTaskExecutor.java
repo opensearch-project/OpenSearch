@@ -187,7 +187,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         DiscoveryNode dn = remoteDN.orElseGet(() -> (currentNodes.getNodes().values()).stream().findFirst().get());
         RepositoriesMetadata repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
             dn,
-            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+            currentState.getMetadata().custom(RepositoriesMetadata.TYPE),
+            currentState.getMetadata().settings()
         );
 
         assert nodesBuilder.isLocalNodeElectedClusterManager();
@@ -223,7 +224,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                         logger.info("Updating system repository now for remote store");
                         repositoriesMetadata = remoteStoreNodeService.updateRepositoriesMetadata(
                             node,
-                            currentState.getMetadata().custom(RepositoriesMetadata.TYPE)
+                            currentState.getMetadata().custom(RepositoriesMetadata.TYPE),
+                            currentState.getMetadata().settings()
                         );
                     }
 
@@ -511,26 +513,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         assert existingNodes.isEmpty() == false;
 
         CompatibilityMode remoteStoreCompatibilityMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings());
-        List<String> reposToSkip = new ArrayList<>();
-        // Skip checking for remote routing table repo if feature is not enabled.
-        if (!RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(metadata.settings())) {
-            String joiningNodeRepoName = joiningNode.getAttributes()
-                .get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
-            String existingNodeRepoName = existingNodes.get(0)
-                .getAttributes()
-                .get(RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY);
-            if (joiningNodeRepoName != null) {
-                reposToSkip.add(joiningNodeRepoName);
-            }
-            if (existingNodeRepoName != null) {
-                reposToSkip.add(existingNodeRepoName);
-            }
-        }
         if (STRICT.equals(remoteStoreCompatibilityMode)) {
 
             DiscoveryNode existingNode = existingNodes.get(0);
             if (joiningNode.isRemoteStoreNode()) {
-                ensureRemoteStoreNodesCompatibility(joiningNode, existingNode, reposToSkip);
+                ensureRemoteStoreNodesCompatibility(joiningNode, existingNode, metadata.settings());
             } else {
                 if (existingNode.isRemoteStoreNode()) {
                     throw new IllegalStateException(
@@ -553,22 +540,20 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 }
                 if (joiningNode.isRemoteStoreNode()) {
                     Optional<DiscoveryNode> remoteDN = existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
-                    remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode, reposToSkip));
+                    remoteDN.ifPresent(
+                        discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode, metadata.settings())
+                    );
                 }
             }
         }
     }
 
-    private static void ensureRemoteStoreNodesCompatibility(
-        DiscoveryNode joiningNode,
-        DiscoveryNode existingNode,
-        List<String> reposToSkip
-    ) {
+    private static void ensureRemoteStoreNodesCompatibility(DiscoveryNode joiningNode, DiscoveryNode existingNode, Settings settings) {
         if (joiningNode.isRemoteStoreNode()) {
             if (existingNode.isRemoteStoreNode()) {
-                RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode);
-                RemoteStoreNodeAttribute existingRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(existingNode);
-                if (existingRemoteStoreNodeAttribute.equalsWithRepoSkip(joiningRemoteStoreNodeAttribute, reposToSkip) == false) {
+                RemoteStoreNodeAttribute joiningRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(joiningNode, settings);
+                RemoteStoreNodeAttribute existingRemoteStoreNodeAttribute = new RemoteStoreNodeAttribute(existingNode, settings);
+                if (existingRemoteStoreNodeAttribute.equalsIgnoreOptionalRepo(joiningRemoteStoreNodeAttribute) == false) {
                     throw new IllegalStateException(
                         "a remote store node ["
                             + joiningNode

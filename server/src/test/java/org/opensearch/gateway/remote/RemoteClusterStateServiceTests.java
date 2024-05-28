@@ -88,7 +88,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_ROUTING_TABLE_EXPERIMENTAL;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.FORMAT_PARAMS;
@@ -1501,7 +1501,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteRoutingTableNotInitializedWhenDisabled() {
-        assertNull(remoteClusterStateService.getRemoteRoutingTableService());
+        assertFalse(remoteClusterStateService.getRemoteRoutingTableService().isPresent());
     }
 
     public void testRemoteRoutingTableInitializedWhenEnabled() {
@@ -1513,7 +1513,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         clusterSettings.applySettings(newSettings);
 
-        Settings nodeSettings = Settings.builder().put(REMOTE_ROUTING_TABLE_EXPERIMENTAL, "true").build();
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
 
         remoteClusterStateService = new RemoteClusterStateService(
@@ -1525,7 +1525,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             threadPool,
             List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings))
         );
-        assertNotNull(remoteClusterStateService.getRemoteRoutingTableService());
+        assertTrue(remoteClusterStateService.getRemoteRoutingTableService().isPresent());
     }
 
     private void mockObjectsForGettingPreviousClusterUUID(Map<String, String> clusterUUIDsPointers) throws IOException {

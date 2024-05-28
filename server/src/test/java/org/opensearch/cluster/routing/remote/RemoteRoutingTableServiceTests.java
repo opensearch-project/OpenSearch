@@ -21,7 +21,7 @@ import org.junit.Before;
 
 import java.util.function.Supplier;
 
-import static org.opensearch.common.util.FeatureFlags.REMOTE_ROUTING_TABLE_EXPERIMENTAL;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -51,7 +51,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         blobStoreRepository = mock(BlobStoreRepository.class);
         when(repositoriesService.repository("routing_repository")).thenReturn(blobStoreRepository);
 
-        Settings nodeSettings = Settings.builder().put(REMOTE_ROUTING_TABLE_EXPERIMENTAL, "true").build();
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
 
         remoteRoutingTableService = new RemoteRoutingTableService(repositoriesServiceSupplier, settings);

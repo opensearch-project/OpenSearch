@@ -172,7 +172,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      * @param reposToSkip list of repos to skip check for equality
      * @return {@code true} iff both instances contain the same repositories apart from differences in generations, not including repos provided in reposToSkip.
      */
-    public boolean equalsIgnoreGenerationsWithRepoSkip(@Nullable RepositoriesMetadata other, List<String> reposToSkip) {
+    public boolean equalsIgnoreGenerationsIgnoreOptionalRepos(@Nullable RepositoriesMetadata other, List<String> reposToSkip) {
         if (other == null) {
             return false;
         }

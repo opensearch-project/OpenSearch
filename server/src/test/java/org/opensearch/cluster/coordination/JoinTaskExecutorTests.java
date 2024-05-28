@@ -205,7 +205,9 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
         final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
-        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any(), any())).thenReturn(
+            new RepositoriesMetadata(Collections.emptyList())
+        );
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
@@ -1002,7 +1004,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             )
             .put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true")
             .build();
-        final Settings nodeSettings = Settings.builder().put(FeatureFlags.REMOTE_ROUTING_TABLE_EXPERIMENTAL, "true").build();
+        final Settings nodeSettings = Settings.builder().put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         Metadata metadata = Metadata.builder().persistentSettings(settings).build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1035,7 +1037,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             )
             .put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true")
             .build();
-        final Settings nodeSettings = Settings.builder().put(FeatureFlags.REMOTE_ROUTING_TABLE_EXPERIMENTAL, "true").build();
+        final Settings nodeSettings = Settings.builder().put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         Metadata metadata = Metadata.builder().persistentSettings(settings).build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)

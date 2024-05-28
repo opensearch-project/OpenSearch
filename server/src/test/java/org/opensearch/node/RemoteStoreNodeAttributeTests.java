@@ -12,14 +12,15 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 
@@ -74,7 +75,7 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
             Version.CURRENT
         );
 
-        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node, Settings.builder().build());
         assertEquals(remoteStoreNodeAttribute.getRepositoriesMetadata().repositories().size(), 1);
         RepositoryMetadata repositoryMetadata = remoteStoreNodeAttribute.getRepositoriesMetadata().repositories().get(0);
         Settings.Builder settings = Settings.builder();
@@ -116,7 +117,7 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
             Version.CURRENT
         );
 
-        assertThrows(IllegalStateException.class, () -> new RemoteStoreNodeAttribute(node));
+        assertThrows(IllegalStateException.class, () -> new RemoteStoreNodeAttribute(node, Settings.builder().build()));
     }
 
     public void testNoCryptoMetadata() throws UnknownHostException {
@@ -145,13 +146,14 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
             Version.CURRENT
         );
 
-        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node, Settings.builder().build());
         assertEquals(remoteStoreNodeAttribute.getRepositoriesMetadata().repositories().size(), 1);
         RepositoryMetadata repositoryMetadata = remoteStoreNodeAttribute.getRepositoriesMetadata().repositories().get(0);
         assertNull(repositoryMetadata.cryptoMetadata());
     }
 
-    public void testEqualsWithRepoSkip() throws UnknownHostException {
+    public void testEqualsIgnoreOptionalRepo() throws UnknownHostException {
+        // Node 1 -> Remote Routing disabled, repo not present, Node 2 -> Remote Routing disabled, repo present -> should succeed
         String repoName = "remote-store-A";
         String repoTypeSettingKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT, repoName);
         String repoSettingsKey = String.format(Locale.ROOT, REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX, repoName);
@@ -169,7 +171,7 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
             repoSettingsKey + "base_path",
             "xyz"
         );
-        DiscoveryNode node = new DiscoveryNode(
+        DiscoveryNode nodeWithoutRoutingTableAttr = new DiscoveryNode(
             "C",
             new TransportAddress(InetAddress.getByName("localhost"), 9876),
             attr,
@@ -177,7 +179,10 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
             Version.CURRENT
         );
 
-        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(node);
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute = new RemoteStoreNodeAttribute(
+            nodeWithoutRoutingTableAttr,
+            Settings.builder().build()
+        );
 
         String routingTableRepoName = "remote-store-B";
         String routingTableRepoTypeSettingKey = String.format(
@@ -211,16 +216,36 @@ public class RemoteStoreNodeAttributeTests extends OpenSearchTestCase {
             routingTableRepoSettingsKey,
             "xyz"
         );
-        DiscoveryNode node2 = new DiscoveryNode(
+        DiscoveryNode nodeWithRoutingTableAttr = new DiscoveryNode(
             "C",
             new TransportAddress(InetAddress.getByName("localhost"), 9876),
             attr2,
             emptySet(),
             Version.CURRENT
         );
-        RemoteStoreNodeAttribute remoteStoreNodeAttribute2 = new RemoteStoreNodeAttribute(node2);
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute2 = new RemoteStoreNodeAttribute(
+            nodeWithRoutingTableAttr,
+            Settings.builder().build()
+        );
+        assertTrue(remoteStoreNodeAttribute.equalsIgnoreOptionalRepo(remoteStoreNodeAttribute2));
 
-        assertFalse(remoteStoreNodeAttribute.equalsWithRepoSkip(remoteStoreNodeAttribute2, Arrays.asList()));
-        assertTrue(remoteStoreNodeAttribute.equalsWithRepoSkip(remoteStoreNodeAttribute2, Arrays.asList(routingTableRepoName)));
+        // Node 1 -> Remote Routing enabled, repo present, Node 2 -> Remote Routing enabled, repo present -> should succeed
+        final Settings nodeSettings = Settings.builder().put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
+        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute3 = new RemoteStoreNodeAttribute(
+            nodeWithRoutingTableAttr,
+            Settings.builder()
+                .put(RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.getKey(), "true")
+                .put(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
+                .build()
+        );
+        assertTrue(remoteStoreNodeAttribute3.equalsIgnoreOptionalRepo(remoteStoreNodeAttribute2));
+
+        // Node 1 -> Remote Routing enabled, repo present, Node 2 -> Remote Routing enabled, repo not present -> should fail
+        RemoteStoreNodeAttribute remoteStoreNodeAttribute4 = new RemoteStoreNodeAttribute(
+            nodeWithoutRoutingTableAttr,
+            Settings.builder().put(RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.getKey(), "true").build()
+        );
+        assertFalse(remoteStoreNodeAttribute3.equalsIgnoreOptionalRepo(remoteStoreNodeAttribute4));
     }
 }
