@@ -203,7 +203,6 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(NestedPathFieldMapper.NAME, NestedPathFieldMapper.PARSER);
         builtInMetadataMappers.put(VersionFieldMapper.NAME, VersionFieldMapper.PARSER);
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);
-        builtInMetadataMappers.put(SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.PARSER);
         builtInMetadataMappers.put(DocCountFieldMapper.NAME, DocCountFieldMapper.PARSER);
         // _field_names must be added last so that it has a chance to see all the other mappers
         builtInMetadataMappers.put(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.PARSER);
