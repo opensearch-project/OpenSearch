@@ -25,4 +25,6 @@ $(TARGET):
 
 clean:
 	@rm -rf $(TARGET)
-	@py3clean .
+	docker run -v `pwd`:/src -w /src \
+		python:3.12 \
+		py3clean .
