@@ -1,4 +1,4 @@
-run-name: Build packages (single) ${{ inputs.id }}
+run-name: Build ${{ inputs.system }} wazuh-indexer on ${{ inputs.architecture }} | ${{ inputs.id }}
 
 # This workflow runs when any of the following occur:
 # - Run from another worklow of GH API
