@@ -98,7 +98,7 @@ Follow the [official documentation](https://docs.aws.amazon.com/lambda/latest/dg
   | AWS_BUCKET           | True     | The name of the Amazon S3 bucket in which Security Lake stores your custom source data             |
   | SOURCE_LOCATION      | True     | The _Data source name_ of the _Custom Source_                                                      |
   | ACCOUNT_ID           | True     | Enter the ID that you specified when creating your Amazon Security Lake custom source              |
-  | AWS_REGION           | True     | AWS Region to which the data is written                                                            |
+  | REGION               | True     | AWS Region to which the data is written                                                            |
   | S3_BUCKET_OCSF       | False    | S3 bucket to which the mapped events are written                                                   |
   | OCSF_CLASS           | False    | The OCSF class to map the events into. Can be "SECURITY_FINDING" (default) or "DETECTION_FINDING". |
 

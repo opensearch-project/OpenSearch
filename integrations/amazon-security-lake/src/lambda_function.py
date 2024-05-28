@@ -14,7 +14,7 @@ if os.environ.get('IS_DEV'):
         service_name='s3',
         aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
         aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-        region_name=os.environ.get('AWS_REGION'),
+        region_name=os.environ.get('REGION'),
         endpoint_url=os.environ.get('AWS_ENDPOINT'),
     )
 else:
@@ -124,8 +124,7 @@ def lambda_handler(event, context):
                         encoding='utf-8', level=logging.DEBUG)
 
     # Define required environment variables
-    required_variables = ['AWS_BUCKET',
-                          'SOURCE_LOCATION', 'ACCOUNT_ID', 'AWS_REGION']
+    required_variables = ['AWS_BUCKET', 'SOURCE_LOCATION', 'ACCOUNT_ID', 'REGION']
 
     # Check if all required environment variables are set
     if not check_environment_variables(required_variables):
@@ -135,7 +134,7 @@ def lambda_handler(event, context):
     dst_bucket = os.environ['AWS_BUCKET']
     src_location = os.environ['SOURCE_LOCATION']
     account_id = os.environ['ACCOUNT_ID']
-    region = os.environ['AWS_REGION']
+    region = os.environ['REGION']
     ocsf_bucket = os.environ.get('S3_BUCKET_OCSF')
     ocsf_class = os.environ.get('OCSF_CLASS', 'SECURITY_FINDING')
 
