@@ -17,12 +17,11 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class IndexRoutingTableInputStreamTests extends OpenSearchTestCase {
+public class IndexRoutingTableInputTests extends OpenSearchTestCase {
 
-    public void testRoutingTableInputStream() {
+    public void testRoutingTableInput() {
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -31,9 +30,9 @@ public class IndexRoutingTableInputStreamTests extends OpenSearchTestCase {
 
         initialRoutingTable.getIndicesRouting().values().forEach(indexShardRoutingTables -> {
             try {
-                InputStream indexRoutingStream = new IndexRoutingTableInputStream(indexShardRoutingTables);
+                IndexRoutingTableInput indexRouting = new IndexRoutingTableInput(indexShardRoutingTables);
 
-                IndexRoutingTableInputStreamReader reader = new IndexRoutingTableInputStreamReader(indexRoutingStream);
+                IndexRoutingTableInputStreamReader reader = new IndexRoutingTableInputStreamReader(indexRouting.write().streamInput());
                 IndexRoutingTable indexRoutingTable = reader.readIndexRoutingTable(metadata.index("test").getIndex());
 
                 assertEquals(1, indexRoutingTable.getShards().size());
@@ -55,9 +54,9 @@ public class IndexRoutingTableInputStreamTests extends OpenSearchTestCase {
         AtomicInteger assertionError = new AtomicInteger();
         initialRoutingTable.getIndicesRouting().values().forEach(indexShardRoutingTables -> {
             try {
-                InputStream indexRoutingStream = new IndexRoutingTableInputStream(indexShardRoutingTables);
+                IndexRoutingTableInput indexRouting = new IndexRoutingTableInput(indexShardRoutingTables);
 
-                IndexRoutingTableInputStreamReader reader = new IndexRoutingTableInputStreamReader(indexRoutingStream);
+                IndexRoutingTableInputStreamReader reader = new IndexRoutingTableInputStreamReader(indexRouting.write().streamInput());
                 reader.readIndexRoutingTable(metadata.index("invalid-index").getIndex());
 
             } catch (AssertionError e) {
