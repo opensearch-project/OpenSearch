@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.utils.cache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.RemovalReason;
@@ -19,6 +21,7 @@ import org.opensearch.index.store.remote.utils.cache.stats.StatsCounter;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
@@ -43,6 +46,7 @@ import java.util.function.Predicate;
  * @opensearch.internal
  */
 class LRUCache<K, V> implements RefCountedCache<K, V> {
+    private static final Logger logger = LogManager.getLogger(LRUCache.class);
     private final long capacity;
 
     private final HashMap<K, Node<K, V>> data;
@@ -192,8 +196,10 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
             usage = 0L;
             activeUsage = 0L;
             lru.clear();
-            for (Node<K, V> node : data.values()) {
-                data.remove(node.key);
+            final Iterator<Node<K, V>> iterator = data.values().iterator();
+            while (iterator.hasNext()) {
+                Node<K, V> node = iterator.next();
+                iterator.remove();
                 statsCounter.recordRemoval(node.weight);
                 listener.onRemoval(new RemovalNotification<>(node.key, node.value, RemovalReason.EXPLICIT));
             }
@@ -295,6 +301,22 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
         lock.lock();
         try {
             return statsCounter.snapshot();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // To be used only for debugging purposes
+    public void logCurrentState() {
+        lock.lock();
+        try {
+            String allFiles = "\n";
+            for (Map.Entry<K, Node<K, V>> entry : data.entrySet()) {
+                String path = entry.getKey().toString();
+                String file = path.substring(path.lastIndexOf('/'));
+                allFiles += file + " [RefCount: " + entry.getValue().refCount + " , Weight: " + entry.getValue().weight + " ]\n";
+            }
+            logger.trace("Cache entries : " + allFiles);
         } finally {
             lock.unlock();
         }

@@ -266,7 +266,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     Collection<String> segmentsToRefresh = localSegmentsPostRefresh.stream()
                         .filter(file -> !skipUpload(file))
                         .collect(Collectors.toList());
-                    Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
 
                     CountDownLatch latch = new CountDownLatch(1);
                     ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
@@ -289,9 +288,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                                 // At this point since we have uploaded new segments, segment infos and segment metadata file,
                                 // along with marking minSeqNoToKeep, upload has succeeded completely.
                                 successful.set(true);
-                                if (directory instanceof CompositeDirectory) {
-                                    ((CompositeDirectory) directory).afterSyncToRemote(segmentsToRefresh);
-                                }
                             } catch (Exception e) {
                                 // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
                                 // as part of exponential back-off retry logic. This should not affect durability of the indexed data
@@ -448,6 +444,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         logger.debug("Effective new segments files to upload {}", filteredFiles);
         ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
+        Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
 
         for (String src : filteredFiles) {
             // Initializing listener here to ensure that the stats increment operations are thread-safe
@@ -455,6 +452,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
                 statsListener.onSuccess(src);
                 batchUploadListener.onResponse(resp);
+                if (directory instanceof CompositeDirectory) {
+                    ((CompositeDirectory) directory).afterSyncToRemote(src);
+                }
             }, ex -> {
                 logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
                 if (ex instanceof CorruptIndexException) {
