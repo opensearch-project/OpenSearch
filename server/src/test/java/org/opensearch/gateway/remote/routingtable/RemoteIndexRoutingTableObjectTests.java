@@ -19,25 +19,36 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class IndexRoutingTableInputTests extends OpenSearchTestCase {
+public class RemoteIndexRoutingTableObjectTests extends OpenSearchTestCase {
 
     public void testRoutingTableInput() {
+        int numberOfShards = randomIntBetween(1, 10);
+        int numberOfReplicas = randomIntBetween(1, 10);
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(numberOfShards)
+                    .numberOfReplicas(numberOfReplicas)
+            )
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         initialRoutingTable.getIndicesRouting().values().forEach(indexShardRoutingTables -> {
             try {
-                IndexRoutingTableInput indexRouting = new IndexRoutingTableInput(indexShardRoutingTables);
+                RemoteIndexRoutingTableObject indexRouting = new RemoteIndexRoutingTableObject(indexShardRoutingTables);
+                IndexRoutingTable indexRoutingTable = RemoteIndexRoutingTableObject.read(
+                    indexRouting.write().streamInput(),
+                    metadata.index("test").getIndex()
+                );
 
-                IndexRoutingTableInputStreamReader reader = new IndexRoutingTableInputStreamReader(indexRouting.write().streamInput());
-                IndexRoutingTable indexRoutingTable = reader.readIndexRoutingTable(metadata.index("test").getIndex());
-
-                assertEquals(1, indexRoutingTable.getShards().size());
+                assertEquals(numberOfShards, indexRoutingTable.getShards().size());
                 assertEquals(indexRoutingTable.getIndex(), metadata.index("test").getIndex());
-                assertEquals(indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED).size(), 2);
+                assertEquals(
+                    indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED).size(),
+                    numberOfShards * (1 + numberOfReplicas)
+                );
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -54,11 +65,8 @@ public class IndexRoutingTableInputTests extends OpenSearchTestCase {
         AtomicInteger assertionError = new AtomicInteger();
         initialRoutingTable.getIndicesRouting().values().forEach(indexShardRoutingTables -> {
             try {
-                IndexRoutingTableInput indexRouting = new IndexRoutingTableInput(indexShardRoutingTables);
-
-                IndexRoutingTableInputStreamReader reader = new IndexRoutingTableInputStreamReader(indexRouting.write().streamInput());
-                reader.readIndexRoutingTable(metadata.index("invalid-index").getIndex());
-
+                RemoteIndexRoutingTableObject indexRouting = new RemoteIndexRoutingTableObject(indexShardRoutingTables);
+                RemoteIndexRoutingTableObject.read(indexRouting.write().streamInput(), metadata.index("invalid-index").getIndex());
             } catch (AssertionError e) {
                 assertionError.getAndIncrement();
             } catch (IOException e) {

@@ -8,44 +8,58 @@
 
 package org.opensearch.gateway.remote.routingtable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 
-public class IndexRoutingTableInputStreamReader {
+public class RemoteIndexRoutingTableObject {
 
-    private final StreamInput streamInput;
+    private final IndexRoutingTableHeader indexRoutingTableHeader;
+    private final Iterator<IndexShardRoutingTable> shardIter;
+    private final int shardCount;
 
-    private static final Logger logger = LogManager.getLogger(IndexRoutingTableInputStreamReader.class);
-
-    public IndexRoutingTableInputStreamReader(InputStream inputStream) throws IOException {
-        streamInput = new InputStreamStreamInput(inputStream);
+    public RemoteIndexRoutingTableObject(IndexRoutingTable indexRoutingTable) {
+        this.shardIter = indexRoutingTable.iterator();
+        this.indexRoutingTableHeader = new IndexRoutingTableHeader(indexRoutingTable.getIndex().getName());
+        this.shardCount = indexRoutingTable.shards().size();
     }
 
-    public IndexRoutingTable readIndexRoutingTable(Index index) throws IOException {
+    public BytesReference write() throws IOException {
+        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+        BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(bytesStreamOutput);
+        indexRoutingTableHeader.write(out);
+        out.writeVInt(shardCount);
+        while (shardIter.hasNext()) {
+            IndexShardRoutingTable next = shardIter.next();
+            IndexShardRoutingTable.Builder.writeTo(next, out);
+        }
+        out.writeLong(out.getChecksum());
+        out.flush();
+        return bytesStreamOutput.bytes();
+    }
+
+    public static IndexRoutingTable read(InputStream inputStream, Index index) throws IOException {
         try {
-            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(streamInput, "assertion")) {
+            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(new InputStreamStreamInput(inputStream), "assertion")) {
                 // Read the Table Header first and confirm the index
                 IndexRoutingTableHeader indexRoutingTableHeader = IndexRoutingTableHeader.read(in);
                 assert indexRoutingTableHeader.getIndexName().equals(index.getName());
 
                 int numberOfShardRouting = in.readVInt();
-                logger.debug("Number of Index Routing Table {}", numberOfShardRouting);
                 IndexRoutingTable.Builder indicesRoutingTable = IndexRoutingTable.builder(index);
                 for (int idx = 0; idx < numberOfShardRouting; idx++) {
                     IndexShardRoutingTable indexShardRoutingTable = IndexShardRoutingTable.Builder.readFrom(in);
-                    logger.debug("Index Shard Routing Table reading {}", indexShardRoutingTable);
                     indicesRoutingTable.addIndexShard(indexShardRoutingTable);
-
                 }
                 verifyCheckSum(in);
                 return indicesRoutingTable.build();
@@ -55,7 +69,7 @@ public class IndexRoutingTableInputStreamReader {
         }
     }
 
-    private void verifyCheckSum(BufferedChecksumStreamInput in) throws IOException {
+    public static void verifyCheckSum(BufferedChecksumStreamInput in) throws IOException {
         long expectedChecksum = in.getChecksum();
         long readChecksum = in.readLong();
         if (readChecksum != expectedChecksum) {
