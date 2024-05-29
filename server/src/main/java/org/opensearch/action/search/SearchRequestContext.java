@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.InternalApi;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
@@ -46,12 +45,12 @@ public class SearchRequestContext {
 
     private final SearchRequest searchRequest;
     private final List<TaskResourceInfo> phaseResourceUsage;
-    private final Supplier<ThreadContext> threadContextSupplier;
+    private final Supplier<String> taskResourceUsageSupplier;
 
     SearchRequestContext(
         final SearchRequestOperationsListener searchRequestOperationsListener,
         final SearchRequest searchRequest,
-        final Supplier<ThreadContext> threadContextSupplier
+        final Supplier<String> taskResourceUsageSupplier
     ) {
         this.searchRequestOperationsListener = searchRequestOperationsListener;
         this.absoluteStartNanos = System.nanoTime();
@@ -59,7 +58,7 @@ public class SearchRequestContext {
         this.shardStats = new EnumMap<>(ShardStatsFieldNames.class);
         this.searchRequest = searchRequest;
         this.phaseResourceUsage = new ArrayList<>();
-        this.threadContextSupplier = threadContextSupplier;
+        this.taskResourceUsageSupplier = taskResourceUsageSupplier;
     }
 
     SearchRequestOperationsListener getSearchRequestOperationsListener() {
@@ -131,23 +130,25 @@ public class SearchRequestContext {
         }
     }
 
+    public Supplier<String> getTaskResourceUsageSupplier() {
+        return taskResourceUsageSupplier;
+    }
+
     public SearchRequest getRequest() {
         return searchRequest;
     }
 
-    public Supplier<ThreadContext> getThreadContextSupplier() {
-        return threadContextSupplier;
-    }
-
     public void recordPhaseResourceUsage(String usage) {
         try {
-            XContentParser parser = XContentHelper.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                new BytesArray(usage),
-                MediaTypeRegistry.JSON
-            );
-            this.phaseResourceUsage.add(TaskResourceInfo.PARSER.apply(parser, null));
+            if (usage != null && !usage.isEmpty()) {
+                XContentParser parser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    new BytesArray(usage),
+                    MediaTypeRegistry.JSON
+                );
+                this.phaseResourceUsage.add(TaskResourceInfo.PARSER.apply(parser, null));
+            }
         } catch (IOException e) {
             logger.debug("fail to parse phase resource usages: ", e);
         }

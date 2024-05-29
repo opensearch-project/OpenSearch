@@ -347,6 +347,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final AtomicInteger openPitContexts = new AtomicInteger();
     private final String sessionId = UUIDs.randomBase64UUID();
     private final Executor indexSearcherExecutor;
+    private final TaskResourceTrackingService taskResourceTrackingService;
 
     public SearchService(
         ClusterService clusterService,
@@ -358,7 +359,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        Executor indexSearcherExecutor
+        Executor indexSearcherExecutor,
+        TaskResourceTrackingService taskResourceTrackingService
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -375,6 +377,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
         );
         this.indexSearcherExecutor = indexSearcherExecutor;
+        this.taskResourceTrackingService = taskResourceTrackingService;
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
         setPitKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_PIT_KEEPALIVE_SETTING.get(settings));
@@ -1150,11 +1153,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return;
             }
             Map<ResourceStats, ResourceUsageInfo.ResourceStatsInfo> startValues = threadResourceInfo.getResourceUsageInfo().getStatsInfo();
-            if (startValues.containsKey(ResourceStats.CPU) && startValues.containsKey(ResourceStats.MEMORY)) {
+            if (!(startValues.containsKey(ResourceStats.CPU) && startValues.containsKey(ResourceStats.MEMORY))) {
                 return;
             }
             // Get current resource usages
-            ResourceUsageMetric[] endValues = TaskResourceTrackingService.getResourceUsageMetricsForThread(Thread.currentThread().getId());
+            ResourceUsageMetric[] endValues = taskResourceTrackingService.getResourceUsageMetricsForThread(Thread.currentThread().getId());
             long cpu = -1, mem = -1;
             for (ResourceUsageMetric endValue : endValues) {
                 if (endValue.getStats() == ResourceStats.MEMORY) {

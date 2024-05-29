@@ -201,7 +201,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
                 request,
-                () -> threadPool.getThreadContext()
+                () -> ""
             ),
             NoopTracer.INSTANCE
         ) {

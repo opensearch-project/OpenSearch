@@ -18,7 +18,6 @@ import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -63,7 +62,7 @@ public class TaskResourceInfo implements Writeable, ToXContentObject {
     }
 
     public static final ConstructingObjectParser<TaskResourceInfo, Void> PARSER = new ConstructingObjectParser<>(
-        "task_resource_usage",
+        "task_resource_info",
         a -> new Builder().setAction((String) a[0])
             .setTaskId((Long) a[1])
             .setParentTaskId((Long) a[2])
@@ -78,10 +77,6 @@ public class TaskResourceInfo implements Writeable, ToXContentObject {
         PARSER.declareLong(constructorArg(), PARENT_TASK_ID);
         PARSER.declareString(constructorArg(), NODE_ID);
         PARSER.declareObject(constructorArg(), TaskResourceUsage.PARSER, TASK_RESOURCE_USAGE);
-    }
-
-    public static TaskResourceInfo fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

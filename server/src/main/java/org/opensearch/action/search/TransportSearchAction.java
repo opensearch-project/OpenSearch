@@ -125,6 +125,7 @@ import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.T
 import static org.opensearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.opensearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.opensearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_RESOURCE_USAGE;
 
 /**
  * Perform search action
@@ -451,10 +452,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 logger,
                 TraceableSearchRequestOperationsListener.create(tracer, requestSpan)
             );
-            SearchRequestContext searchRequestContext = new SearchRequestContext(
-                requestOperationsListeners,
-                originalSearchRequest,
-                threadPool::getThreadContext
+            SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, originalSearchRequest, () -> {
+                List<String> taskResourceUsages = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE);
+                if (taskResourceUsages != null && taskResourceUsages.size() > 0) {
+                    return taskResourceUsages.get(0);
+                }
+                return null;
+            }
+
             );
             searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 

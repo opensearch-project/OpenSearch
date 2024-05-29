@@ -48,7 +48,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.index.shard.ShardId;
@@ -78,8 +77,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-
-import static org.opensearch.tasks.TaskResourceTrackingService.TASK_RESOURCE_USAGE;
 
 /**
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
@@ -626,13 +623,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     public void setPhaseResourceUsages() {
-        ThreadContext threadContext = searchRequestContext.getThreadContextSupplier().get();
-        if (threadContext != null) {
-            List<String> taskResourceUsages = threadContext.getResponseHeaders().get(TASK_RESOURCE_USAGE);
-            if (taskResourceUsages != null && taskResourceUsages.size() > 0) {
-                searchRequestContext.recordPhaseResourceUsage(taskResourceUsages.get(0));
-            }
-        }
+        String taskResourceUsage = searchRequestContext.getTaskResourceUsageSupplier().get();
+        searchRequestContext.recordPhaseResourceUsage(taskResourceUsage);
     }
 
     private void onShardResultConsumed(Result result, SearchShardIterator shardIt) {

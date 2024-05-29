@@ -212,7 +212,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         return Collections.unmodifiableMap(resourceAwareTasks);
     }
 
-    public static ResourceUsageMetric[] getResourceUsageMetricsForThread(long threadId) {
+    public ResourceUsageMetric[] getResourceUsageMetricsForThread(long threadId) {
         ResourceUsageMetric currentMemoryUsage = new ResourceUsageMetric(
             ResourceStats.MEMORY,
             threadMXBean.getThreadAllocatedBytes(threadId)

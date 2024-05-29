@@ -54,7 +54,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.node.Node;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -92,7 +91,6 @@ public class ClusterService extends AbstractLifecycleComponent {
     private RerouteService rerouteService;
 
     private IndexingPressureService indexingPressureService;
-    private TaskResourceTrackingService taskResourceTrackingService;
 
     public ClusterService(
         Settings settings,

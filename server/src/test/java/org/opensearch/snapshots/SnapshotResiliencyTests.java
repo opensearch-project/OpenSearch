@@ -2291,6 +2291,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
+                    null,
                     null
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(

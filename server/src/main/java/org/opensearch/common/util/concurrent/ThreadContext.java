@@ -489,10 +489,7 @@ public final class ThreadContext implements Writeable {
      * @param key         the header name
      */
     public void removeResponseHeader(final String key) {
-        ThreadContextStruct threadContextStruct = threadLocal.get();
-        if (threadContextStruct.responseHeaders != null) {
-            threadContextStruct.responseHeaders.remove(key);
-        }
+        threadLocal.get().responseHeaders.remove(key);
     }
 
     /**
