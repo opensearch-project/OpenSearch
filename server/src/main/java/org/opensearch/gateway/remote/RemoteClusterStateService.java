@@ -807,7 +807,9 @@ public class RemoteClusterStateService implements Closeable {
                 uploadedCoordinationMetadata,
                 uploadedSettingsMetadata,
                 uploadedTemplatesMetadata,
-                uploadedCustomMetadataMap
+                uploadedCustomMetadataMap,
+                clusterState.routingTable().version(),
+                new ArrayList<>()
             );
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
