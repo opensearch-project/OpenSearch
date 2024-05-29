@@ -44,6 +44,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -223,7 +224,7 @@ public final class FastFilterRewriteHelper {
             assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
             this.fieldName = fieldType.name();
             this.fieldType = fieldType;
-            this.ranges = this.aggregationType.buildRanges(context);
+            this.ranges = this.aggregationType.buildRanges(context, fieldType);
             if (ranges != null) {
                 logger.debug("Ranges built for shard {}", context.indexShard().shardId());
                 rangesBuiltAtShardLevel = true;
@@ -231,7 +232,7 @@ public final class FastFilterRewriteHelper {
         }
 
         private Ranges buildRanges(LeafReaderContext leaf) throws IOException {
-            Ranges ranges = this.aggregationType.buildRanges(leaf, context);
+            Ranges ranges = this.aggregationType.buildRanges(leaf, context, fieldType);
             if (ranges != null) {
                 logger.debug("Ranges built for shard {} segment {}", context.indexShard().shardId(), leaf.ord);
             }
@@ -310,9 +311,9 @@ public final class FastFilterRewriteHelper {
     interface AggregationType {
         boolean isRewriteable(Object parent, int subAggLength);
 
-        Ranges buildRanges(SearchContext ctx) throws IOException;
+        Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) throws IOException;
 
-        Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx) throws IOException;
+        Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx, MappedFieldType fieldType) throws IOException;
 
         DebugInfo tryFastFilterAggregation(
             PointValues values,
@@ -353,14 +354,14 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public Ranges buildRanges(SearchContext context) throws IOException {
+        public Ranges buildRanges(SearchContext context, MappedFieldType fieldType) throws IOException {
             long[] bounds = getDateHistoAggBounds(context, fieldType.name());
             logger.debug("Bounds are {} for shard {}", bounds, context.indexShard().shardId());
             return buildRanges(context, bounds);
         }
 
         @Override
-        public Ranges buildRanges(LeafReaderContext leaf, SearchContext context) throws IOException {
+        public Ranges buildRanges(LeafReaderContext leaf, SearchContext context, MappedFieldType fieldType) throws IOException {
             long[] bounds = getSegmentBounds(leaf, fieldType.name());
             logger.debug("Bounds are {} for shard {} segment {}", bounds, context.indexShard().shardId(), leaf.ord);
             return buildRanges(context, bounds);
@@ -480,32 +481,98 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public Ranges buildRanges(SearchContext ctx) throws IOException {
+        public Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) throws IOException {
+            int byteLen = -1;
+            boolean scaled = false;
+            String pointType = "";
+            switch (fieldType.typeName()) {
+                case "half_float":
+                    byteLen = 2;
+                    pointType = "half_float";
+                    break;
+                case "integer":
+                case "short":
+                case "byte":
+                    byteLen = 4;
+                    pointType = "int";
+                    break;
+                case "float":
+                    byteLen = 4;
+                    pointType = "float";
+                    break;
+                case "long":
+                case "date":
+                case "date_nanos":
+                    byteLen = 8;
+                    pointType = "long";
+                    break;
+                case "double":
+                    byteLen = 8;
+                    pointType = "double";
+                    break;
+                case "unsigned_long":
+                    byteLen = 16;
+                    pointType = "big_integer";
+                    break;
+                case "scaled_float":
+                    byteLen = 8;
+                    scaled = true;
+                    pointType = "long";
+                    break;
+            }
+            if (byteLen == -1) {
+                throw new IllegalArgumentException("Field type " + fieldType.name() + " is not supported");
+            }
+
             byte[][] mins = new byte[ranges.length][];
             byte[][] maxs = new byte[ranges.length][];
             for (int i = 0; i < ranges.length; i++) {
                 double rangeMin = ranges[i].getFrom();
                 double rangeMax = ranges[i].getTo();
 
-                // byte[] min = new byte[8];
-                // byte[] max = new byte[8];
-                // LongPoint.encodeDimension((long) rangeMin, min, 0);
-                // LongPoint.encodeDimension((long) rangeMax, max, 0);
+                byte[] min = new byte[byteLen];
+                byte[] max = new byte[byteLen];
+                // TODO any heavy operation that shouldn't be in the loop?
+                switch (pointType) {
+                    case "half_float":
+                    case "int":
+                        IntPoint.encodeDimension((int) rangeMin, min, 0);
+                        IntPoint.encodeDimension((int) rangeMax, max, 0);
+                        break;
+                    case "float":
+                    case "long":
+                        if (scaled) {
+                            // use reflection to see if fieldType has a method called getScalingFactor
+                            // if it does, use that to scale the rangeMin and rangeMax
+                            // if it doesn't, use the default scaling factor of 1000
+                            double scalingFactor = 100;
+                            try {
+                                // Method scalingFactorMethod = fieldType.getClass().getMethod("getScalingFactor");
+                                scalingFactor = (double) fieldType.getClass().getMethod("getScalingFactor").invoke(fieldType);
+                            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+                                logger.debug("Failed to get scaling factor from fieldType", e);
+                                // TODO fall back to default aggregation method
+                            }
+                            rangeMin = scalingFactor * rangeMin;
+                            rangeMax = scalingFactor * rangeMax;
+                        }
+                        LongPoint.encodeDimension((long) rangeMin, min, 0);
+                        LongPoint.encodeDimension((long) rangeMax, max, 0);
+                        break;
+                    case "double":
+                    case "big_integer":
+                }
 
-                byte[] min = new byte[4];
-                byte[] max = new byte[4];
-                IntPoint.encodeDimension((int) rangeMin, min, 0);
-                IntPoint.encodeDimension((int) rangeMax, max, 0);
                 mins[i] = min;
                 maxs[i] = max;
             }
 
-            return new Ranges(mins, maxs);
+            return new Ranges(mins, maxs, byteLen);
         }
 
         @Override
-        public Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx) throws IOException {
-            return buildRanges(ctx);
+        public Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx, MappedFieldType fieldType) throws IOException {
+            return buildRanges(ctx, fieldType);
         }
 
         @Override
@@ -604,7 +671,7 @@ public final class FastFilterRewriteHelper {
             maxs[i] = max;
         }
 
-        return new Ranges(mins, maxs);
+        return new Ranges(mins, maxs, 8);
     }
 
     /**
@@ -636,20 +703,20 @@ public final class FastFilterRewriteHelper {
 
     private static final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(8);
 
-    private static int compareByteValue(byte[] value1, byte[] value2) {
-        return comparator.compare(value1, 0, value2, 0);
-    }
-
     private static class Ranges {
         byte[][] min;
         byte[][] max;
         int size;
+        int byteLen;
+        static ArrayUtil.ByteArrayComparator comparator;
 
-        Ranges(byte[][] min, byte[][] max) {
+        Ranges(byte[][] min, byte[][] max, int byteLen) {
             this.min = min;
             this.max = max;
             assert min.length == max.length;
             this.size = min.length;
+            this.byteLen = byteLen;
+            comparator = ArrayUtil.getUnsignedComparator(byteLen);
         }
 
         public int firstRangeIndex(byte[] globalMin, byte[] globalMax) {
@@ -664,6 +731,10 @@ public final class FastFilterRewriteHelper {
                 }
             }
             return i;
+        }
+
+        public static int compareByteValue(byte[] value1, byte[] value2) {
+            return comparator.compare(value1, 0, value2, 0);
         }
     }
 
@@ -720,7 +791,7 @@ public final class FastFilterRewriteHelper {
             }
 
             private void visitPoints(byte[] packedValue, CheckedRunnable<IOException> collect) throws IOException {
-                if (compareByteValue(packedValue, collector.activeRange[1]) > 0) {
+                if (Ranges.compareByteValue(packedValue, collector.activeRange[1]) > 0) {
                     // need to move to next range
                     collector.finalizePreviousRange();
                     if (collector.iterateRangeEnd(packedValue)) {
@@ -734,10 +805,10 @@ public final class FastFilterRewriteHelper {
             }
 
             private boolean pointCompare(byte[] lower, byte[] upper, byte[] packedValue) {
-                if (compareByteValue(packedValue, lower) < 0) {
+                if (Ranges.compareByteValue(packedValue, lower) < 0) {
                     return false;
                 }
-                return compareByteValue(packedValue, upper) <= 0;
+                return Ranges.compareByteValue(packedValue, upper) <= 0;
             }
 
             @Override
@@ -745,7 +816,7 @@ public final class FastFilterRewriteHelper {
                 byte[] rangeMin = collector.activeRange[0];
                 byte[] rangeMax = collector.activeRange[1];
 
-                if (compareByteValue(rangeMax, minPackedValue) < 0) {
+                if (Ranges.compareByteValue(rangeMax, minPackedValue) < 0) {
                     collector.finalizePreviousRange();
                     if (collector.iterateRangeEnd(minPackedValue)) {
                         throw new CollectionTerminatedException();
@@ -755,7 +826,7 @@ public final class FastFilterRewriteHelper {
                     rangeMax = collector.activeRange[1];
                 }
 
-                if (compareByteValue(rangeMin, minPackedValue) > 0 || compareByteValue(rangeMax, maxPackedValue) < 0) {
+                if (Ranges.compareByteValue(rangeMin, minPackedValue) > 0 || Ranges.compareByteValue(rangeMax, maxPackedValue) < 0) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 } else {
                     return PointValues.Relation.CELL_INSIDE_QUERY;
@@ -811,7 +882,7 @@ public final class FastFilterRewriteHelper {
         private boolean iterateRangeEnd(byte[] value) {
             // the new value may not be contiguous to the previous one
             // so try to find the first next range that cross the new value
-            while (compareByteValue(activeRange[1], value) < 0) {
+            while (Ranges.compareByteValue(activeRange[1], value) < 0) {
                 if (++activeIndex >= ranges.size) {
                     return true;
                 }
