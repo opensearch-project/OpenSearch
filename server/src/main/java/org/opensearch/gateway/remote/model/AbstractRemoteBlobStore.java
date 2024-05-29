@@ -28,7 +28,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMIT
  * @param <T> The entity which can be uploaded to / downloaded from blob store
  * @param <U> The concrete class implementing {@link RemoteObject} which is used as a wrapper for T entity.
  */
-public class AbstractRemoteBlobStore<T, U extends RemoteObject<T>> implements RemoteObjectStore<T, U> {
+public class AbstractRemoteBlobStore<T, U extends AbstractRemoteBlobObject<T>> implements RemoteObjectStore<T, U> {
 
     private final BlobStoreTransferService transferService;
     private final BlobStoreRepository blobStoreRepository;
@@ -48,14 +48,12 @@ public class AbstractRemoteBlobStore<T, U extends RemoteObject<T>> implements Re
     }
 
     @Override
-    public void writeAsync(RemoteObject<T> obj, ActionListener<Void> listener) {
-        assert obj instanceof AbstractRemoteBlobObject;
-        AbstractRemoteBlobObject<T> blobStoreObj = (AbstractRemoteBlobObject<T>) obj;
-        assert blobStoreObj.get() != null;
+    public void writeAsync(U obj, ActionListener<Void> listener) {
+        assert obj.get() != null;
         try {
             InputStream inputStream = obj.serialize();
-            BlobPath blobPath = getBlobPathForUpload(blobStoreObj);
-            blobStoreObj.setFullBlobName(blobPath);
+            BlobPath blobPath = getBlobPathForUpload(obj);
+            obj.setFullBlobName(blobPath);
             // TODO Add upload logic
             // transferService.uploadBlob(inputStream, getBlobPathForUpload(blobStoreObj), blobStoreObj.getBlobFileName(),
             // WritePriority.URGENT, listener);
@@ -65,15 +63,13 @@ public class AbstractRemoteBlobStore<T, U extends RemoteObject<T>> implements Re
     }
 
     @Override
-    public T read(RemoteObject<T> obj) throws IOException {
-        assert obj instanceof AbstractRemoteBlobObject;
-        AbstractRemoteBlobObject<T> blobStoreObj = (AbstractRemoteBlobObject<T>) obj;
-        assert blobStoreObj.getFullBlobName() != null;
-        return blobStoreObj.deserialize(transferService.downloadBlob(getBlobPathForDownload(blobStoreObj), blobStoreObj.getBlobFileName()));
+    public T read(U obj) throws IOException {
+        assert obj.getFullBlobName() != null;
+        return obj.deserialize(transferService.downloadBlob(getBlobPathForDownload(obj), obj.getBlobFileName()));
     }
 
     @Override
-    public void readAsync(RemoteObject<T> obj, ActionListener<T> listener) {
+    public void readAsync(U obj, ActionListener<T> listener) {
         executorService.execute(() -> {
             try {
                 listener.onResponse(read(obj));
