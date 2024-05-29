@@ -11,6 +11,7 @@ package org.opensearch.plugin.insights.core.exporter;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
+import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_QUERIES_EXPORTER_TYPE;
@@ -78,4 +79,11 @@ public class QueryInsightsExporterFactoryTests extends OpenSearchTestCase {
             fail("No exception should be thrown when closing exporter");
         }
     }
+
+    public void testUpdateExporter() {
+        LocalIndexExporter exporter = new LocalIndexExporter(client, DateTimeFormat.forPattern("yyyy-MM-dd"));
+        queryInsightsExporterFactory.updateExporter(exporter, "yyyy-MM-dd-HH");
+        assertEquals(DateTimeFormat.forPattern("yyyy-MM-dd-HH"), exporter.getIndexPattern());
+    }
+
 }

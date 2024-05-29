@@ -11,7 +11,6 @@ package org.opensearch.plugin.insights.core.exporter;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -22,14 +21,6 @@ public interface QueryInsightsExporter extends Closeable {
      * Export a list of SearchQueryRecord to the exporter sink
      *
      * @param records list of {@link SearchQueryRecord}
-     * @return True if export succeed, false otherwise
      */
-    boolean export(final List<SearchQueryRecord> records);
-
-    /**
-     * Close the exporter sink
-     *
-     * @throws IOException IOException
-     */
-    void close() throws IOException;
+    void export(final List<SearchQueryRecord> records);
 }

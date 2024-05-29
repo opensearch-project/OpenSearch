@@ -32,12 +32,10 @@ public final class DebugExporter implements QueryInsightsExporter {
      * Write the list of SearchQueryRecord to debug log
      *
      * @param records list of {@link SearchQueryRecord}
-     * @return true
      */
     @Override
-    public boolean export(final List<SearchQueryRecord> records) {
+    public void export(final List<SearchQueryRecord> records) {
         logger.debug("QUERY_INSIGHTS_RECORDS: " + records.toString());
-        return true;
     }
 
     /**

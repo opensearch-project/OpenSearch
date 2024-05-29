@@ -43,7 +43,11 @@ public class LocalIndexExporterTests extends OpenSearchTestCase {
 
     public void testExportEmptyRecords() {
         List<SearchQueryRecord> records = List.of();
-        assertTrue(localIndexExporter.export(records));
+        try {
+            localIndexExporter.export(records);
+        } catch (Exception e) {
+            fail("No exception should be thrown when exporting empty query insights data");
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -55,7 +59,11 @@ public class LocalIndexExporterTests extends OpenSearchTestCase {
         when(client.prepareBulk()).thenReturn(bulkRequestBuilder);
 
         List<SearchQueryRecord> records = QueryInsightsTestUtils.generateQueryInsightRecords(2);
-        assertTrue(localIndexExporter.export(records));
+        try {
+            localIndexExporter.export(records);
+        } catch (Exception e) {
+            fail("No exception should be thrown when exporting query insights data");
+        }
         assertEquals(2, bulkRequestBuilder.numberOfActions());
     }
 
@@ -68,6 +76,24 @@ public class LocalIndexExporterTests extends OpenSearchTestCase {
         when(client.prepareBulk()).thenReturn(bulkRequestBuilder);
 
         List<SearchQueryRecord> records = QueryInsightsTestUtils.generateQueryInsightRecords(2);
-        assertFalse(localIndexExporter.export(records));
+        try {
+            localIndexExporter.export(records);
+        } catch (Exception e) {
+            fail("No exception should be thrown when exporting query insights data");
+        }
+    }
+
+    public void testClose() {
+        try {
+            localIndexExporter.close();
+        } catch (Exception e) {
+            fail("No exception should be thrown when closing local index exporter");
+        }
+    }
+
+    public void testGetAndSetIndexPattern() {
+        DateTimeFormatter newFormatter = mock(DateTimeFormatter.class);
+        localIndexExporter.setIndexPattern(newFormatter);
+        assert (localIndexExporter.getIndexPattern() == newFormatter);
     }
 }

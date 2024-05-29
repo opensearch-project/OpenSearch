@@ -28,6 +28,10 @@ public class DebugExporterTests extends OpenSearchTestCase {
 
     public void testExport() {
         List<SearchQueryRecord> records = QueryInsightsTestUtils.generateQueryInsightRecords(2);
-        assertTrue(debugExporter.export(records));
+        try {
+            debugExporter.export(records);
+        } catch (Exception e) {
+            fail("No exception should be thrown when exporting query insights data");
+        }
     }
 }

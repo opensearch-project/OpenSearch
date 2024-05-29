@@ -11,13 +11,14 @@ package org.opensearch.plugin.insights.core.exporter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.bulk.BulkRequestBuilder;
+import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
-import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
@@ -70,29 +71,31 @@ public final class LocalIndexExporter implements QueryInsightsExporter {
      * Export a list of SearchQueryRecord to a local index
      *
      * @param records list of {@link SearchQueryRecord}
-     * @return True if export succeed, false otherwise
      */
     @Override
-    public boolean export(List<SearchQueryRecord> records) {
+    public void export(final List<SearchQueryRecord> records) {
         if (records == null || records.size() == 0) {
-            return true;
+            return;
         }
         try {
             final String index = getDateTimeFromFormat();
             final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk().setTimeout(TimeValue.timeValueMinutes(1));
-            if (records.size() > QueryInsightsSettings.MAX_EXPORT_SIZE) {
-                records = records.subList(0, QueryInsightsSettings.MAX_EXPORT_SIZE);
-            }
             for (SearchQueryRecord record : records) {
                 bulkRequestBuilder.add(
                     new IndexRequest(index).source(record.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
                 );
             }
-            bulkRequestBuilder.execute().actionGet();
-            return true;
+            bulkRequestBuilder.execute(new ActionListener<BulkResponse>() {
+                @Override
+                public void onResponse(BulkResponse bulkItemResponses) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Failed to execute bulk operation for query insights data: ", e);
+                }
+            });
         } catch (final Exception e) {
             logger.error("Unable to index query insights data: ", e);
-            return false;
         }
     }
 

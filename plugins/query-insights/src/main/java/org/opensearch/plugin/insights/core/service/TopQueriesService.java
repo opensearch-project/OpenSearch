@@ -8,6 +8,8 @@
 
 package org.opensearch.plugin.insights.core.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporter;
@@ -46,6 +48,10 @@ import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.QUER
  * @opensearch.internal
  */
 public class TopQueriesService {
+    /**
+     * Logger of the local index exporter
+     */
+    private final Logger logger = LogManager.getLogger();
     private boolean enabled;
     /**
      * The metric type to measure top n queries
@@ -217,6 +223,11 @@ public class TopQueriesService {
                     settings.get(EXPORT_INDEX, DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN)
                 );
             } else {
+                try {
+                    queryInsightsExporterFactory.closeExporter(this.exporter);
+                } catch (IOException e) {
+                    logger.error("Fail to close the current exporter when updating exporter, error: ", e);
+                }
                 this.exporter = queryInsightsExporterFactory.createExporter(
                     SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE)),
                     settings.get(EXPORT_INDEX, DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN)
@@ -224,7 +235,12 @@ public class TopQueriesService {
             }
         } else {
             // Disable exporter if exporter type is set to null
-            this.exporter = null;
+            try {
+                queryInsightsExporterFactory.closeExporter(this.exporter);
+                this.exporter = null;
+            } catch (IOException e) {
+                logger.error("Fail to close the current exporter when disabling exporter, error: ", e);
+            }
         }
     }
 

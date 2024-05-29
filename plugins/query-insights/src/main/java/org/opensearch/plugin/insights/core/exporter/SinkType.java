@@ -54,7 +54,7 @@ public enum SinkType {
     /**
      * Get Sink type from exporter
      *
-     * @param exporter
+     * @param exporter the {@link QueryInsightsExporter}
      * @return SinkType associated with this exporter
      */
     public static SinkType getSinkTypeFromExporter(QueryInsightsExporter exporter) {
