@@ -17,6 +17,9 @@ import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import java.io.IOException;
 import java.util.Iterator;
 
+/**
+ * Class for creating object for uploading IndexRoutingTable to remote store.
+ */
 public class IndexRoutingTableInput {
 
     private final IndexRoutingTableHeader indexRoutingTableHeader;

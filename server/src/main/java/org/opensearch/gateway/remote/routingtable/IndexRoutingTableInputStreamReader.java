@@ -21,6 +21,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * Reads IndexRoutingTable from S3*
+ */
 public class IndexRoutingTableInputStreamReader {
 
     private final StreamInput streamInput;

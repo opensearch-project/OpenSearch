@@ -18,6 +18,7 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
@@ -218,7 +219,7 @@ public class RemoteClusterStateService implements Closeable {
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}]";
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
-    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V2;
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V3;
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 2;
 
     // ToXContent Params with gateway mode.
@@ -289,7 +290,8 @@ public class RemoteClusterStateService implements Closeable {
             clusterState.metadata().customs(),
             true,
             true,
-            true
+            true,
+            new ArrayList<>(clusterState.getRoutingTable().indicesRouting().values())
         );
         final ClusterMetadataManifest manifest = uploadManifest(
             clusterState,
@@ -299,7 +301,8 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults.uploadedSettingsMetadata,
             uploadedMetadataResults.uploadedTemplatesMetadata,
             uploadedMetadataResults.uploadedCustomMetadataMap,
-            false
+            uploadedMetadataResults.uploadedIndicesRoutingMetadata,
+        false
         );
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         remoteStateStats.stateSucceeded();
@@ -380,6 +383,12 @@ public class RemoteClusterStateService implements Closeable {
             // index present in current cluster state
             indicesToBeDeletedFromRemote.remove(indexMetadata.getIndex().getName());
         }
+
+        List<IndexRoutingTable> indicesRoutingToUpload = new ArrayList<>();
+        if(remoteRoutingTableService.isPresent()) {
+            indicesRoutingToUpload = remoteRoutingTableService.get().getChangedIndicesRouting(previousClusterState, clusterState);
+        }
+
         UploadedMetadataResults uploadedMetadataResults;
         // For migration case from codec V0 or V1 to V2, we have added null check on metadata attribute files,
         // If file is empty and codec is 1 then write global metadata.
@@ -399,7 +408,8 @@ public class RemoteClusterStateService implements Closeable {
             firstUploadForSplitGlobalMetadata ? clusterState.metadata().customs() : customsToUpload,
             updateCoordinationMetadata,
             updateSettingsMetadata,
-            updateTemplatesMetadata
+            updateTemplatesMetadata,
+            indicesRoutingToUpload
         );
 
         // update the map if the metadata was uploaded
@@ -411,6 +421,11 @@ public class RemoteClusterStateService implements Closeable {
         customsToBeDeletedFromRemote.keySet().forEach(allUploadedCustomMap::remove);
         indicesToBeDeletedFromRemote.keySet().forEach(allUploadedIndexMetadata::remove);
 
+        List<ClusterMetadataManifest.UploadedIndexMetadata> allUploadedIndicesRouting = new ArrayList<>();
+        if(remoteRoutingTableService.isPresent()) {
+            allUploadedIndicesRouting = remoteRoutingTableService.get().getAllUploadedIndicesRouting(previousManifest, uploadedMetadataResults.uploadedIndicesRoutingMetadata, indicesToBeDeletedFromRemote.keySet());
+        }
+
         final ClusterMetadataManifest manifest = uploadManifest(
             clusterState,
             new ArrayList<>(allUploadedIndexMetadata.values()),
@@ -421,9 +436,12 @@ public class RemoteClusterStateService implements Closeable {
             firstUploadForSplitGlobalMetadata || !customsToUpload.isEmpty()
                 ? allUploadedCustomMap
                 : previousManifest.getCustomMetadataMap(),
+            allUploadedIndicesRouting,
             false
         );
         deleteStaleClusterMetadata(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), RETAINED_MANIFESTS);
+
+        logger.info("MANIFEST IN INC STATE {}", manifest);
 
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         remoteStateStats.stateSucceeded();
@@ -462,11 +480,12 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, Metadata.Custom> customToUpload,
         boolean uploadCoordinationMetadata,
         boolean uploadSettingsMetadata,
-        boolean uploadTemplateMetadata
+        boolean uploadTemplateMetadata,
+        List<IndexRoutingTable> indicesRoutingToUpload
     ) throws IOException {
         assert Objects.nonNull(indexMetadataUploadListeners) : "indexMetadataUploadListeners can not be null";
         int totalUploadTasks = indexToUpload.size() + indexMetadataUploadListeners.size() + customToUpload.size()
-            + (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0);
+            + (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0) + indicesRoutingToUpload.size();
         CountDownLatch latch = new CountDownLatch(totalUploadTasks);
         Map<String, CheckedRunnable<IOException>> uploadTasks = new HashMap<>(totalUploadTasks);
         Map<String, ClusterMetadataManifest.UploadedMetadata> results = new HashMap<>(totalUploadTasks);
@@ -533,6 +552,18 @@ public class RemoteClusterStateService implements Closeable {
             uploadTasks.put(indexMetadata.getIndex().getName(), getIndexMetadataAsyncAction(clusterState, indexMetadata, listener));
         });
 
+        indicesRoutingToUpload.forEach(indexRoutingTable -> {
+            try {
+                uploadTasks.put(
+                    indexRoutingTable.getIndex().getName() + "--indexRouting",
+                    remoteRoutingTableService.get().getIndexRoutingAsyncAction(clusterState, indexRoutingTable, listener, getCusterMetadataBasePath(clusterState.getClusterName().value(),
+                        clusterState.metadata().clusterUUID()))
+                );
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+
         // start async upload of all required metadata files
         for (CheckedRunnable<IOException> uploadTask : uploadTasks.values()) {
             uploadTask.run();
@@ -579,7 +610,10 @@ public class RemoteClusterStateService implements Closeable {
         }
         UploadedMetadataResults response = new UploadedMetadataResults();
         results.forEach((name, uploadedMetadata) -> {
-            if (name.contains(CUSTOM_METADATA)) {
+                if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class) &&
+                    uploadedMetadata.getComponent().contains(RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX)) {
+                    response.uploadedIndicesRoutingMetadata.add((UploadedIndexMetadata) uploadedMetadata);
+                } else if (name.contains(CUSTOM_METADATA)) {
                 // component name for custom metadata will look like custom--<metadata-attribute>
                 String custom = name.split(DELIMITER)[0].split(CUSTOM_DELIMITER)[1];
                 response.uploadedCustomMetadataMap.put(
@@ -598,6 +632,7 @@ public class RemoteClusterStateService implements Closeable {
                 throw new IllegalStateException("Unknown metadata component name " + name);
             }
         });
+        logger.info("response {}", response.uploadedIndicesRoutingMetadata.toString());
         return response;
     }
 
@@ -744,6 +779,7 @@ public class RemoteClusterStateService implements Closeable {
             previousManifest.getSettingsMetadata(),
             previousManifest.getTemplatesMetadata(),
             previousManifest.getCustomMetadataMap(),
+            previousManifest.getIndicesRouting(),
             true
         );
         deleteStaleClusterUUIDs(clusterState, committedManifest);
@@ -782,6 +818,7 @@ public class RemoteClusterStateService implements Closeable {
         UploadedMetadataAttribute uploadedSettingsMetadata,
         UploadedMetadataAttribute uploadedTemplatesMetadata,
         Map<String, UploadedMetadataAttribute> uploadedCustomMetadataMap,
+        List<UploadedIndexMetadata> uploadedIndicesRouting,
         boolean committed
     ) throws IOException {
         synchronized (this) {
@@ -809,7 +846,7 @@ public class RemoteClusterStateService implements Closeable {
                 uploadedTemplatesMetadata,
                 uploadedCustomMetadataMap,
                 clusterState.routingTable().version(),
-                new ArrayList<>()
+                uploadedIndicesRouting
             );
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
@@ -1743,19 +1780,22 @@ public class RemoteClusterStateService implements Closeable {
         UploadedMetadataAttribute uploadedCoordinationMetadata;
         UploadedMetadataAttribute uploadedSettingsMetadata;
         UploadedMetadataAttribute uploadedTemplatesMetadata;
+        List<UploadedIndexMetadata> uploadedIndicesRoutingMetadata;
 
         public UploadedMetadataResults(
             List<UploadedIndexMetadata> uploadedIndexMetadata,
             Map<String, UploadedMetadataAttribute> uploadedCustomMetadataMap,
             UploadedMetadataAttribute uploadedCoordinationMetadata,
             UploadedMetadataAttribute uploadedSettingsMetadata,
-            UploadedMetadataAttribute uploadedTemplatesMetadata
+            UploadedMetadataAttribute uploadedTemplatesMetadata,
+            List<UploadedIndexMetadata> uploadedIndicesRoutingMetadata
         ) {
             this.uploadedIndexMetadata = uploadedIndexMetadata;
             this.uploadedCustomMetadataMap = uploadedCustomMetadataMap;
             this.uploadedCoordinationMetadata = uploadedCoordinationMetadata;
             this.uploadedSettingsMetadata = uploadedSettingsMetadata;
             this.uploadedTemplatesMetadata = uploadedTemplatesMetadata;
+            this.uploadedIndicesRoutingMetadata = uploadedIndicesRoutingMetadata;
         }
 
         public UploadedMetadataResults() {
@@ -1764,6 +1804,7 @@ public class RemoteClusterStateService implements Closeable {
             this.uploadedCoordinationMetadata = null;
             this.uploadedSettingsMetadata = null;
             this.uploadedTemplatesMetadata = null;
+            this.uploadedIndicesRoutingMetadata = new ArrayList<>();
         }
     }
 }

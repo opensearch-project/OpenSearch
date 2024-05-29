@@ -304,7 +304,7 @@ public class RemoteFsTranslog extends Translog {
         assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
         String shardIdStr = String.valueOf(shardId.id());
-        RemoteStorePathStrategy.PathInput dataPathInput = RemoteStorePathStrategy.PathInput.builder()
+        RemoteStorePathStrategy.RemoteStorePathInput dataPathInput = RemoteStorePathStrategy.RemoteStorePathInput.builder()
             .basePath(blobStoreRepository.basePath())
             .indexUUID(indexUUID)
             .shardId(shardIdStr)
@@ -312,7 +312,7 @@ public class RemoteFsTranslog extends Translog {
             .dataType(DATA)
             .build();
         BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
-        RemoteStorePathStrategy.PathInput mdPathInput = RemoteStorePathStrategy.PathInput.builder()
+        RemoteStorePathStrategy.RemoteStorePathInput mdPathInput = RemoteStorePathStrategy.RemoteStorePathInput.builder()
             .basePath(blobStoreRepository.basePath())
             .indexUUID(indexUUID)
             .shardId(shardIdStr)
