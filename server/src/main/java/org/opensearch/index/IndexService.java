@@ -39,7 +39,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -94,7 +93,6 @@ import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.CompositeDirectory;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -617,25 +615,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (FeatureFlags.isEnabled(FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isStoreLocalityPartial()) {
-                /*
-                 Currently Composite Directory only supports local directory to be of type FSDirectory
-                 The reason is that FileCache currently has it key type as Path
-                 Composite Directory currently uses FSDirectory's getDirectory() method to fetch and use the Path for operating on FileCache
-                 TODO : Refactor FileCache to have key in form of String instead of Path. Once that is done we can remove this assertion
-                 */
                 Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);
-
-                if (localDirectory instanceof FSDirectory == false) throw new IllegalStateException(
-                    "For Composite Directory, local directory must be of type FSDirectory"
-                );
-                else if (fileCache == null) throw new IllegalStateException(
-                    "File Cache not initialized on this Node, cannot create Composite Directory without FileCache"
-                );
-                else if (remoteDirectory == null) throw new IllegalStateException(
-                    "Remote Directory must not be null for Composite Directory"
-                );
-
-                directory = new CompositeDirectory((FSDirectory) localDirectory, (RemoteSegmentStoreDirectory) remoteDirectory, fileCache);
+                directory = new CompositeDirectory(localDirectory, remoteDirectory, fileCache);
             } else {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
             }
