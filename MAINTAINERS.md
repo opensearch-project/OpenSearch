@@ -14,6 +14,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Dan Widdis               | [dbwiddis](https://github.com/dbwiddis)                 | Amazon      |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)                     | Amazon      |
 | Gaurav Bafna             | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
+| Jay Deng                 | [jed326](https://github.com/jed326)                     | Amazon      |
 | Kunal Kotwani            | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
 | Marc Handalian           | [mch2](https://github.com/mch2)                         | Amazon      |
 | Michael Froh             | [msfroh](https://github.com/msfroh)                     | Amazon      |

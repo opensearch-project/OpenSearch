@@ -53,6 +53,7 @@ import org.opensearch.common.cache.serializer.BytesReferenceSerializer;
 import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.cache.store.config.CacheConfig;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
@@ -410,7 +411,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             this.shardId = in.readOptionalWriteable(ShardId::new);
             this.readerCacheKeyId = in.readOptionalString();
             this.value = in.readBytesReference();
-            this.indexShardHashCode = in.readInt();
+            this.indexShardHashCode = in.readInt(); // We are serializing/de-serializing this as we need to store the
+            // key as part of tiered/disk cache. The key is not passed between nodes at this point.
         }
 
         @Override
@@ -450,7 +452,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             out.writeOptionalWriteable(shardId);
             out.writeOptionalString(readerCacheKeyId);
             out.writeBytesReference(value);
-            out.writeInt(indexShardHashCode);
+            out.writeInt(indexShardHashCode); // We are serializing/de-serializing this as we need to store the
+            // key as part of tiered/disk cache. The key is not passed between nodes at this point.
         }
     }
 
@@ -713,15 +716,16 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             // Contains CleanupKey objects with open shard but invalidated readerCacheKeyId.
             final Set<CleanupKey> cleanupKeysFromOutdatedReaders = new HashSet<>();
             // Contains CleanupKey objects of a closed shard.
-            final Set<Object> cleanupKeysFromClosedShards = new HashSet<>();
+            final Set<Tuple<ShardId, Integer>> cleanupKeysFromClosedShards = new HashSet<>();
 
             for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
                 CleanupKey cleanupKey = iterator.next();
                 iterator.remove();
                 if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
                     // null indicates full cleanup, as does a closed shard
-                    ShardId shardId = ((IndexShard) cleanupKey.entity.getCacheIdentity()).shardId();
-                    cleanupKeysFromClosedShards.add(shardId);
+                    IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
+                    // Add both shardId and indexShardHashCode to uniquely identify an indexShard.
+                    cleanupKeysFromClosedShards.add(new Tuple<>(indexShard.shardId(), indexShard.hashCode()));
                 } else {
                     cleanupKeysFromOutdatedReaders.add(cleanupKey);
                 }
@@ -735,14 +739,22 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
             for (Iterator<ICacheKey<Key>> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 ICacheKey<Key> key = iterator.next();
-                if (cleanupKeysFromClosedShards.contains(key.key.shardId)) {
+                Key delegatingKey = key.key;
+                if (cleanupKeysFromClosedShards.contains(new Tuple<>(delegatingKey.shardId, delegatingKey.indexShardHashCode))) {
                     // Since the shard is closed, the cache should drop stats for this shard.
                     dimensionListsToDrop.add(key.dimensions);
                     iterator.remove();
                 } else {
-                    CleanupKey cleanupKey = new CleanupKey(cacheEntityLookup.apply(key.key.shardId).orElse(null), key.key.readerCacheKeyId);
-                    if (cleanupKeysFromOutdatedReaders.contains(cleanupKey)) {
+                    CacheEntity cacheEntity = cacheEntityLookup.apply(delegatingKey.shardId).orElse(null);
+                    if (cacheEntity == null) {
+                        // If cache entity is null, it means that index or shard got deleted/closed meanwhile.
+                        // So we will delete this key.
                         iterator.remove();
+                    } else {
+                        CleanupKey cleanupKey = new CleanupKey(cacheEntity, delegatingKey.readerCacheKeyId);
+                        if (cleanupKeysFromOutdatedReaders.contains(cleanupKey)) {
+                            iterator.remove();
+                        }
                     }
                 }
             }
