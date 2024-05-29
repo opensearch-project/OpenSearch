@@ -711,6 +711,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Returns a set containing the registered metadata fields
+     */
+    public Set<String> getMetadataFields() {
+        return Collections.unmodifiableSet(mapperRegistry.getMetadataMapperParsers(indexVersionCreated).keySet());
+    }
+
+    /**
      * An analyzer wrapper that can lookup fields within the index mappings
      */
     final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {
