@@ -38,6 +38,7 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetada
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -67,6 +68,11 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
     static final String COMPOSABLE_TEMPLATE_NAME = "remote-composable-template1";
     static final Setting<String> MOCK_SETTING = Setting.simpleString("mock-setting");
     static final String[] EXCLUDED_NODES = { "ex-1", "ex-2" };
+
+    @Before
+    public void setup() {
+        asyncUploadMockFsRepo = false;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
