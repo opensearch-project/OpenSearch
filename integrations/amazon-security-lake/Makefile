@@ -20,7 +20,7 @@ $(TARGET):
 		--target=$(TARGET) \
 		--implementation cp \
 		--python-version 3.12 \
-		--only-binary=:all: --upgrade \
+		--only-binary=:all: \
 		-r requirements.aws.txt
 
 clean:

@@ -8,6 +8,9 @@ import pyarrow.parquet as pq
 from botocore.exceptions import ClientError
 import wazuh_ocsf_converter
 
+logger = logging.getLogger()
+logger.setLevel("INFO")
+
 # Initialize boto3 client outside the handler
 if os.environ.get('IS_DEV'):
     s3_client = boto3.client(
@@ -25,13 +28,13 @@ def get_events(bucket: str, key: str) -> list:
     """
     Retrieve events from S3 object.
     """
-    logging.info(f"Reading {key}.")
+    logger.info(f"Reading {key}.")
     try:
         response = s3_client.get_object(Bucket=bucket, Key=key)
         data = response['Body'].read().decode('utf-8')
         return data.splitlines()
     except ClientError as e:
-        logging.error(
+        logger.error(
             f"Failed to read S3 object {key} from bucket {bucket}: {e}")
         return []
 
@@ -48,13 +51,13 @@ def upload_to_s3(bucket: str, key: str, filename: str) -> bool:
     """
     Upload a file to S3 bucket.
     """
-    logging.info(f"Uploading data to {bucket}.")
+    logger.info(f"Uploading data to {bucket}.")
     try:
         with open(filename, 'rb') as data:
             s3_client.put_object(Bucket=bucket, Key=key, Body=data)
         return True
     except ClientError as e:
-        logging.error(
+        logger.error(
             f"Failed to upload file {filename} to bucket {bucket}: {e}")
         return False
 
@@ -120,8 +123,6 @@ def get_full_key(src_location: str, account_id: str, region: str, key: str, form
 
 
 def lambda_handler(event, context):
-    logging.basicConfig(filename='/tmp/lambda.log',
-                        encoding='utf-8', level=logging.DEBUG)
 
     # Define required environment variables
     required_variables = ['AWS_BUCKET', 'SOURCE_LOCATION', 'ACCOUNT_ID', 'REGION']
@@ -142,12 +143,14 @@ def lambda_handler(event, context):
     src_bucket = event['Records'][0]['s3']['bucket']['name']
     key = urllib.parse.unquote_plus(
         event['Records'][0]['s3']['object']['key'], encoding='utf-8')
-    logging.info(f"Lambda function invoked due to {key}.")
-    logging.info(
+    logger.info(f"Lambda function invoked due to {key}.")
+    logger.info(
         f"Source bucket name is {src_bucket}. Destination bucket is {dst_bucket}.")
 
     # Read events from source S3 bucket
     raw_events = get_events(src_bucket, key)
+    if not raw_events:
+        return
 
     # Transform events to OCSF format
     ocsf_events = wazuh_ocsf_converter.transform_events(raw_events, ocsf_class)
