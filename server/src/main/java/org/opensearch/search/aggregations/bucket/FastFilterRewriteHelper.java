@@ -10,12 +10,16 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.sandbox.document.BigIntegerPoint;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -45,6 +49,8 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -535,11 +541,17 @@ public final class FastFilterRewriteHelper {
                 // TODO any heavy operation that shouldn't be in the loop?
                 switch (pointType) {
                     case "half_float":
+                        HalfFloatPoint.encodeDimension((float) rangeMin, min, 0);
+                        HalfFloatPoint.encodeDimension((float) rangeMax - 1, max, 0);
+                        break;
                     case "int":
                         IntPoint.encodeDimension((int) rangeMin, min, 0);
-                        IntPoint.encodeDimension((int) rangeMax, max, 0);
+                        IntPoint.encodeDimension((int) rangeMax - 1, max, 0);
                         break;
                     case "float":
+                        FloatPoint.encodeDimension((float) rangeMin, min, 0);
+                        FloatPoint.encodeDimension((float) rangeMax - 1, max, 0);
+                        break;
                     case "long":
                         if (scaled) {
                             // use reflection to see if fieldType has a method called getScalingFactor
@@ -557,10 +569,16 @@ public final class FastFilterRewriteHelper {
                             rangeMax = scalingFactor * rangeMax;
                         }
                         LongPoint.encodeDimension((long) rangeMin, min, 0);
-                        LongPoint.encodeDimension((long) rangeMax, max, 0);
+                        LongPoint.encodeDimension((long) rangeMax - 1, max, 0);
                         break;
                     case "double":
+                        DoublePoint.encodeDimension(rangeMin, min, 0);
+                        DoublePoint.encodeDimension(rangeMax - 1, max, 0);
+                        break;
                     case "big_integer":
+                        BigIntegerPoint.encodeDimension(convertDoubleToBigInteger(rangeMin), min, 0);
+                        BigIntegerPoint.encodeDimension(convertDoubleToBigInteger(rangeMax - 1), max, 0);
+                        break;
                 }
 
                 mins[i] = min;
@@ -568,6 +586,24 @@ public final class FastFilterRewriteHelper {
             }
 
             return new Ranges(mins, maxs, byteLen);
+        }
+
+        public static BigInteger convertDoubleToBigInteger(double value) {
+            // we use big integer to represent unsigned long
+            BigInteger maxUnsignedLong = BigInteger.valueOf(2).pow(64).subtract(BigInteger.ONE);
+
+            if (Double.isNaN(value)) {
+                return BigInteger.ZERO;
+            } else if (Double.isInfinite(value)) {
+                if (value > 0) {
+                    return maxUnsignedLong;
+                } else {
+                    return BigInteger.ZERO;
+                }
+            } else {
+                BigDecimal bigDecimal = BigDecimal.valueOf(value);
+                return bigDecimal.toBigInteger();
+            }
         }
 
         @Override
@@ -700,8 +736,6 @@ public final class FastFilterRewriteHelper {
 
         return debugInfo;
     }
-
-    private static final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(8);
 
     private static class Ranges {
         byte[][] min;
