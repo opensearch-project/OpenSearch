@@ -272,9 +272,8 @@ public class RangeAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
 
-        this.ranges = ranges; // sorted by the from then to
+        this.ranges = ranges; // already sorted by the range.from and range.to
 
-        // if the range connect with each other, we can try apply the optimization
         fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
         fastFilterContext.setAggregationType(new FastFilterRewriteHelper.RangeAggregationType(valuesSource, ranges));
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
@@ -313,7 +312,6 @@ public class RangeAggregator extends BucketsAggregator {
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     for (int i = 0, lo = 0; i < valuesCount; ++i) {
-                        // for each value of the document
                         final double value = values.nextValue();
                         lo = collect(doc, value, bucket, lo);
                     }
