@@ -34,7 +34,6 @@ package org.opensearch.core.common.io.stream;
 
 import org.apache.lucene.store.BufferedChecksum;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.zip.CRC32;
