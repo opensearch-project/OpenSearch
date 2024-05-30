@@ -612,7 +612,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
 
             Directory directory = null;
-            if (FeatureFlags.isEnabled(FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING) &&
+            if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isStoreLocalityPartial()) {
                 Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);

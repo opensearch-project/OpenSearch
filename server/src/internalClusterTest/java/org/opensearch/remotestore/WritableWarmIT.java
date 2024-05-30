@@ -59,7 +59,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.WRITEABLE_REMOTE_INDEX, true);
+        featureSettings.put(FeatureFlags.TIERED_REMOTE_INDEX, true);
 
         return featureSettings.build();
     }

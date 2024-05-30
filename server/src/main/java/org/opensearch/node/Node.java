@@ -2005,7 +2005,7 @@ public class Node implements Closeable {
      * Else it configures the size to 80% of available capacity for a dedicated search node, if not explicitly defined.
      */
     private void initializeFileCache(Settings settings, CircuitBreaker circuitBreaker) throws IOException {
-        boolean isWritableRemoteIndexEnabled = FeatureFlags.isEnabled(FeatureFlags.WRITEABLE_REMOTE_INDEX_SETTING);
+        boolean isWritableRemoteIndexEnabled = FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING);
         if (DiscoveryNode.isSearchNode(settings) || isWritableRemoteIndexEnabled) {
             NodeEnvironment.NodePath fileCacheNodePath = nodeEnvironment.fileCacheNodePath();
             long capacity = NODE_SEARCH_CACHE_SIZE_SETTING.get(settings).getBytes();
