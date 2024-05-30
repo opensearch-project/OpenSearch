@@ -13,15 +13,15 @@ import org.opensearch.tasks.Task;
 
 @ExperimentalApi
 public abstract class SandboxResourceType {
-  public abstract long getResourceUsage(Task task);
+    public abstract long getResourceUsage(Task task);
 
-  public static SandboxResourceType fromString(String type) {
-    if (type.equalsIgnoreCase("JVM")) {
-      return new JvmMemoryResourceType();
-    } else if (type.equalsIgnoreCase("CPU")) {
-      return new CpuTimeResourceType();
-    } else {
-      throw new IllegalArgumentException("Unsupported resource type: " + type);
+    public static SandboxResourceType fromString(String type) {
+        if (type.equalsIgnoreCase("JVM")) {
+            return new JvmMemoryResourceType();
+        } else if (type.equalsIgnoreCase("CPU")) {
+            return new CpuTimeResourceType();
+        } else {
+            throw new IllegalArgumentException("Unsupported resource type: " + type);
+        }
     }
-  }
 }

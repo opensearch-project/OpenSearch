@@ -127,12 +127,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(false);
     }
 
-  public Map<String, Sandbox> sandboxes() {
-    // stub
-    return Collections.emptyMap();
-  }
+    public Map<String, Sandbox> sandboxes() {
+        // stub
+        return Collections.emptyMap();
+    }
 
-  /**
+    /**
      * Context of the XContent.
      *
      * @opensearch.api

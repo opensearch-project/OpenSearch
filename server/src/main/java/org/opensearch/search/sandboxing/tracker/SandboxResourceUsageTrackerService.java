@@ -10,8 +10,8 @@ package org.opensearch.search.sandboxing.tracker;
 
 import org.opensearch.common.inject.Inject;
 import org.opensearch.search.sandboxing.SandboxLevelResourceUsageView;
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
 import org.opensearch.search.sandboxing.SandboxTask;
+import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 /**
  * This class tracks requests per Sandbox
  */
-//@ExperimentalApi
+// @ExperimentalApi
 public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, TaskManager.TaskEventListeners {
 
     public static final List<SandboxResourceType> TRACKED_RESOURCES = List.of(SandboxResourceType.fromString("JVM"));
@@ -59,12 +59,12 @@ public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, 
         Map<String, List<Task>> tasksBySandbox = getTasksGroupedBySandbox();
         Map<String, Map<SandboxResourceType, Long>> sandboxResourceUsage = getResourceUsageOfSandboxes(tasksBySandbox);
 
-        for(String sandboxId : tasksBySandbox.keySet()) {
+        for (String sandboxId : tasksBySandbox.keySet()) {
             SandboxLevelResourceUsageView sandboxLevelResourceUsageView = new SandboxLevelResourceUsageView(
                 sandboxId,
                 sandboxResourceUsage.get(sandboxId),
                 tasksBySandbox.get(sandboxId)
-                );
+            );
             sandboxViews.put(sandboxId, sandboxLevelResourceUsageView);
         }
         return sandboxViews;
@@ -81,10 +81,7 @@ public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, 
             .stream()
             .filter(SandboxTask.class::isInstance)
             .map(SandboxTask.class::cast)
-            .collect(Collectors.groupingBy(
-                SandboxTask::getSandboxId,
-                Collectors.mapping(task -> (Task) task, Collectors.toList())
-            ));
+            .collect(Collectors.groupingBy(SandboxTask::getSandboxId, Collectors.mapping(task -> (Task) task, Collectors.toList())));
     }
 
     /**
@@ -122,6 +119,5 @@ public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, 
      * @param task The completed task
      */
     @Override
-    public void onTaskCompleted(Task task) {
-    }
+    public void onTaskCompleted(Task task) {}
 }
