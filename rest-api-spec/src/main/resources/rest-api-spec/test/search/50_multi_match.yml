@@ -1,4 +1,7 @@
 "Cross fields do not return negative scores":
+  - skip:
+      version: " - 2.99.99"
+      reason: "This fix is in 2.15. Until we do the BWC dance, we need to skip all pre-3.0, though."
   - do:
       index:
         index: test
