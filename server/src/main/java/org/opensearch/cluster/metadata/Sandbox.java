@@ -14,10 +14,10 @@ import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
 import java.util.Collections;
 import java.util.List;
 
-/*
-Stub class only, this will be added in Kaushal's PR
-This class wil be deleted after that.
-* */
+/**
+ * Stub class only, this will be added in Kaushal's PR
+ * This class wil be deleted after that.
+ */
 @ExperimentalApi
 public class Sandbox {
     // TODO Kaushal should have implemented hashcode and equals
@@ -43,12 +43,15 @@ public class Sandbox {
         return Collections.emptyList();
     }
 
-    /*
-    Stub class only, this will be added in Kaushal's PR
-    This class wil be deleted after that.
-    * */
+    /**
+     * Stub class only, this will be added in Kaushal's PR
+     * This class wil be deleted after that.
+     */
     @ExperimentalApi
     public class ResourceLimit {
+        /*
+        Stub class only
+        */
         public Long getThresholdInLong() {
             return 0L;
         }
@@ -62,10 +65,10 @@ public class Sandbox {
         }
     }
 
-    /*
-    Stub class only, this will be added in Kaushal's PR
-    This class wil be deleted after that.
-    */
+    /**
+     * Stub class only, this will be added in Kaushal's PR
+     * This class wil be deleted after that.
+     */
     @ExperimentalApi
     public enum SandboxMode {
         SOFT("soft"),
@@ -94,6 +97,5 @@ public class Sandbox {
                     throw new IllegalArgumentException("Invalid value for SandboxMode: " + s);
             }
         }
-
     }
 }
