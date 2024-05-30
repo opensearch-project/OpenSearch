@@ -10,7 +10,16 @@ package org.opensearch.search.sandboxing.resourcetype;
 
 import org.opensearch.tasks.Task;
 
+/**
+ * Represents the CPU time resource type.
+ */
 public class CpuTimeResourceType extends SandboxResourceType {
+    /**
+     * Returns the CPU time usage of the provided task.
+     *
+     * @param task The task whose CPU time usage is to be returned
+     * @return The CPU time usage of the task
+     */
     @Override
     public long getResourceUsage(Task task) {
         return task.getTotalResourceStats().getCpuTimeInNanos();
