@@ -34,6 +34,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.regex.Regex;
@@ -52,6 +53,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -62,7 +64,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static org.opensearch.index.mapper.KeywordFieldMapper.normalizeValue;
 
@@ -500,17 +501,76 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
-            // TODO -- Extracting mandatory characters from a regex is not trivial, since entire blocks may be optional.
-            // It is functionally correct to approximate with MatchAllDocs, but performance won't be good.
-            return new WildcardMatchingQuery(
-                name(),
-                new MatchAllDocsQuery(),
-                Pattern.compile(value).asMatchPredicate(),
-                "/" + value + "/",
-                context,
-                this
-            );
+            RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
+            Automaton automaton = regExp.toAutomaton(maxDeterminizedStates);
+            CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
 
+            return new WildcardMatchingQuery(name(), regexpToQuery(name(), regExp), s -> {
+                BytesRef valueBytes = BytesRefs.toBytesRef(s);
+                return compiledAutomaton.runAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length);
+            }, "/" + value + "/", context, this);
+        }
+
+        /**
+         * Implement the match rules described in <a href="https://swtch.com/~rsc/regexp/regexp4.html">Regular Expression Matching with a Trigram Index</a>.
+         *
+         * @param fieldName name of the wildcard field
+         * @param regExp a parsed node in the {@link RegExp} tree
+         * @return a query that matches on the known required parts of the given regular expression
+         */
+        private static Query regexpToQuery(String fieldName, RegExp regExp) {
+            Query query;
+            if (Objects.requireNonNull(regExp.kind) == RegExp.Kind.REGEXP_UNION) {
+                List<Query> clauses = new ArrayList<>();
+                while (regExp.exp1.kind == RegExp.Kind.REGEXP_UNION) {
+                    clauses.add(regexpToQuery(fieldName, regExp.exp2));
+                    regExp = regExp.exp1;
+                }
+                clauses.add(regexpToQuery(fieldName, regExp.exp2));
+                clauses.add(regexpToQuery(fieldName, regExp.exp1));
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                for (int i = clauses.size() - 1; i >= 0; i--) {
+                    Query clause = clauses.get(i);
+                    if (clause instanceof MatchAllDocsQuery) {
+                        return clause;
+                    }
+                    builder.add(clause, BooleanClause.Occur.SHOULD);
+                }
+                query = builder.build();
+            } else if (regExp.kind == RegExp.Kind.REGEXP_STRING) {
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                for (String string : getRequiredNGrams("*" + regExp.s + "*")) {
+                    builder.add(new TermQuery(new Term(fieldName, string)), BooleanClause.Occur.FILTER);
+                }
+                query = builder.build();
+            } else if (regExp.kind == RegExp.Kind.REGEXP_CONCATENATION) {
+                List<Query> clauses = new ArrayList<>();
+                while (regExp.exp1.kind == RegExp.Kind.REGEXP_CONCATENATION) {
+                    clauses.add(regexpToQuery(fieldName, regExp.exp2));
+                    regExp = regExp.exp1;
+                }
+                clauses.add(regexpToQuery(fieldName, regExp.exp2));
+                clauses.add(regexpToQuery(fieldName, regExp.exp1));
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                for (int i = clauses.size() - 1; i >= 0; i--) {
+                    Query clause = clauses.get(i);
+                    if (!(clause instanceof MatchAllDocsQuery)) {
+                        builder.add(clause, BooleanClause.Occur.FILTER);
+                    }
+                }
+                query = builder.build();
+            } else if (regExp.kind == RegExp.Kind.REGEXP_REPEAT_MIN || regExp.kind == RegExp.Kind.REGEXP_REPEAT_MINMAX) {
+                return regexpToQuery(fieldName, regExp.exp1);
+            } else {
+                return new MatchAllDocsQuery();
+            }
+            if (query instanceof BooleanQuery) {
+                BooleanQuery booleanQuery = (BooleanQuery) query;
+                if (booleanQuery.clauses().size() == 1) {
+                    return booleanQuery.iterator().next().getQuery();
+                }
+            }
+            return query;
         }
 
         @Override
@@ -710,6 +770,11 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     return true;
                 }
             };
+        }
+
+        // Visible for testing
+        Predicate<String> getSecondPhaseMatcher() {
+            return secondPhaseMatcher;
         }
     }
 

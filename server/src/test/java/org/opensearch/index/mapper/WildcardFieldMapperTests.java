@@ -17,7 +17,7 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
-public class WildcardFieldMapperTest extends MapperTestCase {
+public class WildcardFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
@@ -49,8 +49,8 @@ public class WildcardFieldMapperTest extends MapperTestCase {
         }
         assertEquals(
             List.of(
-                WildcardFieldTypeTest.prefixAnchored("p"),
-                WildcardFieldTypeTest.prefixAnchored("pi"),
+                WildcardFieldTypeTests.prefixAnchored("p"),
+                WildcardFieldTypeTests.prefixAnchored("pi"),
                 "p",
                 "pi",
                 "pic",
@@ -65,9 +65,9 @@ public class WildcardFieldMapperTest extends MapperTestCase {
                 "kle",
                 "l",
                 "le",
-                WildcardFieldTypeTest.suffixAnchored("le"),
+                WildcardFieldTypeTests.suffixAnchored("le"),
                 "e",
-                WildcardFieldTypeTest.suffixAnchored("e")
+                WildcardFieldTypeTests.suffixAnchored("e")
             ),
             terms
         );
