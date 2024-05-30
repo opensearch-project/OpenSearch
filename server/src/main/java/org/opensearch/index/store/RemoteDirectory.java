@@ -202,13 +202,7 @@ public class RemoteDirectory extends Directory {
         InputStream inputStream = null;
         try {
             if (context instanceof BlockIOContext) {
-                long position = ((BlockIOContext) context).getBlockStart();
-                long length = ((BlockIOContext) context).getBlockSize();
-                inputStream = blobContainer.readBlob(name, position, length);
-                // TODO - Explore how we can buffer small chunks of data instead of having the whole 8MB block in memory
-                byte[] bytes = downloadRateLimiter.apply(inputStream).readAllBytes();
-                inputStream.close();
-                return new ByteArrayIndexInput(name, bytes);
+                return getBlockInput(name, fileLength, (BlockIOContext) context);
             } else {
                 inputStream = blobContainer.readBlob(name);
                 return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
@@ -431,5 +425,19 @@ public class RemoteDirectory extends Directory {
                 );
             }
         }
+    }
+
+    private IndexInput getBlockInput(String name, long fileLength, BlockIOContext blockIOContext) throws IOException {
+        long position = blockIOContext.getBlockStart();
+        long length = blockIOContext.getBlockSize();
+        if (position < 0 || length < 0 || (position + length > fileLength)) {
+            throw new IllegalArgumentException("Invalid values of block start and size");
+        }
+        byte[] bytes;
+        try (InputStream inputStream = blobContainer.readBlob(name, position, length)) {
+            // TODO - Explore how we can buffer small chunks of data instead of having the whole 8MB block in memory
+            bytes = downloadRateLimiter.apply(inputStream).readAllBytes();
+        }
+        return new ByteArrayIndexInput(name, bytes);
     }
 }
