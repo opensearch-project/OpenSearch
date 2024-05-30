@@ -28,6 +28,7 @@ import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.query.QueryBuilders;
@@ -102,7 +103,7 @@ public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
                     EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
                         .get(DISK_MAX_SIZE_IN_BYTES_KEY)
                         .getKey(),
-                    sizeInBytes
+                    new ByteSizeValue(sizeInBytes)
                 )
                 .put(
                     EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
