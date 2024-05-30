@@ -10,8 +10,10 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -177,6 +179,15 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         return ignoreAbove;
     }
 
+    private static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+        FIELD_TYPE.setTokenized(true);
+        FIELD_TYPE.setOmitNorms(true);
+        FIELD_TYPE.setStored(false);
+        FIELD_TYPE.freeze();
+    }
+
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String value;
@@ -204,7 +215,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         final BytesRef binaryValue = new BytesRef(value);
         Tokenizer tokenizer = new WildcardFieldTokenizer();
         tokenizer.setReader(new StringReader(value));
-        context.doc().add(new TextField(fieldType().name(), tokenizer));
+        context.doc().add(new Field(fieldType().name(), tokenizer, FIELD_TYPE));
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         } else {
@@ -283,13 +294,15 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 // Two zeroes usually means we're done.
                 if (length == 3 && charTermAttribute.buffer()[1] != 0) {
                     // The only case where we're not done is if the input has exactly 1 character, so the buffer
-                    // contains 0, char, 0. In that case, we return char,0, and it's our last token.
+                    // contains 0, char, 0. In that case, we return char now, then return char, 0 on the next iteration
                     charTermAttribute.buffer()[0] = charTermAttribute.buffer()[1];
                     charTermAttribute.buffer()[1] = 0;
-                    charTermAttribute.setLength(2);
-                } else {
-                    return false;
+                    charTermAttribute.setLength(1);
+                    length = 2;
+                    offset = 1;
+                    return true;
                 }
+                return false;
             }
             if (length == 3) {
                 // Read the next character, overwriting the current offset
