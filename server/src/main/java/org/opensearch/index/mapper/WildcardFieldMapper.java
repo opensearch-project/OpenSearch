@@ -529,7 +529,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
          * @return a query that matches on the known required parts of the given regular expression
          */
         private static Query regexpToQuery(String fieldName, RegExp regExp) {
-            Query query;
+            BooleanQuery query;
             if (Objects.requireNonNull(regExp.kind) == RegExp.Kind.REGEXP_UNION) {
                 List<Query> clauses = new ArrayList<>();
                 while (regExp.exp1.kind == RegExp.Kind.REGEXP_UNION) {
@@ -569,16 +569,14 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     }
                 }
                 query = builder.build();
-            } else if (regExp.kind == RegExp.Kind.REGEXP_REPEAT_MIN || regExp.kind == RegExp.Kind.REGEXP_REPEAT_MINMAX) {
-                return regexpToQuery(fieldName, regExp.exp1);
-            } else {
-                return new MatchAllDocsQuery();
-            }
-            if (query instanceof BooleanQuery) {
-                BooleanQuery booleanQuery = (BooleanQuery) query;
-                if (booleanQuery.clauses().size() == 1) {
-                    return booleanQuery.iterator().next().getQuery();
+            } else if ((regExp.kind == RegExp.Kind.REGEXP_REPEAT_MIN || regExp.kind == RegExp.Kind.REGEXP_REPEAT_MINMAX)
+                && regExp.min > 0) {
+                    return regexpToQuery(fieldName, regExp.exp1);
+                } else {
+                    return new MatchAllDocsQuery();
                 }
+            if (query.clauses().size() == 1) {
+                return query.iterator().next().getQuery();
             }
             return query;
         }
