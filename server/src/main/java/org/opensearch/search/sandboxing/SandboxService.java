@@ -14,6 +14,7 @@ import org.opensearch.cluster.metadata.Sandbox;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.sandboxing.cancellation.DefaultTaskCancellation;
 import org.opensearch.search.sandboxing.cancellation.LongestRunningTaskFirstStrategy;
 import org.opensearch.search.sandboxing.tracker.SandboxUsageTracker;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Main service which will run periodically to track and cancel resource constraint violating tasks in sandboxes
@@ -40,8 +42,8 @@ public class SandboxService extends AbstractLifecycleComponent {
      * Guice managed constructor
      *
      * @param sandboxUsageTracker
-     * @param sandboxPruner
-     * @param sandboxServiceSettings
+//     * @param sandboxPruner
+//     * @param sandboxServiceSettings
      * @param threadPool
      */
     @Inject
@@ -52,7 +54,7 @@ public class SandboxService extends AbstractLifecycleComponent {
     ) {
         this.sandboxUsageTracker = sandboxUsageTracker;
         this.sandboxServiceSettings = sandboxServiceSettings;
-        this.sandboxPruner = sandboxPruner;
+//        this.sandboxPruner = sandboxPruner;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
     }
@@ -82,12 +84,14 @@ public class SandboxService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
-            try {
-                doRun();
-            } catch (Exception e) {
-                logger.debug("Exception occurred in Query Sandbox service", e);
-            }
-        }, sandboxServiceSettings.getRunIntervalMillis(), ThreadPool.Names.GENERIC);
+                try {
+                    doRun();
+                } catch (Exception e) {
+                    logger.debug("Exception occurred in Query Sandbox service", e);
+                }
+            },
+            new TimeValue(1, TimeUnit.SECONDS), // TODO get this from SandboxServiceSettings
+            ThreadPool.Names.GENERIC);
     }
 
     @Override
@@ -98,6 +102,5 @@ public class SandboxService extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() throws IOException {
-    }
+    protected void doClose() throws IOException {}
 }
