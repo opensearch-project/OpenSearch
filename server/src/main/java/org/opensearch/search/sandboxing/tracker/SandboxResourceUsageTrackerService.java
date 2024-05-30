@@ -35,8 +35,8 @@ public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, 
     /**
      * SandboxResourceTrackerService constructor
      *
-     * @param taskManager
-     * @param taskResourceTrackingService
+     * @param taskManager Task Manager service for keeping track of currently running tasks on the nodes
+     * @param taskResourceTrackingService Service that helps track resource usage of tasks running on a node.
      */
     @Inject
     public SandboxResourceUsageTrackerService(
