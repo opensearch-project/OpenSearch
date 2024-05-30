@@ -6,4 +6,7 @@
  * compatible open source license.
  */
 
+/**
+ * Package for Sandbox Resource Types
+ */
 package org.opensearch.search.sandboxing.resourcetype;
