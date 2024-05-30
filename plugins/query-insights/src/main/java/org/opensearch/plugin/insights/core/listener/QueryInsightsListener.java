@@ -173,6 +173,14 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
 
     @Override
     public void onRequestEnd(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
+        constructSearchQueryRecord(context, searchRequestContext);
+    }
+    @Override
+    public void onRequestFailure(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
+        constructSearchQueryRecord(context, searchRequestContext);
+    }
+
+    private void constructSearchQueryRecord(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
         SearchTask searchTask = context.getTask();
         List<TaskResourceInfo> tasksResourceUsages = searchRequestContext.getPhaseResourceUsage();
         tasksResourceUsages.add(
@@ -228,4 +236,5 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             log.error(String.format(Locale.ROOT, "fail to ingest query insight data, error: %s", e));
         }
     }
+
 }
