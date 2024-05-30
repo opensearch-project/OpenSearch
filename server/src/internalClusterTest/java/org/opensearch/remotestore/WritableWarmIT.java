@@ -59,8 +59,26 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
         featureSettings.put(FeatureFlags.TIERED_REMOTE_INDEX, true);
-
         return featureSettings.build();
+    }
+
+    public void testWritableWarmFeatureFlagDisabled() {
+        Settings clusterSettings = Settings.builder().put(super.nodeSettings(0)).put(FeatureFlags.TIERED_REMOTE_INDEX, false).build();
+        internalCluster().startDataOnlyNodes(1, clusterSettings);
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
+            .build();
+
+        assertThrows(
+            "index.store.locality can be set to PARTIAL only if Feature Flag ["
+                + FeatureFlags.TIERED_REMOTE_INDEX_SETTING.getKey()
+                + "] is set to true",
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings).get()
+        );
     }
 
     public void testWritableWarmBasic() throws Exception {
