@@ -28,7 +28,6 @@ import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -41,7 +40,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 // Uncomment the below line to enable trace level logs for this test for better debugging
-@TestLogging(reason = "Getting trace logs from composite directory package", value = "org.opensearch.index.store:TRACE")
+// @TestLogging(reason = "Getting trace logs from composite directory package", value = "org.opensearch.index.store:TRACE")
 public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
     protected static final String INDEX_NAME = "test-idx-1";

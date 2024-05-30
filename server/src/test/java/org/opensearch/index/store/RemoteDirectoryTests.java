@@ -219,8 +219,11 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         assertEquals(100, indexInput.length());
         verify(blobContainer).listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC);
 
-        BlockIOContext blockIOContext = new BlockIOContext(IOContext.DEFAULT, 100, 50);
-        when(blobContainer.readBlob("segment_1", 100, 50)).thenReturn(mockInputStream);
+        BlockIOContext blockIOContextInvalidValues = new BlockIOContext(IOContext.DEFAULT, 10, 1000);
+        assertThrows(IllegalArgumentException.class, () -> remoteDirectory.openInput("segment_1", blockIOContextInvalidValues));
+
+        BlockIOContext blockIOContext = new BlockIOContext(IOContext.DEFAULT, 10, 50);
+        when(blobContainer.readBlob("segment_1", 10, 50)).thenReturn(mockInputStream);
         byte[] bytes = new byte[(int) blockIOContext.getBlockSize()];
         when(mockInputStream.readAllBytes()).thenReturn(bytes);
         indexInput = remoteDirectory.openInput("segment_1", blockIOContext);

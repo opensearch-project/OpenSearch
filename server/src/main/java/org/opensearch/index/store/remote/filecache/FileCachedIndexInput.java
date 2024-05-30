@@ -133,6 +133,20 @@ public class FileCachedIndexInput extends IndexInput implements RandomAccessInpu
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+        if (offset < 0 || length < 0 || offset + length > this.length()) {
+            throw new IllegalArgumentException(
+                "slice() "
+                    + sliceDescription
+                    + " out of bounds: offset="
+                    + offset
+                    + ",length="
+                    + length
+                    + ",fileLength="
+                    + this.length()
+                    + ": "
+                    + this
+            );
+        }
         IndexInput slicedIndexInput = luceneIndexInput.slice(sliceDescription, offset, length);
         cache.incRef(filePath);
         return new FileCachedIndexInput(cache, filePath, slicedIndexInput, true);
