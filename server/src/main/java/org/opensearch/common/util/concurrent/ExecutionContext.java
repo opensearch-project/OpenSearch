@@ -12,6 +12,9 @@ public class ExecutionContext {
     private final ThreadLocal<String> context = new ThreadLocal<>();
 
     public void set(String value) {
+        if (context.get() != null) {
+            throw new IllegalArgumentException("ExecutionContext already present");
+        }
         context.set(value);
     }
 
