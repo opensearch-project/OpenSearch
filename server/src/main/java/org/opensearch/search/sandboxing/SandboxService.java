@@ -34,9 +34,9 @@ public class SandboxService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(SandboxService.class);
 
     private final SandboxUsageTracker sandboxUsageTracker;
-//    private final SandboxPruner sandboxPruner;
+    // private final SandboxPruner sandboxPruner;
     private volatile Scheduler.Cancellable scheduledFuture;
-//    private final SandboxServiceSettings sandboxServiceSettings;
+    // private final SandboxServiceSettings sandboxServiceSettings;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
@@ -44,21 +44,21 @@ public class SandboxService extends AbstractLifecycleComponent {
      * Guice managed constructor
      *
      * @param sandboxUsageTracker
-//     * @param sandboxPruner
-//     * @param sandboxServiceSettings
+    //     * @param sandboxPruner
+    //     * @param sandboxServiceSettings
      * @param threadPool
      */
     @Inject
     public SandboxService(
         SandboxUsageTracker sandboxUsageTracker,
-//        SandboxServiceSettings sandboxServiceSettings,
-//        SandboxPruner sandboxPruner,
+        // SandboxServiceSettings sandboxServiceSettings,
+        // SandboxPruner sandboxPruner,
         ClusterService clusterService,
         ThreadPool threadPool
     ) {
         this.sandboxUsageTracker = sandboxUsageTracker;
-//        this.sandboxServiceSettings = sandboxServiceSettings;
-//        this.sandboxPruner = sandboxPruner;
+        // this.sandboxServiceSettings = sandboxServiceSettings;
+        // this.sandboxPruner = sandboxPruner;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
     }
@@ -88,14 +88,15 @@ public class SandboxService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
-                try {
-                    doRun();
-                } catch (Exception e) {
-                    logger.debug("Exception occurred in Query Sandbox service", e);
-                }
-            },
+            try {
+                doRun();
+            } catch (Exception e) {
+                logger.debug("Exception occurred in Query Sandbox service", e);
+            }
+        },
             new TimeValue(1, TimeUnit.SECONDS), // TODO get this from SandboxServiceSettings
-            ThreadPool.Names.GENERIC);
+            ThreadPool.Names.GENERIC
+        );
     }
 
     @Override
