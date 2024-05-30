@@ -15,4 +15,13 @@ public class JvmMemoryResourceType extends SandboxResourceType {
   public long getResourceUsage(Task task) {
     return task.getTotalResourceStats().getMemoryInBytes();
   }
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof JvmMemoryResourceType;
+  }
+
+  @Override
+  public int hashCode() {
+    return "JVM".hashCode();
+  }
 }
