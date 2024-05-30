@@ -43,10 +43,10 @@ public class SandboxService extends AbstractLifecycleComponent {
     /**
      * Guice managed constructor
      *
-     * @param sandboxUsageTracker
+     * @param sandboxUsageTracker tracker service
     //     * @param sandboxPruner
     //     * @param sandboxServiceSettings
-     * @param threadPool
+     * @param threadPool threadpool this will be used to schedule the service
      */
     @Inject
     public SandboxService(
