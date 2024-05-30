@@ -34,7 +34,9 @@ public class SandboxService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(SandboxService.class);
 
     private final SandboxUsageTracker sandboxUsageTracker;
+//    private final SandboxPruner sandboxPruner;
     private volatile Scheduler.Cancellable scheduledFuture;
+//    private final SandboxServiceSettings sandboxServiceSettings;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
@@ -49,11 +51,13 @@ public class SandboxService extends AbstractLifecycleComponent {
     @Inject
     public SandboxService(
         SandboxUsageTracker sandboxUsageTracker,
+//        SandboxServiceSettings sandboxServiceSettings,
+//        SandboxPruner sandboxPruner,
         ClusterService clusterService,
         ThreadPool threadPool
     ) {
         this.sandboxUsageTracker = sandboxUsageTracker;
-        this.sandboxServiceSettings = sandboxServiceSettings;
+//        this.sandboxServiceSettings = sandboxServiceSettings;
 //        this.sandboxPruner = sandboxPruner;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
