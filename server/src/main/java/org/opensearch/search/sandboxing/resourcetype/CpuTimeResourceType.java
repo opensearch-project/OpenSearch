@@ -15,4 +15,13 @@ public class CpuTimeResourceType extends SandboxResourceType {
   public long getResourceUsage(Task task) {
     return task.getTotalResourceStats().getCpuTimeInNanos();
   }
+  @Override
+  public boolean equals(Object obj) {
+    return obj instanceof CpuTimeResourceType;
+  }
+
+  @Override
+  public int hashCode() {
+    return "CPU".hashCode();
+  }
 }
