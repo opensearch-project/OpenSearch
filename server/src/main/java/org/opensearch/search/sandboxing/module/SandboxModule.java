@@ -9,8 +9,8 @@
 package org.opensearch.search.sandboxing.module;
 
 import org.opensearch.common.inject.AbstractModule;
-import org.opensearch.search.sandboxing.tracker.SandboxUsageTracker;
 import org.opensearch.search.sandboxing.tracker.SandboxResourceUsageTrackerService;
+import org.opensearch.search.sandboxing.tracker.SandboxUsageTracker;
 
 /**
  * Module class for resource usage limiting  related artifacts
@@ -25,5 +25,7 @@ public class SandboxModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(SandboxUsageTracker.class).to(SandboxResourceUsageTrackerService.class).asEagerSingleton();
+        // bind(AbstractTaskCancellation.class).to(SandboxResourceUsageTrackerService.class).asEagerSingleton();
+        // bind(SandboxPruner.class).to(SandboxResourceUsageTrackerService.class).asEagerSingleton();
     }
 }
