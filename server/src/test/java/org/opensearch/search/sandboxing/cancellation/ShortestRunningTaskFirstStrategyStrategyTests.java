@@ -18,17 +18,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ShortestRunningTaskFirstStrategyStrategyTests extends OpenSearchTestCase {
-      public void testSortingCondition() {
-            Task task1 = mock(Task.class);
-            Task task2 = mock(Task.class);
-            Task task3 = mock(Task.class);
-            when(task1.getStartTime()).thenReturn(100L);
-            when(task2.getStartTime()).thenReturn(200L);
-            when(task3.getStartTime()).thenReturn(300L);
+    public void testSortingCondition() {
+        Task task1 = mock(Task.class);
+        Task task2 = mock(Task.class);
+        Task task3 = mock(Task.class);
+        when(task1.getStartTime()).thenReturn(100L);
+        when(task2.getStartTime()).thenReturn(200L);
+        when(task3.getStartTime()).thenReturn(300L);
 
-            List<Task> tasks = Arrays.asList(task1, task3, task2);
-            tasks.sort(new ShortestRunningTaskFirstStrategy().sortingCondition());
+        List<Task> tasks = Arrays.asList(task1, task3, task2);
+        tasks.sort(new ShortestRunningTaskFirstStrategy().sortingCondition());
 
-            assertEquals(Arrays.asList(task1, task2, task3), tasks);
-      }
+        assertEquals(Arrays.asList(task1, task2, task3), tasks);
+    }
 }
