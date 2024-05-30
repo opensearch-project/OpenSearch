@@ -9,7 +9,7 @@
 package org.opensearch.search.sandboxing;
 
 /**
- * This interface can be implemented by tasks which will be tracked and monitored using {@link org.opensearch.cluster.metadata.ResourceLimitGroup}
+ * This interface can be implemented by tasks which will be tracked and monitored using {@link org.opensearch.cluster.metadata.Sandbox}
  */
 public interface SandboxTask {
     void setSandboxId(String sandboxId);
