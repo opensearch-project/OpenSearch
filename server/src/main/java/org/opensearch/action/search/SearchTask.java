@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.search.sandboxing.SandboxTask;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
 
@@ -49,10 +50,11 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class SearchTask extends CancellableTask implements SearchBackpressureTask {
+public class SearchTask extends CancellableTask implements SearchBackpressureTask, SandboxTask {
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
+    private String sandboxId;
 
     public SearchTask(
         long id,
@@ -105,5 +107,14 @@ public class SearchTask extends CancellableTask implements SearchBackpressureTas
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return true;
+    }
+
+    public void setSandboxId(String sandboxId) {
+        this.sandboxId = sandboxId;
+    }
+
+    @Override
+    public String getSandboxId() {
+        return "sandboxId";
     }
 }
