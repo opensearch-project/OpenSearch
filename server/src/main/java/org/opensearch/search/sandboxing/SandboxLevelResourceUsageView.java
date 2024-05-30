@@ -18,6 +18,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Represents the resource usage view at the sandbox level.
+ * This class holds the sandbox ID, the resource usage data, and the list of active tasks.
+ */
 @ExperimentalApi
 public class SandboxLevelResourceUsageView {
 
@@ -37,10 +41,20 @@ public class SandboxLevelResourceUsageView {
         this.activeTasks = activeTasks;
     }
 
+    /**
+     * Returns the resource usage data.
+     *
+     * @return The map of resource usage data
+     */
     public Map<SandboxResourceType, Long> getResourceUsageData() {
         return resourceUsage;
     }
 
+    /**
+     * Returns the list of active tasks.
+     *
+     * @return The list of active tasks
+     */
     public List<Task> getActiveTasks() {
         return activeTasks;
     }
