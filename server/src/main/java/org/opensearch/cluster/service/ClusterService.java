@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.service;
 
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -91,12 +92,17 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private IndexingPressureService indexingPressureService;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        ClusterManagerMetrics clusterManagerMetrics
+    ) {
         this(
             settings,
             clusterSettings,
-            new ClusterManagerService(settings, clusterSettings, threadPool),
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
+            new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics),
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics)
         );
     }
 

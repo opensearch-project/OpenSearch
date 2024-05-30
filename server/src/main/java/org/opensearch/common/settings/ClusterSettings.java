@@ -104,6 +104,7 @@ import org.opensearch.gateway.DanglingIndicesState;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
+import org.opensearch.gateway.remote.RemoteClusterStateCleanupManager;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
@@ -711,6 +712,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchRequestSlowLog.CLUSTER_SEARCH_REQUEST_SLOWLOG_LEVEL,
 
                 // Remote cluster state settings
+                RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
                 RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
@@ -737,9 +739,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_TRANSFER_TIMEOUT_SETTING,
+                RemoteStoreSettings.CLUSTER_REMOTE_SEGMENT_TRANSFER_TIMEOUT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
-                RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS
+                RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS,
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA
             )
         )
     );
