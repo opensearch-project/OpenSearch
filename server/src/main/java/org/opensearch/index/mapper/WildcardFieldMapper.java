@@ -67,6 +67,12 @@ import java.util.function.Supplier;
 
 import static org.opensearch.index.mapper.KeywordFieldMapper.normalizeValue;
 
+/**
+ * Mapper for the "wildcard" field type, which supports (relatively) efficient matching by wildcard, prefix, and regexp
+ * queries. It's not really a "full-text" field type, but rather an "unstructured string" field type.
+ *
+ * @opensearch.internal
+ */
 public class WildcardFieldMapper extends ParametrizedFieldMapper {
     private final String nullValue;
     private final int ignoreAbove;
@@ -74,6 +80,11 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     private final boolean hasDocValues;
     private final IndexAnalyzers indexAnalyzers;
 
+    /**
+     * The builder for the field mapper.
+     *
+     * @opensearch.internal
+     */
     public static final class Builder extends ParametrizedFieldMapper.Builder {
 
         // Copy relevant parameters from KeywordFieldMapper
@@ -147,14 +158,6 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "wildcard";
     public static final TypeParser PARSER = new TypeParser((n, c) -> new WildcardFieldMapper.Builder(n, c.getIndexAnalyzers()));
 
-    /**
-     * Creates a new ParametrizedFieldMapper
-     *
-     * @param simpleName
-     * @param mappedFieldType
-     * @param multiFields
-     * @param copyTo
-     */
     protected WildcardFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -202,8 +205,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         Tokenizer tokenizer = new WildcardFieldTokenizer();
         tokenizer.setReader(new StringReader(value));
         context.doc().add(new TextField(fieldType().name(), tokenizer));
-        if (hasDocValues) {
+        if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+        } else {
+            if (fieldType().hasDocValues() == false) {
+                createFieldNamesField(context);
+            }
         }
     }
 
@@ -302,6 +309,9 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Implements the various query types over wildcard fields.
+     */
     public static final class WildcardFieldType extends StringFieldType {
         private final int ignoreAbove;
         private final String nullValue;
@@ -614,6 +624,11 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    /**
+     * Custom two-phase query type for queries over the wildcard field. The expected behavior is that a first-phase
+     * query provides the best possible filter over the indexed trigrams, while the second phase matcher eliminates
+     * false positives by evaluating the true field value.
+     */
     static class WildcardMatchingQuery extends Query {
         private static final long MATCH_COST_ESTIMATE = 1000L;
         private final String fieldName;
