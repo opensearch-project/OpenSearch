@@ -565,12 +565,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchContext context = createContext(readerContext, request, task, true)
         ) {
             dfsPhase.execute(context);
-            writeTaskResourceUsage(task);
             return context.dfsResult();
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
             processFailure(readerContext, e);
             throw e;
+        } finally {
+            writeTaskResourceUsage(task);
         }
     }
 
@@ -661,7 +662,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
-                writeTaskResourceUsage(task);
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -674,6 +674,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             logger.trace("Query phase failed", e);
             processFailure(readerContext, e);
             throw e;
+        } finally {
+            writeTaskResourceUsage(task);
         }
     }
 
@@ -686,9 +688,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             executor.success();
         }
-        QueryFetchSearchResult result = new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
-        writeTaskResourceUsage(context.getTask());
-        return result;
+        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
     public void executeQueryPhase(
@@ -716,16 +716,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queryPhase.execute(searchContext);
                 executor.success();
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
-                ScrollQuerySearchResult scrollQuerySearchResult = new ScrollQuerySearchResult(
-                    searchContext.queryResult(),
-                    searchContext.shardTarget()
-                );
-                writeTaskResourceUsage(task);
-                return scrollQuerySearchResult;
+                return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
                 // we handle the failure in the failure listener below
                 throw e;
+            } finally {
+                writeTaskResourceUsage(task);
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -752,13 +749,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                 searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
-                writeTaskResourceUsage(task);
                 return searchContext.queryResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 logger.trace("Query phase failed", e);
                 // we handle the failure in the failure listener below
                 throw e;
+            } finally {
+                writeTaskResourceUsage(task);
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -802,17 +800,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queryPhase.execute(searchContext);
                 final long afterQueryTime = executor.success();
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
-                ScrollQueryFetchSearchResult scrollQueryFetchSearchResult = new ScrollQueryFetchSearchResult(
-                    fetchSearchResult,
-                    searchContext.shardTarget()
-                );
-                writeTaskResourceUsage(task);
-                return scrollQueryFetchSearchResult;
+                return new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 logger.trace("Fetch phase failed", e);
                 // we handle the failure in the failure listener below
                 throw e;
+            } finally {
+                writeTaskResourceUsage(task);
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -838,12 +833,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     executor.success();
                 }
-                writeTaskResourceUsage(task);
                 return searchContext.fetchResult();
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 // we handle the failure in the failure listener below
                 throw e;
+            } finally {
+                writeTaskResourceUsage(task);
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -1060,6 +1056,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.size(DEFAULT_SIZE);
             }
             context.setTask(task);
+
             // pre process
             queryPhase.preProcess(context);
         } catch (Exception e) {
@@ -1144,7 +1141,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void writeTaskResourceUsage(SearchShardTask task) {
         try {
-            // Get resource usages when task starts
+            // Get resource usages from when the task started
             ThreadResourceInfo threadResourceInfo = task.getActiveThreadResourceInfo(
                 Thread.currentThread().getId(),
                 ResourceStatsType.WORKER_STATS
@@ -1184,6 +1181,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 )
                 .build();
 
+            // Remove the existing TASK_RESOURCE_USAGE header since it would have come from an earlier phase in the same request.
             threadPool.getThreadContext().removeResponseHeader(TASK_RESOURCE_USAGE);
             threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
         } catch (Exception e) {

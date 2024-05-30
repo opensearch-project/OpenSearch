@@ -255,6 +255,7 @@ final class FetchSearchPhase extends SearchPhase {
                                 e
                             );
                             progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
+                            context.setPhaseResourceUsages();
                             counter.onFailure(shardIndex, shardTarget, e);
                         } finally {
                             // the search context might not be cleared on the node where the fetch was executed for example
