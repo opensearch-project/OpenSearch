@@ -93,12 +93,10 @@ public abstract class AbstractTaskCancellation {
 
     private List<TaskCancellation> getTaskCancellations(Sandbox sandbox, SandboxResourceType resourceType) {
         return taskSelectionStrategy.selectTasksForCancellation(
-                getAllTasksInSandbox(sandbox.getId()),
-                getReduceBy(sandbox, resourceType),
-                resourceType)
-            .stream()
-            .map(task -> createTaskCancellation((CancellableTask) task))
-            .collect(Collectors.toList());
+            getAllTasksInSandbox(sandbox.getId()),
+            getReduceBy(sandbox, resourceType),
+            resourceType
+        ).stream().map(task -> createTaskCancellation((CancellableTask) task)).collect(Collectors.toList());
     }
 
     private long getReduceBy(Sandbox sandbox, SandboxResourceType resourceType) {

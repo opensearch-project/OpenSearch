@@ -19,31 +19,29 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractTaskSelectionStrategy implements TaskSelectionStrategy {
 
-  public abstract Comparator<Task> sortingCondition();
+    public abstract Comparator<Task> sortingCondition();
 
-  @Override
-  public List<Task> selectTasksForCancellation(List<Task> tasks, long limit, SandboxResourceType resourceType) {
-    if (limit < 0) {
-      throw new IllegalArgumentException("reduceBy has to be greater than zero");
+    @Override
+    public List<Task> selectTasksForCancellation(List<Task> tasks, long limit, SandboxResourceType resourceType) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("reduceBy has to be greater than zero");
+        }
+        if (limit == 0) {
+            return Collections.emptyList();
+        }
+
+        List<Task> sortedTasks = tasks.stream().sorted(sortingCondition()).collect(Collectors.toList());
+
+        List<Task> selectedTasks = new ArrayList<>();
+        long accumulated = 0;
+
+        for (Task task : sortedTasks) {
+            selectedTasks.add(task);
+            accumulated += resourceType.getResourceUsage(task);
+            if (accumulated >= limit) {
+                break;
+            }
+        }
+        return selectedTasks;
     }
-    if(limit == 0) {
-      return Collections.emptyList();
-    }
-
-    List<Task> sortedTasks = tasks.stream()
-        .sorted(sortingCondition())
-        .collect(Collectors.toList());
-
-    List<Task> selectedTasks = new ArrayList<>();
-    long accumulated = 0;
-
-    for (Task task : sortedTasks) {
-      selectedTasks.add(task);
-      accumulated += resourceType.getResourceUsage(task);
-      if (accumulated >= limit) {
-        break;
-      }
-    }
-    return selectedTasks;
-  }
 }

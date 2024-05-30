@@ -24,42 +24,40 @@ import static org.opensearch.test.OpenSearchTestCase.randomLongBetween;
 
 public class SandboxCancellationStrategyTestHelpers {
 
-  public static List<Task> getListOfTasks(long totalMemory) {
-    List<Task> tasks = new ArrayList<>();
+    public static List<Task> getListOfTasks(long totalMemory) {
+        List<Task> tasks = new ArrayList<>();
 
-    while (totalMemory > 0) {
-      long id = randomLong();
-      final Task task = getRandomTask(id);
-      long initial_memory = randomLongBetween(1, 100);
+        while (totalMemory > 0) {
+            long id = randomLong();
+            final Task task = getRandomTask(id);
+            long initial_memory = randomLongBetween(1, 100);
 
-      ResourceUsageMetric[] initialTaskResourceMetrics = new ResourceUsageMetric[]{
-          new ResourceUsageMetric(ResourceStats.MEMORY, initial_memory)
-      };
-      task.startThreadResourceTracking(id, ResourceStatsType.WORKER_STATS, initialTaskResourceMetrics);
+            ResourceUsageMetric[] initialTaskResourceMetrics = new ResourceUsageMetric[] {
+                new ResourceUsageMetric(ResourceStats.MEMORY, initial_memory) };
+            task.startThreadResourceTracking(id, ResourceStatsType.WORKER_STATS, initialTaskResourceMetrics);
 
-      long memory = initial_memory + randomLongBetween(1, 10000);
+            long memory = initial_memory + randomLongBetween(1, 10000);
 
-      totalMemory -= memory - initial_memory;
+            totalMemory -= memory - initial_memory;
 
-      ResourceUsageMetric[] taskResourceMetrics = new ResourceUsageMetric[]{
-          new ResourceUsageMetric(ResourceStats.MEMORY, memory),
-      };
-      task.updateThreadResourceStats(id, ResourceStatsType.WORKER_STATS, taskResourceMetrics);
-      task.stopThreadResourceTracking(id, ResourceStatsType.WORKER_STATS);
-      tasks.add(task);
+            ResourceUsageMetric[] taskResourceMetrics = new ResourceUsageMetric[] {
+                new ResourceUsageMetric(ResourceStats.MEMORY, memory), };
+            task.updateThreadResourceStats(id, ResourceStatsType.WORKER_STATS, taskResourceMetrics);
+            task.stopThreadResourceTracking(id, ResourceStatsType.WORKER_STATS);
+            tasks.add(task);
+        }
+
+        return tasks;
     }
 
-    return tasks;
-  }
-
-  public static Task getRandomTask(long id) {
-    return new Task(
-        id,
-        "transport",
-        SearchAction.NAME,
-        "test description",
-        new TaskId(randomLong() + ":" + randomLong()),
-        Collections.emptyMap()
-    );
-  }
+    public static Task getRandomTask(long id) {
+        return new Task(
+            id,
+            "transport",
+            SearchAction.NAME,
+            "test description",
+            new TaskId(randomLong() + ":" + randomLong()),
+            Collections.emptyMap()
+        );
+    }
 }

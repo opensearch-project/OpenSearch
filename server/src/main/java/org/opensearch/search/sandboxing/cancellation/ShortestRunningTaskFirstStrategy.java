@@ -14,8 +14,8 @@ import java.util.Comparator;
 
 public class ShortestRunningTaskFirstStrategy extends AbstractTaskSelectionStrategy {
 
-  @Override
-  public Comparator<Task> sortingCondition() {
-    return Comparator.comparingLong(Task::getStartTime);
-  }
+    @Override
+    public Comparator<Task> sortingCondition() {
+        return Comparator.comparingLong(Task::getStartTime);
+    }
 }

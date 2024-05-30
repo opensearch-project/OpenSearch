@@ -11,17 +11,18 @@ package org.opensearch.search.sandboxing.resourcetype;
 import org.opensearch.tasks.Task;
 
 public class CpuTimeResourceType extends SandboxResourceType {
-  @Override
-  public long getResourceUsage(Task task) {
-    return task.getTotalResourceStats().getCpuTimeInNanos();
-  }
-  @Override
-  public boolean equals(Object obj) {
-    return obj instanceof CpuTimeResourceType;
-  }
+    @Override
+    public long getResourceUsage(Task task) {
+        return task.getTotalResourceStats().getCpuTimeInNanos();
+    }
 
-  @Override
-  public int hashCode() {
-    return "CPU".hashCode();
-  }
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof CpuTimeResourceType;
+    }
+
+    @Override
+    public int hashCode() {
+        return "CPU".hashCode();
+    }
 }
