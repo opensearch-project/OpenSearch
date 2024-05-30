@@ -1323,6 +1323,86 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
     }
 
+    public void testGlobalOperationsDoNotCauseDeadlock() throws Exception {
+        // Confirm refresh() and invalidateAll(), which both require all segment locks, don't cause deadlock if run concurrently
+        int numEntries = 250;
+        int onHeapCacheSize = randomIntBetween(10, 30);
+        int diskCacheSize = randomIntBetween(numEntries, numEntries + 100);
+        int keyValueSize = 50;
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        TieredSpilloverCache<String, String> tieredSpilloverCache = initializeTieredSpilloverCache(
+            keyValueSize,
+            diskCacheSize,
+            removalListener,
+            Settings.builder()
+                .put(
+                    OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                        .get(MAXIMUM_SIZE_IN_BYTES_KEY)
+                        .getKey(),
+                    onHeapCacheSize * keyValueSize + "b"
+                )
+                .build(),
+            0
+        );
+
+        // First try refresh() and then invalidateAll()
+        // Put some values in the cache
+        for (int i = 0; i < numEntries; i++) {
+            tieredSpilloverCache.computeIfAbsent(getICacheKey(UUID.randomUUID().toString()), getLoadAwareCacheLoader());
+        }
+        assertEquals(numEntries, tieredSpilloverCache.count());
+
+        Phaser phaser = new Phaser(3);
+        CountDownLatch countDownLatch = new CountDownLatch(2);
+        Thread refreshThread = new Thread(() -> {
+            phaser.arriveAndAwaitAdvance();
+            tieredSpilloverCache.refresh();
+            countDownLatch.countDown();
+        });
+        Thread invalidateThread = new Thread(() -> {
+            phaser.arriveAndAwaitAdvance();
+            tieredSpilloverCache.invalidateAll();
+            countDownLatch.countDown();
+        });
+
+        refreshThread.start();
+        invalidateThread.start();
+        phaser.arriveAndAwaitAdvance();
+        countDownLatch.await();
+
+        // This should terminate and we should see an empty cache
+        assertEquals(0, tieredSpilloverCache.count());
+
+        // Do it again, running invalidateAll() first and then refresh()
+        for (int i = 0; i < numEntries; i++) {
+            tieredSpilloverCache.computeIfAbsent(getICacheKey(UUID.randomUUID().toString()), getLoadAwareCacheLoader());
+        }
+        // By successfully adding values back to the cache we show the locks were correctly released by the previous cache-wide operations
+        assertEquals(numEntries, tieredSpilloverCache.count());
+
+        Phaser secondPhaser = new Phaser(3);
+        CountDownLatch secondCountDownLatch = new CountDownLatch(2);
+        refreshThread = new Thread(() -> {
+            secondPhaser.arriveAndAwaitAdvance();
+            tieredSpilloverCache.refresh();
+            secondCountDownLatch.countDown();
+        });
+        invalidateThread = new Thread(() -> {
+            secondPhaser.arriveAndAwaitAdvance();
+            tieredSpilloverCache.invalidateAll();
+            secondCountDownLatch.countDown();
+        });
+
+        invalidateThread.start();
+        refreshThread.start();
+
+        secondPhaser.arriveAndAwaitAdvance();
+        secondCountDownLatch.await();
+
+        // This should terminate and we should see an empty cache
+        assertEquals(0, tieredSpilloverCache.count());
+    }
+
     private List<String> getMockDimensions() {
         List<String> dims = new ArrayList<>();
         for (String dimensionName : dimensionNames) {
