@@ -19,6 +19,8 @@ jobs:
       - name: Setup docker (missing on MacOS)
         if: runner.os == 'macos'
         uses: douglascamata/setup-docker-macos-action@main
+        with:
+          upgrade-qemu: true
       - name: Run Gradle (assemble)
         run: |
           ./gradlew assemble --parallel --no-build-cache -PDISABLE_BUILD_CACHE
