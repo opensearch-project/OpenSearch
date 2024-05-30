@@ -40,7 +40,12 @@ public class NodeDuressTrackers {
      * @return true if node is in duress because of either system resource
      */
     public boolean isNodeInDuress() {
-        return isResourceInDuress(ResourceType.CPU) || isResourceInDuress(ResourceType.JVM);
+        for (ResourceType resourceType: ResourceType.values()) {
+            if (isResourceInDuress(resourceType)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

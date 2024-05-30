@@ -8,12 +8,6 @@
 
 package org.opensearch.search.backpressure.trackers;
 
-import org.opensearch.search.ResourceType;
-
-import java.util.function.Function;
-
-import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.isHeapTrackingSupported;
-
 /**
  * Defines the type of TaskResourceUsageTracker.
  */

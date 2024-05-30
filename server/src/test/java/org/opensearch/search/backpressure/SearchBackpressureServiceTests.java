@@ -145,7 +145,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             TaskResourceUsageTrackers.TaskResourceUsageTracker.class
         );
         TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
-        taskResourceUsageTrackers.addCpuUsageTracker(mockTaskResourceUsageTracker);
+        taskResourceUsageTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
 
         SearchBackpressureSettings settings = new SearchBackpressureSettings(
             Settings.EMPTY,
@@ -178,7 +178,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             TaskResourceUsageTrackers.TaskResourceUsageTracker.class
         );
         TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
-        taskResourceUsageTrackers.addCpuUsageTracker(mockTaskResourceUsageTracker);
+        taskResourceUsageTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
 
         SearchBackpressureSettings settings = new SearchBackpressureSettings(
             Settings.EMPTY,
@@ -223,7 +223,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             }
         );
         TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
-        taskResourceUsageTrackers.addCpuUsageTracker(mockTaskResourceUsageTracker);
+        taskResourceUsageTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
 
         // Mocking 'settings' with predictable rate limiting thresholds.
         SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 5.0);
@@ -322,7 +322,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             }
         );
         TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
-        taskResourceUsageTrackers.addCpuUsageTracker(mockTaskResourceUsageTracker);
+        taskResourceUsageTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
 
         // Mocking 'settings' with predictable rate limiting thresholds.
         SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 10.0);
@@ -422,8 +422,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         );
 
         TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
-        taskResourceUsageTrackers.addCpuUsageTracker(cpuUsageTracker);
-        taskResourceUsageTrackers.addHeapUsageTracker(heapUsageTracker);
+        taskResourceUsageTrackers.addTracker(cpuUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
+        taskResourceUsageTrackers.addTracker(heapUsageTracker, TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER);
 
         // Mocking 'settings' with predictable rate limiting thresholds.
         SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 10.0);

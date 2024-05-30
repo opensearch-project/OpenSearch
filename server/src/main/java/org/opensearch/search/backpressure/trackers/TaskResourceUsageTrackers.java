@@ -33,32 +33,19 @@ public class TaskResourceUsageTrackers {
         all = new EnumMap<>(TaskResourceUsageTrackerType.class);
     }
 
-    /**
-     * adds the cpuUsageTracker
-     * @param cpuUsageTracker
-     */
-    public void addCpuUsageTracker(final TaskResourceUsageTracker cpuUsageTracker) {
-        all.put(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, cpuUsageTracker);
-    }
 
     /**
-     * adds the heapUsageTracker
-     * @param heapUsageTracker
+     * adds the tracker for the TrackerType
+     * @param tracker
+     * @param trackerType
      */
-    public void addHeapUsageTracker(final TaskResourceUsageTracker heapUsageTracker) {
-        all.put(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER, heapUsageTracker);
+    public void addTracker(final TaskResourceUsageTracker tracker, final TaskResourceUsageTrackerType trackerType) {
+        all.put(trackerType, tracker);
     }
 
-    /**
-     * adds the elapsedTimeTracker
-     * @param elapsedTimeTracker
-     */
-    public void addElapsedTimeTracker(final TaskResourceUsageTracker elapsedTimeTracker) {
-        all.put(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER, elapsedTimeTracker);
-    }
 
     /**
-     * getter for cpuUsageTracker
+     * getter for tracker for a {@link TaskResourceUsageTrackerType}
      * @return
      */
     public Optional<TaskResourceUsageTracker> getTracker(TaskResourceUsageTrackerType type) {

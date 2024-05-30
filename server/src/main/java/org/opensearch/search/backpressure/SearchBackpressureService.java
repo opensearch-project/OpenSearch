@@ -359,21 +359,22 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         Setting<Integer> windowSizeSetting
     ) {
         TaskResourceUsageTrackers trackers = new TaskResourceUsageTrackers();
-        trackers.addCpuUsageTracker(new CpuUsageTracker(cpuThresholdSupplier));
+        trackers.addTracker(new CpuUsageTracker(cpuThresholdSupplier), TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
         if (isHeapTrackingSupported()) {
-            trackers.addHeapUsageTracker(
+            trackers.addTracker(
                 new HeapUsageTracker(
                     heapVarianceSupplier,
                     heapPercentThresholdSupplier,
                     heapMovingAverageWindowSize,
                     clusterSettings,
                     windowSizeSetting
-                )
+                ),
+                 TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER
             );
         } else {
             logger.warn("heap size couldn't be determined");
         }
-        trackers.addElapsedTimeTracker(new ElapsedTimeTracker(ElapsedTimeNanosSupplier, System::nanoTime));
+        trackers.addTracker(new ElapsedTimeTracker(ElapsedTimeNanosSupplier, System::nanoTime), TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER);
         return trackers;
     }
 
