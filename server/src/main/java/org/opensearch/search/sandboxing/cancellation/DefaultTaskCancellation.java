@@ -17,6 +17,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Represents the default task cancellation strategy.
+ * This class extends the AbstractTaskCancellation and provides a method to get the sandboxes from which tasks should be cancelled.
+ */
 public class DefaultTaskCancellation extends AbstractTaskCancellation {
     public DefaultTaskCancellation(
         TaskSelectionStrategy cancellationStrategy,
@@ -27,8 +31,7 @@ public class DefaultTaskCancellation extends AbstractTaskCancellation {
     }
 
     /**
-     * // TODO
-     * This should cover 3 scenarios
+     * // TODO create another Task cancellation implementation that does below
      *     - if node not in duress
      *         - pick sandboxes in enforced mode only
      *     - if node in duress
@@ -53,10 +56,23 @@ public class DefaultTaskCancellation extends AbstractTaskCancellation {
         return sandboxesToCancelFrom;
     }
 
+    /**
+     * Checks if the current resource usage is breaching the threshold of the provided resource limit.
+     *
+     * @param currentResourceUsage The current resource usage
+     * @param resourceLimit The resource limit to check against
+     * @return true if the current resource usage is breaching the threshold, false otherwise
+     */
     private boolean isBreachingThreshold(Map<SandboxResourceType, Long> currentResourceUsage, Sandbox.ResourceLimit resourceLimit) {
         return currentResourceUsage.get(resourceLimit.getResourceType()) > resourceLimit.getThreshold();
     }
 
+    /**
+     * Returns the resource usage of the sandbox with the provided ID.
+     *
+     * @param sandboxId The ID of the sandbox
+     * @return The resource usage of the sandbox
+     */
     private Map<SandboxResourceType, Long> getResourceUsage(String sandboxId) {
         return sandboxLevelViews.get(sandboxId).getResourceUsageData();
     }

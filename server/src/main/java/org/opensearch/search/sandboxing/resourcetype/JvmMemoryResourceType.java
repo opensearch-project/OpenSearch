@@ -10,7 +10,16 @@ package org.opensearch.search.sandboxing.resourcetype;
 
 import org.opensearch.tasks.Task;
 
+/**
+ * Represents the JVM memory resource type.
+ */
 public class JvmMemoryResourceType extends SandboxResourceType {
+    /**
+     * Returns the memory usage of the provided task.
+     *
+     * @param task The task whose memory usage is to be returned
+     * @return The memory usage of the task
+     */
     @Override
     public long getResourceUsage(Task task) {
         return task.getTotalResourceStats().getMemoryInBytes();
