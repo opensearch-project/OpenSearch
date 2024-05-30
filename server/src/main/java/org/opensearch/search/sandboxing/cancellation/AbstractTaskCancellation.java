@@ -118,6 +118,5 @@ public abstract class AbstractTaskCancellation {
 
     private void callbackOnCancel() {
         // todo Implement callback logic here
-        System.out.println("Task was cancelled.");
     }
 }
