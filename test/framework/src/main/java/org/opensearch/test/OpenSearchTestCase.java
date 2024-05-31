@@ -191,6 +191,7 @@ import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 
 /**
  * Base testcase for randomized unit testing with OpenSearch
@@ -1278,7 +1279,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static Settings.Builder remoteIndexSettings(Version version) {
         Settings.Builder builder = Settings.builder()
-            .put(FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
+            .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
         return builder;
