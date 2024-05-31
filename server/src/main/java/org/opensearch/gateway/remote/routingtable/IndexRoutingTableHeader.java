@@ -16,6 +16,7 @@ import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -23,7 +24,7 @@ import java.io.IOException;
 /**
  * The stored header information for the individual index routing table
  */
-public class IndexRoutingTableHeader {
+public class IndexRoutingTableHeader implements Writeable {
 
     public static final String INDEX_ROUTING_HEADER_CODEC = "index_routing_header_codec";
     public static final int INITIAL_VERSION = 1;
@@ -35,41 +36,42 @@ public class IndexRoutingTableHeader {
     }
 
     /**
-     * Reads the contents on the byte array into the corresponding {@link IndexRoutingTableHeader}
+     * Reads the contents on the stream into the corresponding {@link IndexRoutingTableHeader}
      *
      * @param in
-     * @return IndexRoutingTableHeader
      * @throws IOException
      */
-    public static IndexRoutingTableHeader read(StreamInput in) throws IOException {
+    public IndexRoutingTableHeader(StreamInput in) throws IOException {
         try {
             readHeaderVersion(in);
-            final String name = in.readString();
-            return new IndexRoutingTableHeader(name);
+            indexName = in.readString();
         } catch (EOFException e) {
             throw new IOException("index routing header truncated", e);
         }
     }
 
-    static int readHeaderVersion(final StreamInput in) throws IOException {
-        final int version;
+    private void readHeaderVersion(final StreamInput in) throws IOException {
         try {
-            version = CodecUtil.checkHeader(new InputStreamDataInput(in), INDEX_ROUTING_HEADER_CODEC, INITIAL_VERSION, CURRENT_VERSION);
+            CodecUtil.checkHeader(new InputStreamDataInput(in), INDEX_ROUTING_HEADER_CODEC, INITIAL_VERSION, CURRENT_VERSION);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
             throw new IOException("index routing table header corrupted", e);
         }
-        return version;
     }
 
     /**
-     * Returns the bytes reference for the {@link IndexRoutingTableHeader}
+     * Write the IndexRoutingTable to given stream.
      *
+     * @param out stream to write
      * @throws IOException
      */
-    public void write(StreamOutput out) throws IOException {
-        CodecUtil.writeHeader(new OutputStreamDataOutput(out), INDEX_ROUTING_HEADER_CODEC, CURRENT_VERSION);
-        out.writeString(indexName);
-        out.flush();
+    public void writeTo(StreamOutput out) throws IOException {
+        try {
+            CodecUtil.writeHeader(new OutputStreamDataOutput(out), INDEX_ROUTING_HEADER_CODEC, CURRENT_VERSION);
+            out.writeString(indexName);
+            out.flush();
+        } catch (IOException e) {
+            throw new IOException("Failed to write IndexRoutingTable header", e);
+        }
     }
 
     public String getIndexName() {

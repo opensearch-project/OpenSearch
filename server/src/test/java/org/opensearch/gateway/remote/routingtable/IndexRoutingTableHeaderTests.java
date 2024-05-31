@@ -19,10 +19,10 @@ public class IndexRoutingTableHeaderTests extends OpenSearchTestCase {
     public void testIndexRoutingTableHeader() throws IOException {
         IndexRoutingTableHeader header = new IndexRoutingTableHeader("dummyIndex");
         BytesStreamOutput out = new BytesStreamOutput();
-        header.write(out);
+        header.writeTo(out);
 
         BytesStreamInput in = new BytesStreamInput(out.bytes().toBytesRef().bytes);
-        IndexRoutingTableHeader headerRead = IndexRoutingTableHeader.read(in);
+        IndexRoutingTableHeader headerRead = new IndexRoutingTableHeader(in);
         assertEquals("dummyIndex", headerRead.getIndexName());
     }
 
