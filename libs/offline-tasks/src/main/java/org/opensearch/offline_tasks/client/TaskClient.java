@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.offline_tasks.task.Task;
 import org.opensearch.offline_tasks.task.TaskId;
 import org.opensearch.offline_tasks.task.TaskStatus;
+import org.opensearch.offline_tasks.task.TaskType;
 
 import java.util.List;
 
@@ -60,6 +61,14 @@ public interface TaskClient {
      * @param taskId TaskId of the task to be cancelled
      */
     void cancelTask(TaskId taskId);
+
+    /**
+     * List all tasks with a particular {@param taskStatus} of a particular {@param taskType} considering {@param listTaskStatus}
+     * @param taskStatus status of the tasks to be listed
+     * @param taskListQueryParams params to filter the tasks to be listed
+     * @return list of all the task matching the taskStatus
+     */
+    List<Task> getTasks(TaskType taskType, TaskStatus taskStatus, TaskListQueryParams taskListQueryParams);
 
     /**
      * List all tasks with a particular {@param taskStatus} considering {@param listTaskStatus}
