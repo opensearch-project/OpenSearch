@@ -44,6 +44,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -64,16 +66,16 @@ public class ExecutionContextPluginIT extends HttpSmokeTestCase {
         return plugins;
     }
 
-    public void testThatSettingHeadersWorks() throws IOException {
+    public void testThatPluginCannotOverrideExecutionContext() throws IOException {
         ensureGreen();
         try {
             Response response = getRestClient().performRequest(new Request("GET", "/_execution_context"));
-            System.out.println("Response body: " + new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8));
-//            fail("request should have failed");
+            fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(response.getHeader("Secret"), equalTo("required"));
+            String responseBody = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(responseBody, containsString("ExecutionContext already present"));
         }
     }
 }

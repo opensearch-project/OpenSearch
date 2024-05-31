@@ -9,7 +9,6 @@
 package org.opensearch.rest;
 
 import org.opensearch.plugins.ActionPlugin;
-import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.lang.reflect.InvocationHandler;
@@ -40,7 +39,7 @@ public class RestHandlerProxy implements InvocationHandler {
     public Object invoke(Object proxy, Method m, Object[] args) throws Throwable {
         Object result;
         try {
-            threadPool.getThreadContext().setExecutionContext(Proxy.getInvocationHandler(plugin).getClass().getName());
+            threadPool.getThreadContext().setExecutionContext(plugin.getClass().getName());
             result = m.invoke(restHandler, args);
             threadPool.getThreadContext().clearExecutionContext();
         } catch (InvocationTargetException e) {

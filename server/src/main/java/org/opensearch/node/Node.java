@@ -185,7 +185,6 @@ import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
 import org.opensearch.persistent.PersistentTasksService;
 import org.opensearch.plugins.ActionPlugin;
-import org.opensearch.plugins.ActionPluginProxy;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
@@ -980,10 +979,7 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
                 threadPool,
-                pluginsService.filterPlugins(ActionPlugin.class)
-                    .stream()
-                    .map(p -> ActionPluginProxy.newInstance(p, threadPool))
-                    .collect(Collectors.toList()),
+                pluginsService.filterPlugins(ActionPlugin.class),
                 client,
                 circuitBreakerService,
                 usageService,
