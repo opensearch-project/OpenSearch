@@ -155,6 +155,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
+import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -1159,7 +1160,8 @@ public class Node implements Closeable {
                 metadataIndexUpgradeService,
                 shardLimitValidator,
                 indicesService,
-                clusterInfoService::getClusterInfo
+                clusterInfoService::getClusterInfo,
+                new FileCacheSettings(settings, clusterService.getClusterSettings())::getRemoteDataRatio
             );
 
             RemoteStoreRestoreService remoteStoreRestoreService = new RemoteStoreRestoreService(
