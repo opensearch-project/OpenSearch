@@ -249,8 +249,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                         }
                     }
                 }, Property.IndexScope), // this allows similarity settings to be passed
-                Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
-
+                Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
+                Setting.groupSetting("index.composite_index.", Property.IndexScope) // this allows composite index settings to be passed
             )
         )
     );

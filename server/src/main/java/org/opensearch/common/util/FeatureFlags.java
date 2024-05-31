@@ -72,6 +72,12 @@ public class FeatureFlags {
      */
     public static final String REMOTE_PUBLICATION_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.publication.enabled";
 
+    /**
+     * Gates the functionality of composite index i.e. star tree index, which improves the performance of search
+     * aggregations.
+     */
+    public static final String COMPOSITE_INDEX = "opensearch.experimental.feature.composite_index.enabled";
+
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
         false,
@@ -94,6 +100,8 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
 
+    public static final Setting<Boolean> COMPOSITE_INDEX_SETTING = Setting.boolSetting(COMPOSITE_INDEX, false, Property.NodeScope);
+
     public static final Setting<Boolean> REMOTE_PUBLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_PUBLICATION_EXPERIMENTAL,
         false,
@@ -107,6 +115,8 @@ public class FeatureFlags {
         TELEMETRY_SETTING,
         DATETIME_FORMATTER_CACHING_SETTING,
         TIERED_REMOTE_INDEX_SETTING,
+        PLUGGABLE_CACHE_SETTING,
+        COMPOSITE_INDEX_SETTING,
         PLUGGABLE_CACHE_SETTING,
         REMOTE_PUBLICATION_EXPERIMENTAL_SETTING
     );

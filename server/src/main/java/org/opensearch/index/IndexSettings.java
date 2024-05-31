@@ -48,6 +48,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.compositeindex.CompositeIndexConfig;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.Translog;
@@ -760,6 +761,8 @@ public final class IndexSettings {
     private final LogByteSizeMergePolicyProvider logByteSizeMergePolicyProvider;
     private final IndexSortConfig indexSortConfig;
     private final IndexScopedSettings scopedSettings;
+
+    private final CompositeIndexConfig compositeIndexConfig;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
@@ -985,6 +988,7 @@ public final class IndexSettings {
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
+        this.compositeIndexConfig = new CompositeIndexConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
         setTranslogRetentionAge(scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING));
@@ -1738,6 +1742,10 @@ public final class IndexSettings {
      */
     public IndexSortConfig getIndexSortConfig() {
         return indexSortConfig;
+    }
+
+    public CompositeIndexConfig getCompositeIndexConfig() {
+        return compositeIndexConfig;
     }
 
     public IndexScopedSettings getScopedSettings() {

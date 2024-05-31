@@ -192,6 +192,7 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.indices.DefaultCompositeIndexSettings;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
@@ -2078,7 +2079,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
                     DefaultRecoverySettings.INSTANCE,
                     new CacheModule(new ArrayList<>(), settings).getCacheService(),
-                    DefaultRemoteStoreSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    DefaultCompositeIndexSettings.INSTANCE
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
