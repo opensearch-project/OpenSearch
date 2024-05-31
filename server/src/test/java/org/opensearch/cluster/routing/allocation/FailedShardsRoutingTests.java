@@ -42,19 +42,30 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.compress.DeflateCompressor;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.snapshots.InternalSnapshotsInfoService;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.test.gateway.TestGatewayAllocator;
+import org.opensearch.threadpool.TestThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -72,11 +83,15 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
+import static org.opensearch.snapshots.InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
     private final Logger logger = LogManager.getLogger(FailedShardsRoutingTests.class);
@@ -826,7 +841,6 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
 
     public void testPreferReplicaOnRemoteNodeForPrimaryPromotion() {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build());
-        AllocationService allocation = createAllocationService(Settings.builder().build());
 
         // segment replication enabled
         Settings.Builder settingsBuilder = settings(Version.CURRENT).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
@@ -848,6 +862,29 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
             .metadata(metadata)
             .routingTable(initialRoutingTable)
             .build();
+
+        BlobPath basePath = BlobPath.cleanPath().add("test");
+        RepositoriesService repositoriesService = mock(RepositoriesService.class);
+        BlobStoreRepository repository = mock(BlobStoreRepository.class);
+        BlobStore blobStore = mock(BlobStore.class);
+        when(repository.blobStore()).thenReturn(blobStore);
+        when(repositoriesService.repository(anyString())).thenReturn(repository);
+        when(repository.basePath()).thenReturn(basePath);
+        when(repository.getCompressor()).thenReturn(new DeflateCompressor());
+        when(blobStore.isBlobMetadataEnabled()).thenReturn(true);
+
+        TestThreadPool testThreadPool = new TestThreadPool(getTestName());
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(clusterService.state());
+        final InternalSnapshotsInfoService internalSnapshotsInfoService = new InternalSnapshotsInfoService(
+            Settings.builder().put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10)).build(),
+            clusterService,
+            () -> repositoriesService,
+            () -> rerouteService
+        );
+
+        TestGatewayAllocator gatewayAllocator = new TestGatewayAllocator();
+        AllocationService allocation = createAllocationService(Settings.EMPTY, gatewayAllocator, internalSnapshotsInfoService);
 
         ShardId shardId = new ShardId(metadata.index("test").getIndex(), 0);
 
@@ -954,5 +991,6 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
                 || primaryShardRouting3.currentNodeId().equals(nonRemoteNode2.getId())
         );
         assertEquals(expectedCandidateForSegRep.allocationId(), primaryShardRouting3.allocationId());
+        testThreadPool.shutdownNow();
     }
 }
