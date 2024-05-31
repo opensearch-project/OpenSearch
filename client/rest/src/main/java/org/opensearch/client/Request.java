@@ -110,7 +110,13 @@ public final class Request {
      * will change it.
      */
     public Map<String, String> getParameters() {
-        return unmodifiableMap(parameters);
+        if (options.getParameters().isEmpty()) {
+            return unmodifiableMap(parameters);
+        } else {
+            Map<String, String> combinedParameters = new HashMap<>(parameters);
+            combinedParameters.putAll(options.getParameters());
+            return unmodifiableMap(combinedParameters);
+        }
     }
 
     /**
