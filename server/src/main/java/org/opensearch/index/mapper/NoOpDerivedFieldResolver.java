@@ -11,6 +11,9 @@ package org.opensearch.index.mapper;
 import java.util.Collections;
 import java.util.Set;
 
+/**
+ * Used when the derived field feature is disabled
+ */
 public class NoOpDerivedFieldResolver implements DerivedFieldResolver {
 
     @Override

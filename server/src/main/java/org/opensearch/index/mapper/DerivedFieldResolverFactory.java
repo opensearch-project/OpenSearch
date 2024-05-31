@@ -18,6 +18,10 @@ import java.util.Map;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
+/**
+ * Used to create DerivedFieldResolver. It chooses between {@link DefaultDerivedFieldResolver} and {@link NoOpDerivedFieldResolver}
+ * depending on whether derived field is enabled.
+ */
 public class DerivedFieldResolverFactory {
 
     public static DerivedFieldResolver createResolver(
