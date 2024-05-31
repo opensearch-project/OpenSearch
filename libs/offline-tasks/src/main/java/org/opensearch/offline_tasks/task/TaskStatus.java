@@ -35,7 +35,7 @@ public enum TaskStatus {
     /**
      * TaskStatus of a finished Task
      */
-    COMPLETED,
+    SUCCESS,
 
     /**
      * TaskStatus of a Task which failed in 1 or more attempts
