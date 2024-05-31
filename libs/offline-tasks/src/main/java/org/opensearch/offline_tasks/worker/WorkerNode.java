@@ -40,6 +40,14 @@ public class WorkerNode {
         this.ip = ip;
     }
 
+    /**
+     * Creates a new worker node with the given ID, name, and IP address.
+     *
+     * @param id The unique identifier of the worker node.
+     * @param name The name of the worker node.
+     * @param ip The IP address of the worker node.
+     * @return The created worker node.
+     */
     public static WorkerNode createWorkerNode(String id, String name, String ip) {
         return new WorkerNode(id, name, ip);
     }

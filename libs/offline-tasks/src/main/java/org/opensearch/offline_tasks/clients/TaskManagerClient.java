@@ -11,8 +11,6 @@ package org.opensearch.offline_tasks.clients;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.offline_tasks.task.Task;
 import org.opensearch.offline_tasks.task.TaskId;
-import org.opensearch.offline_tasks.task.TaskStatus;
-import org.opensearch.offline_tasks.task.TaskType;
 import org.opensearch.offline_tasks.worker.WorkerNode;
 
 import java.util.List;
@@ -52,33 +50,19 @@ public interface TaskManagerClient {
      * Assign Task to a particular WorkerNode. This ensures no 2 worker Nodes work on the same task.
      * This API can be used in both pull and push models of task assignment.
      *
-     * @param taskId TaskId of the task to be claimed
+     * @param taskId TaskId of the task to be assigned
+     * @param node WorkerNode task is being assigned to
      * @return true if task is claimed successfully, false otherwise
      */
     boolean assignTask(TaskId taskId, WorkerNode node);
 
     /**
-     * List all tasks with a particular {@param taskStatus} of a particular {@param taskType} considering {@param listTaskStatus}
-     * @param taskStatus status of the tasks to be listed
-     * @param taskListQueryParams params to filter the tasks to be listed
-     * @return list of all the task matching the taskStatus
+     * List all tasks applying all the filters present in listTaskRequest
+     *
+     * @param listTaskRequest ListTaskRequest
+     * @return list of all the task matching the filters in listTaskRequest
      */
-    List<Task> getTasks(TaskType taskType, TaskStatus taskStatus, TaskListQueryParams taskListQueryParams);
-
-    /**
-     * List all tasks with a particular {@param taskStatus} considering {@param listTaskStatus}
-     * @param taskStatus status of the tasks to be listed
-     * @param taskListQueryParams params to filter the tasks to be listed
-     * @return list of all the task matching the taskStatus
-     */
-    List<Task> getTasks(TaskStatus taskStatus, TaskListQueryParams taskListQueryParams);
-
-    /**
-     * List all tasks considering {@param listTaskStatus}
-     * @param taskListQueryParams params to filter the tasks to be listed
-     * @return list of all the task matching the taskStatus
-     */
-    List<Task> getTasks(TaskListQueryParams taskListQueryParams);
+    List<Task> listTasks(ListTaskRequest listTaskRequest);
 
     /**
      * Sends task heart beat to Task Store/Queue

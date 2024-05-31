@@ -291,7 +291,7 @@ public class Task {
         }
 
         /**
-         * Update Task Assignment Time
+         * Set Task Assignment Time
          * @param claimedAt
          */
         public void claimedAt(long claimedAt) {
@@ -299,7 +299,7 @@ public class Task {
         }
 
         /**
-         * Update Task Start Time
+         * Set Task Start Time
          * @param startedAt
          */
         public void startedAt(long startedAt) {
@@ -307,19 +307,23 @@ public class Task {
         }
 
         /**
-         * Update Task Completion Time
+         * Set Task Completion Time
          * @param completedAt
          */
         public void completedAt(long completedAt) {
             this.completedAt = completedAt;
         }
 
+        /**
+         * Set Task Last Heartbeat Time for the task
+         * @param lastHeartbeatAt
+         */
         public void lastHeartbeatAt(long lastHeartbeatAt) {
             this.lastHeartbeatAt = lastHeartbeatAt;
         }
 
         /**
-         * Update Task Assigned Node
+         * Set Task Assigned Node
          * @param node
          */
         public void assignedNode(WorkerNode node) {
