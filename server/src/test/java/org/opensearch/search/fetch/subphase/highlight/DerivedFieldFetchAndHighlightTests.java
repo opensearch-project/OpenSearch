@@ -277,6 +277,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 QueryShardContext mockShardContext = createQueryShardContext(mapperService, searcher);
                 mockShardContext.lookup().source().setSegmentAndDocument(context, docId);
+
                 DerivedField derivedField3 = new DerivedField(
                     DERIVED_FIELD_3,
                     "date",
@@ -449,7 +450,7 @@ public class DerivedFieldFetchAndHighlightTests extends OpenSearchSingleNodeTest
             null,
             null,
             null,
-            null,
+            () -> true,
             null
         );
     }
