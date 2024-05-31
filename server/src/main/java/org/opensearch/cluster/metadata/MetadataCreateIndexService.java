@@ -1324,6 +1324,8 @@ public class MetadataCreateIndexService {
             // at this point. The validation will take place later in the process
             // (when all shards are copied in a single place).
             indexService.getIndexSortSupplier().get();
+            // validate composite index fields
+            indexService.getCompositeIndexConfigSupplier().get();
         }
         if (request.dataStreamName() != null) {
             MetadataCreateDataStreamService.validateTimestampFieldMapping(mapperService);

@@ -218,6 +218,7 @@ public class ClusterStateChanges {
                 when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {
                 });
                 when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
+                when(indexService.getCompositeIndexConfigSupplier()).thenReturn(() -> null);
                 // noinspection unchecked
                 return ((CheckedFunction) invocationOnMock.getArguments()[1]).apply(indexService);
             });

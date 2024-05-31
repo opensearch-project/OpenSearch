@@ -72,6 +72,8 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.query.QueryCache;
+import org.opensearch.index.compositeindex.CompositeIndexConfig;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
@@ -183,6 +185,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final CircuitBreakerService circuitBreakerService;
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
+    private final Supplier<CompositeIndexConfig> compositeIndexConfigSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
@@ -223,7 +226,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        CompositeIndexSettings compositeIndexSettings
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -261,6 +265,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } else {
                 this.indexSortSupplier = () -> null;
             }
+
+            if (indexSettings.getCompositeIndexConfig().hasCompositeFields()) {
+                this.compositeIndexConfigSupplier = () -> indexSettings.getCompositeIndexConfig()
+                    .validateAndGetCompositeIndexConfig(mapperService::fieldType, compositeIndexSettings);
+            } else {
+                this.compositeIndexConfigSupplier = () -> null;
+            }
+
             indexFieldData.setListener(new FieldDataCacheListener(this));
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
@@ -273,6 +285,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.bitsetFilterCache = null;
             this.warmer = null;
             this.indexCache = null;
+            this.compositeIndexConfigSupplier = () -> null;
         }
 
         this.shardStoreDeleter = shardStoreDeleter;
@@ -383,6 +396,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public Supplier<Sort> getIndexSortSupplier() {
         return indexSortSupplier;
+    }
+
+    public Supplier<CompositeIndexConfig> getCompositeIndexConfigSupplier() {
+        return compositeIndexConfigSupplier;
     }
 
     public synchronized void close(final String reason, boolean delete) throws IOException {
