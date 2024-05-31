@@ -746,7 +746,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.rolloverInfos = Collections.unmodifiableMap(rolloverInfos);
         this.isSystem = isSystem;
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
-        ;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
