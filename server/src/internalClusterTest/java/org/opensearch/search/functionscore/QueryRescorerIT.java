@@ -43,7 +43,6 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.Operator;
@@ -84,6 +83,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSecondHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertThirdHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasMatchedQueries;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasScore;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -103,11 +103,6 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     public void testEnforceWindowSize() throws InterruptedException {
@@ -600,7 +595,7 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
 
             SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR).queryName("hello-world"))
                 .setRescorer(innerRescoreQuery, 5)
                 .setExplain(true)
                 .get();
@@ -608,7 +603,10 @@ public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegT
             assertFirstHit(searchResponse, hasId("1"));
             assertSecondHit(searchResponse, hasId("2"));
             assertThirdHit(searchResponse, hasId("3"));
-
+            final String[] matchedQueries = { "hello-world" };
+            assertFirstHit(searchResponse, hasMatchedQueries(matchedQueries));
+            assertSecondHit(searchResponse, hasMatchedQueries(matchedQueries));
+            assertThirdHit(searchResponse, hasMatchedQueries(matchedQueries));
             for (int j = 0; j < 3; j++) {
                 assertThat(searchResponse.getHits().getAt(j).getExplanation().getDescription(), equalTo(descriptionModes[innerMode]));
             }

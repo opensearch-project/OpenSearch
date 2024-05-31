@@ -188,6 +188,10 @@ public class FetchContext {
         return searchContext.sort() != null && searchContext.trackScores();
     }
 
+    public boolean includeNamedQueriesScore() {
+        return searchContext.includeNamedQueriesScore();
+    }
+
     /**
      * Configuration for returning inner hits
      */

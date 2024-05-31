@@ -227,6 +227,10 @@ public enum MissingValues {
                 return "anon SortedNumericDoubleValues of [" + super.toString() + "]";
             }
 
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
         };
     }
 

@@ -39,16 +39,17 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.MockLogAppender;
@@ -74,7 +75,17 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class InboundHandlerTests extends OpenSearchTestCase {
+public abstract class InboundHandlerTests extends OpenSearchTestCase {
+
+    public abstract BytesReference serializeOutboundRequest(
+        ThreadContext threadContext,
+        Writeable message,
+        Version version,
+        String action,
+        long requestId,
+        boolean compress,
+        boolean handshake
+    ) throws IOException;
 
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final Version version = Version.CURRENT;
@@ -100,19 +111,17 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         };
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {});
-        outboundHandler = new OutboundHandler(
+        outboundHandler = new OutboundHandler(new StatsTracker(), threadPool);
+        TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, outboundHandler::sendBytes);
+        requestHandlers = new Transport.RequestHandlers();
+        responseHandlers = new Transport.ResponseHandlers();
+        handler = new InboundHandler(
             "node",
             version,
             new String[0],
             new StatsTracker(),
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE
-        );
-        TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, outboundHandler::sendBytes);
-        requestHandlers = new Transport.RequestHandlers();
-        responseHandlers = new Transport.ResponseHandlers();
-        handler = new InboundHandler(
-            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
             outboundHandler,
             namedWriteableRegistry,
             handshaker,
@@ -194,9 +203,9 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
+
+        BytesReference fullRequestBytes = serializeOutboundRequest(
             threadPool.getThreadContext(),
-            new String[0],
             new TestRequest(requestValue),
             version,
             action,
@@ -204,8 +213,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             false,
             false
         );
-
-        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
@@ -275,11 +282,11 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         // response so we must just close the connection on an error. To avoid the failure disappearing into a black hole we at least log
         // it.
 
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(InboundHandler.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(NativeMessageHandler.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected message",
-                    InboundHandler.class.getCanonicalName(),
+                    NativeMessageHandler.class.getCanonicalName(),
                     Level.WARN,
                     "could not send error response to handshake"
                 )
@@ -308,11 +315,11 @@ public class InboundHandlerTests extends OpenSearchTestCase {
     }
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(InboundHandler.class))) {
+        try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(NativeMessageHandler.class))) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected message",
-                    InboundHandler.class.getCanonicalName(),
+                    NativeMessageHandler.class.getCanonicalName(),
                     Level.WARN,
                     "handling inbound transport message "
                 )
@@ -380,18 +387,8 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
-            threadPool.getThreadContext(),
-            new String[0],
-            new TestRequest(requestValue),
-            version,
-            action,
-            requestId,
-            false,
-            false
-        );
 
-        outboundHandler.setMessageListener(new TransportMessageListener() {
+        handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
                 exceptionCaptor.set(error);
@@ -399,7 +396,15 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         });
 
         // Create the request payload with 1 byte overflow
-        final BytesRef bytes = request.serialize(new BytesStreamOutput()).toBytesRef();
+        final BytesRef bytes = serializeOutboundRequest(
+            threadPool.getThreadContext(),
+            new TestRequest(requestValue),
+            version,
+            action,
+            requestId,
+            false,
+            false
+        ).toBytesRef();
         final ByteBuffer buffer = ByteBuffer.allocate(bytes.length + 1);
         buffer.put(bytes.bytes, 0, bytes.length);
         buffer.put((byte) 1);
@@ -452,9 +457,16 @@ public class InboundHandlerTests extends OpenSearchTestCase {
 
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
+
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error) {
+                exceptionCaptor.set(error);
+            }
+        });
+
+        final BytesReference fullRequestBytes = serializeOutboundRequest(
             threadPool.getThreadContext(),
-            new String[0],
             new TestRequest(requestValue),
             version,
             action,
@@ -462,15 +474,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             false,
             false
         );
-
-        outboundHandler.setMessageListener(new TransportMessageListener() {
-            @Override
-            public void onResponseSent(long requestId, String action, Exception error) {
-                exceptionCaptor.set(error);
-            }
-        });
-
-        final BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         // Create the request payload by intentionally stripping 1 byte away
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize - 1);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
@@ -526,9 +529,9 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
+
+        BytesReference fullRequestBytes = serializeOutboundRequest(
             threadPool.getThreadContext(),
-            new String[0],
             new TestRequest(requestValue),
             version,
             action,
@@ -536,8 +539,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             false,
             false
         );
-
-        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
@@ -614,9 +615,9 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
+
+        BytesReference fullRequestBytes = serializeOutboundRequest(
             threadPool.getThreadContext(),
-            new String[0],
             new TestRequest(requestValue),
             version,
             action,
@@ -624,8 +625,6 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             false,
             false
         );
-
-        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});

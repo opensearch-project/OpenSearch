@@ -32,54 +32,67 @@
 
 package org.opensearch.ingest.attachment;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 /**
- * Evil test-coverage cheat, we parse a bunch of docs from tika
- * so that we have a nice grab-bag variety, and assert some content
- * comes back and no exception.
+ * Parse sample tika documents and assert the contents has not changed according to previously recorded checksums.
+ * Uncaught changes to tika parsing could potentially pose bwc issues.
+ * Note: In some cases tika will access a user's locale to inform the parsing of a file.
+ * The checksums of these files are left empty, and we only validate that parsed content is not null.
  */
 @SuppressFileSystems("ExtrasFS") // don't try to parse extraN
 public class TikaDocTests extends OpenSearchTestCase {
 
-    /** some test files from tika test suite, zipped up */
+    /** some test files from the apache tika unit test suite with accompanying sha1 checksums */
     static final String TIKA_FILES = "/org/opensearch/ingest/attachment/test/tika-files/";
+    static final String TIKA_CHECKSUMS = "/org/opensearch/ingest/attachment/test/.checksums";
 
-    public void testFiles() throws Exception {
-        Path tmp = createTempDir();
-        logger.debug("unzipping all tika sample files");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(PathUtils.get(getClass().getResource(TIKA_FILES).toURI()))) {
-            for (Path doc : stream) {
-                String filename = doc.getFileName().toString();
-                TestUtil.unzip(getClass().getResourceAsStream(TIKA_FILES + filename), tmp);
-            }
-        }
+    public void testParseSamples() throws Exception {
+        String checksumJson = Files.readString(PathUtils.get(getClass().getResource(TIKA_CHECKSUMS).toURI()));
+        Map<String, Object> checksums = XContentHelper.convertToMap(JsonXContent.jsonXContent, checksumJson, false);
+        DirectoryStream<Path> stream = Files.newDirectoryStream(unzipToTemp(TIKA_FILES));
 
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmp)) {
-            for (Path doc : stream) {
-                logger.debug("parsing: {}", doc);
-                assertParseable(doc);
-            }
-        }
-    }
-
-    void assertParseable(Path fileName) throws Exception {
-        try {
-            byte bytes[] = Files.readAllBytes(fileName);
-            String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);
+        for (Path doc : stream) {
+            String parsedContent = tryParse(doc);
             assertNotNull(parsedContent);
             assertFalse(parsedContent.isEmpty());
-            logger.debug("extracted content: {}", parsedContent);
-        } catch (Exception e) {
-            throw new RuntimeException("parsing of filename: " + fileName.getFileName() + " failed", e);
+
+            String check = checksums.get(doc.getFileName().toString()).toString();
+            if (!check.isEmpty()) {
+                assertEquals(check, DigestUtils.sha1Hex(parsedContent));
+            }
         }
+
+        stream.close();
+    }
+
+    private Path unzipToTemp(String zipDir) throws Exception {
+        Path tmp = createTempDir();
+        DirectoryStream<Path> stream = Files.newDirectoryStream(PathUtils.get(getClass().getResource(zipDir).toURI()));
+
+        for (Path doc : stream) {
+            String filename = doc.getFileName().toString();
+            TestUtil.unzip(getClass().getResourceAsStream(zipDir + filename), tmp);
+        }
+
+        stream.close();
+        return tmp;
+    }
+
+    private String tryParse(Path doc) throws Exception {
+        byte bytes[] = Files.readAllBytes(doc);
+        return TikaImpl.parse(bytes, new Metadata(), -1);
     }
 }

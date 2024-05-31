@@ -101,6 +101,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -487,11 +489,12 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
 
     protected SnapshotInfo createFullSnapshot(String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] in [{}]", snapshotName, repoName);
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
-            .setIncludeGlobalState(true)
+        final CreateSnapshotResponse response = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true)
             .get();
-        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         return snapshotInfo;
@@ -505,8 +508,8 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
             .setWaitForCompletion(true)
             .get();
+        SnapshotInfo snapshotInfo = response.getSnapshotInfo();
 
-        final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
@@ -559,19 +562,16 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName) throws IOException {
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(remoteStoreIndex)
-            .get()
-            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
-        return getLockFilesInRemoteStore(remoteStoreIndex, remoteStoreRepositoryName, indexUUID);
-    }
-
-    protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName, String indexUUID)
-        throws IOException {
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
-        BlobPath shardLevelBlobPath = remoteStoreRepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
+        BlobPath shardLevelBlobPath = getShardLevelBlobPath(
+            client(),
+            remoteStoreIndex,
+            remoteStoreRepository.basePath(),
+            "0",
+            SEGMENTS,
+            LOCK_FILES
+        );
         BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
             return lockDirectory.listAll();

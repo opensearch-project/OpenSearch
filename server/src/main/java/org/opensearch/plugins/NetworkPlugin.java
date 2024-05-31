@@ -107,4 +107,41 @@ public interface NetworkPlugin {
     ) {
         return Collections.emptyMap();
     }
+
+    /**
+     * Returns a map of secure {@link Transport} suppliers.
+     * See {@link org.opensearch.common.network.NetworkModule#TRANSPORT_TYPE_KEY} to configure a specific implementation.
+     */
+    default Map<String, Supplier<Transport>> getSecureTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        SecureTransportSettingsProvider secureTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns a map of secure {@link HttpServerTransport} suppliers.
+     * See {@link org.opensearch.common.network.NetworkModule#HTTP_TYPE_SETTING} to configure a specific implementation.
+     */
+    default Map<String, Supplier<HttpServerTransport>> getSecureHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
 }

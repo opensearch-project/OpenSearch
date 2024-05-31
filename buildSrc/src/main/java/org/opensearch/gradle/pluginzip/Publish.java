@@ -91,9 +91,6 @@ public class Publish implements Plugin<Project> {
                 addLocalMavenRepo(project);
                 addZipArtifact(project);
                 Task validatePluginZipPom = project.getTasks().findByName("validatePluginZipPom");
-                if (validatePluginZipPom != null) {
-                    validatePluginZipPom.dependsOn("generatePomFileForNebulaPublication");
-                }
 
                 // There are number of tasks prefixed by 'publishPluginZipPublication', f.e.:
                 // publishPluginZipPublicationToZipStagingRepository, publishPluginZipPublicationToMavenLocal
@@ -102,7 +99,11 @@ public class Publish implements Plugin<Project> {
                     .filter(t -> t.getName().startsWith("publishPluginZipPublicationTo"))
                     .collect(Collectors.toSet());
                 if (!publishPluginZipPublicationToTasks.isEmpty()) {
-                    publishPluginZipPublicationToTasks.forEach(t -> t.dependsOn("generatePomFileForNebulaPublication"));
+                    if (validatePluginZipPom != null) {
+                        publishPluginZipPublicationToTasks.forEach(t -> t.dependsOn(validatePluginZipPom));
+                    } else {
+                        publishPluginZipPublicationToTasks.forEach(t -> t.dependsOn("generatePomFileForNebulaPublication"));
+                    }
                 }
             } else {
                 project.getLogger()

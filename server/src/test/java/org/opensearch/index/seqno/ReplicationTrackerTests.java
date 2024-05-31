@@ -446,6 +446,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
     private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
+    private ReplicationTracker newTracker(final AllocationId allocationId, Settings settings, boolean remote) {
+        return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L, settings, remote);
+    }
+
     private ReplicationTracker newTracker(final AllocationId allocationId, Settings settings) {
         return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L, settings);
     }
@@ -759,7 +763,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             onUpdate,
             () -> 0L,
             onNewRetentionLease,
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
         ReplicationTracker newPrimary = new ReplicationTracker(
             shardId,
@@ -770,7 +775,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             onUpdate,
             () -> 0L,
             onNewRetentionLease,
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            NON_REMOTE_DISCOVERY_NODE
         );
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
@@ -1300,7 +1306,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
             .build();
-        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
         long primaryLocalCheckpoint = activeWithCheckpoints.get(primaryId);
@@ -1378,7 +1384,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
             .build();
-        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
         long primaryLocalCheckpoint = activeWithCheckpoints.get(primaryId);
@@ -1476,7 +1482,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
             .build();
-        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
         final long localCheckpoint = randomLongBetween(0, Long.MAX_VALUE - 1);
         tracker.activatePrimaryMode(localCheckpoint);
@@ -1504,7 +1510,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
             .build();
-        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         List<AllocationId> initializingRandomSubset = randomSubsetOf(initializing.keySet());
@@ -1537,7 +1543,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
             .build();
-        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         randomSubsetOf(randomIntBetween(1, initializing.size() - 1), initializing.keySet()).forEach(
@@ -1606,8 +1612,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
             .build();
-        final ReplicationTracker tracker = newTracker(primaryId, settings);
-        tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
+        final ReplicationTracker tracker = newTracker(primaryId, settings, true);
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, active, primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         if (randomBoolean()) {
             initializingToStay.keySet().forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
@@ -1655,7 +1661,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
             .build();
-        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        final ReplicationTracker tracker = newTracker(primaryId, settings, true);
         tracker.updateFromClusterManager(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         assertThat(tracker.getReplicationGroup().getInSyncAllocationIds(), equalTo(ids(activeAllocationIds)));
@@ -2080,7 +2086,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             onUpdate,
             () -> 0L,
             onNewRetentionLease,
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            REMOTE_DISCOVERY_NODE
         );
         ReplicationTracker newPrimary = new ReplicationTracker(
             shardId,
@@ -2091,7 +2098,8 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             onUpdate,
             () -> 0L,
             onNewRetentionLease,
-            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE,
+            REMOTE_DISCOVERY_NODE
         );
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));

@@ -71,6 +71,10 @@ import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -79,7 +83,7 @@ import static org.junit.Assert.fail;
 /**
  * Tiny helper to send http requests over netty.
  */
-class Netty4HttpClient implements Closeable {
+public class Netty4HttpClient implements Closeable {
 
     static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
@@ -98,11 +102,21 @@ class Netty4HttpClient implements Closeable {
     }
 
     private final Bootstrap clientBootstrap;
+    private final boolean secure;
 
     Netty4HttpClient() {
+        this(false);
+    }
+
+    private Netty4HttpClient(boolean secure) {
         clientBootstrap = new Bootstrap().channel(NettyAllocator.getChannelType())
             .option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
             .group(new NioEventLoopGroup(1));
+        this.secure = secure;
+    }
+
+    public static Netty4HttpClient https() {
+        return new Netty4HttpClient(true);
     }
 
     public List<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
@@ -154,7 +168,7 @@ class Netty4HttpClient implements Closeable {
         final CountDownLatch latch = new CountDownLatch(requests.size());
         final List<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 
-        clientBootstrap.handler(new CountDownLatchHandler(latch, content));
+        clientBootstrap.handler(new CountDownLatchHandler(latch, content, secure));
 
         ChannelFuture channelFuture = null;
         try {
@@ -189,19 +203,32 @@ class Netty4HttpClient implements Closeable {
 
         private final CountDownLatch latch;
         private final Collection<FullHttpResponse> content;
+        private final boolean secure;
 
-        CountDownLatchHandler(final CountDownLatch latch, final Collection<FullHttpResponse> content) {
+        CountDownLatchHandler(final CountDownLatch latch, final Collection<FullHttpResponse> content, final boolean secure) {
             this.latch = latch;
             this.content = content;
+            this.secure = secure;
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) {
+        protected void initChannel(SocketChannel ch) throws Exception {
             final int maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt();
             ch.pipeline().addLast(new HttpResponseDecoder());
             ch.pipeline().addLast(new HttpRequestEncoder());
             ch.pipeline().addLast(new HttpContentDecompressor());
             ch.pipeline().addLast(new HttpObjectAggregator(maxContentLength));
+            if (secure) {
+                final SslHandler sslHandler = new SslHandler(
+                    SslContextBuilder.forClient()
+                        .clientAuth(ClientAuth.NONE)
+                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                        .build()
+                        .newEngine(ch.alloc())
+                );
+                ch.pipeline().addFirst("client_ssl_handler", sslHandler);
+            }
+
             ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpObject>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {

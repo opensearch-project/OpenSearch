@@ -41,7 +41,6 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
@@ -150,6 +149,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
                 IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
                 IndexSettings.MAX_TERMS_COUNT_SETTING,
+                IndexSettings.MAX_NESTED_QUERY_DEPTH_SETTING,
                 IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
                 IndexSettings.DEFAULT_FIELD_SETTING,
                 IndexSettings.QUERY_STRING_LENIENT_SETTING,
@@ -198,6 +198,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 EngineConfig.INDEX_CODEC_SETTING,
                 EngineConfig.INDEX_CODEC_COMPRESSION_LEVEL_SETTING,
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
+                EngineConfig.INDEX_USE_COMPOUND_FILE,
                 IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
                 IndexSettings.DEFAULT_PIPELINE,
                 IndexSettings.FINAL_PIPELINE,
@@ -207,6 +208,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
                 IndexSettings.INDEX_MERGE_POLICY,
+                IndexSettings.INDEX_CHECK_PENDING_FLUSH_ENABLED,
                 LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MERGE_FACTOR_SETTING,
                 LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MIN_MERGE_SETTING,
                 LogByteSizeMergePolicyProvider.INDEX_LBS_MAX_MERGE_SEGMENT_SETTING,
@@ -230,6 +232,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
                 IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
 
+                IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING,
+                IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
+
+                // Settings for concurrent segment search
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();
@@ -252,10 +260,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * is ready for production release, the feature flag can be removed, and the
      * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
      */
-    public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
-        FeatureFlags.CONCURRENT_SEGMENT_SEARCH,
-        List.of(IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING)
-    );
+    public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of();
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 

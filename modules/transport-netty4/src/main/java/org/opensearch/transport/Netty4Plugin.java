@@ -46,11 +46,15 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
+import org.opensearch.http.netty4.ssl.SecureNetty4HttpServerTransport;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
+import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.netty4.Netty4Transport;
+import org.opensearch.transport.netty4.ssl.SecureNetty4Transport;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,7 +65,9 @@ import java.util.function.Supplier;
 public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
     public static final String NETTY_TRANSPORT_NAME = "netty4";
+    public static final String NETTY_SECURE_TRANSPORT_NAME = "netty4-secure";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
+    public static final String NETTY_SECURE_HTTP_TRANSPORT_NAME = "netty4-secure";
 
     private final SetOnce<SharedGroupFactory> groupFactory = new SetOnce<>();
 
@@ -139,6 +145,65 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 dispatcher,
                 clusterSettings,
                 getSharedGroupFactory(settings),
+                tracer
+            )
+        );
+    }
+
+    @Override
+    public Map<String, Supplier<HttpServerTransport>> getSecureHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.singletonMap(
+            NETTY_SECURE_HTTP_TRANSPORT_NAME,
+            () -> new SecureNetty4HttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry,
+                dispatcher,
+                clusterSettings,
+                getSharedGroupFactory(settings),
+                secureHttpTransportSettingsProvider,
+                tracer
+            )
+        );
+    }
+
+    @Override
+    public Map<String, Supplier<Transport>> getSecureTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        SecureTransportSettingsProvider secureTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.singletonMap(
+            NETTY_SECURE_TRANSPORT_NAME,
+            () -> new SecureNetty4Transport(
+                settings,
+                Version.CURRENT,
+                threadPool,
+                networkService,
+                pageCacheRecycler,
+                namedWriteableRegistry,
+                circuitBreakerService,
+                getSharedGroupFactory(settings),
+                secureTransportSettingsProvider,
                 tracer
             )
         );

@@ -47,4 +47,8 @@ final class UnsignedLongToSortedNumericDoubleValues extends SortedNumericDoubleV
         return values;
     }
 
+    @Override
+    public int advance(int target) throws IOException {
+        return values.advance(target);
+    }
 }

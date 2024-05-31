@@ -42,8 +42,16 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.cluster.service.ClusterStateStats;
+import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.service.NodeCacheStats;
+import org.opensearch.common.cache.stats.CacheStats;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolderTests;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
@@ -63,9 +71,15 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
+import org.opensearch.node.IoUsageStats;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
+import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
+import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
 import org.opensearch.test.OpenSearchTestCase;
@@ -81,6 +95,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -540,15 +555,51 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(replicationStats.getTotalBytesBehind(), deserializedReplicationStats.getTotalBytesBehind());
                     assertEquals(replicationStats.getMaxReplicationLag(), deserializedReplicationStats.getMaxReplicationLag());
                 }
+                AdmissionControlStats admissionControlStats = nodeStats.getAdmissionControlStats();
+                AdmissionControlStats deserializedAdmissionControlStats = deserializedNodeStats.getAdmissionControlStats();
+                if (admissionControlStats == null) {
+                    assertNull(deserializedAdmissionControlStats);
+                } else {
+                    assertEquals(
+                        admissionControlStats.getAdmissionControllerStatsList().size(),
+                        deserializedAdmissionControlStats.getAdmissionControllerStatsList().size()
+                    );
+                    AdmissionControllerStats admissionControllerStats = admissionControlStats.getAdmissionControllerStatsList().get(0);
+                    AdmissionControllerStats deserializedAdmissionControllerStats = deserializedAdmissionControlStats
+                        .getAdmissionControllerStatsList()
+                        .get(0);
+                    assertEquals(
+                        admissionControllerStats.getAdmissionControllerName(),
+                        deserializedAdmissionControllerStats.getAdmissionControllerName()
+                    );
+                    assertEquals(1, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()));
+                    assertEquals(
+                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()),
+                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType())
+                    );
+
+                    assertEquals(2, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()));
+                    assertEquals(
+                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()),
+                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType())
+                    );
+                }
+                NodeCacheStats nodeCacheStats = nodeStats.getNodeCacheStats();
+                NodeCacheStats deserializedNodeCacheStats = deserializedNodeStats.getNodeCacheStats();
+                if (nodeCacheStats == null) {
+                    assertNull(deserializedNodeCacheStats);
+                } else {
+                    assertEquals(nodeCacheStats, deserializedNodeCacheStats);
+                }
             }
         }
     }
 
-    public static NodeStats createNodeStats() {
+    public static NodeStats createNodeStats() throws IOException {
         return createNodeStats(false);
     }
 
-    public static NodeStats createNodeStats(boolean remoteStoreStats) {
+    public static NodeStats createNodeStats(boolean remoteStoreStats) throws IOException {
         DiscoveryNode node = new DiscoveryNode(
             "test_node",
             buildNewFakeTransportAddress(),
@@ -845,7 +896,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         nodeId,
                         System.currentTimeMillis(),
                         randomDoubleBetween(1.0, 100.0, true),
-                        randomDoubleBetween(1.0, 100.0, true)
+                        randomDoubleBetween(1.0, 100.0, true),
+                        new IoUsageStats(100.0)
                     );
                     resourceUsageStatsMap.put(nodeId, stats);
                 }
@@ -861,6 +913,26 @@ public class NodeStatsTests extends OpenSearchTestCase {
             clusterManagerThrottlingStats = new ClusterManagerThrottlingStats();
             clusterManagerThrottlingStats.onThrottle("test-task", randomInt());
         }
+
+        AdmissionControlStats admissionControlStats = null;
+        if (frequently()) {
+            AdmissionController admissionController = new AdmissionController(
+                CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+                null,
+                null
+            ) {
+                @Override
+                public void apply(String action, AdmissionControlActionType admissionControlActionType) {
+                    return;
+                }
+            };
+            admissionController.addRejectionCount(AdmissionControlActionType.SEARCH.getType(), 1);
+            admissionController.addRejectionCount(AdmissionControlActionType.INDEXING.getType(), 2);
+            AdmissionControllerStats stats = new AdmissionControllerStats(admissionController);
+            List<AdmissionControllerStats> statsList = new ArrayList();
+            statsList.add(stats);
+            admissionControlStats = new AdmissionControlStats(statsList);
+        }
         ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
 
         WeightedRoutingStats weightedRoutingStats = null;
@@ -868,6 +940,39 @@ public class NodeStatsTests extends OpenSearchTestCase {
         weightedRoutingStats.updateFailOpenCount();
 
         NodeIndicesStats indicesStats = getNodeIndicesStats(remoteStoreStats);
+
+        NodeCacheStats nodeCacheStats = null;
+        if (frequently()) {
+            int numIndices = randomIntBetween(1, 10);
+            int numShardsPerIndex = randomIntBetween(1, 50);
+
+            List<String> dimensionNames = List.of("index", "shard", "tier");
+            DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, "dummyStoreName");
+            for (int indexNum = 0; indexNum < numIndices; indexNum++) {
+                String indexName = "index" + indexNum;
+                for (int shardNum = 0; shardNum < numShardsPerIndex; shardNum++) {
+                    String shardName = "[" + indexName + "][" + shardNum + "]";
+                    for (String tierName : new String[] { "dummy_tier_1", "dummy_tier_2" }) {
+                        List<String> dimensionValues = List.of(indexName, shardName, tierName);
+                        CacheStats toIncrement = new CacheStats(randomInt(20), randomInt(20), randomInt(20), randomInt(20), randomInt(20));
+                        DefaultCacheStatsHolderTests.populateStatsHolderFromStatsValueMap(
+                            statsHolder,
+                            Map.of(dimensionValues, toIncrement)
+                        );
+                    }
+                }
+            }
+            CommonStatsFlags flags = new CommonStatsFlags();
+            for (CacheType cacheType : CacheType.values()) {
+                if (frequently()) {
+                    flags.includeCacheType(cacheType);
+                }
+            }
+            ImmutableCacheStatsHolder cacheStats = statsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
+            TreeMap<CacheType, ImmutableCacheStatsHolder> cacheStatsMap = new TreeMap<>();
+            cacheStatsMap.put(CacheType.INDICES_REQUEST_CACHE, cacheStats);
+            nodeCacheStats = new NodeCacheStats(cacheStatsMap, flags);
+        }
 
         // TODO: Only remote_store based aspects of NodeIndicesStats are being tested here.
         // It is possible to test other metrics in NodeIndicesStats as well since it extends Writeable now
@@ -898,14 +1003,21 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             segmentReplicationRejectionStats,
-            null
+            null,
+            admissionControlStats,
+            nodeCacheStats
         );
     }
 
     private static NodeIndicesStats getNodeIndicesStats(boolean remoteStoreStats) {
         NodeIndicesStats indicesStats = null;
         if (remoteStoreStats) {
-            indicesStats = new NodeIndicesStats(new CommonStats(CommonStatsFlags.ALL), new HashMap<>(), new SearchRequestStats());
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            indicesStats = new NodeIndicesStats(
+                new CommonStats(CommonStatsFlags.ALL),
+                new HashMap<>(),
+                new SearchRequestStats(clusterSettings)
+            );
             RemoteSegmentStats remoteSegmentStats = indicesStats.getSegments().getRemoteSegmentStats();
             remoteSegmentStats.addUploadBytesStarted(10L);
             remoteSegmentStats.addUploadBytesSucceeded(10L);

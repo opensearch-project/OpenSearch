@@ -37,6 +37,8 @@ import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseName;
 import org.opensearch.action.search.SearchRequestOperationsListenerSupport;
 import org.opensearch.action.search.SearchRequestStats;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.search.stats.SearchStats.Stats;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -55,9 +57,9 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         // let's create two dummy search stats with groups
         Map<String, Stats> groupStats1 = new HashMap<>();
         Map<String, Stats> groupStats2 = new HashMap<>();
-        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
-        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats1);
-        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats2);
+        groupStats2.put("group1", new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1));
+        SearchStats searchStats1 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats1);
+        SearchStats searchStats2 = new SearchStats(new Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), 0, groupStats2);
 
         // adding these two search stats and checking group stats are correct
         searchStats1.add(searchStats2);
@@ -77,7 +79,8 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         long paramValue = randomIntBetween(2, 50);
 
         // Testing for request stats
-        SearchRequestStats testRequestStats = new SearchRequestStats();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchRequestStats testRequestStats = new SearchRequestStats(clusterSettings);
         SearchPhaseContext ctx = mock(SearchPhaseContext.class);
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             SearchPhase mockSearchPhase = mock(SearchPhase.class);
@@ -125,6 +128,7 @@ public class SearchStatsTests extends OpenSearchTestCase implements SearchReques
         assertEquals(equalTo, stats.getSuggestCount());
         assertEquals(equalTo, stats.getSuggestTimeInMillis());
         assertEquals(equalTo, stats.getSuggestCurrent());
+        assertEquals(equalTo, stats.getSearchIdleReactivateCount());
         // avg_concurrency is not summed up across stats
         assertEquals(1, stats.getConcurrentAvgSliceCount(), 0);
     }

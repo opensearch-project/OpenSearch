@@ -32,10 +32,12 @@
 
 package org.opensearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingChangesObserver;
@@ -45,6 +47,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -67,14 +70,15 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRoutingChangesObserver {
+    private final Logger logger = LogManager.getLogger(IndexMetadataUpdater.class);
     private final Map<ShardId, Updates> shardChanges = new HashMap<>();
+    private boolean ongoingRemoteStoreMigration = false;
 
     @Override
     public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
         assert initializedShard.isRelocationTarget() == false : "shardInitialized is not called on relocation target: " + initializedShard;
         if (initializedShard.primary()) {
             increasePrimaryTerm(initializedShard.shardId());
-
             Updates updates = changes(initializedShard.shardId());
             assert updates.initializedPrimary == null : "Primary cannot be initialized more than once in same allocation round: "
                 + "(previous: "
@@ -113,6 +117,12 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
             }
             increasePrimaryTerm(failedShard.shardId());
         }
+
+        // Track change through shardChanges Map regardless of above-mentioned conditions
+        // To be used to update index metadata while computing new cluster state
+        if (ongoingRemoteStoreMigration) {
+            changes(failedShard.shardId());
+        }
     }
 
     @Override
@@ -121,19 +131,33 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
     }
 
     /**
+     * Adds the target {@link ShardRouting} to the tracking updates set.
+     * Used to track started relocations while applying changes to the new {@link ClusterState}
+     */
+    @Override
+    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard) {
+        // Store change in shardChanges Map regardless of above-mentioned conditions
+        // To be used to update index metadata while computing new cluster state
+        if (ongoingRemoteStoreMigration) {
+            changes(targetRelocatingShard.shardId());
+        }
+    }
+
+    /**
      * Updates the current {@link Metadata} based on the changes of this RoutingChangesObserver. Specifically
      * we update {@link IndexMetadata#getInSyncAllocationIds()} and {@link IndexMetadata#primaryTerm(int)} based on
      * the changes made during this allocation.
+     * <br>
+     * Manipulates index settings or index metadata during an ongoing remote store migration
      *
      * @param oldMetadata {@link Metadata} object from before the routing nodes was changed.
      * @param newRoutingTable {@link RoutingTable} object after routing changes were applied.
      * @return adapted {@link Metadata}, potentially the original one if no change was needed.
      */
-    public Metadata applyChanges(Metadata oldMetadata, RoutingTable newRoutingTable) {
+    public Metadata applyChanges(Metadata oldMetadata, RoutingTable newRoutingTable, DiscoveryNodes discoveryNodes) {
         Map<Index, List<Map.Entry<ShardId, Updates>>> changesGroupedByIndex = shardChanges.entrySet()
             .stream()
             .collect(Collectors.groupingBy(e -> e.getKey().getIndex()));
-
         Metadata.Builder metadataBuilder = null;
         for (Map.Entry<Index, List<Map.Entry<ShardId, Updates>>> indexChanges : changesGroupedByIndex.entrySet()) {
             Index index = indexChanges.getKey();
@@ -144,6 +168,17 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 Updates updates = shardEntry.getValue();
                 indexMetadataBuilder = updateInSyncAllocations(newRoutingTable, oldIndexMetadata, indexMetadataBuilder, shardId, updates);
                 indexMetadataBuilder = updatePrimaryTerm(oldIndexMetadata, indexMetadataBuilder, shardId, updates);
+                if (ongoingRemoteStoreMigration) {
+                    RemoteMigrationIndexMetadataUpdater migrationImdUpdater = new RemoteMigrationIndexMetadataUpdater(
+                        discoveryNodes,
+                        newRoutingTable,
+                        oldIndexMetadata,
+                        oldMetadata.settings(),
+                        logger
+                    );
+                    migrationImdUpdater.maybeUpdateRemoteStoreCustomMetadata(indexMetadataBuilder, index.getName());
+                    migrationImdUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, index.getName());
+                }
             }
 
             if (indexMetadataBuilder != null) {
@@ -367,6 +402,10 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
      */
     private void increasePrimaryTerm(ShardId shardId) {
         changes(shardId).increaseTerm = true;
+    }
+
+    public void setOngoingRemoteStoreMigration(boolean ongoingRemoteStoreMigration) {
+        this.ongoingRemoteStoreMigration = ongoingRemoteStoreMigration;
     }
 
     private static class Updates {

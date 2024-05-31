@@ -41,6 +41,7 @@ import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.cache.service.CacheService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.io.IOUtils;
@@ -54,6 +55,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
@@ -96,7 +98,9 @@ public class NodeService implements Closeable {
     private final FileCache fileCache;
     private final TaskCancellationMonitoringService taskCancellationMonitoringService;
     private final RepositoriesService repositoriesService;
+    private final AdmissionControlService admissionControlService;
     private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
+    private final CacheService cacheService;
 
     NodeService(
         Settings settings,
@@ -122,7 +126,9 @@ public class NodeService implements Closeable {
         TaskCancellationMonitoringService taskCancellationMonitoringService,
         ResourceUsageCollectorService resourceUsageCollectorService,
         SegmentReplicationStatsTracker segmentReplicationStatsTracker,
-        RepositoriesService repositoriesService
+        RepositoriesService repositoriesService,
+        AdmissionControlService admissionControlService,
+        CacheService cacheService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -147,9 +153,11 @@ public class NodeService implements Closeable {
         this.taskCancellationMonitoringService = taskCancellationMonitoringService;
         this.resourceUsageCollectorService = resourceUsageCollectorService;
         this.repositoriesService = repositoriesService;
+        this.admissionControlService = admissionControlService;
         clusterService.addStateApplier(ingestService);
         clusterService.addStateApplier(searchPipelineService);
         this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
+        this.cacheService = cacheService;
     }
 
     public NodeInfo info(
@@ -231,7 +239,9 @@ public class NodeService implements Closeable {
         boolean searchPipelineStats,
         boolean resourceUsageStats,
         boolean segmentReplicationTrackerStats,
-        boolean repositoriesStats
+        boolean repositoriesStats,
+        boolean admissionControl,
+        boolean cacheService
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -262,7 +272,9 @@ public class NodeService implements Closeable {
             taskCancellation ? this.taskCancellationMonitoringService.stats() : null,
             searchPipelineStats ? this.searchPipelineService.stats() : null,
             segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
-            repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null
+            repositoriesStats ? this.repositoriesService.getRepositoriesStats() : null,
+            admissionControl ? this.admissionControlService.stats() : null,
+            cacheService ? this.cacheService.stats(indices) : null
         );
     }
 

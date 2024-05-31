@@ -84,6 +84,16 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     }
 
     @Override
+    protected void onCancel(String reason) {
+        try {
+            notifyListener(new ReplicationFailedException(reason), false);
+        } finally {
+            source.cancel();
+            cancellableThreads.cancel(reason);
+        }
+    }
+
+    @Override
     protected String getPrefix() {
         return REPLICATION_PREFIX + UUIDs.randomBase64UUID() + ".";
     }
@@ -318,18 +328,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             if (store != null) {
                 store.decRef();
             }
-        }
-    }
-
-    /**
-     * Trigger a cancellation, this method will not close the target a subsequent call to #fail is required from target service.
-     */
-    @Override
-    public void cancel(String reason) {
-        if (finished.get() == false) {
-            logger.trace(new ParameterizedMessage("Cancelling replication for target {}", description()));
-            cancellableThreads.cancel(reason);
-            source.cancel();
         }
     }
 }

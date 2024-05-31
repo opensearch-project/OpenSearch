@@ -105,6 +105,7 @@ public class DotExpanderProcessorTests extends OpenSearchTestCase {
             null,
             new TestTemplateService.MockTemplateScript.Factory("foo"),
             new TestTemplateService.MockTemplateScript.Factory("foo.bar"),
+            false,
             false
         );
         processor.execute(document);

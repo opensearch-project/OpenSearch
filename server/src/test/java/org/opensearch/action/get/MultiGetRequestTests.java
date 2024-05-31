@@ -32,6 +32,7 @@
 
 package org.opensearch.action.get;
 
+import org.opensearch.action.get.MultiGetRequest.Item;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
@@ -138,6 +139,13 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
                     assertThat(actualItem, equalTo(expectedItem));
                 }
             }
+        }
+    }
+
+    public void testToString() {
+        MultiGetRequest req = createTestInstance();
+        for (Item items : req.getItems()) {
+            assertThat(req.toString(), containsString(items.toString()));
         }
     }
 

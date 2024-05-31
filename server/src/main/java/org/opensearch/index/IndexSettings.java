@@ -49,10 +49,13 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Arrays;
@@ -67,6 +70,7 @@ import java.util.function.UnaryOperator;
 
 import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
+import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
@@ -270,6 +274,17 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Index setting describing the maximum number of nested scopes in queries.
+     * The default maximum is 2<sup>31</sup>-1. 1 means once nesting.
+     */
+    public static final Setting<Integer> MAX_NESTED_QUERY_DEPTH_SETTING = Setting.intSetting(
+        "index.query.max_nested_depth",
+        Integer.MAX_VALUE,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     /**
      * Index setting describing for NGramTokenizer and NGramTokenFilter
      * the maximum difference between
@@ -613,6 +628,16 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Expert: Makes indexing threads check for pending flushes on update in order to help out
+     * flushing indexing buffers to disk. This is an experimental Apache Lucene feature.
+     */
+    public static final Setting<Boolean> INDEX_CHECK_PENDING_FLUSH_ENABLED = Setting.boolSetting(
+        "index.check_pending_flush.enabled",
+        true,
+        Property.IndexScope
+    );
+
     public static final Setting<String> TIME_SERIES_INDEX_MERGE_POLICY = Setting.simpleString(
         "indices.time_series_index.default_index_merge_policy",
         DEFAULT_POLICY,
@@ -655,6 +680,22 @@ public final class IndexSettings {
     public static final Setting<Boolean> INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
         "index.search.concurrent_segment_search.enabled",
         false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
+        "index.optimize_doc_id_lookup.fuzzy_set.enabled",
+        false,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Double> INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING = Setting.doubleSetting(
+        "index.optimize_doc_id_lookup.fuzzy_set.false_positive_probability",
+        DEFAULT_FALSE_POSITIVE_PROBABILITY,
+        0.01,
+        0.50,
         Property.IndexScope,
         Property.Dynamic
     );
@@ -720,6 +761,9 @@ public final class IndexSettings {
 
     private volatile String defaultSearchPipeline;
     private final boolean widenIndexSortType;
+    private final boolean assignedOnRemoteNode;
+    private final RemoteStorePathStrategy remoteStorePathStrategy;
+    private final boolean isTranslogMetadataEnabled;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -747,6 +791,8 @@ public final class IndexSettings {
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
+
+    private volatile int maxNestedQueryDepth;
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
@@ -786,6 +832,19 @@ public final class IndexSettings {
      * Specialized merge-on-flush policy if provided
      */
     private volatile UnaryOperator<MergePolicy> mergeOnFlushPolicy;
+    /**
+     * Is flush check by write threads enabled or not
+     */
+    private final boolean checkPendingFlushEnabled;
+    /**
+     * Is fuzzy set enabled for doc id
+     */
+    private volatile boolean enableFuzzySetForDocId;
+
+    /**
+     * False positive probability to use while creating fuzzy set.
+     */
+    private volatile double docIdFuzzySetFalsePositiveProbability;
 
     /**
      * Returns the default search fields for this index.
@@ -901,6 +960,7 @@ public final class IndexSettings {
         maxSlicesPerPit = scopedSettings.get(MAX_SLICES_PER_PIT);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
+        maxNestedQueryDepth = scopedSettings.get(MAX_NESTED_QUERY_DEPTH_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
@@ -917,6 +977,7 @@ public final class IndexSettings {
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
+        checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
          * For indices created prior version (prior to 2.7) which has IndexSort type, they used to type cast the SortField.Type
@@ -925,6 +986,14 @@ public final class IndexSettings {
          * Now this sortField (IndexSort) is stored in SegmentInfo and we need to maintain backward compatibility for them.
          */
         widenIndexSortType = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).before(V_2_7_0);
+        assignedOnRemoteNode = RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
+        remoteStorePathStrategy = RemoteStoreUtils.determineRemoteStorePathStrategy(indexMetadata);
+
+        isTranslogMetadataEnabled = RemoteStoreUtils.determineTranslogMetadataEnabled(indexMetadata);
+
+        setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
+        setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
+
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1006,6 +1075,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
+        scopedSettings.addSettingsUpdateConsumer(MAX_NESTED_QUERY_DEPTH_SETTING, this::setMaxNestedQueryDepth);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_PIT, this::setMaxSlicesPerPit);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
@@ -1031,6 +1101,11 @@ public final class IndexSettings {
             this::setRemoteTranslogUploadBufferInterval
         );
         scopedSettings.addSettingsUpdateConsumer(INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING, this::setRemoteTranslogKeepExtraGen);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING, this::setEnableFuzzySetForDocId);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
+            this::setDocIdFuzzySetFalsePositiveProbability
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1155,17 +1230,16 @@ public final class IndexSettings {
 
     /**
      * Returns true if segment replication is enabled on the index.
+     *
+     * Every shard on a remote node would also have SegRep enabled even without
+     * proper index setting during the migration.
      */
-    public boolean isSegRepEnabled() {
-        return ReplicationType.SEGMENT.equals(replicationType);
+    public boolean isSegRepEnabledOrRemoteNode() {
+        return ReplicationType.SEGMENT.equals(replicationType) || isAssignedOnRemoteNode();
     }
 
     public boolean isSegRepLocalEnabled() {
-        return isSegRepEnabled() && !isRemoteStoreEnabled();
-    }
-
-    public boolean isSegRepWithRemoteEnabled() {
-        return isSegRepEnabled() && isRemoteStoreEnabled();
+        return ReplicationType.SEGMENT.equals(replicationType) && !isRemoteStoreEnabled();
     }
 
     /**
@@ -1173,6 +1247,10 @@ public final class IndexSettings {
      */
     public boolean isRemoteStoreEnabled() {
         return isRemoteStoreEnabled;
+    }
+
+    public boolean isAssignedOnRemoteNode() {
+        return assignedOnRemoteNode;
     }
 
     /**
@@ -1518,6 +1596,17 @@ public final class IndexSettings {
     }
 
     /**
+     * @return max level of nested queries and documents
+     */
+    public int getMaxNestedQueryDepth() {
+        return this.maxNestedQueryDepth;
+    }
+
+    private void setMaxNestedQueryDepth(int maxNestedQueryDepth) {
+        this.maxNestedQueryDepth = maxNestedQueryDepth;
+    }
+
+    /**
      * Returns the maximum number of allowed script_fields to retrieve in a search request
      */
     public int getMaxScriptFields() {
@@ -1782,6 +1871,10 @@ public final class IndexSettings {
         }
     }
 
+    public boolean isCheckPendingFlushEnabled() {
+        return checkPendingFlushEnabled;
+    }
+
     public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
         return Optional.ofNullable(mergeOnFlushPolicy);
     }
@@ -1800,5 +1893,29 @@ public final class IndexSettings {
      */
     public boolean shouldWidenIndexSortType() {
         return this.widenIndexSortType;
+    }
+
+    public boolean isEnableFuzzySetForDocId() {
+        return enableFuzzySetForDocId;
+    }
+
+    public void setEnableFuzzySetForDocId(boolean enableFuzzySetForDocId) {
+        this.enableFuzzySetForDocId = enableFuzzySetForDocId;
+    }
+
+    public double getDocIdFuzzySetFalsePositiveProbability() {
+        return docIdFuzzySetFalsePositiveProbability;
+    }
+
+    public void setDocIdFuzzySetFalsePositiveProbability(double docIdFuzzySetFalsePositiveProbability) {
+        this.docIdFuzzySetFalsePositiveProbability = docIdFuzzySetFalsePositiveProbability;
+    }
+
+    public RemoteStorePathStrategy getRemoteStorePathStrategy() {
+        return remoteStorePathStrategy;
+    }
+
+    public boolean isTranslogMetadataEnabled() {
+        return isTranslogMetadataEnabled;
     }
 }

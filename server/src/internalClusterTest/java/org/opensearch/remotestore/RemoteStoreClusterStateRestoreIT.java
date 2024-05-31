@@ -24,6 +24,7 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetada
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -46,6 +47,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
+
+    @Before
+    public void setup() {
+        asyncUploadMockFsRepo = false;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -310,10 +316,16 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
             internalCluster().getClusterManagerName()
         );
         assertBusy(() -> {
-            ClusterMetadataManifest manifest = remoteClusterStateService.getLatestClusterMetadataManifest(
-                getClusterState().getClusterName().value(),
-                getClusterState().metadata().clusterUUID()
-            ).get();
+            ClusterMetadataManifest manifest;
+            try {
+                manifest = remoteClusterStateService.getLatestClusterMetadataManifest(
+                    getClusterState().getClusterName().value(),
+                    getClusterState().metadata().clusterUUID()
+                ).get();
+            } catch (IllegalStateException e) {
+                // AssertionError helps us use assertBusy and retry validation if failed due to a race condition.
+                throw new AssertionError("Error while validating latest cluster metadata", e);
+            }
             ClusterState clusterState = getClusterState();
             Metadata currentMetadata = clusterState.metadata();
             assertEquals(currentMetadata.indices().size(), manifest.getIndices().size());

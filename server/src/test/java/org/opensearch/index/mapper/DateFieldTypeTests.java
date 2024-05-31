@@ -217,14 +217,14 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             "field",
             false,
             false,
-            true,
+            false,
             DateFieldMapper.getDefaultDateTimeFormatter(),
             Resolution.MILLISECONDS,
             null,
             Collections.emptyMap()
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery(date, context));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testRangeQuery() throws IOException {
@@ -280,7 +280,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             "field",
             false,
             false,
-            true,
+            false,
             DateFieldMapper.getDefaultDateTimeFormatter(),
             Resolution.MILLISECONDS,
             null,
@@ -290,7 +290,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery(date1, date2, true, true, null, null, null, context)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testRangeQueryWithIndexSort() {

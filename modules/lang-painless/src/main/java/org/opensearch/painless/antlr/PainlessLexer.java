@@ -45,10 +45,10 @@ import org.antlr.v4.runtime.atn.LexerATNSimulator;
 import org.antlr.v4.runtime.atn.PredictionContextCache;
 import org.antlr.v4.runtime.dfa.DFA;
 
-@SuppressWarnings({ "all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue" })
+@SuppressWarnings({ "all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue", "this-escape" })
 abstract class PainlessLexer extends Lexer {
     static {
-        RuntimeMetaData.checkVersion("4.11.1", RuntimeMetaData.VERSION);
+        RuntimeMetaData.checkVersion("4.13.1", RuntimeMetaData.VERSION);
     }
 
     protected static final DFA[] _decisionToDFA;

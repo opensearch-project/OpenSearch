@@ -351,7 +351,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             KeyComparable<InternalBucket> {
 
         private final CompositeKey key;
-        private final long docCount;
+        private long docCount;
         private final InternalAggregations aggregations;
         private final transient int[] reverseMuls;
         private final transient MissingOrder[] missingOrders;
@@ -446,6 +446,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         @Override
         public long getDocCount() {
             return docCount;
+        }
+
+        public void setDocCount(long docCount) {
+            this.docCount = docCount;
         }
 
         @Override

@@ -356,10 +356,10 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
                             state = SnapshotsInProgress.State.FAILED;
                             break;
                         case SUCCESS:
-                        case PARTIAL:
-                            // Translating both PARTIAL and SUCCESS to SUCCESS for now
-                            // TODO: add the differentiation on the metadata level in the next major release
                             state = SnapshotsInProgress.State.SUCCESS;
+                            break;
+                        case PARTIAL:
+                            state = SnapshotsInProgress.State.PARTIAL;
                             break;
                         default:
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());

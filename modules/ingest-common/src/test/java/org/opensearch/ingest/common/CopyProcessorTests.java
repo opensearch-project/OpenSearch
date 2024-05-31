@@ -14,6 +14,9 @@ import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class CopyProcessorTests extends OpenSearchTestCase {
@@ -21,13 +24,12 @@ public class CopyProcessorTests extends OpenSearchTestCase {
     public void testCopyExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String sourceFieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        String targetFieldName = RandomDocumentPicks.randomFieldName(random());
+        String targetFieldName = RandomDocumentPicks.randomNonExistingFieldName(random(), ingestDocument);
         Processor processor = createCopyProcessor(sourceFieldName, targetFieldName, false, false, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(targetFieldName), equalTo(true));
         Object sourceValue = ingestDocument.getFieldValue(sourceFieldName, Object.class);
-        assertThat(ingestDocument.getFieldValue(targetFieldName, Object.class), equalTo(sourceValue));
-        assertThat(ingestDocument.getFieldValue(sourceFieldName, Object.class), equalTo(sourceValue));
+        assertDeepCopiedObjectEquals(ingestDocument.getFieldValue(targetFieldName, Object.class), sourceValue);
 
         Processor processorWithEmptyTarget = createCopyProcessor(sourceFieldName, "", false, false, false);
         assertThrows(
@@ -69,13 +71,14 @@ public class CopyProcessorTests extends OpenSearchTestCase {
     public void testCopyWithRemoveSource() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String sourceFieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        String targetFieldName = RandomDocumentPicks.randomFieldName(random());
+        String targetFieldName = RandomDocumentPicks.randomNonExistingFieldName(random(), ingestDocument);
+
         Object sourceValue = ingestDocument.getFieldValue(sourceFieldName, Object.class);
 
         Processor processor = createCopyProcessor(sourceFieldName, targetFieldName, false, true, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(targetFieldName), equalTo(true));
-        assertThat(ingestDocument.getFieldValue(targetFieldName, Object.class), equalTo(sourceValue));
+        assertDeepCopiedObjectEquals(ingestDocument.getFieldValue(targetFieldName, Object.class), sourceValue);
         assertThat(ingestDocument.hasField(sourceFieldName), equalTo(false));
     }
 
@@ -97,12 +100,30 @@ public class CopyProcessorTests extends OpenSearchTestCase {
         Processor processorWithTargetNullValue = createCopyProcessor(sourceFieldName, targetFieldWithNullValue, false, false, false);
         processorWithTargetNullValue.execute(ingestDocument);
         assertThat(ingestDocument.hasField(targetFieldWithNullValue), equalTo(true));
-        assertThat(ingestDocument.getFieldValue(targetFieldWithNullValue, Object.class), equalTo(sourceValue));
+        assertDeepCopiedObjectEquals(ingestDocument.getFieldValue(targetFieldWithNullValue, Object.class), sourceValue);
 
         Processor processorWithOverrideTargetIsTrue = createCopyProcessor(sourceFieldName, targetFieldName, false, false, true);
         processorWithOverrideTargetIsTrue.execute(ingestDocument);
         assertThat(ingestDocument.hasField(targetFieldName), equalTo(true));
-        assertThat(ingestDocument.getFieldValue(targetFieldName, Object.class), equalTo(sourceValue));
+        assertDeepCopiedObjectEquals(ingestDocument.getFieldValue(targetFieldName, Object.class), sourceValue);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertDeepCopiedObjectEquals(Object expected, Object actual) {
+        if (expected instanceof Map) {
+            Map<String, Object> expectedMap = (Map<String, Object>) expected;
+            Map<String, Object> actualMap = (Map<String, Object>) actual;
+            assertEquals(expectedMap.size(), actualMap.size());
+            for (Map.Entry<String, Object> expectedEntry : expectedMap.entrySet()) {
+                assertDeepCopiedObjectEquals(expectedEntry.getValue(), actualMap.get(expectedEntry.getKey()));
+            }
+        } else if (expected instanceof List) {
+            assertArrayEquals(((List<?>) expected).toArray(), ((List<?>) actual).toArray());
+        } else if (expected instanceof byte[]) {
+            assertArrayEquals((byte[]) expected, (byte[]) actual);
+        } else {
+            assertEquals(expected, actual);
+        }
     }
 
     private static Processor createCopyProcessor(

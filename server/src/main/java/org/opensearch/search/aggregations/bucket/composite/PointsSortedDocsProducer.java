@@ -68,6 +68,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             // no value for the field
             return DocIdSet.EMPTY;
         }
+
         long lowerBucket = Long.MIN_VALUE;
         Comparable lowerValue = queue.getLowerValueLeadSource();
         if (lowerValue != null) {
@@ -76,7 +77,6 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
             lowerBucket = (Long) lowerValue;
         }
-
         long upperBucket = Long.MAX_VALUE;
         Comparable upperValue = queue.getUpperValueLeadSource();
         if (upperValue != null) {
@@ -85,6 +85,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
             upperBucket = (Long) upperValue;
         }
+
         DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values, field) : null;
         Visitor visitor = new Visitor(context, queue, builder, values.getBytesPerDimension(), lowerBucket, upperBucket);
         try {
@@ -146,6 +147,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
 
             long bucket = bucketFunction.applyAsLong(packedValue);
+            // process previous bucket when new bucket appears
             if (first == false && bucket != lastBucket) {
                 final DocIdSet docIdSet = bucketDocsBuilder.build();
                 if (processBucket(queue, context, docIdSet.iterator(), lastBucket, builder) &&
@@ -182,13 +184,13 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
             }
-
             if (upperBucket != Long.MAX_VALUE) {
                 long minBucket = bucketFunction.applyAsLong(minPackedValue);
                 if (minBucket > upperBucket) {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
             }
+
             return PointValues.Relation.CELL_CROSSES_QUERY;
         }
 

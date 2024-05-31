@@ -53,3 +53,36 @@
           nodes.info: {}
 
     - contains:  { nodes.$cluster_manager.ingest.processors: { type: copy } }
+
+---
+"Remove_by_pattern processor exists":
+    - skip:
+          version: " - 2.11.99"
+          features: contains
+          reason: "remove_by_pattern processor was introduced in 2.12.0 and contains is a newly added assertion"
+    - do:
+          cluster.state: {}
+
+    # Get cluster-manager node id
+    - set: { cluster_manager_node: cluster_manager }
+
+    - do:
+          nodes.info: {}
+
+    - contains:  { nodes.$cluster_manager.ingest.processors: { type: remove_by_pattern } }
+
+---
+"Community_id processor exists":
+    - skip:
+          version: " - 2.12.99"
+          features: contains
+          reason: "community_id processor was introduced in 2.13.0 and contains is a newly added assertion"
+    - do:
+          cluster.state: {}
+
+    # Get cluster-manager node id
+    - set: { cluster_manager_node: cluster_manager }
+
+    - do:
+          nodes.info: {}
+    - contains:  { nodes.$cluster_manager.ingest.processors: { type: community_id } }

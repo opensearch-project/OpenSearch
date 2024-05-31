@@ -12,7 +12,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -32,8 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimpleNestedExplainIT extends OpenSearchIntegTestCase {
 
     @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
+    protected int numberOfShards() {
+        return 1;
     }
 
     /*
@@ -76,7 +75,23 @@ public class SimpleNestedExplainIT extends OpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        indexRandomForMultipleSlices("test");
+        client().prepareIndex("test")
+            .setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", "value2")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value2")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value2")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         // Turn off the concurrent search setting to test search with non-concurrent search
         client().admin()

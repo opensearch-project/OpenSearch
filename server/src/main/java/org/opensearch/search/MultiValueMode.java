@@ -685,6 +685,11 @@ public enum MultiValueMode implements Writeable {
                 public double doubleValue() throws IOException {
                     return this.value;
                 }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return values.advance(target);
+                }
             };
         }
     }
@@ -744,6 +749,11 @@ public enum MultiValueMode implements Writeable {
             @Override
             public double doubleValue() throws IOException {
                 return lastEmittedValue;
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
             }
         };
     }
