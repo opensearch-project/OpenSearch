@@ -73,6 +73,7 @@ import org.opensearch.script.ScriptService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -199,6 +200,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope,
         Property.Deprecated
+    );
+    // Deprecated set of meta-fields, for checking if a field is meta, use an instance method isMetadataField instead
+    @Deprecated
+    public static final Set<String> META_FIELDS_BEFORE_7DOT8 = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList("_id", IgnoredFieldMapper.NAME, "_index", "_routing", "_size", "_timestamp", "_ttl", "_type"))
     );
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MapperService.class);
