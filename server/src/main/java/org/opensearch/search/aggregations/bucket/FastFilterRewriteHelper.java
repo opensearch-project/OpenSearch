@@ -443,7 +443,7 @@ public final class FastFilterRewriteHelper {
 
             DateFieldMapper.DateFieldType fieldType = getFieldType();
             BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
-                long rangeStart = LongPoint.decodeDimension(ranges.min[activeIndex], 0);
+                long rangeStart = LongPoint.decodeDimension(ranges.lowers[activeIndex], 0);
                 rangeStart = fieldType.convertNanosToMillis(rangeStart);
                 long ord = getBucketOrd(bucketOrd.apply(rangeStart));
                 incrementDocCount.accept(ord, (long) docCount);
@@ -542,15 +542,19 @@ public final class FastFilterRewriteHelper {
                 switch (pointType) {
                     case "half_float":
                         HalfFloatPoint.encodeDimension((float) rangeMin, min, 0);
-                        HalfFloatPoint.encodeDimension((float) rangeMax - 1, max, 0);
-                        break;
-                    case "int":
-                        IntPoint.encodeDimension((int) rangeMin, min, 0);
-                        IntPoint.encodeDimension((int) rangeMax - 1, max, 0);
+                        HalfFloatPoint.encodeDimension((float) rangeMax, max, 0);
                         break;
                     case "float":
                         FloatPoint.encodeDimension((float) rangeMin, min, 0);
-                        FloatPoint.encodeDimension((float) rangeMax - 1, max, 0);
+                        FloatPoint.encodeDimension((float) rangeMax, max, 0);
+                        break;
+                    case "double":
+                        DoublePoint.encodeDimension(rangeMin, min, 0);
+                        DoublePoint.encodeDimension(rangeMax, max, 0);
+                        break;
+                    case "int":
+                        IntPoint.encodeDimension((int) rangeMin, min, 0);
+                        IntPoint.encodeDimension((int) rangeMax, max, 0);
                         break;
                     case "long":
                         if (scaled) {
@@ -569,15 +573,11 @@ public final class FastFilterRewriteHelper {
                             rangeMax = scalingFactor * rangeMax;
                         }
                         LongPoint.encodeDimension((long) rangeMin, min, 0);
-                        LongPoint.encodeDimension((long) rangeMax - 1, max, 0);
-                        break;
-                    case "double":
-                        DoublePoint.encodeDimension(rangeMin, min, 0);
-                        DoublePoint.encodeDimension(rangeMax - 1, max, 0);
+                        LongPoint.encodeDimension((long) rangeMax, max, 0);
                         break;
                     case "big_integer":
                         BigIntegerPoint.encodeDimension(convertDoubleToBigInteger(rangeMin), min, 0);
-                        BigIntegerPoint.encodeDimension(convertDoubleToBigInteger(rangeMax - 1), max, 0);
+                        BigIntegerPoint.encodeDimension(convertDoubleToBigInteger(rangeMax), max, 0);
                         break;
                 }
 
@@ -688,7 +688,7 @@ public final class FastFilterRewriteHelper {
 
                 // Subtract -1 if the minimum is roundedLow as roundedLow itself
                 // is included in the next bucket
-                long upper = i + 1 == bucketCount ? high : fieldType.convertRoundedMillisToNanos(roundedLow) - 1;
+                long upper = i + 1 == bucketCount ? high + 1 : fieldType.convertRoundedMillisToNanos(roundedLow);
 
                 ranges[i][0] = lower;
                 ranges[i][1] = upper;
@@ -696,18 +696,18 @@ public final class FastFilterRewriteHelper {
             }
         }
 
-        byte[][] mins = new byte[ranges.length][];
-        byte[][] maxs = new byte[ranges.length][];
+        byte[][] lowers = new byte[ranges.length][];
+        byte[][] uppers = new byte[ranges.length][];
         for (int i = 0; i < ranges.length; i++) {
-            byte[] min = new byte[8];
+            byte[] lower = new byte[8];
             byte[] max = new byte[8];
-            LongPoint.encodeDimension(ranges[i][0], min, 0);
+            LongPoint.encodeDimension(ranges[i][0], lower, 0);
             LongPoint.encodeDimension(ranges[i][1], max, 0);
-            mins[i] = min;
-            maxs[i] = max;
+            lowers[i] = lower;
+            uppers[i] = max;
         }
 
-        return new Ranges(mins, maxs, 8);
+        return new Ranges(lowers, uppers, 8);
     }
 
     /**
@@ -738,28 +738,35 @@ public final class FastFilterRewriteHelper {
     }
 
     private static class Ranges {
-        byte[][] min;
-        byte[][] max;
+        byte[][] lowers; // inclusive
+        byte[][] uppers; // exclusive
         int size;
         int byteLen;
         static ArrayUtil.ByteArrayComparator comparator;
 
-        Ranges(byte[][] min, byte[][] max, int byteLen) {
-            this.min = min;
-            this.max = max;
-            assert min.length == max.length;
-            this.size = min.length;
+        Ranges(byte[][] lowers, byte[][] uppers, int byteLen) {
+            this.lowers = lowers;
+            this.uppers = uppers;
+            assert lowers.length == uppers.length;
+            this.size = lowers.length;
             this.byteLen = byteLen;
             comparator = ArrayUtil.getUnsignedComparator(byteLen);
         }
 
         public int firstRangeIndex(byte[] globalMin, byte[] globalMax) {
-            if (compareByteValue(min[0], globalMax) > 0) {
+            if (compareByteValue(lowers[0], globalMax) > 0) {
                 return -1;
             }
             int i = 0;
-            while (compareByteValue(max[i], globalMin) < 0) {
+            while (compareByteValue(uppers[i], globalMin) <= 0) {
                 i++;
+                // special case
+                // lower and upper may be same for the last range
+                // if (i == size - 1) {
+                // if (compareByteValue(lowers[i], globalMin) >= 0) {
+                // return i;
+                // }
+                // }
                 if (i >= size) {
                     return -1;
                 }
@@ -769,6 +776,14 @@ public final class FastFilterRewriteHelper {
 
         public static int compareByteValue(byte[] value1, byte[] value2) {
             return comparator.compare(value1, 0, value2, 0);
+        }
+
+        public static boolean withinLowerBound(byte[] value, byte[] lowerBound) {
+            return compareByteValue(value, lowerBound) >= 0;
+        }
+
+        public static boolean withinUpperBound(byte[] value, byte[] upperBound) {
+            return compareByteValue(value, upperBound) < 0;
         }
     }
 
@@ -825,42 +840,32 @@ public final class FastFilterRewriteHelper {
             }
 
             private void visitPoints(byte[] packedValue, CheckedRunnable<IOException> collect) throws IOException {
-                if (Ranges.compareByteValue(packedValue, collector.activeRange[1]) > 0) {
-                    // need to move to next range
+                if (!collector.withinUpperBound(packedValue)) {
                     collector.finalizePreviousRange();
                     if (collector.iterateRangeEnd(packedValue)) {
                         throw new CollectionTerminatedException();
                     }
                 }
 
-                if (pointCompare(collector.activeRange[0], collector.activeRange[1], packedValue)) {
+                if (collector.withinRange(packedValue)) {
                     collect.run();
                 }
             }
 
-            private boolean pointCompare(byte[] lower, byte[] upper, byte[] packedValue) {
-                if (Ranges.compareByteValue(packedValue, lower) < 0) {
-                    return false;
-                }
-                return Ranges.compareByteValue(packedValue, upper) <= 0;
-            }
-
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                byte[] rangeMin = collector.activeRange[0];
-                byte[] rangeMax = collector.activeRange[1];
+                if (Ranges.compareByteValue(collector.activeRange[0], minPackedValue) > 0) {
+                    return PointValues.Relation.CELL_CROSSES_QUERY;
+                }
 
-                if (Ranges.compareByteValue(rangeMax, minPackedValue) < 0) {
+                if (!collector.withinUpperBound(minPackedValue)) {
                     collector.finalizePreviousRange();
                     if (collector.iterateRangeEnd(minPackedValue)) {
                         throw new CollectionTerminatedException();
                     }
-                    // compare the next range with this node's min max again
-                    // new rangeMin = previous rangeMax + 1 <= min
-                    rangeMax = collector.activeRange[1];
                 }
 
-                if (Ranges.compareByteValue(rangeMin, minPackedValue) > 0 || Ranges.compareByteValue(rangeMax, maxPackedValue) < 0) {
+                if (Ranges.compareByteValue(collector.activeRange[1], maxPackedValue) <= 0) {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 } else {
                     return PointValues.Relation.CELL_INSIDE_QUERY;
@@ -875,7 +880,7 @@ public final class FastFilterRewriteHelper {
 
         private final Ranges ranges;
         private int activeIndex;
-        private final byte[][] activeRange = new byte[2][8];
+        private final byte[][] activeRange = new byte[2][];
 
         private int visitedRange = 0;
         private final int maxNumNonZeroRange;
@@ -916,7 +921,7 @@ public final class FastFilterRewriteHelper {
         private boolean iterateRangeEnd(byte[] value) {
             // the new value may not be contiguous to the previous one
             // so try to find the first next range that cross the new value
-            while (Ranges.compareByteValue(activeRange[1], value) < 0) {
+            while (!withinUpperBound(value)) {
                 if (++activeIndex >= ranges.size) {
                     return true;
                 }
@@ -927,8 +932,29 @@ public final class FastFilterRewriteHelper {
         }
 
         private void updateActiveRange() {
-            activeRange[0] = ranges.min[activeIndex];
-            activeRange[1] = ranges.max[activeIndex];
+            activeRange[0] = ranges.lowers[activeIndex];
+            activeRange[1] = ranges.uppers[activeIndex];
+        }
+
+        private boolean withinLowerBound(byte[] value) {
+            return Ranges.withinLowerBound(value, activeRange[0]);
+        }
+
+        private boolean withinUpperBound(byte[] value) {
+            // special case
+            // lower and upper may be same for the last range
+            // if (activeIndex == ranges.size - 1) {
+            // return Ranges.compareByteValue(value, activeRange[1]) <= 0;
+            // }
+            return Ranges.withinUpperBound(value, activeRange[1]);
+        }
+
+        private boolean withinRange(byte[] value) {
+            return withinLowerBound(value) && withinUpperBound(value);
+        }
+
+        private boolean cellCross(byte[] min, byte[] max) {
+            return Ranges.compareByteValue(activeRange[0], min) > 0 || withinUpperBound(max);
         }
     }
 
