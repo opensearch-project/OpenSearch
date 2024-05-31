@@ -86,7 +86,7 @@ public abstract class TaskListQueryParams {
             return this;
         }
 
-        public Builder setPageSize(int pageSize){
+        public Builder setPageSize(int pageSize) {
             this.pageSize = pageSize;
             return this;
         }
