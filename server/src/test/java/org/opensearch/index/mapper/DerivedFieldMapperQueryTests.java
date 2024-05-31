@@ -510,7 +510,12 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> {
                     MappedFieldType res = mapperService.fieldType(inv.getArguments()[0].toString());
                     if (res == null) {
-                        DerivedFieldResolver derivedFieldResolver = new DefaultDerivedFieldResolver(queryShardContext, null, null);
+                        DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+                            queryShardContext,
+                            null,
+                            null,
+                            true
+                        );
                         res = derivedFieldResolver.resolve(inv.getArguments()[0].toString());
                     }
                     return res;
@@ -716,7 +721,12 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> {
                     MappedFieldType res = mapperService.fieldType(inv.getArguments()[0].toString());
                     if (res == null) {
-                        DerivedFieldResolver derivedFieldResolver = new DefaultDerivedFieldResolver(queryShardContext, null, null);
+                        DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+                            queryShardContext,
+                            null,
+                            null,
+                            true
+                        );
                         res = derivedFieldResolver.resolve(inv.getArguments()[0].toString());
                     }
                     return res;
@@ -869,7 +879,12 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 when(queryShardContext.fieldMapper(anyString())).thenAnswer(inv -> {
                     MappedFieldType res = mapperService.fieldType(inv.getArguments()[0].toString());
                     if (res == null) {
-                        DerivedFieldResolver derivedFieldResolver = new DefaultDerivedFieldResolver(queryShardContext, null, null);
+                        DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+                            queryShardContext,
+                            null,
+                            null,
+                            true
+                        );
                         res = derivedFieldResolver.resolve(inv.getArguments()[0].toString());
                     }
                     return res;

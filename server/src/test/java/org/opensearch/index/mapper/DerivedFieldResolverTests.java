@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.query.QueryShardContext;
@@ -54,7 +55,12 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         }));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
-        DefaultDerivedFieldResolver resolver = new DefaultDerivedFieldResolver(queryShardContext, null, null);
+        DefaultDerivedFieldResolver resolver = (DefaultDerivedFieldResolver) DerivedFieldResolverFactory.createResolver(
+            queryShardContext,
+            null,
+            null,
+            true
+        );
         assertEquals("keyword", resolver.resolve("derived_text").getType());
         assertEqualDerivedField(new DerivedField("derived_text", "keyword", new Script("")), resolver.resolve("derived_text").derivedField);
     }
@@ -63,10 +69,11 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> {}));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
-        DefaultDerivedFieldResolver resolver = new DefaultDerivedFieldResolver(
+        DefaultDerivedFieldResolver resolver = (DefaultDerivedFieldResolver) DerivedFieldResolverFactory.createResolver(
             queryShardContext,
             createDerivedFieldsObject(),
-            createDerivedFields()
+            createDerivedFields(),
+            true
         );
         assertEquals("text", resolver.resolve("derived_text").getType());
         assertEqualDerivedField(new DerivedField("derived_text", "text", new Script("")), resolver.resolve("derived_text").derivedField);
@@ -86,7 +93,12 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> {}));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
-        DefaultDerivedFieldResolver resolver = new DefaultDerivedFieldResolver(queryShardContext, null, null);
+        DefaultDerivedFieldResolver resolver = (DefaultDerivedFieldResolver) DerivedFieldResolverFactory.createResolver(
+            queryShardContext,
+            null,
+            null,
+            true
+        );
         assertNull(resolver.resolve("derived_keyword"));
     }
 
@@ -120,10 +132,11 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         }));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
-        DefaultDerivedFieldResolver resolver = new DefaultDerivedFieldResolver(
+        DefaultDerivedFieldResolver resolver = (DefaultDerivedFieldResolver) DerivedFieldResolverFactory.createResolver(
             queryShardContext,
             createDerivedFieldsObject(),
-            createDerivedFields()
+            createDerivedFields(),
+            true
         );
 
         // precedence given to search definition; derived_text is present in both -
@@ -332,7 +345,12 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         }));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
-        DefaultDerivedFieldResolver resolver = new DefaultDerivedFieldResolver(queryShardContext, null, null);
+        DefaultDerivedFieldResolver resolver = (DefaultDerivedFieldResolver) DerivedFieldResolverFactory.createResolver(
+            queryShardContext,
+            null,
+            null,
+            true
+        );
         assertNull(resolver.resolve("indexed_field"));
         assertNull(resolver.resolve("indexed_field_2.sub_field"));
     }
@@ -361,6 +379,55 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
                 assertEquals(1, resolver.cnt);
             }
         }
+    }
+
+    public void testResolutionDisabled() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startObject("properties");
+            {
+                b.startObject("indexed_field");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject();
+                b.startObject("indexed_field_2.sub_field");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("derived");
+            {
+                b.startObject("derived_text");
+                {
+                    b.field("type", "keyword");
+                    b.field("script", "");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
+        DerivedFieldResolver resolver = DerivedFieldResolverFactory.createResolver(queryShardContext, null, null, false);
+        assertTrue(resolver instanceof NoOpDerivedFieldResolver);
+        assertNull(resolver.resolve("derived_text"));
+        assertEquals(0, resolver.resolvePattern("*").size());
+        assertNull(resolver.resolve("indexed_field"));
+        assertNull(resolver.resolve("indexed_field_2.sub_field"));
+
+        assertThrows(
+            OpenSearchException.class,
+            () -> DerivedFieldResolverFactory.createResolver(queryShardContext, createDerivedFieldsObject(), createDerivedFields(), false)
+        );
+
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+
+        assertThrows(
+            OpenSearchException.class,
+            () -> DerivedFieldResolverFactory.createResolver(queryShardContext, createDerivedFieldsObject(), createDerivedFields(), true)
+        );
     }
 
     public void testResolvePattern() throws IOException {
@@ -393,10 +460,11 @@ public class DerivedFieldResolverTests extends MapperServiceTestCase {
         }));
         QueryShardContext queryShardContext = createQueryShardContext(mapperService);
         when(queryShardContext.index()).thenReturn(new Index("test_index", "uuid"));
-        DefaultDerivedFieldResolver resolver = new DefaultDerivedFieldResolver(
+        DefaultDerivedFieldResolver resolver = (DefaultDerivedFieldResolver) DerivedFieldResolverFactory.createResolver(
             queryShardContext,
             createDerivedFieldsObject(),
-            createDerivedFields()
+            createDerivedFields(),
+            true
         );
         assertEquals(4, resolver.resolvePattern("derived_*").size());
         assertEquals(4, resolver.resolvePattern("*").size()); // should not include regular field indexed_field

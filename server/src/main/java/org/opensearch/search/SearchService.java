@@ -77,8 +77,8 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.mapper.DefaultDerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolver;
+import org.opensearch.index.mapper.DerivedFieldResolverFactory;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -157,6 +157,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
@@ -280,6 +282,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> CLUSTER_ALLOW_DERIVED_FEILDS_SETTING = Setting.boolSetting(
+        "search.derived_field.enabled",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -316,6 +325,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile int maxOpenScrollContext;
 
     private volatile int maxOpenPitContext;
+
+    private volatile boolean allowDerivedField;
 
     private final Cancellable keepAliveReaper;
 
@@ -388,6 +399,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+
+        allowDerivedField = CLUSTER_ALLOW_DERIVED_FEILDS_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FEILDS_SETTING, this::setAllowDerivedField);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -454,6 +468,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setMaxOpenScrollContext(int maxOpenScrollContext) {
         this.maxOpenScrollContext = maxOpenScrollContext;
+    }
+
+    private void setAllowDerivedField(boolean allowDerivedField) {
+        this.allowDerivedField = allowDerivedField;
     }
 
     private void setMaxOpenPitContext(int maxOpenPitContext) {
@@ -1080,10 +1098,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.source() != null
                 && request.source().size() != 0
                 && (request.source().getDerivedFieldsObject() != null || request.source().getDerivedFields() != null)) {
-                DerivedFieldResolver derivedFieldResolver = new DefaultDerivedFieldResolver(
+                DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
                     searchContext.getQueryShardContext(),
                     request.source().getDerivedFieldsObject(),
-                    request.source().getDerivedFields()
+                    request.source().getDerivedFields(),
+                    context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
+                );
+                context.setDerivedFieldResolver(derivedFieldResolver);
+                searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);
+            } else {
+                DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+                    searchContext.getQueryShardContext(),
+                    emptyMap(),
+                    emptyList(),
+                    context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
                 );
                 context.setDerivedFieldResolver(derivedFieldResolver);
                 searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);

@@ -36,7 +36,7 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
     private final FieldTypeInference typeInference;
     private static final Logger logger = LogManager.getLogger(DefaultDerivedFieldResolver.class);
 
-    public DefaultDerivedFieldResolver(
+    DefaultDerivedFieldResolver(
         QueryShardContext queryShardContext,
         Map<String, Object> derivedFieldsObject,
         List<DerivedField> derivedFields
@@ -53,7 +53,7 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
         );
     }
 
-    public DefaultDerivedFieldResolver(
+    DefaultDerivedFieldResolver(
         QueryShardContext queryShardContext,
         Map<String, Object> derivedFieldsObject,
         List<DerivedField> derivedFields,

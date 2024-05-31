@@ -58,8 +58,8 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.ContentPath;
-import org.opensearch.index.mapper.DefaultDerivedFieldResolver;
 import org.opensearch.index.mapper.DerivedFieldResolver;
+import org.opensearch.index.mapper.DerivedFieldResolverFactory;
 import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -271,7 +271,12 @@ public class QueryShardContext extends QueryRewriteContext {
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
-        this.derivedFieldResolver = new DefaultDerivedFieldResolver(this, emptyMap(), emptyList());
+        this.derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+            this,
+            emptyMap(),
+            emptyList(),
+            indexSettings.isDerivedFieldAllowed()
+        );
     }
 
     private void reset() {
@@ -421,7 +426,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (fieldMapping != null) {
             if (fieldMapping instanceof DerivedFieldType) {
                 // resolveDerivedFieldType() will give precedence to search time definitions over index mapping, thus
-                // calling it instead of directly returning
+                // calling it instead of directly returning. It also ensures the feature flags are honoured.
                 return resolveDerivedFieldType(name);
             }
             return fieldMapping;

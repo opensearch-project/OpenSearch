@@ -33,4 +33,5 @@ public interface DerivedFieldResolver {
      * @return mapped field type
      */
     MappedFieldType resolve(String fieldName);
+
 }
