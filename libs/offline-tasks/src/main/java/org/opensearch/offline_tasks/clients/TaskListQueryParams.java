@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.client;
+package org.opensearch.offline_tasks.clients;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.offline_tasks.task.TaskStatus;
@@ -24,14 +24,14 @@ public abstract class TaskListQueryParams {
     /**
      * Depicts the start page number for the list call.
      *
-     * @see TaskClient#getTasks(TaskStatus, TaskListQueryParams)
+     * @see TaskManagerClient#getTasks(TaskStatus, TaskListQueryParams)
      */
     private final int startPageNumber;
 
     /**
      * Depicts the page size for the list call.
      *
-     * @see TaskClient#getTasks(TaskStatus, TaskListQueryParams)
+     * @see TaskManagerClient#getTasks(TaskStatus, TaskListQueryParams)
      */
     private final int pageSize;
 
@@ -68,14 +68,14 @@ public abstract class TaskListQueryParams {
         /**
          * Depicts the start page number for the list call.
          *
-         * @see TaskClient#getTasks(TaskStatus, TaskListQueryParams)
+         * @see TaskManagerClient#getTasks(TaskStatus, TaskListQueryParams)
          */
         private int startPageNumber = 1;
 
         /**
          * Depicts the page size for the list call.
          *
-         * @see TaskClient#getTasks(TaskStatus, TaskListQueryParams)
+         * @see TaskManagerClient#getTasks(TaskStatus, TaskListQueryParams)
          */
         private int pageSize = 50;
 

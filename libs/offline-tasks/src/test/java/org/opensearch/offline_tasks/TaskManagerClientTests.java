@@ -10,7 +10,7 @@ package org.opensearch.offline_tasks;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-public class TaskClientTests extends OpenSearchTestCase {
+public class TaskManagerClientTests extends OpenSearchTestCase {
     public void testTaskClient() {
         assertNull(null);
     }

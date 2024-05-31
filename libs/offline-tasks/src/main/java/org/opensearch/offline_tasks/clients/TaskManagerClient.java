@@ -6,13 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.client;
+package org.opensearch.offline_tasks.clients;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.offline_tasks.task.Task;
 import org.opensearch.offline_tasks.task.TaskId;
 import org.opensearch.offline_tasks.task.TaskStatus;
 import org.opensearch.offline_tasks.task.TaskType;
+import org.opensearch.offline_tasks.worker.WorkerNode;
 
 import java.util.List;
 
@@ -22,22 +23,7 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface TaskClient {
-
-    /**
-     * Submit a new task to TaskStore/Queue
-     *
-     * @param task Task to be submitted for execution on offline nodes
-     */
-    void submitTask(Task task);
-
-    /**
-     * Claim task from TaskStore/Queue. This ensures no 2 Offline Nodes work on the same task.
-     *
-     * @param taskId TaskId of the task to be claimed
-     * @return true if task is claimed successfully, false otherwise
-     */
-    boolean claimTask(TaskId taskId);
+public interface TaskManagerClient {
 
     /**
      * Get task from TaskStore/Queue
@@ -61,6 +47,15 @@ public interface TaskClient {
      * @param taskId TaskId of the task to be cancelled
      */
     void cancelTask(TaskId taskId);
+
+    /**
+     * Assign Task to a particular WorkerNode. This ensures no 2 worker Nodes work on the same task.
+     * This API can be used in both pull and push models of task assignment.
+     *
+     * @param taskId TaskId of the task to be claimed
+     * @return true if task is claimed successfully, false otherwise
+     */
+    boolean assignTask(TaskId taskId, WorkerNode node);
 
     /**
      * List all tasks with a particular {@param taskStatus} of a particular {@param taskType} considering {@param listTaskStatus}

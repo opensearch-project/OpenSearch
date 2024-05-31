@@ -11,7 +11,7 @@ package org.opensearch.plugins;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.offline_tasks.client.TaskClient;
+import org.opensearch.offline_tasks.clients.TaskManagerClient;
 import org.opensearch.threadpool.ThreadPool;
 
 /**
@@ -23,5 +23,5 @@ public interface OfflineTaskClientPlugin {
     /**
      * Get the task client.
      */
-    TaskClient getTaskClient(Client client, ClusterService clusterService, ThreadPool threadPool);
+    TaskManagerClient getTaskClient(Client client, ClusterService clusterService, ThreadPool threadPool);
 }

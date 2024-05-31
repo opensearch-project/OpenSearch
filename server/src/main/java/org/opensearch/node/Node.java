@@ -179,7 +179,7 @@ import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
-import org.opensearch.offline_tasks.client.TaskClient;
+import org.opensearch.offline_tasks.clients.TaskManagerClient;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
@@ -1272,7 +1272,7 @@ public class Node implements Closeable {
                 .flatMap(List::stream)
                 .collect(toList());
 
-            final Optional<TaskClient> taskClient = pluginsService.filterPlugins(OfflineTaskClientPlugin.class)
+            final Optional<TaskManagerClient> taskClient = pluginsService.filterPlugins(OfflineTaskClientPlugin.class)
                 .stream()
                 .map((OfflineTaskClientPlugin taskClientPlugin) -> taskClientPlugin.getTaskClient(client, clusterService, threadPool))
                 .findFirst();
@@ -1384,7 +1384,7 @@ public class Node implements Closeable {
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
 
-                taskClient.ifPresent(value -> b.bind(TaskClient.class).toInstance(value));
+                taskClient.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
             injector = modules.createInjector();
 
