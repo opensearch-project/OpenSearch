@@ -104,6 +104,7 @@ import org.opensearch.gateway.DanglingIndicesState;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
+import org.opensearch.gateway.remote.RemoteClusterStateCleanupManager;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
@@ -116,7 +117,7 @@ import org.opensearch.index.ShardIndexingPressureStore;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -689,7 +690,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
-                FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
+                FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
@@ -712,6 +713,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchRequestSlowLog.CLUSTER_SEARCH_REQUEST_SLOWLOG_LEVEL,
 
                 // Remote cluster state settings
+                RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
                 RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
