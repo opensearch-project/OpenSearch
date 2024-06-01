@@ -199,7 +199,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private JvmInstallationMetadata getJavaInstallation(File javaHome) {
-        final InstallationLocation location = new InstallationLocation(javaHome, "Java home");
+        final InstallationLocation location = new InstallationLocation(javaHome, "Java home", false);
 
         try {
             try {
