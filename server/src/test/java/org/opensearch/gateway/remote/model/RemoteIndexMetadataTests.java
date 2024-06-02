@@ -156,12 +156,9 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = getIndexMetadata();
         RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
-
-        try (InputStream inputStream = remoteObjectForUpload.serialize()) {
-            remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
-            UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
-            assertThat(uploadedMetadata.getUploadedFilename(), is(remoteObjectForUpload.getBlobFileName()));
-        }
+        remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
+        UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
+        assertEquals(uploadedMetadata.getUploadedFilename(), remoteObjectForUpload.getFullBlobName());
     }
 
     public void testSerDe() throws IOException {

@@ -23,7 +23,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.IndexMetadataUploadListener;
-import org.opensearch.gateway.remote.RemoteClusterStateService.RemoteStateTransferException;
+import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -45,7 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING;
+import static org.opensearch.gateway.remote.RemoteIndexMetadataManager.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING;
 import static org.opensearch.index.remote.RemoteIndexPath.COMBINED_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.SEGMENT_PATH;
 import static org.opensearch.index.remote.RemoteIndexPath.TRANSLOG_PATH;
