@@ -147,7 +147,7 @@ public class RemoteClusterStateService implements Closeable {
     public static final ChecksumBlobStoreFormat<Metadata.Custom> CUSTOM_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "custom",
         METADATA_NAME_FORMAT,
-        Metadata.Custom::fromXContent
+        null // no need of reader here, as this object is only used to write/serialize the object
     );
 
     /**
