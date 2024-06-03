@@ -180,11 +180,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             // handling any Exception is caller's responsibility
             return parser.namedObject(Custom.class, name, null);
         }
-
-        static Custom fromXContent(XContentParser parser) throws IOException {
-            String currentFieldName = parser.currentName();
-            return fromXContent(parser, currentFieldName);
-        }
     }
 
     public static final Setting<Integer> DEFAULT_REPLICA_COUNT_SETTING = Setting.intSetting(

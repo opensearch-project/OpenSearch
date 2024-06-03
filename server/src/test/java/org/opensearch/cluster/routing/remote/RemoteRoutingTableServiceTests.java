@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.routing.remote;
 
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.FilterRepository;
@@ -30,7 +29,6 @@ import static org.mockito.Mockito.when;
 public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
     private RemoteRoutingTableService remoteRoutingTableService;
-    private ClusterSettings clusterSettings;
     private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private RepositoriesService repositoriesService;
     private BlobStoreRepository blobStoreRepository;
@@ -45,8 +43,6 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             .put(RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.getKey(), true)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
             .build();
-
-        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         blobStoreRepository = mock(BlobStoreRepository.class);
         when(repositoriesService.repository("routing_repository")).thenReturn(blobStoreRepository);
