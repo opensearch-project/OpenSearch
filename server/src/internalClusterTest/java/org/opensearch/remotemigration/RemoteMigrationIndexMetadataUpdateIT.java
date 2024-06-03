@@ -15,14 +15,21 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.index.remote.RemoteIndexPath;
+import org.opensearch.index.remote.RemoteIndexPathUploader;
+import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -452,6 +459,85 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
 
         logger.info("---> Assert index has remote store settings");
         assertRemoteProperties(indexName);
+    }
+
+    /**
+     * Scenario:
+     * creates an index on docrep node with non-remote cluster-manager.
+     * make the cluster mixed, add remote cluster-manager and data nodes.
+     * <p>
+     * exclude docrep nodes, assert that remote index path file exists
+     * when shards start relocating to the remote nodes.
+     */
+    public void testRemoteIndexPathFileExistsAfterMigration() throws Exception {
+        String docrepClusterManager = internalCluster().startClusterManagerOnlyNode();
+
+        logger.info("---> Starting 2 docrep nodes");
+        addRemote = false;
+        internalCluster().startDataOnlyNodes(2, Settings.builder().put("node.attr._type", "docrep").build());
+        internalCluster().validateClusterFormed();
+
+        logger.info("---> Creating index with 1 primary and 1 replica");
+        String indexName = "migration-index";
+        Settings oneReplica = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        createIndexAndAssertDocrepProperties(indexName, oneReplica);
+
+        String indexUUID = internalCluster().client()
+            .admin()
+            .indices()
+            .prepareGetSettings(indexName)
+            .get()
+            .getSetting(indexName, IndexMetadata.SETTING_INDEX_UUID);
+
+        logger.info("---> Starting indexing in parallel");
+        AsyncIndexingService indexingService = new AsyncIndexingService(indexName);
+        indexingService.startIndexing();
+
+        logger.info("---> Adding 2 remote enabled nodes to the cluster & cluster manager");
+        initDocRepToRemoteMigration();
+        addRemote = true;
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNodes(2, Settings.builder().put("node.attr._type", "remote").build());
+        internalCluster().validateClusterFormed();
+
+        assertTrue(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.getKey(), RemoteStoreEnums.PathType.HASHED_PREFIX)
+                )
+                .get()
+                .isAcknowledged()
+        );
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(docrepClusterManager));
+        internalCluster().validateClusterFormed();
+
+        logger.info("---> Excluding docrep nodes from allocation");
+        excludeNodeSet("type", "docrep");
+
+        waitForRelocation();
+        waitNoPendingTasksOnAll();
+        indexingService.stopIndexing();
+
+        // validate remote index path file exists
+        logger.info("---> Asserting remote index path file exists");
+        String fileNamePrefix = String.join(RemoteIndexPathUploader.DELIMITER, indexUUID, "7", RemoteIndexPath.DEFAULT_VERSION);
+
+        assertTrue(FileSystemUtils.exists(translogRepoPath.resolve(RemoteIndexPath.DIR)));
+        Path[] files = FileSystemUtils.files(translogRepoPath.resolve(RemoteIndexPath.DIR));
+        assertEquals(1, files.length);
+        assertTrue(Arrays.stream(files).anyMatch(file -> file.toString().contains(fileNamePrefix)));
+
+        assertTrue(FileSystemUtils.exists(segmentRepoPath.resolve(RemoteIndexPath.DIR)));
+        files = FileSystemUtils.files(segmentRepoPath.resolve(RemoteIndexPath.DIR));
+        assertEquals(1, files.length);
+        assertTrue(Arrays.stream(files).anyMatch(file -> file.toString().contains(fileNamePrefix)));
     }
 
     private void createIndexAndAssertDocrepProperties(String index, Settings settings) {
