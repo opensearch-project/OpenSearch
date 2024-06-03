@@ -16,6 +16,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,7 +31,8 @@ import java.util.Objects;
  *     "analytics" : {
  *              "jvm": 0.4,
  *              "mode": "enforced",
- *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga"
+ *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga",
+ *              "updatedAt": 4513232415
  *      }
  * }
  */
@@ -41,12 +43,14 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     private final String name;
     private final String _id;
     private final ResourceLimitGroupMode mode;
+    // It is an epoch in millis
+    private final long updatedAtInMillis;
     private final Map<String, Object> resourceLimits;
 
-    // list of resources that are allowed to be present in the ResourceLimitGroupSchema
+    // list of resources that are allowed to be present in the ResourceLimitGroup schema
     public static final List<String> ALLOWED_RESOURCES = List.of("jvm");
 
-    public ResourceLimitGroup(String name, String _id, ResourceLimitGroupMode mode, Map<String, Object> resourceLimits) {
+    public ResourceLimitGroup(String name, String _id, ResourceLimitGroupMode mode, Map<String, Object> resourceLimits, long updatedAt) {
         Objects.requireNonNull(name, "ResourceLimitGroup.name can't be null");
         Objects.requireNonNull(resourceLimits, "ResourceLimitGroup.resourceLimits can't be null");
         Objects.requireNonNull(mode, "ResourceLimitGroup.mode can't be null");
@@ -60,15 +64,29 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             throw new IllegalArgumentException("ResourceLimitGroup.resourceLimits should at least have 1 resource limit");
         }
         validateResourceLimits(resourceLimits);
+        if (!isValid(updatedAt)) {
+            throw new IllegalArgumentException("ResourceLimitGroup.updatedAtInMillis is not a valid epoch");
+        }
 
         this.name = name;
         this._id = _id;
         this.mode = mode;
         this.resourceLimits = resourceLimits;
+        this.updatedAtInMillis = updatedAt;
+    }
+
+    private static boolean isValid(long updatedAt) {
+        long minValidTimestamp = Instant.ofEpochMilli(0L).getMillis();
+
+        // Use Instant.now() to get the current time in seconds since epoch
+        long currentSeconds = Instant.now().getMillis();
+
+        // Check if the timestamp is within a reasonable range
+        return minValidTimestamp <= updatedAt && updatedAt <= currentSeconds;
     }
 
     public ResourceLimitGroup(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), ResourceLimitGroupMode.fromName(in.readString()), in.readMap());
+        this(in.readString(), in.readString(), ResourceLimitGroupMode.fromName(in.readString()), in.readMap(), in.readLong());
     }
 
     /**
@@ -82,6 +100,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         out.writeString(_id);
         out.writeString(mode.getName());
         out.writeMap(resourceLimits);
+        out.writeLong(updatedAtInMillis);
     }
 
     private void validateResourceLimits(Map<String, Object> resourceLimits) {
@@ -115,6 +134,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         builder.startObject(this._id);
         builder.field("name", name);
         builder.field("mode", mode.getName());
+        builder.field("updatedAt", updatedAtInMillis);
         builder.mapContents(resourceLimits);
         builder.endObject();
         builder.endObject();
@@ -151,6 +171,8 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
                     builder.name(parser.text());
                 } else if (fieldName.equals("mode")) {
                     builder.mode(parser.text());
+                } else if (fieldName.equals("updatedAt")) {
+                    builder.updatedAt(parser.longValue());
                 } else if (ALLOWED_RESOURCES.contains(fieldName)) {
                     resourceLimitGroup_.put(fieldName, parser.doubleValue());
                 } else {
@@ -191,6 +213,14 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         return resourceLimits;
     }
 
+    public String get_id() {
+        return _id;
+    }
+
+    public long getUpdatedAtInMillis() {
+        return updatedAtInMillis;
+    }
+
     /**
      * builder method for this {@link ResourceLimitGroup}
      * @return
@@ -219,9 +249,8 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         }
 
         public static ResourceLimitGroupMode fromName(String s) {
-            for (ResourceLimitGroupMode mode: values()) {
-                if (mode.getName().equalsIgnoreCase(s))
-                    return mode;
+            for (ResourceLimitGroupMode mode : values()) {
+                if (mode.getName().equalsIgnoreCase(s)) return mode;
 
             }
             throw new IllegalArgumentException("Invalid value for ResourceLimitGroupMode: " + s);
@@ -237,6 +266,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         private String name;
         private String _id;
         private ResourceLimitGroupMode mode;
+        private long updatedAt;
         private Map<String, Object> resourceLimitGroup;
 
         private Builder() {}
@@ -256,13 +286,18 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             return this;
         }
 
+        public Builder updatedAt(long updatedAt) {
+            this.updatedAt = updatedAt;
+            return this;
+        }
+
         public Builder resourceLimitGroup(Map<String, Object> resourceLimitGroup) {
             this.resourceLimitGroup = resourceLimitGroup;
             return this;
         }
 
         public ResourceLimitGroup build() {
-            return new ResourceLimitGroup(name, _id, mode, resourceLimitGroup);
+            return new ResourceLimitGroup(name, _id, mode, resourceLimitGroup, updatedAt);
         }
 
     }

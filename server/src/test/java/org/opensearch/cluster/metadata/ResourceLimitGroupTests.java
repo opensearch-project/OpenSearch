@@ -11,6 +11,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
+import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,7 +31,7 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
         String name = randomAlphaOfLength(10);
         Map<String, Object> resourceLimit = new HashMap<>();
         resourceLimit.put("jvm", randomDoubleBetween(0.0, 0.80, false));
-        return new ResourceLimitGroup(name, "random", randomMode(), resourceLimit);
+        return new ResourceLimitGroup(name, "random", randomMode(), resourceLimit, Instant.now().getMillis());
     }
 
     private static ResourceLimitGroup.ResourceLimitGroupMode randomMode() {
@@ -66,26 +67,38 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
     }
 
     public void testNullName() {
-        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup(null, "_id", randomMode(), Collections.emptyMap()));
+        assertThrows(
+            NullPointerException.class,
+            () -> new ResourceLimitGroup(null, "_id", randomMode(), Collections.emptyMap(), Instant.now().getMillis())
+        );
     }
 
     public void testNullId() {
-        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup("Dummy", null, randomMode(), Collections.emptyMap()));
+        assertThrows(
+            NullPointerException.class,
+            () -> new ResourceLimitGroup("Dummy", null, randomMode(), Collections.emptyMap(), Instant.now().getMillis())
+        );
     }
 
     public void testNullResourceLimits() {
-        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup("analytics", "_id", randomMode(), null));
+        assertThrows(
+            NullPointerException.class,
+            () -> new ResourceLimitGroup("analytics", "_id", randomMode(), null, Instant.now().getMillis())
+        );
     }
 
     public void testEmptyResourceLimits() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup("analytics", "_id", randomMode(), Collections.emptyMap())
+            () -> new ResourceLimitGroup("analytics", "_id", randomMode(), Collections.emptyMap(), Instant.now().getMillis())
         );
     }
 
     public void testIllegalResourceLimitGroupMode() {
-        assertThrows(NullPointerException.class, () -> new ResourceLimitGroup("analytics", "_id", null, Map.of("jvm", (Object) 0.4)));
+        assertThrows(
+            NullPointerException.class,
+            () -> new ResourceLimitGroup("analytics", "_id", null, Map.of("jvm", (Object) 0.4), Instant.now().getMillis())
+        );
     }
 
     public void testInvalidResourceLimitWhenInvalidSystemResourceNameIsGiven() {
@@ -95,7 +108,8 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
                 "analytics",
                 "_id",
                 randomMode(),
-                Map.of("RequestRate", (Object) randomDoubleBetween(0.01, 0.8, false))
+                Map.of("RequestRate", (Object) randomDoubleBetween(0.01, 0.8, false)),
+                Instant.now().getMillis()
             )
         );
     }
@@ -107,7 +121,8 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
                 "analytics",
                 "_id",
                 randomMode(),
-                Map.of("RequestRate", (Object) randomDoubleBetween(1.1, 1.8, false))
+                Map.of("RequestRate", (Object) randomDoubleBetween(1.1, 1.8, false)),
+                Instant.now().getMillis()
             )
         );
     }
@@ -117,7 +132,8 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
             "analytics",
             "_id",
             randomMode(),
-            Map.of("jvm", randomDoubleBetween(0.01, 0.8, false))
+            Map.of("jvm", randomDoubleBetween(0.01, 0.8, false)),
+            Instant.ofEpochMilli(1717187289).getMillis()
         );
 
         assertNotNull(resourceLimitGroup.getName());
@@ -126,5 +142,6 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
         assertFalse(resourceLimitGroup.getResourceLimits().isEmpty());
         assertEquals(1, resourceLimitGroup.getResourceLimits().size());
         assertTrue(allowedModes.contains(resourceLimitGroup.getMode()));
+        assertEquals(1717187289, resourceLimitGroup.getUpdatedAtInMillis());
     }
 }
