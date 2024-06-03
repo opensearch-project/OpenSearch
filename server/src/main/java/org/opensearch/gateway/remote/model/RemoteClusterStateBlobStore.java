@@ -9,6 +9,9 @@
 package org.opensearch.gateway.remote.model;
 
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.RemoteWritableEntityStore;
+import org.opensearch.common.remote.RemoteWriteableEntity;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -26,60 +29,64 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMIT
  * Abstract class for a blob type storage
  *
  * @param <T> The entity which can be uploaded to / downloaded from blob store
- * @param <U> The concrete class implementing {@link RemoteObject} which is used as a wrapper for T entity.
+ * @param <U> The concrete class implementing {@link RemoteWriteableEntity} which is used as a wrapper for T entity.
  */
-public class AbstractRemoteBlobStore<T, U extends AbstractRemoteBlobObject<T>> implements RemoteObjectStore<T, U> {
+public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlobEntity<T>> implements RemoteWritableEntityStore<T, U> {
 
     private final BlobStoreTransferService transferService;
     private final BlobStoreRepository blobStoreRepository;
     private final String clusterName;
     private final ExecutorService executorService;
 
-    public AbstractRemoteBlobStore(
-        BlobStoreTransferService blobStoreTransferService,
-        BlobStoreRepository blobStoreRepository,
-        String clusterName,
-        ThreadPool threadPool
+    public RemoteClusterStateBlobStore(
+        final BlobStoreTransferService blobStoreTransferService,
+        final BlobStoreRepository blobStoreRepository,
+        final String clusterName,
+        final ThreadPool threadPool,
+        final String executor
     ) {
         this.transferService = blobStoreTransferService;
         this.blobStoreRepository = blobStoreRepository;
         this.clusterName = clusterName;
-        this.executorService = threadPool.executor(ThreadPool.Names.GENERIC);
+        this.executorService = threadPool.executor(executor);
     }
 
     @Override
-    public void writeAsync(U obj, ActionListener<Void> listener) {
-        assert obj.get() != null;
+    public void writeAsync(final U entity, final ActionListener<Void> listener) {
+        assert entity.get() != null;
         try {
-            InputStream inputStream = obj.serialize();
-            BlobPath blobPath = getBlobPathForUpload(obj);
-            obj.setFullBlobName(blobPath);
-            // TODO Add upload logic
-            // transferService.uploadBlob(inputStream, getBlobPathForUpload(blobStoreObj), blobStoreObj.getBlobFileName(),
-            // WritePriority.URGENT, listener);
+            try (InputStream inputStream = entity.serialize()) {
+                BlobPath blobPath = getBlobPathForUpload(entity);
+                entity.setFullBlobName(blobPath);
+                // todo uncomment below logic after merging PR https://github.com/opensearch-project/OpenSearch/pull/13836
+                // transferService.uploadBlob(inputStream, getBlobPathForUpload(entity), entity.getBlobFileName(), WritePriority.URGENT,
+                // listener);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
     @Override
-    public T read(U obj) throws IOException {
-        assert obj.getFullBlobName() != null;
-        return obj.deserialize(transferService.downloadBlob(getBlobPathForDownload(obj), obj.getBlobFileName()));
+    public U read(final U entity) throws IOException {
+        assert entity.get() == null && entity.getFullBlobName() != null;
+        T object = entity.deserialize(transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName()));
+        entity.set(object);
+        return entity;
     }
 
     @Override
-    public void readAsync(U obj, ActionListener<T> listener) {
+    public void readAsync(final U entity, final ActionListener<T> listener) {
         executorService.execute(() -> {
             try {
-                listener.onResponse(read(obj));
+                listener.onResponse(read(entity).get());
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         });
     }
 
-    private BlobPath getBlobPathForUpload(AbstractRemoteBlobObject<T> obj) {
+    private BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<T> obj) {
         BlobPath blobPath = blobStoreRepository.basePath()
             .add(RemoteClusterStateUtils.encodeString(clusterName))
             .add("cluster-state")
@@ -90,7 +97,7 @@ public class AbstractRemoteBlobStore<T, U extends AbstractRemoteBlobObject<T>> i
         return blobPath;
     }
 
-    private BlobPath getBlobPathForDownload(AbstractRemoteBlobObject<T> obj) {
+    private BlobPath getBlobPathForDownload(final AbstractRemoteWritableBlobEntity<T> obj) {
         String[] pathTokens = extractBlobPathTokens(obj.getFullBlobName());
         BlobPath blobPath = new BlobPath();
         for (String token : pathTokens) {
@@ -99,7 +106,7 @@ public class AbstractRemoteBlobStore<T, U extends AbstractRemoteBlobObject<T>> i
         return blobPath;
     }
 
-    private static String[] extractBlobPathTokens(String blobName) {
+    private static String[] extractBlobPathTokens(final String blobName) {
         String[] blobNameTokens = blobName.split(PATH_DELIMITER);
         return Arrays.copyOfRange(blobNameTokens, 0, blobNameTokens.length - 1);
     }

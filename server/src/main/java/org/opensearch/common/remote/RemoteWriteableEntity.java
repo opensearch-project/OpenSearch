@@ -6,17 +6,23 @@
  * compatible open source license.
  */
 
-package org.opensearch.gateway.remote.model;
+package org.opensearch.common.remote;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * An interface to read/write and object from/to a remote storage. This interface is agnostic of the remote storage type.
+ * An interface to which provides defines the serialization/deserialization methods for objects to be uploaded to or downloaded from remote store.
+ * This interface is agnostic of the remote storage type.
  *
- * @param <T> The object type which can be upload to or download from remote storage.
+ * @param <T> The object type which can be uploaded to or downloaded from remote storage.
  */
-public interface RemoteObject<T> {
+public interface RemoteWriteableEntity<T> {
+
+    /**
+     * @param object The object T which is to be set in this writable entity
+     */
+    public void set(T object);
 
     /**
      * @return The entity T contained within this class

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.gateway.remote.model;
+package org.opensearch.common.remote;
 
 import java.util.List;
 
@@ -19,7 +19,7 @@ public class BlobPathParameters {
     private final List<String> pathTokens;
     private final String filePrefix;
 
-    public BlobPathParameters(List<String> pathTokens, String filePrefix) {
+    public BlobPathParameters(final List<String> pathTokens, final String filePrefix) {
         this.pathTokens = pathTokens;
         this.filePrefix = filePrefix;
     }

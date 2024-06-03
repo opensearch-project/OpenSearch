@@ -11,6 +11,9 @@ package org.opensearch.gateway.remote;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+/**
+ * Utility class for Remote Cluster State
+ */
 public class RemoteClusterStateUtils {
     public static final String PATH_DELIMITER = "/";
 
