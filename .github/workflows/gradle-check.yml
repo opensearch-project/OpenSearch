@@ -17,7 +17,7 @@ jobs:
     outputs: 
       RUN_GRADLE_CHECK: ${{ steps.changed-files-specific.outputs.any_changed }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Get changed files
       id: changed-files-specific
       uses: tj-actions/changed-files@v44
