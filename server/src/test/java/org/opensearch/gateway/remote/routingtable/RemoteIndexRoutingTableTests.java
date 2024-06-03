@@ -20,21 +20,22 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class RemoteIndexRoutingTableObjectTests extends OpenSearchTestCase {
+public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
 
     public void testRoutingTableInput() {
+        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         int numberOfShards = randomIntBetween(1, 10);
         int numberOfReplicas = randomIntBetween(1, 10);
         Metadata metadata = Metadata.builder()
             .put(
-                IndexMetadata.builder("test")
+                IndexMetadata.builder(indexName)
                     .settings(settings(Version.CURRENT))
                     .numberOfShards(numberOfShards)
                     .numberOfReplicas(numberOfReplicas)
             )
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index(indexName)).build();
 
         initialRoutingTable.getIndicesRouting().values().forEach(indexShardRoutingTables -> {
             RemoteIndexRoutingTable indexRouting = new RemoteIndexRoutingTable(indexShardRoutingTables);
@@ -42,14 +43,14 @@ public class RemoteIndexRoutingTableObjectTests extends OpenSearchTestCase {
                 indexRouting.writeTo(streamOutput);
                 RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
                     streamOutput.bytes().streamInput(),
-                    metadata.index("test").getIndex()
+                    metadata.index(indexName).getIndex()
                 );
                 IndexRoutingTable indexRoutingTable = remoteIndexRoutingTable.getIndexRoutingTable();
                 assertEquals(numberOfShards, indexRoutingTable.getShards().size());
-                assertEquals(indexRoutingTable.getIndex(), metadata.index("test").getIndex());
+                assertEquals(metadata.index(indexName).getIndex(), indexRoutingTable.getIndex());
                 assertEquals(
-                    indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED).size(),
-                    numberOfShards * (1 + numberOfReplicas)
+                    numberOfShards * (1 + numberOfReplicas),
+                    indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED).size()
                 );
             } catch (IOException e) {
                 throw new RuntimeException(e);

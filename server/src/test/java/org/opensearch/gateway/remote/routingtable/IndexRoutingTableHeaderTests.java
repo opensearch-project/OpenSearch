@@ -17,13 +17,14 @@ import java.io.IOException;
 public class IndexRoutingTableHeaderTests extends OpenSearchTestCase {
 
     public void testIndexRoutingTableHeader() throws IOException {
-        IndexRoutingTableHeader header = new IndexRoutingTableHeader("dummyIndex");
+        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
+        IndexRoutingTableHeader header = new IndexRoutingTableHeader(indexName);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             header.writeTo(out);
 
             BytesStreamInput in = new BytesStreamInput(out.bytes().toBytesRef().bytes);
             IndexRoutingTableHeader headerRead = new IndexRoutingTableHeader(in);
-            assertEquals("dummyIndex", headerRead.getIndexName());
+            assertEquals(indexName, headerRead.getIndexName());
 
         }
     }
