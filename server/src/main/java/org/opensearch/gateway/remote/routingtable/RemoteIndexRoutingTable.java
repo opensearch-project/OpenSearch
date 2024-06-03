@@ -24,15 +24,15 @@ import java.io.InputStream;
 /**
  * Remote store object for IndexRoutingTable
  */
-public class RemoteIndexRoutingTableObject implements Writeable {
+public class RemoteIndexRoutingTable implements Writeable {
 
     private final IndexRoutingTable indexRoutingTable;
 
-    public RemoteIndexRoutingTableObject(IndexRoutingTable indexRoutingTable) {
+    public RemoteIndexRoutingTable(IndexRoutingTable indexRoutingTable) {
         this.indexRoutingTable = indexRoutingTable;
     }
 
-    public RemoteIndexRoutingTableObject(InputStream inputStream, Index index) throws IOException {
+    public RemoteIndexRoutingTable(InputStream inputStream, Index index) throws IOException {
         try {
             try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(new InputStreamStreamInput(inputStream), "assertion")) {
                 // Read the Table Header first and confirm the index
@@ -57,6 +57,7 @@ public class RemoteIndexRoutingTableObject implements Writeable {
         return indexRoutingTable;
     }
 
+    @Override
     public void writeTo(StreamOutput streamOutput) throws IOException {
         try {
             BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput);

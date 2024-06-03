@@ -37,11 +37,10 @@ public class RemoteIndexRoutingTableObjectTests extends OpenSearchTestCase {
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         initialRoutingTable.getIndicesRouting().values().forEach(indexShardRoutingTables -> {
-            try {
-                RemoteIndexRoutingTableObject indexRouting = new RemoteIndexRoutingTableObject(indexShardRoutingTables);
-                BytesStreamOutput streamOutput = new BytesStreamOutput();
+            RemoteIndexRoutingTable indexRouting = new RemoteIndexRoutingTable(indexShardRoutingTables);
+            try (BytesStreamOutput streamOutput = new BytesStreamOutput();) {
                 indexRouting.writeTo(streamOutput);
-                RemoteIndexRoutingTableObject remoteIndexRoutingTable = new RemoteIndexRoutingTableObject(
+                RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
                     streamOutput.bytes().streamInput(),
                     metadata.index("test").getIndex()
                 );
@@ -67,11 +66,10 @@ public class RemoteIndexRoutingTableObjectTests extends OpenSearchTestCase {
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
         AtomicInteger assertionError = new AtomicInteger();
         initialRoutingTable.getIndicesRouting().values().forEach(indexShardRoutingTables -> {
-            try {
-                RemoteIndexRoutingTableObject indexRouting = new RemoteIndexRoutingTableObject(indexShardRoutingTables);
-                BytesStreamOutput streamOutput = new BytesStreamOutput();
+            RemoteIndexRoutingTable indexRouting = new RemoteIndexRoutingTable(indexShardRoutingTables);
+            try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
                 indexRouting.writeTo(streamOutput);
-                RemoteIndexRoutingTableObject remoteIndexRoutingTable = new RemoteIndexRoutingTableObject(
+                RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
                     streamOutput.bytes().streamInput(),
                     metadata.index("invalid-index").getIndex()
                 );
