@@ -58,6 +58,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
+import static org.opensearch.index.remote.RemoteStoreUtils.hasAtleastOneRemoteNode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.isMigratingToRemoteStore;
 
 /**
@@ -142,7 +143,7 @@ public class RoutingAllocation {
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
-        if (isMigratingToRemoteStore(metadata)) {
+        if (isMigratingToRemoteStore(metadata) && hasAtleastOneRemoteNode(nodes)) {
             indexMetadataUpdater.setOngoingRemoteStoreMigration(true);
             indexMetadataUpdater.setRepositoriesService(determineRepositoriesService(snapshotsInfoService));
         }

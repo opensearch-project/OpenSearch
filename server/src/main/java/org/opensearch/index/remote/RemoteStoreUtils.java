@@ -256,4 +256,10 @@ public class RemoteStoreUtils {
             .findFirst();
         return remoteNode.map(RemoteStoreNodeAttribute::getDataRepoNames).orElseGet(HashMap::new);
     }
+
+    public static boolean hasAtleastOneRemoteNode(DiscoveryNodes discoveryNodes) {
+        Map<String, DiscoveryNode> dataNodes = discoveryNodes.getDataNodes();
+        return dataNodes.isEmpty() == false
+            && dataNodes.keySet().stream().anyMatch(nodeId -> discoveryNodes.get(nodeId).isRemoteStoreNode());
+    }
 }

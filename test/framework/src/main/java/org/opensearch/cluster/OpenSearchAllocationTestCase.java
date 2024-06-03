@@ -103,7 +103,6 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
             randomAllocationDeciders(settings, clusterSettings, random),
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
-
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );

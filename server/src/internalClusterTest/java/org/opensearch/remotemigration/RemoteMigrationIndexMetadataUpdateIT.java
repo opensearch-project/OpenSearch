@@ -18,7 +18,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteIndexPath;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
-
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.InternalTestCluster;
