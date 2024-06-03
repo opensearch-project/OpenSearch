@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -167,6 +168,15 @@ public class RemoteClusterStateService implements Closeable {
 
     /**
      * Manifest format compatible with codec v2, where global metadata file is replaced with multiple metadata attribute files
+     */
+    public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT_V2 = new ChecksumBlobStoreFormat<>(
+        "cluster-metadata-manifest",
+        METADATA_MANIFEST_NAME_FORMAT,
+        ClusterMetadataManifest::fromXContentV2
+    );
+
+    /**
+     * Manifest format compatible with codec v3, where global metadata file is replaced with multiple metadata attribute files
      */
     public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT = new ChecksumBlobStoreFormat<>(
         "cluster-metadata-manifest",
@@ -379,7 +389,8 @@ public class RemoteClusterStateService implements Closeable {
 
         List<IndexRoutingTable> indicesRoutingToUpload = new ArrayList<>();
         if(remoteRoutingTableService.isPresent()) {
-            indicesRoutingToUpload = remoteRoutingTableService.get().getChangedIndicesRouting(previousClusterState, clusterState);
+            DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = RemoteRoutingTableService.getIndicesRoutingMapDiff(previousClusterState.getRoutingTable(), clusterState.getRoutingTable());
+            routingTableDiff.getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
         }
 
         UploadedMetadataResults uploadedMetadataResults;
@@ -1506,6 +1517,8 @@ public class RemoteClusterStateService implements Closeable {
         long codecVersion = getManifestCodecVersion(fileName);
         if (codecVersion == MANIFEST_CURRENT_CODEC_VERSION) {
             return CLUSTER_METADATA_MANIFEST_FORMAT;
+        } else if (codecVersion == ClusterMetadataManifest.CODEC_V2) {
+            return CLUSTER_METADATA_MANIFEST_FORMAT_V2;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V1) {
             return CLUSTER_METADATA_MANIFEST_FORMAT_V1;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V0) {

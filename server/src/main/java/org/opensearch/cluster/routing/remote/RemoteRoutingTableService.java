@@ -10,15 +10,20 @@ package org.opensearch.cluster.routing.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
-import org.opensearch.gateway.remote.routingtable.IndexRoutingTableInput;
+import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
@@ -51,8 +56,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.opensearch.common.blobstore.transfer.RemoteTransferContainer.checksumOfChecksum;
 
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
 
@@ -89,18 +92,25 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
         this.settings = settings;
     }
 
-    public List<IndexRoutingTable> getChangedIndicesRouting(ClusterState previousClusterState,
-                                                            ClusterState clusterState) {
-        Map<String, IndexRoutingTable> previousIndexRoutingTable = previousClusterState.getRoutingTable().getIndicesRouting();
-        List<IndexRoutingTable> changedIndicesRouting = new ArrayList<>();
-        for (IndexRoutingTable indexRouting : clusterState.getRoutingTable().getIndicesRouting().values()) {
-            if (!(previousIndexRoutingTable.containsKey(indexRouting.getIndex().getName()) && indexRouting.equals(previousIndexRoutingTable.get(indexRouting.getIndex().getName())))) {
-                changedIndicesRouting.add(indexRouting);
-                logger.info("changedIndicesRouting {}", indexRouting.prettyPrint());
-            }
+    private static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER = new DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable>() {
+        @Override
+        public void write(IndexRoutingTable value, StreamOutput out) throws IOException {
+            value.writeTo(out);
         }
 
-        return changedIndicesRouting;
+        @Override
+        public IndexRoutingTable read(StreamInput in, String key) throws IOException {
+            return IndexRoutingTable.readFrom(in);
+        }
+    };
+
+    public static DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> getIndicesRoutingMapDiff(RoutingTable before, RoutingTable after) {
+        return DiffableUtils.diff(
+            before.getIndicesRouting(),
+            after.getIndicesRouting(),
+            DiffableUtils.getStringKeySerializer(),
+            CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER
+        );
     }
 
     public CheckedRunnable<IOException> getIndexRoutingAsyncAction(
@@ -111,18 +121,14 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
     ) throws IOException {
 
         BlobPath indexRoutingPath = clusterBasePath.add(INDEX_ROUTING_PATH_TOKEN);
-        logger.info("custerMetadataBasePath {}", indexRoutingPath);
-
         BlobPath path = RemoteStoreEnums.PathType.HASHED_PREFIX.path(RemoteStorePathStrategy.BasePathInput.builder()
                 .basePath(indexRoutingPath)
                 .indexUUID(indexRouting.getIndex().getUUID())
                 .build(),
             RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64);
-        logger.info("path from prefix hasd  {}", path);
         final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
 
         final String fileName = getIndexRoutingFileName();
-        logger.info("fileName {}", fileName);
 
         ActionListener<Void> completionListener = ActionListener.wrap(
             resp -> latchedActionListener.onResponse(
@@ -133,54 +139,10 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
                     INDEX_ROUTING_METADATA_PREFIX
                 )
             ),
-            ex -> latchedActionListener.onFailure(new RemoteClusterStateService.RemoteStateTransferException(indexRouting.getIndex().toString(), ex))
+            ex -> latchedActionListener.onFailure(new RemoteClusterStateService.RemoteStateTransferException("Exception in writing index to remote store: " + indexRouting.getIndex().toString(), ex))
         );
 
-        if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
-            logger.info("TRYING FILE UPLOAD");
-
-            return () -> {
-                logger.info("Going to upload {}", indexRouting.prettyPrint());
-
-                uploadIndex(indexRouting, fileName , blobContainer);
-                logger.info("upload done {}", indexRouting.prettyPrint());
-
-                completionListener.onResponse(null);
-                logger.info("response done {}", indexRouting.prettyPrint());
-
-            };
-        }
-
-        logger.info("TRYING S3 UPLOAD");
-
-        IndexRoutingTableInput indexRoutingInput = new IndexRoutingTableInput(indexRouting);
-        BytesReference bytesInput = indexRoutingInput.write();
-        try (
-            IndexInput input = new ByteArrayIndexInput("indexrouting",BytesReference.toBytes(bytesInput))) {
-            long expectedChecksum;
-            try {
-                expectedChecksum = checksumOfChecksum(input.clone(), 8);
-            } catch (Exception e) {
-                throw e;
-            }
-            try (
-                RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-                    fileName,
-                    fileName,
-                    input.length(),
-                    true,
-                    WritePriority.URGENT,
-                    (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
-                    expectedChecksum,
-                    ((AsyncMultiStreamBlobContainer) blobContainer).remoteIntegrityCheckSupported()
-                )
-            ) {
-                return () -> ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), completionListener);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return null;
-            }
-        }
+        return () -> uploadIndex(indexRouting, fileName , blobContainer, completionListener);
     }
 
 
@@ -192,25 +154,53 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
         indicesRoutingToUpload.forEach(
             uploadedIndexRouting -> allUploadedIndicesRouting.put(uploadedIndexRouting.getIndexName(), uploadedIndexRouting)
         );
-
-        indicesRoutingToDelete.forEach(index -> allUploadedIndicesRouting.remove(index));
-
-        logger.info("allUploadedIndicesRouting ROUTING {}", allUploadedIndicesRouting);
+        indicesRoutingToDelete.forEach(allUploadedIndicesRouting::remove);
 
         return new ArrayList<>(allUploadedIndicesRouting.values());
     }
 
-    private void uploadIndex(IndexRoutingTable indexRouting, String fileName, BlobContainer container) {
-        logger.info("Starting write");
-
-        try {
-            IndexRoutingTableInput indexRoutingInput = new IndexRoutingTableInput(indexRouting);
-            BytesReference bytesInput = indexRoutingInput.write();
-            container.writeBlob(fileName, bytesInput.streamInput(), bytesInput.length(), true);
-            logger.info("SUccessful write");
+    private void uploadIndex(IndexRoutingTable indexRouting, String fileName, BlobContainer blobContainer, ActionListener<Void> completionListener) throws IOException {
+        RemoteIndexRoutingTable indexRoutingInput = new RemoteIndexRoutingTable(indexRouting);
+        BytesReference bytesInput = null;
+        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+            indexRoutingInput.writeTo(streamOutput);
+            bytesInput = streamOutput.bytes();
         } catch (IOException e) {
-            logger.error("Failed to write {}", e);
+            throw new IOException("Failed to serialize IndexRoutingTable. ", e);
         }
+
+        if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
+                try {
+                    blobContainer.writeBlob(fileName, bytesInput.streamInput(), bytesInput.length(), true);
+                    completionListener.onResponse(null);
+                } catch (IOException e) {
+                    throw new IOException("Failed to write IndexRoutingTable to remote store. ", e);
+                }
+                return;
+        }
+
+        try (
+            IndexInput input = new ByteArrayIndexInput("indexrouting",BytesReference.toBytes(bytesInput))) {
+            try (
+                RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                    fileName,
+                    fileName,
+                    input.length(),
+                    true,
+                    WritePriority.URGENT,
+                    (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
+                    null,
+                    false
+                )
+            ) {
+                 ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), completionListener);
+            } catch (IOException e) {
+                throw new IOException("Failed to write IndexRoutingTable to remote store. ", e);
+            }
+        } catch (IOException e) {
+            throw new IOException("Failed to create transfer object for IndexRoutingTable for remote store upload. ", e);
+        }
+
     }
 
     private String getIndexRoutingFileName() {

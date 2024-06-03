@@ -43,6 +43,7 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.node.ResponseCollectorService;
@@ -738,7 +739,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
         if (!shardId.equals(that.shardId)) return false;
-        if (!shards.equals(that.shards)) return false;
+        if(!new HashSet<>(shards).equals(new HashSet<>(that.shards))) return false;
 
         return true;
     }
