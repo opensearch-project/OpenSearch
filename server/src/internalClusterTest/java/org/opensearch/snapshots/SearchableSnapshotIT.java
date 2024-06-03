@@ -47,6 +47,7 @@ import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
 import org.hamcrest.MatcherAssert;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -62,6 +63,10 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
+import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
+import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
+import static org.opensearch.test.NodeRoles.dataNode;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -937,6 +942,52 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSearchableSnapshotIndexDirectoryExistence(searchNode2, index, true);
         deleteIndicesAndEnsureGreen(client, restoredIndexName);
         assertSearchableSnapshotIndexDirectoryExistence(searchNode2, index, false);
+    }
+
+    public void testCreateSearchableSnapshotWithSpecifiedRemoteDataRatio() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String indexName1 = "test-idx-1";
+        final String restoredIndexName1 = indexName1 + "-copy";
+        final String indexName2 = "test-idx-2";
+        final String restoredIndexName2 = indexName2 + "-copy";
+        final int numReplicasIndex1 = 1;
+        final int numReplicasIndex2 = 1;
+
+        Settings clusterManagerNodeSettings = clusterManagerOnlyNode();
+        internalCluster().startNodes(2, clusterManagerNodeSettings);
+        Settings dateNodeSettings = dataNode();
+        internalCluster().startNodes(2, dateNodeSettings);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex1, 100, indexName1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex2, 100, indexName2);
+
+        final Client client = client();
+        assertAcked(
+            client.admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5))
+        );
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName1, indexName2);
+
+        internalCluster().ensureAtLeastNumSearchNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+
+        assertDocCount(restoredIndexName1, 100L);
+        assertDocCount(restoredIndexName2, 100L);
+        assertIndexDirectoryDoesNotExist(restoredIndexName1, restoredIndexName2);
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey()))
+        );
     }
 
     private void assertSearchableSnapshotIndexDirectoryExistence(String nodeName, Index index, boolean exists) throws Exception {
