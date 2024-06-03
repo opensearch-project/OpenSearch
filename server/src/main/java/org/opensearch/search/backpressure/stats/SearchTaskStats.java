@@ -19,8 +19,7 @@ import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
-import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
-import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,13 +33,13 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
     private final long completionCount;
-    private final Map<TaskResourceUsageTrackerType, Stats> resourceUsageTrackerStats;
+    private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
     public SearchTaskStats(
         long cancellationCount,
         long limitReachedCount,
         long completionCount,
-        Map<TaskResourceUsageTrackerType, TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats> resourceUsageTrackerStats
+        Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats
     ) {
         this.cancellationCount = cancellationCount;
         this.limitReachedCount = limitReachedCount;
@@ -57,7 +56,7 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
             this.completionCount = -1;
         }
 
-        MapBuilder<TaskResourceUsageTrackerType, Stats> builder = new MapBuilder<>();
+        MapBuilder<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> builder = new MapBuilder<>();
         builder.put(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, in.readOptionalWriteable(CpuUsageTracker.Stats::new));
         builder.put(TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER, in.readOptionalWriteable(HeapUsageTracker.Stats::new));
         builder.put(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER, in.readOptionalWriteable(ElapsedTimeTracker.Stats::new));
@@ -70,7 +69,7 @@ public class SearchTaskStats implements ToXContentObject, Writeable {
 
         builder.startObject("resource_tracker_stats");
         for (Map.Entry<
-            TaskResourceUsageTrackerType, Stats> entry : resourceUsageTrackerStats.entrySet()) {
+            TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> entry : resourceUsageTrackerStats.entrySet()) {
             builder.field(entry.getKey().getName(), entry.getValue());
         }
         builder.endObject();

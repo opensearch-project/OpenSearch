@@ -11,7 +11,7 @@ package org.opensearch.search.backpressure.trackers;
 import org.opensearch.common.util.Streak;
 import org.opensearch.search.ResourceType;
 
-import java.util.EnumMap;
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
@@ -21,9 +21,9 @@ import java.util.function.IntSupplier;
  * @opensearch.internal
  */
 public class NodeDuressTrackers {
-    private final EnumMap<ResourceType, NodeDuressTracker> duressTrackers;
+    private final Map<ResourceType, NodeDuressTracker> duressTrackers;
 
-    public NodeDuressTrackers(EnumMap<ResourceType, NodeDuressTracker> duressTrackers) {
+    public NodeDuressTrackers(Map<ResourceType, NodeDuressTracker> duressTrackers) {
         this.duressTrackers = duressTrackers;
     }
 
