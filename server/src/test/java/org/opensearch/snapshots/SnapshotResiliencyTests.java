@@ -112,6 +112,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterInfoService;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -190,7 +191,6 @@ import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
-import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
@@ -1680,7 +1680,6 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.getKey(),
                     ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING.get(Settings.EMPTY)
                 )
-                .put(FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
                 .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1000) // o.w. some tests might block
                 .build()
         );
@@ -1922,7 +1921,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     settings,
                     clusterSettings,
                     clusterManagerService,
-                    new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
+                    new ClusterApplierService(
+                        node.getName(),
+                        settings,
+                        clusterSettings,
+                        threadPool,
+                        new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+                    ) {
                         @Override
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
@@ -2164,7 +2169,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     systemIndices,
                     false,
                     new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
-                    DefaultRemoteStoreSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    null
                 );
                 actions.put(
                     CreateIndexAction.INSTANCE,
@@ -2244,7 +2250,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ),
                     shardLimitValidator,
                     indicesService,
-                    clusterInfoService::getClusterInfo
+                    clusterInfoService::getClusterInfo,
+                    () -> 5.0
                 );
                 actions.put(
                     PutMappingAction.INSTANCE,

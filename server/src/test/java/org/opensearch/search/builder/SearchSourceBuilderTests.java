@@ -357,6 +357,70 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     }
 
+    public void testDerivedFieldsParsingAndSerializationObjectType() throws IOException {
+        {
+            String restContent = "{\n"
+                + "  \"derived\": {\n"
+                + "    \"duration\": {\n"
+                + "      \"type\": \"long\",\n"
+                + "      \"script\": \"emit(doc['test'])\"\n"
+                + "    },\n"
+                + "    \"ip_from_message\": {\n"
+                + "      \"type\": \"keyword\",\n"
+                + "      \"script\": \"emit(doc['message'])\"\n"
+                + "    },\n"
+                + "    \"object\": {\n"
+                + "      \"type\": \"object\",\n"
+                + "      \"script\": \"emit(doc['test'])\",\n"
+                + "      \"format\": \"dd-MM-yyyy\",\n"
+                + "      \"source_indexed_field\": \"test\",\n"
+                + "      \"ignore_malformed\": true,\n"
+                + "      \"properties\": {\n"
+                + "         \"sub_field\": \"text\"\n"
+                + "       }\n"
+                + "    }\n"
+                + "  },\n"
+                + "    \"query\" : {\n"
+                + "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n"
+                + "     }\n"
+                + "}";
+
+            String expectedContent =
+                "{\"query\":{\"match\":{\"content\":{\"query\":\"foo bar\",\"operator\":\"OR\",\"prefix_length\":0,\"max_expansions\":50,\"fuzzy_transpositions\":true,\"lenient\":false,\"zero_terms_query\":\"NONE\",\"auto_generate_synonyms_phrase_query\":true,\"boost\":1.0}}},\"derived\":{\"duration\":{\"type\":\"long\",\"script\":\"emit(doc['test'])\"},\"ip_from_message\":{\"type\":\"keyword\",\"script\":\"emit(doc['message'])\"},\"object\":{\"format\":\"dd-MM-yyyy\",\"source_indexed_field\":\"test\",\"ignore_malformed\":true,\"type\":\"object\",\"script\":\"emit(doc['test'])\",\"properties\":{\"sub_field\":\"text\"}},\"derived_field\":{\"type\":\"object\",\"script\":{\"source\":\"emit(doc['message']\",\"lang\":\"painless\"},\"properties\":{\"sub_field_2\":\"keyword\"},\"source_indexed_field\":\"message\",\"format\":\"dd-MM-yyyy\",\"ignore_malformed\":true}}}";
+
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                searchSourceBuilder.derivedField(
+                    "derived_field",
+                    "object",
+                    new Script("emit(doc['message']"),
+                    Map.of("sub_field_2", "keyword"),
+                    "message",
+                    "dd-MM-yyyy",
+                    true
+                );
+                searchSourceBuilder = rewrite(searchSourceBuilder);
+                assertEquals(3, searchSourceBuilder.getDerivedFieldsObject().size());
+                assertEquals(1, searchSourceBuilder.getDerivedFields().size());
+                assertEquals(1, searchSourceBuilder.getDerivedFields().get(0).getProperties().size());
+                assertEquals("message", searchSourceBuilder.getDerivedFields().get(0).getSourceIndexedField());
+                assertEquals("dd-MM-yyyy", searchSourceBuilder.getDerivedFields().get(0).getFormat());
+                assertTrue(searchSourceBuilder.getDerivedFields().get(0).getIgnoreMalformed());
+
+                try (BytesStreamOutput output = new BytesStreamOutput()) {
+                    searchSourceBuilder.writeTo(output);
+                    try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                        SearchSourceBuilder deserializedBuilder = new SearchSourceBuilder(in);
+                        String actualContent = deserializedBuilder.toString();
+                        assertEquals(expectedContent, actualContent);
+                        assertEquals(searchSourceBuilder.hashCode(), deserializedBuilder.hashCode());
+                        assertNotSame(searchSourceBuilder, deserializedBuilder);
+                    }
+                }
+            }
+        }
+    }
+
     public void testAggsParsing() throws IOException {
         {
             String restContent = "{\n"

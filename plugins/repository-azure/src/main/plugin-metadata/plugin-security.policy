@@ -41,4 +41,7 @@ grant {
 
   // azure client set Authenticator for proxy username/password
   permission java.net.NetPermission "setDefaultAuthenticator";
+
+  // azure identity
+  permission java.util.PropertyPermission "os.name", "read";
 };
