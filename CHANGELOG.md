@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `reactor-netty` from 1.1.17 to 1.1.19 ([#13825](https://github.com/opensearch-project/OpenSearch/pull/13825))
 - Bump `commons-cli:commons-cli` from 1.7.0 to 1.8.0 ([#13840](https://github.com/opensearch-project/OpenSearch/pull/13840))
 - Bump `org.apache.xmlbeans:xmlbeans` from 5.2.0 to 5.2.1 ([#13839](https://github.com/opensearch-project/OpenSearch/pull/13839))
+- Bump `actions/checkout` from 3 to 4 ([#13935](https://github.com/opensearch-project/OpenSearch/pull/13935))
 - Bump `com.netflix.nebula.ospackage-base` from 11.9.0 to 11.9.1 ([#13933](https://github.com/opensearch-project/OpenSearch/pull/13933))
 
 ### Changed
