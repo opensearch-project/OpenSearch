@@ -87,6 +87,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
@@ -125,7 +126,6 @@ import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.T
 import static org.opensearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.opensearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.opensearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
-import static org.opensearch.tasks.TaskResourceTrackingService.TASK_RESOURCE_USAGE;
 
 /**
  * Perform search action
@@ -187,6 +187,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final MetricsRegistry metricsRegistry;
 
     private SearchQueryCategorizer searchQueryCategorizer;
+    private TaskResourceTrackingService taskResourceTrackingService;
 
     @Inject
     public TransportSearchAction(
@@ -204,7 +205,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchPipelineService searchPipelineService,
         MetricsRegistry metricsRegistry,
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
-        Tracer tracer
+        Tracer tracer,
+        TaskResourceTrackingService taskResourceTrackingService
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -225,6 +227,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
         this.tracer = tracer;
+        this.taskResourceTrackingService = taskResourceTrackingService;
     }
 
     private void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
@@ -452,14 +455,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 logger,
                 TraceableSearchRequestOperationsListener.create(tracer, requestSpan)
             );
-            SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, originalSearchRequest, () -> {
-                List<String> taskResourceUsages = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE);
-                if (taskResourceUsages != null && taskResourceUsages.size() > 0) {
-                    return taskResourceUsages.get(0);
-                }
-                return null;
-            }
-
+            SearchRequestContext searchRequestContext = new SearchRequestContext(
+                requestOperationsListeners,
+                originalSearchRequest,
+                taskResourceTrackingService::getTaskResourceUsageFromThreadContext
             );
             searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 

@@ -51,6 +51,7 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
@@ -628,7 +629,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     public void setPhaseResourceUsages() {
-        String taskResourceUsage = searchRequestContext.getTaskResourceUsageSupplier().get();
+        TaskResourceInfo taskResourceUsage = searchRequestContext.getTaskResourceUsageSupplier().get();
         searchRequestContext.recordPhaseResourceUsage(taskResourceUsage);
     }
 

@@ -12,21 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.InternalApi;
-import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
-import org.opensearch.core.xcontent.DeprecationHandler;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Supplier;
 
 /**
@@ -44,20 +38,20 @@ public class SearchRequestContext {
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
 
     private final SearchRequest searchRequest;
-    private final List<TaskResourceInfo> phaseResourceUsage;
-    private final Supplier<String> taskResourceUsageSupplier;
+    private final LinkedBlockingQueue<TaskResourceInfo> phaseResourceUsage;
+    private final Supplier<TaskResourceInfo> taskResourceUsageSupplier;
 
     SearchRequestContext(
         final SearchRequestOperationsListener searchRequestOperationsListener,
         final SearchRequest searchRequest,
-        final Supplier<String> taskResourceUsageSupplier
+        final Supplier<TaskResourceInfo> taskResourceUsageSupplier
     ) {
         this.searchRequestOperationsListener = searchRequestOperationsListener;
         this.absoluteStartNanos = System.nanoTime();
         this.phaseTookMap = new HashMap<>();
         this.shardStats = new EnumMap<>(ShardStatsFieldNames.class);
         this.searchRequest = searchRequest;
-        this.phaseResourceUsage = new ArrayList<>();
+        this.phaseResourceUsage = new LinkedBlockingQueue<>();
         this.taskResourceUsageSupplier = taskResourceUsageSupplier;
     }
 
@@ -130,32 +124,22 @@ public class SearchRequestContext {
         }
     }
 
-    public Supplier<String> getTaskResourceUsageSupplier() {
+    public Supplier<TaskResourceInfo> getTaskResourceUsageSupplier() {
         return taskResourceUsageSupplier;
     }
 
-    public SearchRequest getRequest() {
-        return searchRequest;
-    }
-
-    public void recordPhaseResourceUsage(String usage) {
-        try {
-            if (usage != null && !usage.isEmpty()) {
-                XContentParser parser = XContentHelper.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    new BytesArray(usage),
-                    MediaTypeRegistry.JSON
-                );
-                this.phaseResourceUsage.add(TaskResourceInfo.PARSER.apply(parser, null));
-            }
-        } catch (IOException e) {
-            logger.debug("fail to parse phase resource usages: ", e);
+    public void recordPhaseResourceUsage(TaskResourceInfo usage) {
+        if (usage != null) {
+            this.phaseResourceUsage.add(usage);
         }
     }
 
     public List<TaskResourceInfo> getPhaseResourceUsage() {
-        return phaseResourceUsage;
+        return new ArrayList<>(phaseResourceUsage);
+    }
+
+    public SearchRequest getRequest() {
+        return searchRequest;
     }
 }
 

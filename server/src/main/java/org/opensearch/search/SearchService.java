@@ -73,13 +73,6 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
-import org.opensearch.core.tasks.resourcetracker.ResourceStats;
-import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
-import org.opensearch.core.tasks.resourcetracker.ResourceUsageInfo;
-import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
-import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
-import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
-import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -168,7 +161,6 @@ import java.util.function.LongSupplier;
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
-import static org.opensearch.tasks.TaskResourceTrackingService.TASK_RESOURCE_USAGE;
 
 /**
  * The main search service
@@ -571,7 +563,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             processFailure(readerContext, e);
             throw e;
         } finally {
-            writeTaskResourceUsage(task);
+            taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
         }
     }
 
@@ -675,7 +667,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             processFailure(readerContext, e);
             throw e;
         } finally {
-            writeTaskResourceUsage(task);
+            taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
         }
     }
 
@@ -722,7 +714,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             } finally {
-                writeTaskResourceUsage(task);
+                taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -756,7 +748,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             } finally {
-                writeTaskResourceUsage(task);
+                taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -807,7 +799,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             } finally {
-                writeTaskResourceUsage(task);
+                taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -839,7 +831,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             } finally {
-                writeTaskResourceUsage(task);
+                taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
             }
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
@@ -1137,56 +1129,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
-    }
-
-    private void writeTaskResourceUsage(SearchShardTask task) {
-        try {
-            // Get resource usages from when the task started
-            ThreadResourceInfo threadResourceInfo = task.getActiveThreadResourceInfo(
-                Thread.currentThread().getId(),
-                ResourceStatsType.WORKER_STATS
-            );
-            if (threadResourceInfo == null) {
-                return;
-            }
-            Map<ResourceStats, ResourceUsageInfo.ResourceStatsInfo> startValues = threadResourceInfo.getResourceUsageInfo().getStatsInfo();
-            if (!(startValues.containsKey(ResourceStats.CPU) && startValues.containsKey(ResourceStats.MEMORY))) {
-                return;
-            }
-            // Get current resource usages
-            ResourceUsageMetric[] endValues = taskResourceTrackingService.getResourceUsageMetricsForThread(Thread.currentThread().getId());
-            long cpu = -1, mem = -1;
-            for (ResourceUsageMetric endValue : endValues) {
-                if (endValue.getStats() == ResourceStats.MEMORY) {
-                    mem = endValue.getValue();
-                } else if (endValue.getStats() == ResourceStats.CPU) {
-                    cpu = endValue.getValue();
-                }
-            }
-            if (cpu == -1 || mem == -1) {
-                logger.debug("Invalid resource usage value, cpu [{}], memory [{}]: ", cpu, mem);
-                return;
-            }
-
-            // Build task resource usage info
-            TaskResourceInfo taskResourceInfo = new TaskResourceInfo.Builder().setAction(task.getAction())
-                .setTaskId(task.getId())
-                .setParentTaskId(task.getParentTaskId().getId())
-                .setNodeId(clusterService.localNode().getId())
-                .setTaskResourceUsage(
-                    new TaskResourceUsage(
-                        cpu - startValues.get(ResourceStats.CPU).getStartValue(),
-                        mem - startValues.get(ResourceStats.MEMORY).getStartValue()
-                    )
-                )
-                .build();
-
-            // Remove the existing TASK_RESOURCE_USAGE header since it would have come from an earlier phase in the same request.
-            threadPool.getThreadContext().removeResponseHeader(TASK_RESOURCE_USAGE);
-            threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
-        } catch (Exception e) {
-            logger.debug("Error during writing task resource usage: ", e);
-        }
     }
 
     private void freeAllContextForIndex(Index index) {
