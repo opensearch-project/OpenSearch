@@ -41,11 +41,11 @@ public abstract class SearchRequestOperationsListener {
         this.enabled = enabled;
     }
 
-    protected abstract void onPhaseStart(SearchPhaseContext context);
+    protected void onPhaseStart(SearchPhaseContext context) {};
 
-    protected abstract void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext);
+    protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {};
 
-    protected abstract void onPhaseFailure(SearchPhaseContext context, Throwable cause);
+    protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {};
 
     protected void onRequestStart(SearchRequestContext searchRequestContext) {}
 

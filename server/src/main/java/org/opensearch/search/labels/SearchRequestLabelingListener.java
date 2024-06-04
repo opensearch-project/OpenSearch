@@ -28,15 +28,6 @@ public final class SearchRequestLabelingListener extends SearchRequestOperations
     }
 
     @Override
-    protected void onPhaseStart(SearchPhaseContext context) {}
-
-    @Override
-    protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
-
-    @Override
-    protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {}
-
-    @Override
     public void onRequestStart(SearchRequestContext searchRequestContext) {
         // add tags to search request
         ruleBasedLabelingService.applyAllRules(threadPool.getThreadContext(), searchRequestContext.getRequest());

@@ -45,13 +45,9 @@ public enum Attribute {
      */
     NODE_ID,
     /**
-     * User associated with this request
+     * Custom search request labels
      */
-    USER_NAME,
-    /**
-     * Custom tenant tags
-     */
-    CUSTOMIZED_TAG;
+    LABELS;
 
     /**
      * Read an Attribute from a StreamInput

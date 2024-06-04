@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Rules to get user info labels, specifically, the info is injected by the security plugin.
+ * Rules to get user info labels, specifically, the info that is injected by the security plugin.
  */
 public class DefaultUserInfoLabelingRule implements Rule {
     /**
@@ -56,16 +56,16 @@ public class DefaultUserInfoLabelingRule implements Rule {
         if (threadContext == null) {
             return userInfoMap;
         }
-        Object userInfoObj = threadContext.getTransient(REQUEST_HEADER_USER_INFO);
-        if (userInfoObj == null) {
-            return userInfoMap;
-        }
-        String userInfoStr = userInfoObj.toString();
         Object remoteAddressObj = threadContext.getTransient(REQUEST_HEADER_REMOTE_ADDRESS);
         if (remoteAddressObj != null) {
             userInfoMap.put(REMOTE_ADDRESS, remoteAddressObj.toString());
         }
 
+        Object userInfoObj = threadContext.getTransient(REQUEST_HEADER_USER_INFO);
+        if (userInfoObj == null) {
+            return userInfoMap;
+        }
+        String userInfoStr = userInfoObj.toString();
         String[] userInfo = userInfoStr.split("\\|");
         if ((userInfo.length == 0) || (Strings.isNullOrEmpty(userInfo[0]))) {
             return userInfoMap;

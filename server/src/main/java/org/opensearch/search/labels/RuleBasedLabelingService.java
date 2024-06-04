@@ -47,6 +47,12 @@ public class RuleBasedLabelingService {
             .map(rule -> rule.evaluate(threadContext, searchRequest))
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        // Handling potential spoofing by checking if any conflicts exist between user-supplied labels and the computed labels
+        for (String key : searchRequest.source().labels().keySet()) {
+            if (labels.containsKey(key)) {
+                throw new IllegalArgumentException("Unexpected label found: " + key);
+            }
+        }
         searchRequest.source().addLabels(labels);
     }
 }
