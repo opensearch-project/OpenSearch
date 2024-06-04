@@ -36,17 +36,27 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress.Entry;
 import org.opensearch.cluster.SnapshotsInProgress.ShardState;
 import org.opensearch.cluster.SnapshotsInProgress.State;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.test.AbstractDiffableWireSerializationTestCase;
 import org.opensearch.test.VersionUtils;
@@ -60,6 +70,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.lang.Math.abs;
+import static java.util.Collections.singletonMap;
+import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.opensearch.test.VersionUtils.randomVersion;
 
 public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireSerializationTestCase<Custom> {
@@ -84,7 +97,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         for (int i = 0; i < numberOfIndices; i++) {
             indices.add(new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
-        long startTime = randomLong();
+        long startTime = abs(randomLong());
         long repositoryStateId = randomLong();
         Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = new HashMap<>();
         final List<Index> esIndices = indices.stream()
@@ -183,6 +196,41 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         return SnapshotsInProgress.of(entries);
     }
 
+    public void testToXContent() throws IOException {
+        SnapshotsInProgress sip = SnapshotsInProgress.of(List.of(randomSnapshot(), randomSnapshot()));
+        boolean humanReadable = false;
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        final MediaType mediaType = MediaTypeRegistry.JSON;
+        BytesReference originalBytes = toShuffledXContent(
+            sip,
+            mediaType,
+            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_GATEWAY)),
+            humanReadable
+        );
+        try (XContentParser parser = createParser(mediaType.xContent(), originalBytes)) {
+            SnapshotsInProgress parsed = SnapshotsInProgress.fromXContent(parser);
+            assertEquals(sip, parsed);
+        }
+    }
+
+    public void testToXContent_deletion() throws IOException {
+        SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(List.of(new SnapshotId("name1", "uuid1")), "repo", 10000000L, 10000L, SnapshotDeletionsInProgress.State.WAITING);
+        SnapshotDeletionsInProgress sdip = SnapshotDeletionsInProgress.of(List.of(entry));
+        boolean humanReadable = false;
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        final MediaType mediaType = MediaTypeRegistry.JSON;
+        BytesReference originalBytes = toShuffledXContent(
+            sdip,
+            mediaType,
+            new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_GATEWAY)),
+            humanReadable
+        );
+        try (XContentParser parser = createParser(mediaType.xContent(), originalBytes)) {
+            SnapshotDeletionsInProgress parsed = SnapshotDeletionsInProgress.fromXContent(parser);
+            assertEquals(sdip, parsed);
+        }
+    }
+
     public void testSerDeRemoteStoreIndexShallowCopy() throws IOException {
         SnapshotsInProgress.Entry entry = new SnapshotsInProgress.Entry(
             new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
@@ -191,7 +239,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             SnapshotsInProgressSerializationTests.randomState(Map.of()),
             Collections.emptyList(),
             Collections.emptyList(),
-            Math.abs(randomLong()),
+            abs(randomLong()),
             randomIntBetween(0, 1000),
             Map.of(),
             null,

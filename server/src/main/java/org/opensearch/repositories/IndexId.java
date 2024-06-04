@@ -138,7 +138,7 @@ public final class IndexId implements Writeable, ToXContentObject {
     }
 
     public static IndexId fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         String name = null;
         String id = null;
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {

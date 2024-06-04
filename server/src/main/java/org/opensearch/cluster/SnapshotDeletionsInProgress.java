@@ -209,6 +209,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 builder.field("repository_state_id", entry.repositoryStateId);
                 if (params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API).equals(Metadata.CONTEXT_MODE_GATEWAY)) {
                     builder.field("state", entry.state().value);
+                    builder.field("uuid", entry.uuid());
                 } // else we don't serialize it
             }
             builder.endObject();
@@ -218,6 +219,12 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     public static SnapshotDeletionsInProgress fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
+            parser.nextToken();
+        }
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+        }
         ensureFieldName(parser, parser.currentToken(), TYPE);
         parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
@@ -229,6 +236,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             byte stateValue = -1;
             List<SnapshotId> snapshotIds = new ArrayList<>();
             TimeValue startTime = null;
+            String entryUUID = null;
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                 final String fieldName = parser.currentName();
@@ -270,12 +278,15 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                     case "state":
                         stateValue = (byte) parser.intValue();
                         break;
+                    case "uuid":
+                        entryUUID = parser.text();
+                        break;
                     default:
                         throw new IllegalArgumentException("unknown field [" + fieldName + "]");
                 }
             }
             assert startTime != null;
-            entries.add(new Entry(snapshotIds, repository, startTime.millis(), repositoryStateId, State.fromValue(stateValue)));
+            entries.add(new Entry(snapshotIds, repository, startTime.millis(), repositoryStateId, State.fromValue(stateValue), entryUUID));
         }
         return SnapshotDeletionsInProgress.of(entries);
     }

@@ -42,6 +42,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -66,6 +67,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.common.xcontent.XContentUtils.readValue;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 import static org.opensearch.core.xcontent.XContentParserUtils.parseStringList;
@@ -740,7 +742,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                         builder.field(STATE, status.state());
                         builder.field(NODE, status.nodeId());
                         if (params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API).equals(Metadata.CONTEXT_MODE_GATEWAY)) {
-                            builder.field(INDEX_UUID, shardId.getIndex().getUUID());
                             if (status.generation() != null) builder.field(GENERATION, status.generation());
                             if (status.reason() != null) builder.field(REASON, status.reason());
                         }
@@ -770,6 +771,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     if (status.reason() != null) builder.field(REASON, status.reason());
                     builder.endObject();
                 }
+                builder.endArray();
                 builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
             }
             builder.endObject();
@@ -786,7 +788,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Version version = null;
             SnapshotId source = null;
             Map<String, Object> metadata = null;
-            byte state = -1;
+            State state = null;
             List<IndexId> indices = new ArrayList<>();
             long startTime = 0;
             long repositoryStateId = -1L;
@@ -794,11 +796,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             List<String> dataStreams = new ArrayList<>();
             Map<RepositoryShardId, ShardSnapshotStatus> clones = new HashMap<>();
             boolean remoteStoreIndexShallowCopy = false;
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String currentFieldName = parser.currentName();
                 parser.nextToken();
-
                 switch (currentFieldName) {
                     case REPOSITORY:
                         repository = parser.text();
@@ -816,7 +817,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                         partial = parser.booleanValue();
                         break;
                     case STATE:
-                        state = (byte) parser.intValue();
+                        state = State.fromString(parser.text());
                         break;
                     case INDICES:
                         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
@@ -836,32 +837,28 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     case SHARDS:
                         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            String index = null;
-                            String indexUUID = null;
+                            Index index = null;
                             int shardId = -1;
                             String nodeId = null;
                             ShardState shardState = null;
                             String reason = null;
                             String generation = null;
-                            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
                             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                                 final String currentShardField = parser.currentName();
                                 parser.nextToken();
                                 switch (currentShardField) {
                                     case INDEX:
-                                        index = parser.text();
+                                        index = Index.fromXContent(parser);
                                         break;
                                     case SHARD:
                                         shardId = parser.intValue();
                                         break;
-                                    case INDEX_UUID:
-                                        indexUUID = parser.text();
-                                        break;
                                     case NODE:
-                                        nodeId = parser.text();
+                                        nodeId = (String) readValue(parser, parser.currentToken());
                                         break;
                                     case STATE:
-                                        shardState = ShardState.fromValue((byte) parser.intValue());
+                                        shardState = ShardState.fromString(parser.text());
                                         break;
                                     case REASON:
                                         reason = parser.text();
@@ -873,7 +870,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                                         throw new IllegalArgumentException("unknown field [" + currentShardField + "]");
                                 }
                             }
-                            shards.put(new ShardId(index, indexUUID, shardId),
+                            shards.put(new ShardId(index, shardId),
                                 reason != null ? new ShardSnapshotStatus(nodeId, shardState, reason, generation) :
                                 new ShardSnapshotStatus(nodeId, shardState, generation));
                         }
@@ -950,7 +947,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 snapshot,
                 includeGlobalState,
                 partial,
-                State.fromValue(state),
+                state,
                 indices,
                 dataStreams,
                 startTime,
@@ -1203,6 +1200,25 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
             }
         }
+
+        public static State fromString(String value) {
+            switch(value) {
+                case "INIT":
+                    return INIT;
+                case "STARTED":
+                    return STARTED;
+                case "SUCCESS":
+                    return SUCCESS;
+                case "FAILED":
+                    return FAILED;
+                case "ABORTED":
+                    return ABORTED;
+                case "PARTIAL":
+                    return PARTIAL;
+                default:
+                    throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
+            }
+        }
     }
 
     private final List<Entry> entries;
@@ -1311,6 +1327,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public static SnapshotsInProgress fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) { // fresh parser? move to the first token
+            parser.nextToken();
+        }
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            parser.nextToken();
+        }
         ensureFieldName(parser, parser.currentToken(), SNAPSHOTS);
         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
         List<Entry> entries = new ArrayList<>();
@@ -1378,6 +1400,27 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     return QUEUED;
                 default:
                     throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
+            }
+        }
+
+        public static ShardState fromString(String state) {
+            switch (state) {
+                case "INIT":
+                    return INIT;
+                case "SUCCESS":
+                    return SUCCESS;
+                case "FAILED":
+                    return FAILED;
+                case "ABORTED":
+                    return ABORTED;
+                case "MISSING":
+                    return MISSING;
+                case "WAITING":
+                    return WAITING;
+                case "QUEUED":
+                    return QUEUED;
+                default:
+                    throw new IllegalArgumentException("No shard snapshot state for value [" + state + "]");
             }
         }
     }
