@@ -41,7 +41,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     public static final int CODEC_V0 = 0; // Older codec version, where we haven't introduced codec versions for manifest.
     public static final int CODEC_V1 = 1; // In Codec V1 we have introduced global-metadata and codec version in Manifest file.
     public static final int CODEC_V2 = 2; // In Codec V2, there are seperate metadata files rather than a single global metadata file.
-    public static final int CODEC_V3 = 3; // In Codec V2 we introduce index routing-metadata in manifest file.
+    public static final int CODEC_V3 = 3; // In Codec V3, we introduce index routing-metadata in manifest file.
 
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
     private static final ParseField STATE_VERSION_FIELD = new ParseField("state_version");
