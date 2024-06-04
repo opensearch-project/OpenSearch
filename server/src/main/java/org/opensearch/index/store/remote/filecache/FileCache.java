@@ -48,24 +48,12 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
  */
 @PublicApi(since = "2.7.0")
 public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
+    // This constant moved, but exists here for backward compatibility
+    public static final Setting<Double> DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING = FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
+
     private final SegmentedCache<Path, CachedIndexInput> theCache;
 
     private final CircuitBreaker circuitBreaker;
-
-    /**
-     * Defines a limit of how much total remote data can be referenced as a ratio of the size of the disk reserved for
-     * the file cache. For example, if 100GB disk space is configured for use as a file cache and the
-     * remote_data_ratio of 5 is defined, then a total of 500GB of remote data can be loaded as searchable snapshots.
-     * This is designed to be a safeguard to prevent oversubscribing a cluster.
-     * Specify a value of zero for no limit, which is the default for compatibility reasons.
-     */
-    public static final Setting<Double> DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING = Setting.doubleSetting(
-        "cluster.filecache.remote_data_ratio",
-        0.0,
-        0.0,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     public FileCache(SegmentedCache<Path, CachedIndexInput> cache, CircuitBreaker circuitBreaker) {
         this.theCache = cache;
