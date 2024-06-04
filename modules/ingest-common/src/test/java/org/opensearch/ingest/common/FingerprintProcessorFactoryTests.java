@@ -13,7 +13,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,11 +34,13 @@ public class FingerprintProcessorFactoryTests extends OpenSearchTestCase {
 
         boolean includeAllFields = randomBoolean();
         List<String> fields = null;
-        if (!includeAllFields) {
+        List<String> excludeFields = null;
+        if (randomBoolean()) {
             fields = List.of(randomAlphaOfLength(10));
             config.put("fields", fields);
         } else {
-            config.put("include_all_fields", true);
+            excludeFields = List.of(randomAlphaOfLength(10));
+            config.put("exclude_fields", excludeFields);
         }
 
         String targetField = null;
@@ -54,36 +55,20 @@ public class FingerprintProcessorFactoryTests extends OpenSearchTestCase {
         FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config);
         assertThat(fingerprintProcessor.getTag(), equalTo(processorTag));
         assertThat(fingerprintProcessor.getFields(), equalTo(fields));
-        assertThat(fingerprintProcessor.getIncludeAllFields(), equalTo(includeAllFields));
+        assertThat(fingerprintProcessor.getExcludeFields(), equalTo(excludeFields));
         assertThat(fingerprintProcessor.getTargetField(), equalTo(Objects.requireNonNullElse(targetField, "fingerprint")));
         assertThat(fingerprintProcessor.isIgnoreMissing(), equalTo(ignoreMissing));
     }
 
     public void testCreateWithFields() throws Exception {
         Map<String, Object> config = new HashMap<>();
-        try {
-            factory.create(null, null, null, config);
-            fail("factory create should have failed");
-        } catch (OpenSearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[fields] either fields or include_all_fields must be set"));
-        }
-
-        config.put("fields", Collections.emptyList());
-        try {
-            factory.create(null, null, null, config);
-            fail("factory create should have failed");
-        } catch (OpenSearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[fields] fields cannot be empty"));
-        }
-
-        config = new HashMap<>();
         config.put("fields", List.of(randomAlphaOfLength(10)));
-        config.put("include_all_fields", true);
+        config.put("exclude_fields", List.of(randomAlphaOfLength(10)));
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch (OpenSearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[fields] either fields or include_all_fields can be set"));
+            assertThat(e.getMessage(), equalTo("[fields] either fields or exclude_fields can be set"));
         }
 
         config = new HashMap<>();
@@ -95,6 +80,17 @@ public class FingerprintProcessorFactoryTests extends OpenSearchTestCase {
             fail("factory create should have failed");
         } catch (OpenSearchParseException e) {
             assertThat(e.getMessage(), equalTo("[fields] field path cannot be null nor empty"));
+        }
+
+        config = new HashMap<>();
+        List<String> excludeFields = new ArrayList<>();
+        excludeFields.add(null);
+        config.put("exclude_fields", excludeFields);
+        try {
+            factory.create(null, null, null, config);
+            fail("factory create should have failed");
+        } catch (OpenSearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[exclude_fields] field path cannot be null nor empty"));
         }
     }
 

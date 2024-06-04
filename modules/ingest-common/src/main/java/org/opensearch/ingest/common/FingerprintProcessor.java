@@ -38,8 +38,8 @@ public class FingerprintProcessor extends AbstractProcessor {
 
     // fields used to generate hash value
     private final List<String> fields;
-    // whether generate hash value for all fields in the document or not
-    private final boolean includeAllFields;
+    // all other fields other than the excluded fields are used to generate hash value
+    private final List<String> excludeFields;
     // the target field to store the hash value, defaults to fingerprint
     private final String targetField;
     // hash method used to generate the hash value, defaults to SHA-1
@@ -50,31 +50,29 @@ public class FingerprintProcessor extends AbstractProcessor {
         String tag,
         String description,
         @Nullable List<String> fields,
-        boolean includeAllFields,
+        @Nullable List<String> excludeFields,
         String targetField,
         String hashMethod,
         boolean ignoreMissing
     ) {
         super(tag, description);
-        if (fields != null) {
-            if (fields.isEmpty()) {
-                throw new IllegalArgumentException("fields cannot be empty");
-            }
+        if (fields != null && !fields.isEmpty()) {
             if (fields.stream().anyMatch(Objects::isNull)) {
                 throw new IllegalArgumentException("field path cannot be null nor empty");
             }
-            if (includeAllFields) {
-                throw new IllegalArgumentException("either fields or include_all_fields can be set");
+            if (excludeFields != null && !excludeFields.isEmpty()) {
+                throw new IllegalArgumentException("either fields or exclude_fields can be set");
             }
-        } else if (!includeAllFields) {
-            throw new IllegalArgumentException("either fields or include_all_fields must be set");
+        }
+        if (excludeFields != null && !excludeFields.isEmpty() && excludeFields.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("field path cannot be null nor empty");
         }
 
         if (!HASH_METHODS.contains(hashMethod.toUpperCase(Locale.ROOT))) {
             throw new IllegalArgumentException("hash method must be MD5, SHA-1 or SHA-256 or SHA3-256");
         }
         this.fields = fields;
-        this.includeAllFields = includeAllFields;
+        this.excludeFields = excludeFields;
         this.targetField = targetField;
         this.hashMethod = hashMethod;
         this.ignoreMissing = ignoreMissing;
@@ -84,8 +82,8 @@ public class FingerprintProcessor extends AbstractProcessor {
         return fields;
     }
 
-    public boolean getIncludeAllFields() {
-        return includeAllFields;
+    public List<String> getExcludeFields() {
+        return excludeFields;
     }
 
     public String getTargetField() {
@@ -104,21 +102,26 @@ public class FingerprintProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument document) {
         // we should deduplicate and sort the field names to make sure we can get consistent hash value
         final List<String> sortedFields;
+        Set<String> existingFields = new HashSet<>(document.getSourceAndMetadata().keySet());
         Set<String> metadataFields = document.getMetadata()
             .keySet()
             .stream()
             .map(IngestDocument.Metadata::getFieldName)
             .collect(Collectors.toSet());
         // metadata fields such as _index, _id and _routing are ignored
-        if (includeAllFields) {
-            Set<String> existingFields = new HashSet<>(document.getSourceAndMetadata().keySet());
-            sortedFields = existingFields.stream().filter(field -> !metadataFields.contains(field)).sorted().collect(Collectors.toList());
-        } else {
+        if (fields != null && !fields.isEmpty()) {
             sortedFields = fields.stream()
                 .distinct()
                 .filter(field -> !metadataFields.contains(field))
                 .sorted()
                 .collect(Collectors.toList());
+        } else if (excludeFields != null && !excludeFields.isEmpty()) {
+            sortedFields = existingFields.stream()
+                .filter(field -> !metadataFields.contains(field) && !excludeFields.contains(field))
+                .sorted()
+                .collect(Collectors.toList());
+        } else {
+            sortedFields = existingFields.stream().filter(field -> !metadataFields.contains(field)).sorted().collect(Collectors.toList());
         }
         assert (!sortedFields.isEmpty());
 
@@ -242,19 +245,18 @@ public class FingerprintProcessor extends AbstractProcessor {
             Map<String, Object> config
         ) throws Exception {
             List<String> fields = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "fields");
-            boolean includeAllFields = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "include_all_fields", false);
-            if (fields != null) {
-                if (fields.isEmpty()) {
-                    throw newConfigurationException(TYPE, processorTag, "fields", "fields cannot be empty");
-                }
+            List<String> excludeFields = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "exclude_fields");
+            if (fields != null && !fields.isEmpty()) {
+
                 if (fields.stream().anyMatch(Objects::isNull)) {
                     throw newConfigurationException(TYPE, processorTag, "fields", "field path cannot be null nor empty");
                 }
-                if (includeAllFields) {
-                    throw newConfigurationException(TYPE, processorTag, "fields", "either fields or include_all_fields can be set");
+                if (excludeFields != null && !excludeFields.isEmpty()) {
+                    throw newConfigurationException(TYPE, processorTag, "fields", "either fields or exclude_fields can be set");
                 }
-            } else if (!includeAllFields) {
-                throw newConfigurationException(TYPE, processorTag, "fields", "either fields or include_all_fields must be set");
+            }
+            if (excludeFields != null && !excludeFields.isEmpty() && excludeFields.stream().anyMatch(Objects::isNull)) {
+                throw newConfigurationException(TYPE, processorTag, "exclude_fields", "field path cannot be null nor empty");
             }
 
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "fingerprint");
@@ -263,7 +265,7 @@ public class FingerprintProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "hash_method", "hash method must be MD5, SHA-1, SHA-256 or SHA3-256");
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new FingerprintProcessor(processorTag, description, fields, includeAllFields, targetField, hashMethod, ignoreMissing);
+            return new FingerprintProcessor(processorTag, description, fields, excludeFields, targetField, hashMethod, ignoreMissing);
         }
     }
 }
