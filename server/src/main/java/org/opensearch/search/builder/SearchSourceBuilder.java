@@ -226,7 +226,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> searchPipelineSource = null;
 
-    private Map<String, Object> labels = new HashMap<>();
+    private Map<String, Object> labels;
 
     /**
      * Constructs a new search source builder.
@@ -1138,21 +1138,19 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @return labels defined within the search request.
      */
     public Map<String, Object> labels() {
+        if (this.labels == null) {
+            this.labels = new HashMap<>();
+        }
         return labels;
-    }
-
-    /**
-     * Define labels within this search request.
-     */
-    public SearchSourceBuilder labels(Map<String, Object> labels) {
-        this.labels = labels;
-        return this;
     }
 
     /**
      * Add labels within this search request.
      */
     public SearchSourceBuilder addLabels(Map<String, Object> labels) {
+        if (this.labels == null) {
+            this.labels = new HashMap<>();
+        }
         this.labels.putAll(labels);
         return this;
     }
@@ -1401,10 +1399,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
                     } else if (SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
                         searchPipelineSource = parser.mapOrdered();
-                    } else if (DERIVED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        derivedFieldsObject = parser.map();
                     } else if (LABELS.match(currentFieldName, parser.getDeprecationHandler())) {
                         labels = parser.mapOrdered();
+                    } else if (DERIVED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        derivedFieldsObject = parser.map();
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),

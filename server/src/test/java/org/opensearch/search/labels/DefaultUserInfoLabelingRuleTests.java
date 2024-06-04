@@ -44,6 +44,14 @@ public class DefaultUserInfoLabelingRuleTests extends OpenSearchTestCase {
         assertEquals(expectedUserInfoMap, actualUserInfoMap);
     }
 
+    public void testGetPartialInfoFromThreadContext() {
+        threadContext.putTransient("_opendistro_security_remote_address", "127.0.0.1");
+        Map<String, Object> expectedUserInfoMap = new HashMap<>();
+        expectedUserInfoMap.put(DefaultUserInfoLabelingRule.REMOTE_ADDRESS, "127.0.0.1");
+        Map<String, Object> actualUserInfoMap = defaultUserInfoLabelingRule.evaluate(threadContext, searchRequest);
+        assertEquals(expectedUserInfoMap, actualUserInfoMap);
+    }
+
     public void testGetUserInfoFromThreadContext_EmptyUserInfo() {
         Map<String, Object> actualUserInfoMap = defaultUserInfoLabelingRule.evaluate(threadContext, searchRequest);
         assertTrue(actualUserInfoMap.isEmpty());
