@@ -16,7 +16,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -65,16 +64,6 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteR
  * @opensearch.internal
  */
 public class RemoteRoutingTableService extends AbstractLifecycleComponent {
-
-    /**
-     * Cluster setting to specify if routing table should be published to remote store
-     */
-    public static final Setting<Boolean> REMOTE_ROUTING_TABLE_ENABLED_SETTING = Setting.boolSetting(
-        "cluster.remote_store.routing_table.enabled",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Final
-    );
 
     public static final String INDEX_ROUTING_PATH_TOKEN = "index-routing";
     public static final String INDEX_ROUTING_FILE_PREFIX = "index_routing";

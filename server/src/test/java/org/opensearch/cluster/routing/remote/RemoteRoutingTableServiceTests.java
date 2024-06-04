@@ -55,7 +55,6 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
 
         Settings settings = Settings.builder()
-            .put(RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.getKey(), true)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
             .build();
 

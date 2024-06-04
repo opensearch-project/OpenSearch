@@ -17,7 +17,6 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -145,8 +144,8 @@ public class RemoteStoreNodeService {
      * If the creation or verification fails this will close all the repositories this method created and throw
      * exception.
      */
-    public void createAndVerifyRepositories(DiscoveryNode localNode, Settings settings) {
-        RemoteStoreNodeAttribute nodeAttribute = new RemoteStoreNodeAttribute(localNode, settings);
+    public void createAndVerifyRepositories(DiscoveryNode localNode) {
+        RemoteStoreNodeAttribute nodeAttribute = new RemoteStoreNodeAttribute(localNode);
         RepositoriesService reposService = repositoriesService.get();
         Map<String, Repository> repositories = new HashMap<>();
         for (RepositoryMetadata repositoryMetadata : nodeAttribute.getRepositoriesMetadata().repositories()) {
@@ -178,15 +177,10 @@ public class RemoteStoreNodeService {
      * repository is already present in the cluster state and if it's different then the joining remote store backed
      * node repository metadata an exception will be thrown and the node will not be allowed to join the cluster.
      */
-    public RepositoriesMetadata updateRepositoriesMetadata(
-        DiscoveryNode joiningNode,
-        RepositoriesMetadata existingRepositories,
-        Settings settings
-    ) {
+    public RepositoriesMetadata updateRepositoriesMetadata(DiscoveryNode joiningNode, RepositoriesMetadata existingRepositories) {
         if (joiningNode.isRemoteStoreNode()) {
             List<RepositoryMetadata> updatedRepositoryMetadataList = new ArrayList<>();
-            List<RepositoryMetadata> newRepositoryMetadataList = new RemoteStoreNodeAttribute(joiningNode, settings)
-                .getRepositoriesMetadata()
+            List<RepositoryMetadata> newRepositoryMetadataList = new RemoteStoreNodeAttribute(joiningNode).getRepositoriesMetadata()
                 .repositories();
 
             if (existingRepositories == null) {
