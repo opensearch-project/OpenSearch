@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 ### Dependencies
+- Bump `jackson` from 2.17.0 to 2.17.1 ([#13817](https://github.com/opensearch-project/OpenSearch/pull/13817))
 
 ### Changed
 
