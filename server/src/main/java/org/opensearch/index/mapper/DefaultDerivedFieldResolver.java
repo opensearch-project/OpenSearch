@@ -95,16 +95,18 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
     }
 
     private DerivedFieldType resolveUsingSearchDefinitions(String fieldName) {
-        if (derivedFieldTypeMap.containsKey(fieldName)) {
-            return derivedFieldTypeMap.get(fieldName);
-        }
-        // resolve and cache nested derived field
-        DerivedFieldType parentDerivedField = (DerivedFieldType) getParentDerivedField(fieldName);
-        if (parentDerivedField != null) {
-            return derivedFieldTypeMap.computeIfAbsent(fieldName, f -> this.resolveNestedField(f, parentDerivedField));
-        } else {
-            return null;
-        }
+        return Optional.ofNullable(derivedFieldTypeMap.get(fieldName))
+            .orElseGet(
+                () -> Optional.ofNullable((DerivedFieldType) getParentDerivedField(fieldName))
+                    .map(
+                        // compute and cache nested derived field
+                        parentDerivedField -> derivedFieldTypeMap.computeIfAbsent(
+                            fieldName,
+                            f -> this.resolveNestedField(f, parentDerivedField)
+                        )
+                    )
+                    .orElse(null)
+            );
     }
 
     private DerivedFieldType resolveNestedField(String fieldName, DerivedFieldType parentDerivedField) {
