@@ -28,7 +28,7 @@ import org.mockito.MockitoAnnotations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DefaultTaskCancellationTest extends OpenSearchTestCase {
+public class DefaultTaskCancellationTests extends OpenSearchTestCase {
     @Mock
     private TaskSelectionStrategy mockStrategy;
 
