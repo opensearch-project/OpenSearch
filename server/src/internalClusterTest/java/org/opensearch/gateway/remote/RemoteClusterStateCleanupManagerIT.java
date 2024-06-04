@@ -85,6 +85,7 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
         assertEquals(1, remoteClusterStateCleanupManager.getStaleFileDeletionTask().getInterval().getMinutes());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13968")
     public void testRemoteCleanupDeleteStale() throws Exception {
         int shardCount = randomIntBetween(1, 2);
         int replicaCount = 1;
