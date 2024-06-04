@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.node;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.UUIDs;
@@ -85,6 +87,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     static final String KEY_ATTRIBUTES = "attributes";
     static final String KEY_VERSION = "version";
     static final String KEY_ROLES = "roles";
+    private static final Logger logger = LogManager.getLogger(DiscoveryNode.class);
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
@@ -583,6 +586,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * This method is able to parse either a complete XContentObject with start and end object
+     * or only a fragment with the key and value.
+     */
     public static DiscoveryNode fromXContent(XContentParser parser) throws IOException {
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
@@ -627,7 +634,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                         version = Version.fromString(parser.text());
                         break;
                     default:
-                        throw new IllegalArgumentException("Unexpected field [ " + currentFieldName + " ]");
+                        logger.warn("unknown field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 assert currentFieldName.equals(KEY_ATTRIBUTES) : "expecting field with name ["

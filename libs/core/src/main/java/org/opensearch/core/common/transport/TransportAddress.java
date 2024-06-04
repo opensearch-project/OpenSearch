@@ -41,9 +41,11 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 
 /**
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
@@ -166,15 +168,18 @@ public final class TransportAddress implements Writeable, ToXContentFragment {
     /**
     * Converts a string in the format [hostname/ip]:[port] into a transport address.
     * @throws UnknownHostException if the hostname or ip address is invalid
-    * @throws IllegalArgumentException if invalid string format provided
     */
     public static TransportAddress fromString(String address) throws UnknownHostException {
         String[] addressSplit = address.split(":");
-        if (addressSplit.length != 2) {
-            throw new IllegalArgumentException("address must be of the form [hostname/ip]:[port]");
+        if (addressSplit.length == 2) {
+            String hostname = addressSplit[0];
+            int port = Integer.parseInt(addressSplit[1]);
+            return new TransportAddress(InetAddress.getByName(hostname), port);
+        } else {
+            // this should be an IPv6 ip
+            int port = Integer.parseInt(addressSplit[addressSplit.length - 1]);
+            String hostname = String.join(":", Arrays.copyOfRange(addressSplit, 0, addressSplit.length - 1));
+            return new TransportAddress(Inet6Address.getByName(hostname), port);
         }
-        String hostname = addressSplit[0];
-        int port = Integer.parseInt(addressSplit[1]);
-        return new TransportAddress(InetAddress.getByName(hostname), port);
     }
 }
