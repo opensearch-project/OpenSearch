@@ -89,11 +89,11 @@ public final class DerivedFieldQuery extends Query {
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        Query rewritten = indexSearcher.rewrite(query);
+        Query rewritten = query.rewrite(indexSearcher);
         if (rewritten == query) {
             return this;
         }
-        Query rewrittenFilterQuery = filterQuery == null ? filterQuery : indexSearcher.rewrite(filterQuery);
+        Query rewrittenFilterQuery = filterQuery == null ? filterQuery : filterQuery.rewrite(indexSearcher);
         return new DerivedFieldQuery(
             rewritten,
             rewrittenFilterQuery,
@@ -140,8 +140,6 @@ public final class DerivedFieldQuery extends Query {
                             }
                             throw e;
                         }
-                        // TODO: in case of errors from script, should it be ignored and treated as missing field
-                        // by using a configurable setting?
                         MemoryIndex memoryIndex = new MemoryIndex();
                         for (IndexableField indexableField : indexableFields) {
                             memoryIndex.addField(indexableField, indexAnalyzer);
@@ -185,8 +183,8 @@ public final class DerivedFieldQuery extends Query {
 
     @Override
     public String toString(String f) {
-        return "DerivedFieldQuery (Query: [ " + query.toString(f) + "]" + filterQuery != null
+        return "DerivedFieldQuery (Query: [ " + query.toString(f) + "]" + (filterQuery != null
             ? " FilterQuery: [ " + filterQuery.toString(f) + "])"
-            : ")";
+            : ")");
     }
 }
