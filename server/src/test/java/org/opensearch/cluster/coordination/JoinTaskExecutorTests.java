@@ -49,13 +49,10 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
-import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.node.Node;
-import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -205,9 +202,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
         final RemoteStoreNodeService remoteStoreNodeService = mock(RemoteStoreNodeService.class);
-        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any(), any())).thenReturn(
-            new RepositoriesMetadata(Collections.emptyList())
-        );
+        when(remoteStoreNodeService.updateRepositoriesMetadata(any(), any())).thenReturn(new RepositoriesMetadata(Collections.emptyList()));
 
         final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(
             Settings.EMPTY,
@@ -950,7 +945,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         JoinTaskExecutor.ensureNodesCompatibility(joiningNode2, currentNodes, metadata);
     }
 
-    public void testRemoteRoutingTableDisabledNodeJoin() {
+    public void testRemoteRoutingTableRepoAbsentNodeJoin() {
 
         final DiscoveryNode existingNode = new DiscoveryNode(
             UUIDs.base64UUID(),
@@ -968,7 +963,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
-    public void testRemoteRoutingTableDisabledNodeJoinRepoPresentInJoiningNode() {
+    public void testRemoteRoutingTableNodeJoinRepoPresentInJoiningNode() {
         final DiscoveryNode existingNode = new DiscoveryNode(
             UUIDs.base64UUID(),
             buildNewFakeTransportAddress(),
@@ -986,7 +981,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         JoinTaskExecutor.ensureNodesCompatibility(joiningNode, currentState.getNodes(), currentState.metadata());
     }
 
-    public void testRemoteRoutingTableEnabledNodeJoinRepoPresentInExistingNode() {
+    public void testRemoteRoutingTableNodeJoinRepoPresentInExistingNode() {
         Map<String, String> attr = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
         attr.putAll(remoteRoutingTableAttributes(ROUTING_TABLE_REPO));
         final DiscoveryNode existingNode = new DiscoveryNode(
@@ -996,20 +991,9 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
-        final Settings settings = Settings.builder()
-            .put(RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.getKey(), "true")
-            .put(
-                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY,
-                ROUTING_TABLE_REPO
-            )
-            .put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true")
-            .build();
-        final Settings nodeSettings = Settings.builder().put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-        Metadata metadata = Metadata.builder().persistentSettings(settings).build();
+
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
-            .metadata(metadata)
             .build();
 
         DiscoveryNode joiningNode = newDiscoveryNode(remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO));
@@ -1019,7 +1003,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         );
     }
 
-    public void testRemoteRoutingTableEnabledNodeJoinRepoPresentInBothNode() {
+    public void testRemoteRoutingTableNodeJoinRepoPresentInBothNode() {
         Map<String, String> attr = remoteStoreNodeAttributes(SEGMENT_REPO, TRANSLOG_REPO);
         attr.putAll(remoteRoutingTableAttributes(ROUTING_TABLE_REPO));
         final DiscoveryNode existingNode = new DiscoveryNode(
@@ -1029,20 +1013,9 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.CURRENT
         );
-        final Settings settings = Settings.builder()
-            .put(RemoteRoutingTableService.REMOTE_ROUTING_TABLE_ENABLED_SETTING.getKey(), "true")
-            .put(
-                Node.NODE_ATTRIBUTES.getKey() + RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY,
-                ROUTING_TABLE_REPO
-            )
-            .put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true")
-            .build();
-        final Settings nodeSettings = Settings.builder().put(FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-        Metadata metadata = Metadata.builder().persistentSettings(settings).build();
+
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
-            .metadata(metadata)
             .build();
 
         DiscoveryNode joiningNode = newDiscoveryNode(attr);

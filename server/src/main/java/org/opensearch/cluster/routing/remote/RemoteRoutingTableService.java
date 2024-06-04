@@ -11,7 +11,6 @@ package org.opensearch.cluster.routing.remote;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.node.Node;
@@ -32,15 +31,6 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteR
  */
 public class RemoteRoutingTableService extends AbstractLifecycleComponent {
 
-    /**
-     * Cluster setting to specify if routing table should be published to remote store
-     */
-    public static final Setting<Boolean> REMOTE_ROUTING_TABLE_ENABLED_SETTING = Setting.boolSetting(
-        "cluster.remote_store.routing_table.enabled",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Final
-    );
     private static final Logger logger = LogManager.getLogger(RemoteRoutingTableService.class);
     private final Settings settings;
     private final Supplier<RepositoriesService> repositoriesService;
