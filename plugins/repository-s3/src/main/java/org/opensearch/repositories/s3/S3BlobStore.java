@@ -244,6 +244,11 @@ class S3BlobStore implements BlobStore {
         return extendedStats;
     }
 
+    @Override
+    public boolean isBlobMetadataEnabled() {
+        return true;
+    }
+
     public ObjectCannedACL getCannedACL() {
         return cannedACL;
     }

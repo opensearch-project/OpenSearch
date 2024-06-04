@@ -38,7 +38,7 @@ public class FingerprintProcessor extends AbstractProcessor {
 
     // fields used to generate hash value
     private final List<String> fields;
-    // all other fields other than the excluded fields are used to generate hash value
+    // all fields other than the excluded fields are used to generate hash value
     private final List<String> excludeFields;
     // the target field to store the hash value, defaults to fingerprint
     private final String targetField;

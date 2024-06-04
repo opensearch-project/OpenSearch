@@ -19,6 +19,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.stats.IndexingPressurePerShardStats;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.index.stats.ShardIndexingPressureStats;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.MatcherAssert;
@@ -42,7 +43,7 @@ public class ShardIndexingPressureConcurrentExecutionTests extends OpenSearchTes
         .build();
 
     private final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private final ClusterService clusterService = new ClusterService(settings, clusterSettings, null);
+    private final ClusterService clusterService = ClusterServiceUtils.createClusterService(settings, clusterSettings, null);
 
     public enum OperationType {
         COORDINATING,
