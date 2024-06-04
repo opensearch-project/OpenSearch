@@ -82,7 +82,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private final ValuesSource valuesSource;
 
     private final ValuesSourceConfig valuesSourceConfig;
-    private final FieldContext fieldContext;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
@@ -106,11 +105,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     ) throws IOException {
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here
-        this.valuesSourceConfig = valuesSourceConfig;
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         this.precision = precision;
-        this.fieldContext = valuesSourceConfig.fieldContext();
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.valuesSourceConfig = valuesSourceConfig;
     }
 
     @Override
@@ -148,8 +146,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             // only use ordinals if they don't increase memory usage by more than 25%
             if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
                 ordinalsCollectorsUsed++;
-                // return new DynamicPruningCollectorWrapper(new OrdinalsCollector(counts, ordinalValues, context.bigArrays()),
-                // context, ctx, fieldContext, source);
                 if (valuesSourceConfig.missing() != null) {
                     return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
                 }
@@ -158,7 +154,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     source,
                     ctx,
                     context,
-                    fieldContext
+                    valuesSourceConfig.fieldContext()
                 );
             }
             ordinalsCollectorsOverheadTooHigh++;
@@ -232,7 +228,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    abstract static class Collector extends LeafBucketCollector implements Releasable {
+    private abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect() throws IOException;
 
@@ -314,7 +310,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         public int advance(int target) throws IOException {
             // more than advance to the next doc >= target
             // we also do the pruning of current doc here
-
             DisiWrapper top = queue.top();
 
             // after collecting the doc, before advancing to target
