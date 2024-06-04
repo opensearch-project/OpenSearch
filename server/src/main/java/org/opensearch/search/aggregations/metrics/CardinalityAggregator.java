@@ -36,6 +36,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
@@ -61,7 +62,6 @@ import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
-import org.opensearch.search.aggregations.support.FieldContext;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -131,36 +131,38 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             return new DirectCollector(counts, hashValues);
         }
 
+        Collector collector = null;
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
             ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
             final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
-            final SortedSetDocValues globalOrdinalValues = source.globalOrdinalsValues(ctx);
             final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {
                 emptyCollectorsUsed++;
-                return new EmptyCollector();
-            }
-
-            final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
-            final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-            // only use ordinals if they don't increase memory usage by more than 25%
-            if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
-                ordinalsCollectorsUsed++;
-                if (valuesSourceConfig.missing() != null) {
-                    return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+                collector = new EmptyCollector();
+            } else {
+                final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
+                final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+                // only use ordinals if they don't increase memory usage by more than 25%
+                if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+                    ordinalsCollectorsUsed++;
+                    collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
                 }
-                return new CompetitiveCollector(
-                    new OrdinalsCollector(counts, ordinalValues, context.bigArrays()),
-                    source,
-                    ctx,
-                    context,
-                    valuesSourceConfig.fieldContext()
-                );
+                ordinalsCollectorsOverheadTooHigh++;
             }
-            ordinalsCollectorsOverheadTooHigh++;
+        } else {
+            stringHashingCollectorsUsed++;
+            collector = new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
         }
-        stringHashingCollectorsUsed++;
-        return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
+
+        // dynamic pruning optimization
+        if (valuesSourceConfig.missing() == null) {
+            Terms terms = ctx.reader().terms(valuesSourceConfig.fieldContext().field());
+            if (terms != null) {
+                collector = new PruningCollector(collector, terms.iterator(), ctx, context, valuesSourceConfig.fieldContext().field());
+            }
+        }
+
+        return collector;
     }
 
     @Override
@@ -234,32 +236,24 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
-    private static class CompetitiveCollector extends Collector {
+    private static class PruningCollector extends Collector {
 
         private final Collector delegate;
         private final DisiPriorityQueue pq;
 
-        CompetitiveCollector(
-            Collector delegate,
-            ValuesSource.Bytes.WithOrdinals source,
-            LeafReaderContext ctx,
-            SearchContext context,
-            FieldContext fieldContext
-        ) throws IOException {
+        PruningCollector(Collector delegate, TermsEnum terms, LeafReaderContext ctx, SearchContext context, String field)
+            throws IOException {
             this.delegate = delegate;
 
-            final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
-            TermsEnum terms = ordinalValues.termsEnum();
             Map<BytesRef, Scorer> postingMap = new HashMap<>();
             while (terms.next() != null) {
                 BytesRef term = terms.term();
-
-                TermQuery termQuery = new TermQuery(new Term(fieldContext.field(), term));
+                TermQuery termQuery = new TermQuery(new Term(field, term));
                 Weight subWeight = context.searcher().createWeight(termQuery, ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Scorer scorer = subWeight.scorer(ctx);
-
                 postingMap.put(term, scorer);
             }
+
             this.pq = new DisiPriorityQueue(postingMap.size());
             for (Map.Entry<BytesRef, Scorer> entry : postingMap.entrySet()) {
                 pq.add(new DisiWrapper(entry.getValue()));
@@ -277,7 +271,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public DocIdSetIterator competitiveIterator() throws IOException {
+        public DocIdSetIterator competitiveIterator() {
             return new DisjunctionDISIWithPruning(pq);
         }
 
@@ -302,24 +296,26 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public int nextDoc() throws IOException {
-            // don't expect this to be called
+            // don't expect this to be called based on its usage in DefaultBulkScorer
             throw new UnsupportedOperationException();
         }
 
+        /**
+         * Aside from advancing to disi towards target
+         * Also perform the subScorer pruning here
+         * advance is performed after collecting the current document
+         * So we can safely remove the subScorers that are on current doc
+         */
         @Override
         public int advance(int target) throws IOException {
-            // more than advance to the next doc >= target
-            // we also do the pruning of current doc here
             DisiWrapper top = queue.top();
-
-            // after collecting the doc, before advancing to target
-            // we can safely remove all the iterators that having this doc
+            // don't do the pruning if this iterator hasn't been used yet
             if (top.doc != -1) {
                 int curTopDoc = top.doc;
                 do {
-                    top.doc = top.approximation.advance(Integer.MAX_VALUE);
+                    top.doc = top.approximation.advance(Integer.MAX_VALUE); // prune
                     top = queue.updateTop();
-                } while (top.doc == curTopDoc);
+                } while (top.doc == curTopDoc); // there may be multiple subScorers on current doc
             }
 
             if (top.doc >= target) return top.doc;
@@ -327,12 +323,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 top.doc = top.approximation.advance(target);
                 top = queue.updateTop();
             } while (top.doc < target);
+
             return top.doc;
         }
 
         @Override
         public long cost() {
-            // don't expect this to be called
+            // don't expect this to be called based on its usage in DefaultBulkScorer
             throw new UnsupportedOperationException();
         }
     }
