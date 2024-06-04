@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
 
 /**
- * Processor that generating hash value for the specified fields or all fields in a document
+ * Processor that generating hash value for the specified fields or fields not in the specified excluded list
  */
 public class FingerprintProcessor extends AbstractProcessor {
     public static final String TYPE = "fingerprint";
