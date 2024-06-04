@@ -797,6 +797,7 @@ public class RemoteClusterStateService implements Closeable {
                 uploadedTemplatesMetadata,
                 uploadedCustomMetadataMap,
                 clusterState.routingTable().version(),
+                // TODO: Add actual list of changed indices routing with index routing upload flow.
                 new ArrayList<>()
             );
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
