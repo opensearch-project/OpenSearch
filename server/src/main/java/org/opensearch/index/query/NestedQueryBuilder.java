@@ -34,6 +34,7 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
@@ -368,6 +369,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             InnerHitContextBuilder.extractInnerHits(query, children);
             InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, query, innerHitBuilder, children);
             innerHits.put(name, innerHitContextBuilder);
+        }
+    }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        if (query != null) {
+            query.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST));
         }
     }
 
