@@ -34,6 +34,12 @@ public class RemoteIndexRoutingTable implements Writeable {
         this.indexRoutingTable = indexRoutingTable;
     }
 
+    /**
+     * Reads data from inputStream and creates RemoteIndexRoutingTable object with the {@link IndexRoutingTable}
+     * @param inputStream
+     * @param index
+     * @throws IOException
+     */
     public RemoteIndexRoutingTable(InputStream inputStream, Index index) throws IOException {
         try {
             try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(new InputStreamStreamInput(inputStream), "assertion")) {
@@ -59,6 +65,11 @@ public class RemoteIndexRoutingTable implements Writeable {
         return indexRoutingTable;
     }
 
+    /**
+     * Writes {@link IndexRoutingTable} to the given stream
+     * @param streamOutput
+     * @throws IOException
+     */
     @Override
     public void writeTo(StreamOutput streamOutput) throws IOException {
         try {
