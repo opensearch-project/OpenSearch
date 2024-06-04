@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.node.stats;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.TransportNodesAction;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -62,6 +63,29 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     private final NodeService nodeService;
 
     @Inject
+    public TransportNodesStatsAction(
+        NodeClient client,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        NodeService nodeService,
+        ActionFilters actionFilters
+    ) {
+        super(
+            client,
+            NodesStatsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodesStatsRequest::new,
+            NodeStatsRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            NodeStats.class
+        );
+        this.nodeService = nodeService;
+    }
+
     public TransportNodesStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
