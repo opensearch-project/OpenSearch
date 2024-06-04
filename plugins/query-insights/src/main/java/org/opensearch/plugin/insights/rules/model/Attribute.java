@@ -47,7 +47,7 @@ public enum Attribute {
     /**
      * Tasks level resource usages in this request
      */
-    TASKS_RESOURCE_USAGES,
+    TASK_RESOURCE_USAGES,
     /**
      * Custom search request labels
      */

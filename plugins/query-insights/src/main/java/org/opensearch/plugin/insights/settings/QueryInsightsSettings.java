@@ -12,6 +12,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugin.insights.core.exporter.SinkType;
+import org.opensearch.plugin.insights.rules.model.MetricType;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -189,9 +190,17 @@ public class QueryInsightsSettings {
      */
     private static final String TOP_N_LATENCY_QUERIES_EXPORTER_PREFIX = TOP_N_LATENCY_QUERIES_PREFIX + ".exporter.";
     /**
-     * Default index pattern of top n queries by latency
+     * Prefix for top n queries by cpu exporters
      */
-    public static final String DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN = "'top_queries_by_latency-'YYYY.MM.dd";
+    private static final String TOP_N_CPU_QUERIES_EXPORTER_PREFIX = TOP_N_CPU_QUERIES_PREFIX + ".exporter.";
+    /**
+     * Prefix for top n queries by memory exporters
+     */
+    private static final String TOP_N_MEMORY_QUERIES_EXPORTER_PREFIX = TOP_N_MEMORY_QUERIES_PREFIX + ".exporter.";
+    /**
+     * Default index pattern of top n queries
+     */
+    public static final String DEFAULT_TOP_N_QUERIES_INDEX_PATTERN = "'top_queries-'YYYY.MM.dd";
     /**
      * Default exporter type of top queries
      */
@@ -205,6 +214,88 @@ public class QueryInsightsSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Settings for the exporter of top cpu queries
+     */
+    public static final Setting<Settings> TOP_N_CPU_EXPORTER_SETTINGS = Setting.groupSetting(
+        TOP_N_CPU_QUERIES_EXPORTER_PREFIX,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Settings for the exporter of top cpu queries
+     */
+    public static final Setting<Settings> TOP_N_MEMORY_EXPORTER_SETTINGS = Setting.groupSetting(
+        TOP_N_MEMORY_QUERIES_EXPORTER_PREFIX,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Get the enabled setting based on type
+     * @param type MetricType
+     * @return enabled setting
+     */
+    public static Setting<Boolean> getTopNEnabledSetting(MetricType type) {
+        switch (type) {
+            case CPU:
+                return TOP_N_CPU_QUERIES_ENABLED;
+            case MEMORY:
+                return TOP_N_MEMORY_QUERIES_ENABLED;
+            default:
+                return TOP_N_LATENCY_QUERIES_ENABLED;
+        }
+    }
+
+    /**
+     * Get the top n size setting based on type
+     * @param type MetricType
+     * @return top n size setting
+     */
+    public static Setting<Integer> getTopNSizeSetting(MetricType type) {
+        switch (type) {
+            case CPU:
+                return TOP_N_CPU_QUERIES_SIZE;
+            case MEMORY:
+                return TOP_N_MEMORY_QUERIES_SIZE;
+            default:
+                return TOP_N_LATENCY_QUERIES_SIZE;
+        }
+    }
+
+    /**
+     * Get the window size setting based on type
+     * @param type MetricType
+     * @return top n queries window size setting
+     */
+    public static Setting<TimeValue> getTopNWindowSizeSetting(MetricType type) {
+        switch (type) {
+            case CPU:
+                return TOP_N_CPU_QUERIES_WINDOW_SIZE;
+            case MEMORY:
+                return TOP_N_MEMORY_QUERIES_WINDOW_SIZE;
+            default:
+                return TOP_N_LATENCY_QUERIES_WINDOW_SIZE;
+        }
+    }
+
+    /**
+     * Get the exporter settings based on type
+     * @param type MetricType
+     * @return exporter setting
+     */
+    public static Setting<Settings> getExporterSettings(MetricType type) {
+        switch (type) {
+            case CPU:
+                return TOP_N_CPU_EXPORTER_SETTINGS;
+            case MEMORY:
+                return TOP_N_MEMORY_EXPORTER_SETTINGS;
+            default:
+                return TOP_N_LATENCY_EXPORTER_SETTINGS;
+        }
+    }
 
     /**
      * Default constructor

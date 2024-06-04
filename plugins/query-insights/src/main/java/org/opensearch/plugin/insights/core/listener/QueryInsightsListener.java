@@ -32,15 +32,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_CPU_QUERIES_ENABLED;
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_CPU_QUERIES_SIZE;
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_CPU_QUERIES_WINDOW_SIZE;
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED;
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE;
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE;
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_MEMORY_QUERIES_ENABLED;
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_MEMORY_QUERIES_SIZE;
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_MEMORY_QUERIES_WINDOW_SIZE;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.getTopNEnabledSetting;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.getTopNSizeSetting;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.getTopNWindowSizeSetting;
 
 /**
  * The listener for query insights services.
@@ -67,63 +61,30 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     public QueryInsightsListener(final ClusterService clusterService, final QueryInsightsService queryInsightsService) {
         this.clusterService = clusterService;
         this.queryInsightsService = queryInsightsService;
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.LATENCY, v));
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                TOP_N_LATENCY_QUERIES_SIZE,
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).setTopNSize(v),
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).validateTopNSize(v)
-            );
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).setWindowSize(v),
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.LATENCY).validateWindowSize(v)
-            );
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(TOP_N_CPU_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.CPU, v));
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                TOP_N_CPU_QUERIES_SIZE,
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.CPU).setTopNSize(v),
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.CPU).validateTopNSize(v)
-            );
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                TOP_N_CPU_QUERIES_WINDOW_SIZE,
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.CPU).setWindowSize(v),
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.CPU).validateWindowSize(v)
-            );
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(TOP_N_MEMORY_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.MEMORY, v));
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                TOP_N_MEMORY_QUERIES_SIZE,
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.MEMORY).setTopNSize(v),
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.MEMORY).validateTopNSize(v)
-            );
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                TOP_N_MEMORY_QUERIES_WINDOW_SIZE,
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.MEMORY).setWindowSize(v),
-                v -> this.queryInsightsService.getTopQueriesService(MetricType.MEMORY).validateWindowSize(v)
-            );
-        this.setEnableTopQueries(MetricType.LATENCY, clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_ENABLED));
-        this.queryInsightsService.getTopQueriesService(MetricType.LATENCY)
-            .setTopNSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_SIZE));
-        this.queryInsightsService.getTopQueriesService(MetricType.LATENCY)
-            .setWindowSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_WINDOW_SIZE));
-        this.setEnableTopQueries(MetricType.CPU, clusterService.getClusterSettings().get(TOP_N_CPU_QUERIES_ENABLED));
-        this.queryInsightsService.getTopQueriesService(MetricType.CPU)
-            .setTopNSize(clusterService.getClusterSettings().get(TOP_N_CPU_QUERIES_SIZE));
-        this.queryInsightsService.getTopQueriesService(MetricType.CPU)
-            .setWindowSize(clusterService.getClusterSettings().get(TOP_N_CPU_QUERIES_WINDOW_SIZE));
-        this.setEnableTopQueries(MetricType.MEMORY, clusterService.getClusterSettings().get(TOP_N_MEMORY_QUERIES_ENABLED));
-        this.queryInsightsService.getTopQueriesService(MetricType.MEMORY)
-            .setTopNSize(clusterService.getClusterSettings().get(TOP_N_MEMORY_QUERIES_SIZE));
-        this.queryInsightsService.getTopQueriesService(MetricType.MEMORY)
-            .setWindowSize(clusterService.getClusterSettings().get(TOP_N_MEMORY_QUERIES_WINDOW_SIZE));
+        // Setting endpoints set up for top n queries, including enabling top n queries, window size and top n size
+        // Expected metricTypes are Latency, CPU and Memory.
+        for (MetricType type : MetricType.allMetricTypes()) {
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(getTopNEnabledSetting(type), v -> this.setEnableTopQueries(type, v));
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    getTopNSizeSetting(type),
+                    v -> this.queryInsightsService.setTopNSize(type, v),
+                    v -> this.queryInsightsService.validateTopNSize(type, v)
+                );
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(
+                    getTopNWindowSizeSetting(type),
+                    v -> this.queryInsightsService.setWindowSize(type, v),
+                    v -> this.queryInsightsService.validateWindowSize(type, v)
+                );
+
+            this.setEnableTopQueries(type, clusterService.getClusterSettings().get(getTopNEnabledSetting(type)));
+            this.queryInsightsService.validateTopNSize(type, clusterService.getClusterSettings().get(getTopNSizeSetting(type)));
+            this.queryInsightsService.setTopNSize(type, clusterService.getClusterSettings().get(getTopNSizeSetting(type)));
+            this.queryInsightsService.validateWindowSize(type, clusterService.getClusterSettings().get(getTopNWindowSizeSetting(type)));
+            this.queryInsightsService.setWindowSize(type, clusterService.getClusterSettings().get(getTopNWindowSizeSetting(type)));
+        }
     }
 
     /**
@@ -175,6 +136,7 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     public void onRequestEnd(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
         constructSearchQueryRecord(context, searchRequestContext);
     }
+
     @Override
     public void onRequestFailure(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
         constructSearchQueryRecord(context, searchRequestContext);
@@ -220,7 +182,7 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             attributes.put(Attribute.TOTAL_SHARDS, context.getNumShards());
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());
-            attributes.put(Attribute.TASKS_RESOURCE_USAGES, tasksResourceUsages);
+            attributes.put(Attribute.TASK_RESOURCE_USAGES, tasksResourceUsages);
 
             Map<String, Object> labels = new HashMap<>();
             // Retrieve user provided label if exists
