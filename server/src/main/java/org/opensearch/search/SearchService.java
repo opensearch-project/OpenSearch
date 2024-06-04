@@ -157,8 +157,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.opensearch.common.unit.TimeValue.timeValueHours;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
@@ -282,7 +280,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> CLUSTER_ALLOW_DERIVED_FEILDS_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> CLUSTER_ALLOW_DERIVED_FIELD_SETTING = Setting.boolSetting(
         "search.derived_field.enabled",
         true,
         Property.Dynamic,
@@ -400,8 +398,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
 
-        allowDerivedField = CLUSTER_ALLOW_DERIVED_FEILDS_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FEILDS_SETTING, this::setAllowDerivedField);
+        allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -1095,27 +1093,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
             QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());
-            if (request.source() != null
-                && request.source().size() != 0
-                && (request.source().getDerivedFieldsObject() != null || request.source().getDerivedFields() != null)) {
-                DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
-                    searchContext.getQueryShardContext(),
-                    request.source().getDerivedFieldsObject(),
-                    request.source().getDerivedFields(),
-                    context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
-                );
-                context.setDerivedFieldResolver(derivedFieldResolver);
-                searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);
-            } else {
-                DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
-                    searchContext.getQueryShardContext(),
-                    emptyMap(),
-                    emptyList(),
-                    context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
-                );
-                context.setDerivedFieldResolver(derivedFieldResolver);
-                searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);
-            }
+            DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+                searchContext.getQueryShardContext(),
+                Optional.ofNullable(request.source()).map(SearchSourceBuilder::getDerivedFieldsObject).orElse(Collections.emptyMap()),
+                Optional.ofNullable(request.source()).map(SearchSourceBuilder::getDerivedFields).orElse(Collections.emptyList()),
+                context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
+            );
+            context.setDerivedFieldResolver(derivedFieldResolver);
+            searchContext.getQueryShardContext().setDerivedFieldResolver(derivedFieldResolver);
             Rewriteable.rewrite(request.getRewriteable(), context, true);
             assert searchContext.getQueryShardContext().isCacheable();
             success = true;

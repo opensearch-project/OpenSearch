@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -97,55 +98,52 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
         if (derivedFieldTypeMap.containsKey(fieldName)) {
             return derivedFieldTypeMap.get(fieldName);
         }
-        DerivedFieldType resolvedNestedType = resolveNestedField(fieldName);
-        if (resolvedNestedType != null) {
-            derivedFieldTypeMap.put(fieldName, resolvedNestedType);
-        }
-        return resolvedNestedType;
-    }
-
-    private DerivedFieldType resolveNestedField(String fieldName) {
+        // resolve and cache nested derived field
         DerivedFieldType parentDerivedField = (DerivedFieldType) getParentDerivedField(fieldName);
         if (parentDerivedField != null) {
-            try {
-                Script script = parentDerivedField.derivedField.getScript();
-                String nestedType = explicitTypeFromParent(
-                    parentDerivedField.derivedField,
-                    fieldName.substring(fieldName.indexOf(".") + 1)
+            return derivedFieldTypeMap.computeIfAbsent(fieldName, f -> this.resolveNestedField(f, parentDerivedField));
+        } else {
+            return null;
+        }
+    }
+
+    private DerivedFieldType resolveNestedField(String fieldName, DerivedFieldType parentDerivedField) {
+        Objects.requireNonNull(parentDerivedField);
+        try {
+            Script script = parentDerivedField.derivedField.getScript();
+            String nestedType = explicitTypeFromParent(parentDerivedField.derivedField, fieldName.substring(fieldName.indexOf(".") + 1));
+            if (nestedType == null) {
+                Mapper inferredFieldMapper = typeInference.infer(
+                    getValueFetcher(fieldName, script, parentDerivedField.derivedField.getIgnoreMalformed())
                 );
-                if (nestedType == null) {
-                    Mapper inferredFieldMapper = typeInference.infer(
-                        getValueFetcher(fieldName, script, parentDerivedField.derivedField.getIgnoreMalformed())
-                    );
-                    if (inferredFieldMapper != null) {
-                        nestedType = inferredFieldMapper.typeName();
-                    }
+                if (inferredFieldMapper != null) {
+                    nestedType = inferredFieldMapper.typeName();
                 }
-                if (nestedType != null) {
-                    DerivedField derivedField = new DerivedField(fieldName, nestedType, script);
-                    if (parentDerivedField.derivedField.getProperties() != null) {
-                        derivedField.setProperties(parentDerivedField.derivedField.getProperties());
-                    }
-                    if (parentDerivedField.derivedField.getSourceIndexedField() != null) {
-                        derivedField.setSourceIndexedField(parentDerivedField.derivedField.getSourceIndexedField());
-                    }
-                    if (parentDerivedField.derivedField.getFormat() != null) {
-                        derivedField.setFormat(parentDerivedField.derivedField.getFormat());
-                    }
-                    if (parentDerivedField.derivedField.getIgnoreMalformed()) {
-                        derivedField.setIgnoreMalformed(parentDerivedField.derivedField.getIgnoreMalformed());
-                    }
-                    return getDerivedFieldType(derivedField);
-                } else {
-                    logger.warn(
-                        "Field type cannot be inferred. Ensure the field {} is not rare across entire index or provide explicit mapping using [properties] under parent object [{}] ",
-                        fieldName,
-                        parentDerivedField.derivedField.getName()
-                    );
-                }
-            } catch (IOException e) {
-                logger.warn(e.getMessage());
             }
+            if (nestedType != null) {
+                DerivedField derivedField = new DerivedField(fieldName, nestedType, script);
+                if (parentDerivedField.derivedField.getProperties() != null) {
+                    derivedField.setProperties(parentDerivedField.derivedField.getProperties());
+                }
+                if (parentDerivedField.derivedField.getSourceIndexedField() != null) {
+                    derivedField.setSourceIndexedField(parentDerivedField.derivedField.getSourceIndexedField());
+                }
+                if (parentDerivedField.derivedField.getFormat() != null) {
+                    derivedField.setFormat(parentDerivedField.derivedField.getFormat());
+                }
+                if (parentDerivedField.derivedField.getIgnoreMalformed()) {
+                    derivedField.setIgnoreMalformed(parentDerivedField.derivedField.getIgnoreMalformed());
+                }
+                return getDerivedFieldType(derivedField);
+            } else {
+                logger.warn(
+                    "Field type cannot be inferred. Ensure the field {} is not rare across entire index or provide explicit mapping using [properties] under parent object [{}] ",
+                    fieldName,
+                    parentDerivedField.derivedField.getName()
+                );
+            }
+        } catch (IOException e) {
+            logger.warn(e.getMessage());
         }
         return null;
     }

@@ -36,7 +36,7 @@ public class DerivedFieldResolverFactory {
                 "[derived field] queries cannot be executed when '"
                     + IndexSettings.ALLOW_DERIVED_FIELDS.getKey()
                     + "' or '"
-                    + SearchService.CLUSTER_ALLOW_DERIVED_FEILDS_SETTING.getKey()
+                    + SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING.getKey()
                     + "' is set to false."
             );
         }

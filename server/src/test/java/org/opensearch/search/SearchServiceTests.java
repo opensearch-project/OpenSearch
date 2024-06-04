@@ -633,7 +633,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_ALLOW_DERIVED_FEILDS_SETTING.getKey(), false))
+                .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING.getKey(), false))
                 .get();
             assertThrows(OpenSearchException.class, () -> service.createContext(reader, request, null, randomBoolean()));
 
@@ -641,7 +641,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_ALLOW_DERIVED_FEILDS_SETTING.getKey(), true))
+                .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING.getKey(), true))
                 .get();
             context = service.createContext(reader, request, null, randomBoolean());
             assertNotNull(context.getQueryShardContext().resolveDerivedFieldType("field"));
@@ -669,7 +669,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_ALLOW_DERIVED_FEILDS_SETTING.getKey()))
+                .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING.getKey()))
                 .get();
         }
     }

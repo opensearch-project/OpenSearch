@@ -183,8 +183,9 @@ public final class DerivedFieldQuery extends Query {
 
     @Override
     public String toString(String f) {
-        return "DerivedFieldQuery (Query: [ " + query.toString(f) + "]" + (filterQuery != null
-            ? " FilterQuery: [ " + filterQuery.toString(f) + "])"
-            : ")");
+        return "DerivedFieldQuery (Query: [ "
+            + query.toString(f)
+            + "]"
+            + (filterQuery != null ? " FilterQuery: [ " + filterQuery.toString(f) + "])" : ")");
     }
 }
