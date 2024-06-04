@@ -12,6 +12,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
@@ -29,7 +30,7 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  *
  * @opensearch.internal
  */
-public class CpuUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsageTracker {
+public class CpuUsageTracker extends TaskResourceUsageTracker {
 
     private final LongSupplier thresholdSupplier;
 
@@ -66,7 +67,7 @@ public class CpuUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsage
     }
 
     @Override
-    public TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
+    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
         long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).max().orElse(0);
         long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getCpuTimeInNanos()).average().orElse(0);
         return new Stats(getCancellations(), currentMax, currentAvg);
@@ -75,7 +76,7 @@ public class CpuUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsage
     /**
      * Stats related to CpuUsageTracker.
      */
-    public static class Stats implements TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats {
+    public static class Stats implements TaskResourceUsageTracker.Stats {
         private final long cancellationCount;
         private final long currentMax;
         private final long currentAvg;

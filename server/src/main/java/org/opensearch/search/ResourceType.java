@@ -13,12 +13,13 @@ public enum ResourceType {
     JVM("jvm");
 
     private final String name;
+
     ResourceType(String name) {
         this.name = name;
     }
 
     public static ResourceType fromName(String s) {
-        for (ResourceType resourceType: values()) {
+        for (ResourceType resourceType : values()) {
             if (resourceType.getName().equals(s)) {
                 return resourceType;
             }

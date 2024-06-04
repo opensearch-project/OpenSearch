@@ -33,7 +33,6 @@ public class TaskResourceUsageTrackers {
         all = new EnumMap<>(TaskResourceUsageTrackerType.class);
     }
 
-
     /**
      * adds the tracker for the TrackerType
      * @param tracker
@@ -42,7 +41,6 @@ public class TaskResourceUsageTrackers {
     public void addTracker(final TaskResourceUsageTracker tracker, final TaskResourceUsageTrackerType trackerType) {
         all.put(trackerType, tracker);
     }
-
 
     /**
      * getter for tracker for a {@link TaskResourceUsageTrackerType}

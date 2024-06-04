@@ -17,6 +17,7 @@ public enum TaskResourceUsageTrackerType {
     ELAPSED_TIME_TRACKER("elapsed_time_tracker");
 
     private final String name;
+
     TaskResourceUsageTrackerType(String name) {
         this.name = name;
     }

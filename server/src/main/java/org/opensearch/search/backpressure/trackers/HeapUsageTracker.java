@@ -18,6 +18,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.monitor.jvm.JvmStats;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
@@ -37,7 +38,7 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  *
  * @opensearch.internal
  */
-public class HeapUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsageTracker {
+public class HeapUsageTracker extends TaskResourceUsageTracker {
     private static final Logger logger = LogManager.getLogger(HeapUsageTracker.class);
     private static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
     private final DoubleSupplier heapVarianceSupplier;
@@ -127,7 +128,7 @@ public class HeapUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsag
     }
 
     @Override
-    public TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
+    public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
         long currentMax = activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).max().orElse(0);
         long currentAvg = (long) activeTasks.stream().mapToLong(t -> t.getTotalResourceStats().getMemoryInBytes()).average().orElse(0);
         return new Stats(getCancellations(), currentMax, currentAvg, (long) movingAverageReference.get().getAverage());
@@ -136,7 +137,7 @@ public class HeapUsageTracker extends TaskResourceUsageTrackers.TaskResourceUsag
     /**
      * Stats related to HeapUsageTracker.
      */
-    public static class Stats implements TaskResourceUsageTrackers.TaskResourceUsageTracker.Stats {
+    public static class Stats implements TaskResourceUsageTracker.Stats {
         private final long cancellationCount;
         private final long currentMax;
         private final long currentAvg;

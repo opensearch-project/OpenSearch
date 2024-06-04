@@ -9,6 +9,7 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.search.ResourceType;
+import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.EnumMap;
@@ -16,10 +17,12 @@ import java.util.EnumMap;
 public class NodeDuressTrackersTests extends OpenSearchTestCase {
 
     public void testNodeNotInDuress() {
-        EnumMap<ResourceType, NodeDuressTrackers.NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {{
-                put(ResourceType.JVM, new NodeDuressTrackers.NodeDuressTracker(() -> false, () -> 2));
-                put(ResourceType.CPU, new NodeDuressTrackers.NodeDuressTracker(() -> false, () -> 2));
-        }};
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
+            {
+                put(ResourceType.JVM, new NodeDuressTracker(() -> false, () -> 2));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 2));
+            }
+        };
 
         NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map);
 
@@ -29,11 +32,12 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     }
 
     public void testNodeInDuressWhenHeapInDuress() {
-        EnumMap<ResourceType, NodeDuressTrackers.NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.JVM, new NodeDuressTrackers.NodeDuressTracker(() -> true, () -> 3));
-                put(ResourceType.CPU, new NodeDuressTrackers.NodeDuressTracker(() -> false, () -> 1));
-            }};
+                put(ResourceType.JVM, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 1));
+            }
+        };
 
         NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map);
 
@@ -45,11 +49,12 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     }
 
     public void testNodeInDuressWhenCPUInDuress() {
-        EnumMap<ResourceType, NodeDuressTrackers.NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.JVM, new NodeDuressTrackers.NodeDuressTracker(() -> false, () -> 1));
-                put(ResourceType.CPU, new NodeDuressTrackers.NodeDuressTracker(() -> true, () -> 3));
-            }};
+                put(ResourceType.JVM, new NodeDuressTracker(() -> false, () -> 1));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> true, () -> 3));
+            }
+        };
 
         NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map);
 
@@ -61,11 +66,12 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     }
 
     public void testNodeInDuressWhenCPUAndHeapInDuress() {
-        EnumMap<ResourceType, NodeDuressTrackers.NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.JVM, new NodeDuressTrackers.NodeDuressTracker(() -> true, () -> 3));
-                put(ResourceType.CPU, new NodeDuressTrackers.NodeDuressTracker(() -> false, () -> 3));
-            }};
+                put(ResourceType.JVM, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 3));
+            }
+        };
 
         NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(map);
 
