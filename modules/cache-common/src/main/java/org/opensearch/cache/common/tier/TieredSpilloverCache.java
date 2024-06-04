@@ -325,6 +325,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     void handleRemovalFromHeapTier(RemovalNotification<ICacheKey<K>, V> notification) {
         ICacheKey<K> key = notification.getKey();
         boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
+        boolean countEvictionTowardsTotal = false; // Don't count this eviction towards the cache's total if it ends up in the disk tier
         if (caches.get(diskCache).isEnabled() && wasEvicted && evaluatePolicies(notification.getValue())) {
             try (ReleasableLock ignore = writeLock.acquire()) {
                 diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
@@ -334,21 +335,28 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             // If the value is not going to the disk cache, send this notification to the TSC's removal listener
             // as the value is leaving the TSC entirely
             removalListener.onRemoval(notification);
+            countEvictionTowardsTotal = true;
         }
-        updateStatsOnRemoval(TIER_DIMENSION_VALUE_ON_HEAP, wasEvicted, key, notification.getValue());
+        updateStatsOnRemoval(TIER_DIMENSION_VALUE_ON_HEAP, wasEvicted, key, notification.getValue(), countEvictionTowardsTotal);
     }
 
     void handleRemovalFromDiskTier(RemovalNotification<ICacheKey<K>, V> notification) {
         // Values removed from the disk tier leave the TSC entirely
         removalListener.onRemoval(notification);
         boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
-        updateStatsOnRemoval(TIER_DIMENSION_VALUE_DISK, wasEvicted, notification.getKey(), notification.getValue());
+        updateStatsOnRemoval(TIER_DIMENSION_VALUE_DISK, wasEvicted, notification.getKey(), notification.getValue(), true);
     }
 
-    void updateStatsOnRemoval(String removedFromTierValue, boolean wasEvicted, ICacheKey<K> key, V value) {
+    void updateStatsOnRemoval(
+        String removedFromTierValue,
+        boolean wasEvicted,
+        ICacheKey<K> key,
+        V value,
+        boolean countEvictionTowardsTotal
+    ) {
         List<String> dimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, removedFromTierValue);
         if (wasEvicted) {
-            statsHolder.incrementEvictions(dimensionValues);
+            statsHolder.incrementEvictions(dimensionValues, countEvictionTowardsTotal);
         }
         statsHolder.decrementItems(dimensionValues);
         statsHolder.decrementSizeInBytes(dimensionValues, weigher.applyAsLong(key, value));
