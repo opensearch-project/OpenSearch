@@ -8,6 +8,7 @@
 
 package org.opensearch.common.cache.service;
 
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.CacheType;
@@ -51,6 +52,7 @@ public class NodeCacheStats implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NodesStatsRequest.Metric.CACHE_STATS.metricName());
         for (CacheType type : statsByCache.keySet()) {
             if (flags.getIncludeCaches().contains(type)) {
                 builder.startObject(type.getValue());
@@ -58,6 +60,7 @@ public class NodeCacheStats implements ToXContentFragment, Writeable {
                 builder.endObject();
             }
         }
+        builder.endObject();
         return builder;
     }
 
@@ -76,5 +79,11 @@ public class NodeCacheStats implements ToXContentFragment, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(statsByCache, flags);
+    }
+
+    // Get the immutable cache stats for a given cache, used to avoid having to process XContent in tests.
+    // Safe to expose publicly as the ImmutableCacheStatsHolder can't be modified after its creation.
+    public ImmutableCacheStatsHolder getStatsByCache(CacheType cacheType) {
+        return statsByCache.get(cacheType);
     }
 }
