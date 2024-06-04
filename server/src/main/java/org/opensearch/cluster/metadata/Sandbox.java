@@ -52,16 +52,24 @@ public class Sandbox {
         /*
         Stub class only
         */
+        SandboxResourceType resourceType;
+        Long threshold;
+
+        ResourceLimit(SandboxResourceType resourceType, Long threshold) {
+            this.resourceType = resourceType;
+            this.threshold = threshold;
+        }
+
         public Long getThresholdInLong() {
-            return 0L;
+            return threshold;
         }
 
         public SandboxResourceType getResourceType() {
-            return null;
+            return resourceType;
         }
 
         public Long getThreshold() {
-            return 0L;
+            return threshold;
         }
     }
 
