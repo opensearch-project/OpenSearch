@@ -21,7 +21,7 @@
                 properties:
                   array_of_text: text
                 script: "emit(params._source[\"json_field\"])"
-                source_indexed_field: "json_field"
+                prefilter_field: "json_field"
 
   - do:
       index:
@@ -74,7 +74,7 @@
                 properties:
                   array_of_text: text
                 script: "emit(params._source[\"json_field\"])"
-                source_indexed_field: "json_field"
+                prefilter_field: "json_field"
 
   - do:
       index:

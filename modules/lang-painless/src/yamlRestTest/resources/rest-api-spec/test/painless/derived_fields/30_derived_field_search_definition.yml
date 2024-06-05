@@ -310,7 +310,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
           query:
             term:
               derived_object.keyword:
@@ -330,7 +330,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
           query:
             range:
               derived_object.long:
@@ -350,7 +350,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
           query:
             range:
               derived_object.float:
@@ -370,7 +370,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
           query:
             range:
               derived_object.double:
@@ -390,7 +390,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
           query:
             range:
               derived_object.date:
@@ -410,7 +410,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
           query:
             term:
               derived_object.ip:
@@ -430,7 +430,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
           query:
             term:
               derived_object.boolean:
@@ -450,7 +450,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
           query:
             range:
               derived_object.array_of_long:
@@ -481,7 +481,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
         rest_total_hits_as_int: true
         index: test
         q: derived_object.keyword:json_keyword1

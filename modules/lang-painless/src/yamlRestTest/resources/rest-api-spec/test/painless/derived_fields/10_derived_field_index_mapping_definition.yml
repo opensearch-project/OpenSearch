@@ -35,10 +35,10 @@
               derived_text:
                 type: text
                 script: "emit(params._source[\"text\"])"
-              derived_text_source_indexed_field:
+              derived_text_prefilter_field:
                 type: text
                 script: "emit(params._source[\"text\"])"
-                source_indexed_field: "text"
+                prefilter_field: "text"
               derived_keyword:
                 type: keyword
                 script: "emit(params._source[\"keyword\"])"
@@ -71,7 +71,7 @@
                 properties:
                   keyword: keyword
                 script: "emit(params._source[\"json_field\"])"
-                source_indexed_field: "json_field"
+                prefilter_field: "json_field"
 
   - do:
       index:

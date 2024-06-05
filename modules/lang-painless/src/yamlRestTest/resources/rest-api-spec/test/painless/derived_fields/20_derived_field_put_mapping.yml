@@ -20,10 +20,10 @@
             derived_text:
               type: text
               script: "emit(params._source[\"text\"])"
-            derived_text_source_indexed_field:
+            derived_text_prefilter_field:
               type: keyword
               script: "emit(params._source[\"text\"])"
-              source_indexed_field: "text"
+              prefilter_field: "text"
             derived_date:
               type: date
               script: "emit(params._source[\"keyword\"])"
@@ -32,19 +32,19 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
 
   - do:
       indices.get_mapping:
         index: test_index
 
   - match: {test_index.mappings.derived.derived_text.type: text}
-  - match: {test_index.mappings.derived.derived_text_source_indexed_field.type: keyword}
-  - match: {test_index.mappings.derived.derived_text_source_indexed_field.source_indexed_field: text}
+  - match: {test_index.mappings.derived.derived_text_prefilter_field.type: keyword}
+  - match: {test_index.mappings.derived.derived_text_prefilter_field.prefilter_field: text}
   - match: {test_index.mappings.derived.derived_date.type: date}
   - match: {test_index.mappings.derived.derived_object.type: object}
   - match: {test_index.mappings.derived.derived_object.properties.keyword: keyword}
-  - match: {test_index.mappings.derived.derived_object.source_indexed_field: json_field}
+  - match: {test_index.mappings.derived.derived_object.prefilter_field: json_field}
 
 
   - do:
@@ -60,10 +60,10 @@
             derived_text:
               type: keyword
               script: "emit(params._source[\"text\"])"
-            derived_text_source_indexed_field:
+            derived_text_prefilter_field:
               type: text
               script: "emit(params._source[\"text\"])"
-              source_indexed_field: "text"
+              prefilter_field: "text"
             derived_date:
               type: keyword
               script: "emit(params._source[\"keyword\"])"
@@ -72,7 +72,7 @@
               properties:
                 keyword: text
               script: "emit(params._source[\"text\"])"
-              source_indexed_field: "text"
+              prefilter_field: "text"
               format: "dd-MM-yyyy"
               ignore_malformed: true
 
@@ -81,12 +81,12 @@
         index: test_index
 
   - match: {test_index.mappings.derived.derived_text.type: keyword}
-  - match: {test_index.mappings.derived.derived_text_source_indexed_field.type: text}
-  - match: {test_index.mappings.derived.derived_text_source_indexed_field.source_indexed_field: text}
+  - match: {test_index.mappings.derived.derived_text_prefilter_field.type: text}
+  - match: {test_index.mappings.derived.derived_text_prefilter_field.prefilter_field: text}
   - match: {test_index.mappings.derived.derived_date.type: keyword}
   - match: {test_index.mappings.derived.derived_object.type: object}
   - match: {test_index.mappings.derived.derived_object.properties.keyword: text}
-  - match: {test_index.mappings.derived.derived_object.source_indexed_field: text}
+  - match: {test_index.mappings.derived.derived_object.prefilter_field: text}
   - match: {test_index.mappings.derived.derived_object.format: "dd-MM-yyyy"}
   - match: {test_index.mappings.derived.derived_object.ignore_malformed: true}
 
@@ -106,7 +106,7 @@
               properties:
                 keyword: keyword
               script: "emit(params._source[\"json_field\"])"
-              source_indexed_field: "json_field"
+              prefilter_field: "json_field"
               ignore_malformed: false
 
   - do:
@@ -114,10 +114,10 @@
         index: test_index
 
   - match: {test_index.mappings.derived.derived_text.type: keyword}
-  - match: {test_index.mappings.derived.derived_text_source_indexed_field.type: text}
-  - match: {test_index.mappings.derived.derived_text_source_indexed_field.source_indexed_field: text}
+  - match: {test_index.mappings.derived.derived_text_prefilter_field.type: text}
+  - match: {test_index.mappings.derived.derived_text_prefilter_field.prefilter_field: text}
   - match: {test_index.mappings.derived.derived_date.type: keyword}
   - match: {test_index.mappings.derived.derived_object.type: object}
   - match: {test_index.mappings.derived.derived_object.properties.keyword: keyword}
-  - match: {test_index.mappings.derived.derived_object.source_indexed_field: json_field}
+  - match: {test_index.mappings.derived.derived_object.prefilter_field: json_field}
   - is_false: test_index.mappings.derived.derived_object.ignore_malformed
