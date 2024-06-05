@@ -723,6 +723,12 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
 
     public void testDynamicClauseCountUpdate() throws Exception {
         client().prepareIndex("testdynamic").setId("1").setSource("field", "foo bar baz").get();
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT - 1))
+        );
         refresh();
         StringBuilder sb = new StringBuilder("foo");
 
@@ -737,7 +743,7 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
             client().prepareSearch("testdynamic").setQuery(qb).get();
         });
 
-        assert (e.getDetailedMessage().contains("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT)));
+        assert (e.getDetailedMessage().contains("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT - 1)));
 
         // increase clause count by 2
         assertAcked(
