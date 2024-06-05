@@ -34,7 +34,6 @@ package org.opensearch.common.util.concurrent;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -107,23 +106,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             if (logger.isTraceEnabled()) {
                 logger.trace("scheduling {} every {}", toString(), interval);
             }
-            try {
-                cancellable = threadPool.schedule(this, interval, getThreadPool());
-            } catch (OpenSearchRejectedExecutionException e) {
-                if (e.isExecutorShutdown()) {
-                    logger.debug(
-                        new ParameterizedMessage(
-                            "could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",
-                            this,
-                            interval,
-                            getThreadPool()
-                        ),
-                        e
-                    );
-                } else {
-                    throw e;
-                }
-            }
+            cancellable = threadPool.schedule(this, interval, getThreadPool());
             isScheduledOrRunning = true;
         } else {
             logger.trace("scheduled {} disabled", toString());

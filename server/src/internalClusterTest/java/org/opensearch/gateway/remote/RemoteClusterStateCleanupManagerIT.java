@@ -129,6 +129,15 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
                 manifestFiles >= RETAINED_MANIFESTS && manifestFiles < RETAINED_MANIFESTS + 2 * SKIP_CLEANUP_STATE_CHANGES
             );
         }, 500, TimeUnit.MILLISECONDS);
+
+        // disable the clean up to avoid race condition during shutdown
+        response = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING.getKey(), "-1"))
+            .get();
+
+        assertTrue(response.isAcknowledged());
     }
 
     private void updateClusterStateNTimes(int n) {
