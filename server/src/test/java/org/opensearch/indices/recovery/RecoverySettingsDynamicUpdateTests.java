@@ -118,4 +118,13 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionLongTimeout());
     }
+
+    public void testChunkSize() {
+        ByteSizeValue chunkSize = new ByteSizeValue(between(1, 1000), ByteSizeUnit.BYTES);
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING.getKey(), chunkSize).build()
+        );
+        assertEquals(chunkSize, recoverySettings.getChunkSize());
+    }
+
 }
