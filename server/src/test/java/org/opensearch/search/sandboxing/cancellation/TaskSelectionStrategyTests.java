@@ -18,7 +18,7 @@ import java.util.List;
 
 public class TaskSelectionStrategyTests extends OpenSearchTestCase {
 
-    private class TestTaskSelectionStrategy extends AbstractTaskSelectionStrategy {
+    public static class TestTaskSelectionStrategy extends AbstractTaskSelectionStrategy {
         @Override
         public Comparator<Task> sortingCondition() {
             return Comparator.comparingLong(Task::getStartTime).reversed();
@@ -30,7 +30,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         long threshold = 100L;
         long reduceBy = 50L;
         SandboxResourceType resourceType = SandboxResourceType.fromString("JVM");
-        List<Task> tasks = SandboxCancellationStrategyTestHelpers.getListOfTasks(threshold);
+        List<Task> tasks = SandboxTestHelpers.getListOfTasks(threshold);
 
         List<Task> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         assertFalse(selectedTasks.isEmpty());
@@ -42,7 +42,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         long threshold = 100L;
         long reduceBy = -50L;
         SandboxResourceType resourceType = SandboxResourceType.fromString("JVM");
-        List<Task> tasks = SandboxCancellationStrategyTestHelpers.getListOfTasks(threshold);
+        List<Task> tasks = SandboxTestHelpers.getListOfTasks(threshold);
 
         try {
             testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
@@ -57,7 +57,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         long threshold = 100L;
         long reduceBy = 0;
         SandboxResourceType resourceType = SandboxResourceType.fromString("JVM");
-        List<Task> tasks = SandboxCancellationStrategyTestHelpers.getListOfTasks(threshold);
+        List<Task> tasks = SandboxTestHelpers.getListOfTasks(threshold);
 
         List<Task> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         assertTrue(selectedTasks.isEmpty());

@@ -27,7 +27,10 @@ import java.util.stream.Collectors;
 // @ExperimentalApi
 public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, TaskManager.TaskEventListeners {
 
-    public static final List<SandboxResourceType> TRACKED_RESOURCES = List.of(SandboxResourceType.fromString("JVM"));
+    public static final List<SandboxResourceType> TRACKED_RESOURCES = List.of(
+        SandboxResourceType.fromString("JVM"),
+        SandboxResourceType.fromString("CPU")
+    );
 
     private final TaskManager taskManager;
     private final TaskResourceTrackingService taskResourceTrackingService;
