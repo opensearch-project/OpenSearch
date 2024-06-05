@@ -119,6 +119,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 .setValueType(builder.cacheConfig.getValueType())
                 .setSettings(builder.cacheConfig.getSettings())
                 .setWeigher(builder.cacheConfig.getWeigher())
+                .setKeySerializer(builder.cacheConfig.getKeySerializer())
+                .setValueSerializer(builder.cacheConfig.getValueSerializer())
                 .setDimensionNames(builder.cacheConfig.getDimensionNames())
                 .setStatsTrackingEnabled(false)
                 .build(),
