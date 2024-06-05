@@ -105,20 +105,29 @@ public class TieredSpilloverCacheStatsHolder extends DefaultCacheStatsHolder {
         internalIncrement(dimensionValues, missIncrementer, true);
     }
 
+    /**
+     * This method shouldn't be used in this class. Instead, use incrementEvictions(dimensionValues, includeInTotal)
+     * which specifies whether the eviction should be included in the cache's total evictions, or if it should
+     * just count towards that tier's evictions.
+     * @param dimensionValues The dimension values
+     */
     @Override
     public void incrementEvictions(List<String> dimensionValues) {
-        final String tierValue = validateTierDimensionValue(dimensionValues);
+        throw new UnsupportedOperationException(
+            "TieredSpilloverCacheHolder must specify whether to include an eviction in the total cache stats. Use incrementEvictions(List<String> dimensionValues, boolean includeInTotal)"
+        );
+    }
 
-        // If the disk tier is present, only evictions from the disk tier should be included in total values.
+    /**
+     * Increment evictions for this set of dimension values.
+     * @param dimensionValues The dimension values
+     * @param includeInTotal Whether to include this eviction in the total for the whole cache's evictions
+     */
+    public void incrementEvictions(List<String> dimensionValues, boolean includeInTotal) {
+        validateTierDimensionValue(dimensionValues);
+        // If we count this eviction towards the total, we should increment all ancestor nodes. If not, only increment the leaf node.
         Consumer<DefaultCacheStatsHolder.Node> evictionsIncrementer = (node) -> {
-            if (tierValue.equals(TIER_DIMENSION_VALUE_ON_HEAP) && diskCacheEnabled) {
-                // If on-heap tier, increment only the leaf node corresponding to the on heap values; not the total values in its parent
-                // nodes
-                if (node.isAtLowestLevel()) {
-                    node.incrementEvictions();
-                }
-            } else {
-                // If disk tier, or on-heap tier with a disabled disk tier, increment the leaf node and its parents
+            if (includeInTotal || node.isAtLowestLevel()) {
                 node.incrementEvictions();
             }
         };
