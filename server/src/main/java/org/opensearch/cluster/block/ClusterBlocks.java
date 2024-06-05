@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.block;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -68,6 +70,7 @@ import static java.util.stream.Collectors.toSet;
  */
 @PublicApi(since = "1.0.0")
 public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements ToXContentFragment {
+    private static final Logger logger = LogManager.getLogger(ClusterBlocks.class);
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), Map.of());
 
     private final Set<ClusterBlock> global;
@@ -368,6 +371,10 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements To
         return new Builder();
     }
 
+    public static Builder builder(ClusterBlocks clusterBlocks) {
+        return new Builder(clusterBlocks);
+    }
+
     /**
      * Builder for cluster blocks.
      *
@@ -381,6 +388,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements To
         private final Map<String, Set<ClusterBlock>> indices = new HashMap<>();
 
         public Builder() {}
+
+        public Builder(ClusterBlocks clusterBlocks) {
+            this.global.addAll(clusterBlocks.global());
+            this.indices.putAll(clusterBlocks.indices());
+        }
 
         public Builder blocks(ClusterBlocks blocks) {
             global.addAll(blocks.global());
@@ -555,7 +567,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements To
                         }
                         break;
                     default:
-                        throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+                        logger.warn("unknown field [{}]", currentFieldName);
                 }
             }
             return builder.build();

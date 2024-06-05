@@ -22,13 +22,16 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.block.ClusterBlockTests.clusterBlockWithId;
 import static org.opensearch.cluster.block.ClusterBlockTests.getExpectedXContentFragment;
 import static org.opensearch.cluster.block.ClusterBlockTests.randomClusterBlock;
+import static org.opensearch.core.xcontent.XContentHelper.toXContent;
 
 public class ClusterBlocksTests extends OpenSearchTestCase {
     public void testToXContent() throws IOException {
@@ -86,46 +89,38 @@ public class ClusterBlocksTests extends OpenSearchTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
-    }
-
-    public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
-    }
-
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
         boolean humanReadable = randomBoolean();
         final MediaType mediaType = MediaTypeRegistry.JSON;
         BytesReference originalBytes = toShuffledXContent(clusterBlocks, mediaType, ToXContent.EMPTY_PARAMS, humanReadable);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, originalBytes)) {
+            ClusterBlocks parsedClusterBlocks = ClusterBlocks.fromXContent(parser);
+            assertEquals(clusterBlocks.global().size(), parsedClusterBlocks.global().size());
+            assertEquals(clusterBlocks.indices().size(), parsedClusterBlocks.indices().size());
+            clusterBlocks.global().forEach(clusterBlock -> assertTrue(parsedClusterBlocks.global().contains(clusterBlock)));
+            clusterBlocks.indices().forEach((key, value) -> {
+                assertTrue(parsedClusterBlocks.indices().containsKey(key));
+                value.forEach(clusterBlock -> assertTrue(parsedClusterBlocks.indices().get(key).contains(clusterBlock)));
+            });
+        }
+    }
 
-        if (addRandomFields) {
-            String unsupportedField = "unsupported_field";
-            BytesReference mutated = BytesReference.bytes(
-                XContentTestUtils.insertIntoXContent(
-                    mediaType.xContent(),
-                    originalBytes,
-                    Collections.singletonList("blocks"),
-                    () -> unsupportedField,
-                    () -> randomAlphaOfLengthBetween(3, 10)
-                )
-            );
-            IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> ClusterBlocks.fromXContent(createParser(mediaType.xContent(), mutated))
-            );
-            assertEquals("unknown field [" + unsupportedField + "]", exception.getMessage());
-        } else {
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, originalBytes)) {
-                ClusterBlocks parsedClusterBlocks = ClusterBlocks.fromXContent(parser);
-                assertEquals(clusterBlocks.global().size(), parsedClusterBlocks.global().size());
-                assertEquals(clusterBlocks.indices().size(), parsedClusterBlocks.indices().size());
-                clusterBlocks.global().forEach(clusterBlock -> assertTrue(parsedClusterBlocks.global().contains(clusterBlock)));
-                clusterBlocks.indices().forEach((key, value) -> {
-                    assertTrue(parsedClusterBlocks.indices().containsKey(key));
-                    value.forEach(clusterBlock -> assertTrue(parsedClusterBlocks.indices().get(key).contains(clusterBlock)));
-                });
-            }
+    public void testFromXContentWithUnknownFields() throws IOException {
+        ClusterBlocks clusterBlocks = ClusterBlocks.builder(randomClusterBlocks()).addGlobalBlock(clusterBlockWithId(111)).build();
+
+        final MediaType mediaType = MediaTypeRegistry.JSON;
+        BytesReference mutated = BytesReference.bytes(
+            XContentTestUtils.insertIntoXContent(
+                mediaType.xContent(),
+                toXContent(clusterBlocks, mediaType, ToXContent.EMPTY_PARAMS, randomBoolean()),
+                List.of("blocks.global.111"),
+                () -> "unknown_field",
+                () -> Collections.singletonMap("a", "b")
+            )
+        );
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, mutated)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ClusterBlocks.fromXContent(parser));
+            assertEquals("unexpected token [START_OBJECT]", e.getMessage());
         }
     }
 

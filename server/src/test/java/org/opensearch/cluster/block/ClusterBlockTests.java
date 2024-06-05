@@ -45,7 +45,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -173,43 +172,16 @@ public class ClusterBlockTests extends OpenSearchTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
-    }
-
-    public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
-    }
-
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         ClusterBlock clusterBlock = randomClusterBlock();
         boolean humanReadable = randomBoolean();
         final MediaType mediaType = MediaTypeRegistry.JSON;
         BytesReference originalBytes = toShuffledXContent(clusterBlock, mediaType, ToXContent.EMPTY_PARAMS, humanReadable);
-
-        if (addRandomFields) {
-            String unsupportedField = "unsupported_field";
-            BytesReference mutated = BytesReference.bytes(
-                XContentTestUtils.insertIntoXContent(
-                    mediaType.xContent(),
-                    originalBytes,
-                    Collections.singletonList(Integer.toString(clusterBlock.id())),
-                    () -> unsupportedField,
-                    () -> randomAlphaOfLengthBetween(3, 10)
-                )
-            );
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> ClusterBlock.fromXContent(createParser(mediaType.xContent(), mutated), clusterBlock.id())
-            );
-            assertEquals(e.getMessage(), "unknown field [" + unsupportedField + "]");
-        } else {
-            ClusterBlock parsedBlock = ClusterBlock.fromXContent(createParser(mediaType.xContent(), originalBytes), clusterBlock.id());
-            assertEquals(clusterBlock, parsedBlock);
-            assertEquals(clusterBlock.description(), parsedBlock.description());
-            assertEquals(clusterBlock.retryable(), parsedBlock.retryable());
-            assertEquals(clusterBlock.disableStatePersistence(), parsedBlock.disableStatePersistence());
-            assertArrayEquals(clusterBlock.levels().toArray(), parsedBlock.levels().toArray());
-        }
+        ClusterBlock parsedBlock = ClusterBlock.fromXContent(createParser(mediaType.xContent(), originalBytes), clusterBlock.id());
+        assertEquals(clusterBlock, parsedBlock);
+        assertEquals(clusterBlock.description(), parsedBlock.description());
+        assertEquals(clusterBlock.retryable(), parsedBlock.retryable());
+        assertEquals(clusterBlock.disableStatePersistence(), parsedBlock.disableStatePersistence());
+        assertArrayEquals(clusterBlock.levels().toArray(), parsedBlock.levels().toArray());
     }
 
     static String getExpectedXContentFragment(ClusterBlock clusterBlock, String indent, boolean gatewayMode) {
@@ -261,10 +233,14 @@ public class ClusterBlockTests extends OpenSearchTestCase {
     }
 
     static ClusterBlock randomClusterBlock() {
+        return clusterBlockWithId(randomInt());
+    }
+
+    static ClusterBlock clusterBlockWithId(int id) {
         final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
         final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
         return new ClusterBlock(
-            randomInt(),
+            id,
             uuid,
             "cluster block #" + randomInt(),
             randomBoolean(),

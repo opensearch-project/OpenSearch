@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.block;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -60,7 +62,7 @@ import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
  */
 @PublicApi(since = "1.0.0")
 public class ClusterBlock implements Writeable, ToXContentFragment {
-
+    private static final Logger logger = LogManager.getLogger(ClusterBlock.class);
     static final String KEY_UUID = "uuid";
     static final String KEY_DESCRIPTION = "description";
     static final String KEY_RETRYABLE = "retryable";
@@ -232,7 +234,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
                         allowReleaseResources = parser.booleanValue();
                         break;
                     default:
-                        throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+                        logger.warn("unknown field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (currentFieldName.equals(KEY_LEVELS)) {
@@ -240,7 +242,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
                         levels.add(ClusterBlockLevel.fromString(parser.text(), Locale.ROOT));
                     }
                 } else {
-                    throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
+                    logger.warn("unknown field [{}]", currentFieldName);
                 }
             } else {
                 throw new IllegalArgumentException("unexpected token [" + token + "]");
