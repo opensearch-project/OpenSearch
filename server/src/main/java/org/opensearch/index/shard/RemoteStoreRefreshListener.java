@@ -179,6 +179,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // Below check ensures that if there is commit, then that gets picked up by both 1st and 2nd shouldSync call.
             || isRefreshAfterCommitSafe()
             || isRemoteSegmentStoreInSync() == false;
+        // Ignore syncing segments if the underlying shard is closed
+        // This also makes sure that retries are not scheduled for shards
+        // with failed syncSegments invocation after they are closed
+        if (shardClosed()) {
+            logger.info("Shard is already closed, will stop scheduling retries");
+            return false;
+        }
         if (shouldSync || skipPrimaryTermCheck) {
             return shouldSync;
         }
@@ -605,6 +612,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 segmentTracker.addUploadTimeInMillis(Math.max(1, System.currentTimeMillis() - uploadStartTime));
             }
         };
+    }
+
+    /**
+     * Checks if the underlying IndexShard instance is closed
+     *
+     * @return true if it is closed, false otherwise
+     */
+    private boolean shardClosed() {
+        return indexShard.state() == IndexShardState.CLOSED;
     }
 
     @Override
