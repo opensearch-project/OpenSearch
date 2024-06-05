@@ -78,20 +78,18 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         return typeFieldMapper.fieldType().getTextSearchInfo();
     }
 
-    TextFieldMapper.TextFieldType getSourceIndexedFieldType(QueryShardContext context) {
-        if (derivedField.getSourceIndexedField() == null || derivedField.getSourceIndexedField().isEmpty()) {
+    TextFieldMapper.TextFieldType getPrefilterFieldType(QueryShardContext context) {
+        if (derivedField.getPrefilterField() == null || derivedField.getPrefilterField().isEmpty()) {
             return null;
         }
-        MappedFieldType mappedFieldType = context.fieldMapper(derivedField.getSourceIndexedField());
+        MappedFieldType mappedFieldType = context.fieldMapper(derivedField.getPrefilterField());
         if (mappedFieldType == null) {
-            throw new MapperException(
-                "source_index_field[" + derivedField.getSourceIndexedField() + "] is not defined in the index mappings"
-            );
+            throw new MapperException("prefilter_field[" + derivedField.getPrefilterField() + "] is not defined in the index mappings");
         }
         if (!(mappedFieldType instanceof TextFieldMapper.TextFieldType)) {
             throw new MapperException(
-                "source_index_field["
-                    + derivedField.getSourceIndexedField()
+                "prefilter_field["
+                    + derivedField.getPrefilterField()
                     + "] should be of type text. Type found ["
                     + mappedFieldType.typeName()
                     + "]."
@@ -148,8 +146,8 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context))
-            .map(sourceIndexedFieldType -> createConjuctionQuery(sourceIndexedFieldType.termQuery(value, context), derivedFieldQuery))
+        return Optional.ofNullable(getPrefilterFieldType(context))
+            .map(prefilterFieldType -> createConjuctionQuery(prefilterFieldType.termQuery(value, context), derivedFieldQuery))
             .orElse(derivedFieldQuery);
     }
 
@@ -165,12 +163,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context))
+        return Optional.ofNullable(getPrefilterFieldType(context))
             .map(
-                sourceIndexedFieldType -> createConjuctionQuery(
-                    sourceIndexedFieldType.termQueryCaseInsensitive(value, context),
-                    derivedFieldQuery
-                )
+                prefilterFieldType -> createConjuctionQuery(prefilterFieldType.termQueryCaseInsensitive(value, context), derivedFieldQuery)
             )
             .orElse(derivedFieldQuery);
     }
@@ -187,8 +182,8 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context))
-            .map(sourceIndexedFieldType -> createConjuctionQuery(sourceIndexedFieldType.termsQuery(values, context), derivedFieldQuery))
+        return Optional.ofNullable(getPrefilterFieldType(context))
+            .map(prefilterFieldType -> createConjuctionQuery(prefilterFieldType.termsQuery(values, context), derivedFieldQuery))
             .orElse(derivedFieldQuery);
     }
 
@@ -243,10 +238,10 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context))
+        return Optional.ofNullable(getPrefilterFieldType(context))
             .map(
-                sourceIndexedFieldType -> createConjuctionQuery(
-                    sourceIndexedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context),
+                prefilterFieldType -> createConjuctionQuery(
+                    prefilterFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context),
                     derivedFieldQuery
                 )
             )
@@ -281,10 +276,10 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context))
+        return Optional.ofNullable(getPrefilterFieldType(context))
             .map(
-                sourceIndexedFieldType -> createConjuctionQuery(
-                    sourceIndexedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context),
+                prefilterFieldType -> createConjuctionQuery(
+                    prefilterFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context),
                     derivedFieldQuery
                 )
             )
@@ -308,10 +303,10 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context))
+        return Optional.ofNullable(getPrefilterFieldType(context))
             .map(
-                sourceIndexedFieldType -> createConjuctionQuery(
-                    sourceIndexedFieldType.prefixQuery(value, method, caseInsensitive, context),
+                prefilterFieldType -> createConjuctionQuery(
+                    prefilterFieldType.prefixQuery(value, method, caseInsensitive, context),
                     derivedFieldQuery
                 )
             )
@@ -335,10 +330,10 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context))
+        return Optional.ofNullable(getPrefilterFieldType(context))
             .map(
-                sourceIndexedFieldType -> createConjuctionQuery(
-                    sourceIndexedFieldType.wildcardQuery(value, method, caseInsensitive, context),
+                prefilterFieldType -> createConjuctionQuery(
+                    prefilterFieldType.wildcardQuery(value, method, caseInsensitive, context),
                     derivedFieldQuery
                 )
             )
@@ -357,10 +352,10 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context))
+        return Optional.ofNullable(getPrefilterFieldType(context))
             .map(
-                sourceIndexedFieldType -> createConjuctionQuery(
-                    sourceIndexedFieldType.normalizedWildcardQuery(value, method, context),
+                prefilterFieldType -> createConjuctionQuery(
+                    prefilterFieldType.normalizedWildcardQuery(value, method, context),
                     derivedFieldQuery
                 )
             )
@@ -386,10 +381,10 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context))
+        return Optional.ofNullable(getPrefilterFieldType(context))
             .map(
-                sourceIndexedFieldType -> createConjuctionQuery(
-                    sourceIndexedFieldType.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context),
+                prefilterFieldType -> createConjuctionQuery(
+                    prefilterFieldType.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context),
                     derivedFieldQuery
                 )
             )
@@ -408,10 +403,10 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context)).map(sourceIndexedFieldType -> {
+        return Optional.ofNullable(getPrefilterFieldType(context)).map(prefilterFieldType -> {
             try {
                 return createConjuctionQuery(
-                    sourceIndexedFieldType.phraseQuery(stream, slop, enablePositionIncrements, context),
+                    prefilterFieldType.phraseQuery(stream, slop, enablePositionIncrements, context),
                     derivedFieldQuery
                 );
             } catch (IOException e) {
@@ -433,10 +428,10 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context)).map(sourceIndexedFieldType -> {
+        return Optional.ofNullable(getPrefilterFieldType(context)).map(prefilterFieldType -> {
             try {
                 return createConjuctionQuery(
-                    sourceIndexedFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context),
+                    prefilterFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context),
                     derivedFieldQuery
                 );
             } catch (IOException e) {
@@ -457,12 +452,9 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
-        return Optional.ofNullable(getSourceIndexedFieldType(context)).map(sourceIndexedFieldType -> {
+        return Optional.ofNullable(getPrefilterFieldType(context)).map(prefilterFieldType -> {
             try {
-                return createConjuctionQuery(
-                    sourceIndexedFieldType.phrasePrefixQuery(stream, slop, maxExpansions, context),
-                    derivedFieldQuery
-                );
+                return createConjuctionQuery(prefilterFieldType.phrasePrefixQuery(stream, slop, maxExpansions, context), derivedFieldQuery);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

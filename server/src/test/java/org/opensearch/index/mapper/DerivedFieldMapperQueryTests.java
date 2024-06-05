@@ -606,7 +606,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
         }
     }
 
-    public void testObjectDerivedFieldsWithSourceIndexedField() throws IOException {
+    public void testObjectDerivedFieldsWithPrefilterField() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("properties");
             {
@@ -629,10 +629,10 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                     b.field("type", "text");
                     b.field("script", "");
                     b.field("ignore_malformed", true);
-                    b.field("source_indexed_field", "raw_message");
+                    b.field("prefilter_field", "raw_message");
                 }
                 b.endObject();
-                b.startObject("regular_derived_field_without_source_indexed_field");
+                b.startObject("regular_derived_field_without_prefilter_field");
                 {
                     b.field("type", "text");
                     b.field("script", "");
@@ -655,7 +655,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                         b.field("keyword_field", "keyword");
                     }
                     b.endObject();
-                    b.field("source_indexed_field", "raw_message");
+                    b.field("prefilter_field", "raw_message");
                     b.field("ignore_malformed", true);
                 }
                 b.endObject();
@@ -668,11 +668,11 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                         b.field("keyword_field", "keyword");
                     }
                     b.endObject();
-                    b.field("source_indexed_field", "invalid_field");
+                    b.field("prefilter_field", "invalid_field");
                     b.field("ignore_malformed", true);
                 }
                 b.endObject();
-                b.startObject("long_source_indexed_object");
+                b.startObject("long_prefilter_field_object");
                 {
                     b.field("type", "object");
                     b.field("script", "");
@@ -681,7 +681,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                         b.field("keyword_field", "keyword");
                     }
                     b.endObject();
-                    b.field("source_indexed_field", "long_field");
+                    b.field("prefilter_field", "long_field");
                     b.field("ignore_malformed", true);
                 }
                 b.endObject();
@@ -764,7 +764,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 topDocs = searcher.search(query, 10);
                 assertEquals(7, topDocs.totalHits.value);
 
-                // since we have source_indexed_field set to "raw_message", it should not evaluate all documents
+                // since we have prefilter_field set to "raw_message", it should not evaluate all documents
                 assertEquals(8, docsEvaluated[0]);
 
                 termQueryBuilder = new TermQueryBuilder("invalid_object.keyword_field", "GET");
@@ -772,18 +772,18 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 TermQueryBuilder finalTermQueryBuilder = termQueryBuilder;
                 assertThrows(MapperException.class, () -> finalTermQueryBuilder.toQuery(queryShardContext));
 
-                termQueryBuilder = new TermQueryBuilder("long_source_indexed_object.keyword_field", "GET");
+                termQueryBuilder = new TermQueryBuilder("long_prefilter_field_object.keyword_field", "GET");
                 termQueryBuilder.caseInsensitive(true);
                 TermQueryBuilder finalTermQueryBuilder2 = termQueryBuilder;
                 assertThrows(MapperException.class, () -> finalTermQueryBuilder2.toQuery(queryShardContext));
 
                 // when nested field is of numeric type or date, the range queries should still work irrespective of invalid
-                // source_indexed_field
+                // prefilter_field
                 query = QueryBuilders.rangeQuery("invalid_object.date_field").from("2024-03-20T14:20:50").toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
                 assertEquals(4, topDocs.totalHits.value);
 
-                query = QueryBuilders.rangeQuery("long_source_indexed_object.date_field")
+                query = QueryBuilders.rangeQuery("long_prefilter_field_object.date_field")
                     .from("2024-03-20T14:20:50")
                     .toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
@@ -797,10 +797,10 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                 assertEquals(2, topDocs.totalHits.value);
                 assertEquals(2, docsEvaluated[0]);
 
-                // test regular_derived_field_without_source_indexed_field
+                // test regular_derived_field_without_prefilter_field
                 docsEvaluated[0] = 0;
                 scriptIndex[0] = 4;
-                query = QueryBuilders.termQuery("regular_derived_field_without_source_indexed_field", "delete")
+                query = QueryBuilders.termQuery("regular_derived_field_without_prefilter_field", "delete")
                     .caseInsensitive(true)
                     .toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
@@ -844,7 +844,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                         b.field("keyword_field", "date");
                     }
                     b.endObject();
-                    b.field("source_indexed_field", "raw_message");
+                    b.field("prefilter_field", "raw_message");
                     b.field("ignore_malformed", true);
                 }
                 b.endObject();
@@ -857,7 +857,7 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                         b.field("keyword_field", "date");
                     }
                     b.endObject();
-                    b.field("source_indexed_field", "raw_message");
+                    b.field("prefilter_field", "raw_message");
                     b.field("ignore_malformed", false);
                 }
                 b.endObject();

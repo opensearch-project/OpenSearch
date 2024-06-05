@@ -127,8 +127,8 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
                 if (parentDerivedField.derivedField.getProperties() != null) {
                     derivedField.setProperties(parentDerivedField.derivedField.getProperties());
                 }
-                if (parentDerivedField.derivedField.getSourceIndexedField() != null) {
-                    derivedField.setSourceIndexedField(parentDerivedField.derivedField.getSourceIndexedField());
+                if (parentDerivedField.derivedField.getPrefilterField() != null) {
+                    derivedField.setPrefilterField(parentDerivedField.derivedField.getPrefilterField());
                 }
                 if (parentDerivedField.derivedField.getFormat() != null) {
                     derivedField.setFormat(parentDerivedField.derivedField.getFormat());

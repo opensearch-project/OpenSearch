@@ -64,12 +64,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
             (n, c, o) -> parseProperties(n, o),
             m -> toType(m).properties
         );
-        private final Parameter<String> sourceIndexedField = Parameter.stringParam(
-            "source_indexed_field",
-            true,
-            m -> toType(m).sourceIndexedField,
-            ""
-        );
+        private final Parameter<String> prefilterField = Parameter.stringParam("prefilter_field", true, m -> toType(m).prefilterField, "");
         private final Parameter<String> format = Parameter.stringParam(
             "format",
             true,
@@ -134,8 +129,8 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
             if (derivedField.getProperties() != null) {
                 this.properties.setValue(derivedField.getProperties());
             }
-            if (derivedField.getSourceIndexedField() != null) {
-                this.sourceIndexedField.setValue(derivedField.getSourceIndexedField());
+            if (derivedField.getPrefilterField() != null) {
+                this.prefilterField.setValue(derivedField.getPrefilterField());
             }
             if (derivedField.getFormat() != null) {
                 this.format.setValue(derivedField.getFormat());
@@ -147,7 +142,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(type, script, properties, sourceIndexedField, format, ignoreMalformed);
+            return Arrays.asList(type, script, properties, prefilterField, format, ignoreMalformed);
         }
 
         @Override
@@ -156,8 +151,8 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
             if (properties.isConfigured()) {
                 derivedField.setProperties(properties.getValue());
             }
-            if (sourceIndexedField.isConfigured()) {
-                derivedField.setSourceIndexedField(sourceIndexedField.getValue());
+            if (prefilterField.isConfigured()) {
+                derivedField.setPrefilterField(prefilterField.getValue());
             }
             if (format.isConfigured()) {
                 derivedField.setFormat(format.getValue());
@@ -196,7 +191,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
 
     private final String type;
     private final Script script;
-    private final String sourceIndexedField;
+    private final String prefilterField;
     private final Map<String, Object> properties;
     private final boolean ignoreMalformed;
     private final boolean defaultIgnoreMalformed;
@@ -216,7 +211,7 @@ public class DerivedFieldMapper extends ParametrizedFieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.type = builder.type.getValue();
         this.script = builder.script.getValue();
-        this.sourceIndexedField = builder.sourceIndexedField.getValue();
+        this.prefilterField = builder.prefilterField.getValue();
         this.properties = builder.properties.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.format = builder.format.getValue();
