@@ -11,19 +11,12 @@ package org.opensearch.cluster.routing.remote;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.DiffableUtils;
-import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.Index;
-import org.opensearch.gateway.remote.RemoteClusterStateServiceTests;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -32,7 +25,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
@@ -102,15 +94,25 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).routingTable(routingTable).build();
 
-        assertEquals(0, RemoteRoutingTableService.getIndicesRoutingMapDiff(state.getRoutingTable(), state.getRoutingTable()).getUpserts().size());
+        assertEquals(
+            0,
+            RemoteRoutingTableService.getIndicesRoutingMapDiff(state.getRoutingTable(), state.getRoutingTable()).getUpserts().size()
+        );
 
-        //Reversing order to check for equality without order.
+        // Reversing order to check for equality without order.
         IndexRoutingTable indexRouting = routingTable.getIndicesRouting().get(indexName);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(indexRouting.getShards().get(0).replicaShards().get(0))
-                .addShard(indexRouting.getShards().get(0).primaryShard()).build();
-        ClusterState newState = ClusterState.builder(ClusterName.DEFAULT).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(indexRouting.getShards().get(0).replicaShards().get(0))
+            .addShard(indexRouting.getShards().get(0).primaryShard())
+            .build();
+        ClusterState newState = ClusterState.builder(ClusterName.DEFAULT)
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .build();
 
-        assertEquals(0, RemoteRoutingTableService.getIndicesRoutingMapDiff(state.getRoutingTable(), newState.getRoutingTable()).getUpserts().size());
+        assertEquals(
+            0,
+            RemoteRoutingTableService.getIndicesRoutingMapDiff(state.getRoutingTable(), newState.getRoutingTable()).getUpserts().size()
+        );
     }
 
 }

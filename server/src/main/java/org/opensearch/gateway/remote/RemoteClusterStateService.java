@@ -170,11 +170,8 @@ public class RemoteClusterStateService implements Closeable {
     /**
      * Manifest format compatible with codec v2, where global metadata file is replaced with multiple metadata attribute files
      */
-    public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT_V2 = new ChecksumBlobStoreFormat<>(
-        "cluster-metadata-manifest",
-        METADATA_MANIFEST_NAME_FORMAT,
-        ClusterMetadataManifest::fromXContentV2
-    );
+    public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT_V2 =
+        new ChecksumBlobStoreFormat<>("cluster-metadata-manifest", METADATA_MANIFEST_NAME_FORMAT, ClusterMetadataManifest::fromXContentV2);
 
     /**
      * Manifest format compatible with codec v3, where global metadata file is replaced with multiple metadata attribute files
@@ -312,7 +309,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults.uploadedTemplatesMetadata,
             uploadedMetadataResults.uploadedCustomMetadataMap,
             uploadedMetadataResults.uploadedIndicesRoutingMetadata,
-        false
+            false
         );
         final long durationMillis = TimeValue.nsecToMSec(relativeTimeNanosSupplier.getAsLong() - startTimeNanos);
         remoteStateStats.stateSucceeded();
@@ -395,8 +392,9 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         List<IndexRoutingTable> indicesRoutingToUpload = new ArrayList<>();
-        if(remoteRoutingTableService.isPresent()) {
-            DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = RemoteRoutingTableService.getIndicesRoutingMapDiff(previousClusterState.getRoutingTable(), clusterState.getRoutingTable());
+        if (remoteRoutingTableService.isPresent()) {
+            DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = RemoteRoutingTableService
+                .getIndicesRoutingMapDiff(previousClusterState.getRoutingTable(), clusterState.getRoutingTable());
             routingTableDiff.getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
         }
 
@@ -433,8 +431,13 @@ public class RemoteClusterStateService implements Closeable {
         indicesToBeDeletedFromRemote.keySet().forEach(allUploadedIndexMetadata::remove);
 
         List<ClusterMetadataManifest.UploadedIndexMetadata> allUploadedIndicesRouting = new ArrayList<>();
-        if(remoteRoutingTableService.isPresent()) {
-            allUploadedIndicesRouting = remoteRoutingTableService.get().getAllUploadedIndicesRouting(previousManifest, uploadedMetadataResults.uploadedIndicesRoutingMetadata, indicesToBeDeletedFromRemote.keySet());
+        if (remoteRoutingTableService.isPresent()) {
+            allUploadedIndicesRouting = remoteRoutingTableService.get()
+                .getAllUploadedIndicesRouting(
+                    previousManifest,
+                    uploadedMetadataResults.uploadedIndicesRoutingMetadata,
+                    indicesToBeDeletedFromRemote.keySet()
+                );
         }
 
         final ClusterMetadataManifest manifest = uploadManifest(
@@ -496,7 +499,8 @@ public class RemoteClusterStateService implements Closeable {
     ) throws IOException {
         assert Objects.nonNull(indexMetadataUploadListeners) : "indexMetadataUploadListeners can not be null";
         int totalUploadTasks = indexToUpload.size() + indexMetadataUploadListeners.size() + customToUpload.size()
-            + (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0) + indicesRoutingToUpload.size();
+            + (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0)
+            + indicesRoutingToUpload.size();
         CountDownLatch latch = new CountDownLatch(totalUploadTasks);
         Map<String, CheckedRunnable<IOException>> uploadTasks = new HashMap<>(totalUploadTasks);
         Map<String, ClusterMetadataManifest.UploadedMetadata> results = new HashMap<>(totalUploadTasks);
@@ -567,8 +571,13 @@ public class RemoteClusterStateService implements Closeable {
             try {
                 uploadTasks.put(
                     indexRoutingTable.getIndex().getName() + "--indexRouting",
-                    remoteRoutingTableService.get().getIndexRoutingAsyncAction(clusterState, indexRoutingTable, listener, getCusterMetadataBasePath(clusterState.getClusterName().value(),
-                        clusterState.metadata().clusterUUID()))
+                    remoteRoutingTableService.get()
+                        .getIndexRoutingAsyncAction(
+                            clusterState,
+                            indexRoutingTable,
+                            listener,
+                            getCusterMetadataBasePath(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID())
+                        )
                 );
             } catch (IOException e) {
                 e.printStackTrace();
@@ -621,10 +630,10 @@ public class RemoteClusterStateService implements Closeable {
         }
         UploadedMetadataResults response = new UploadedMetadataResults();
         results.forEach((name, uploadedMetadata) -> {
-                if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class) &&
-                    uploadedMetadata.getComponent().contains(RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX)) {
-                    response.uploadedIndicesRoutingMetadata.add((UploadedIndexMetadata) uploadedMetadata);
-                } else if (name.contains(CUSTOM_METADATA)) {
+            if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class)
+                && uploadedMetadata.getComponent().contains(RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX)) {
+                response.uploadedIndicesRoutingMetadata.add((UploadedIndexMetadata) uploadedMetadata);
+            } else if (name.contains(CUSTOM_METADATA)) {
                 // component name for custom metadata will look like custom--<metadata-attribute>
                 String custom = name.split(DELIMITER)[0].split(CUSTOM_DELIMITER)[1];
                 response.uploadedCustomMetadataMap.put(

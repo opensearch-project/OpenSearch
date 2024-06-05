@@ -134,7 +134,7 @@ public class RemoteStorePathStrategy {
      */
     @PublicApi(since = "2.14.0")
     @ExperimentalApi
-    public static class RemoteStorePathInput extends BasePathInput{
+    public static class RemoteStorePathInput extends BasePathInput {
         private final String shardId;
         private final DataCategory dataCategory;
         private final DataType dataType;
@@ -172,7 +172,7 @@ public class RemoteStorePathStrategy {
          */
         @PublicApi(since = "2.14.0")
         @ExperimentalApi
-        public static class Builder extends BasePathInput.Builder{
+        public static class Builder extends BasePathInput.Builder {
             private String shardId;
             private DataCategory dataCategory;
             private DataType dataType;

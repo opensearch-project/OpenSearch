@@ -8,8 +8,6 @@
 
 package org.opensearch.gateway.remote.routingtable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;

@@ -95,15 +95,14 @@ public class RemoteStoreEnums {
             public BlobPath generatePath(RemoteStorePathStrategy.BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.isNull(hashAlgorithm) : "hashAlgorithm is expected to be null with fixed remote store path type";
                 // Hash algorithm is not used in FIXED path type
-                BlobPath path =  pathInput.basePath()
-                    .add(pathInput.indexUUID());
-                if(pathInput instanceof RemoteStorePathInput) {
-                    RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput)pathInput;
+                BlobPath path = pathInput.basePath().add(pathInput.indexUUID());
+                if (pathInput instanceof RemoteStorePathInput) {
+                    RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput) pathInput;
                     path.add(remoteStorePathInput.shardId())
                         .add(remoteStorePathInput.dataCategory().getName())
                         .add(remoteStorePathInput.dataType().getName());
                 }
-                    return path;
+                return path;
             }
 
             @Override
@@ -115,17 +114,17 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(RemoteStorePathStrategy.BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                BlobPath path =  BlobPath.cleanPath()
+                BlobPath path = BlobPath.cleanPath()
                     .add(hashAlgorithm.hash(pathInput))
                     .add(pathInput.basePath())
                     .add(pathInput.indexUUID());
-                if(pathInput instanceof RemoteStorePathInput) {
-                    RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput)pathInput;
+                if (pathInput instanceof RemoteStorePathInput) {
+                    RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput) pathInput;
                     path.add(remoteStorePathInput.shardId())
                         .add(remoteStorePathInput.dataCategory().getName())
                         .add(remoteStorePathInput.dataType().getName());
                 }
-                return  path;
+                return path;
             }
 
             @Override
@@ -137,11 +136,9 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(RemoteStorePathStrategy.BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                BlobPath path = pathInput.basePath()
-                    .add(hashAlgorithm.hash(pathInput))
-                    .add(pathInput.indexUUID());
-                if(pathInput instanceof RemoteStorePathInput) {
-                    RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput)pathInput;
+                BlobPath path = pathInput.basePath().add(hashAlgorithm.hash(pathInput)).add(pathInput.indexUUID());
+                if (pathInput instanceof RemoteStorePathInput) {
+                    RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput) pathInput;
                     path.add(remoteStorePathInput.shardId())
                         .add(remoteStorePathInput.dataCategory().getName())
                         .add(remoteStorePathInput.dataType().getName());
@@ -198,8 +195,8 @@ public class RemoteStoreEnums {
          * @return the blob path for the path input.
          */
         public BlobPath path(RemoteStorePathStrategy.BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
-            if(pathInput instanceof RemoteStorePathInput) {
-                RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput)pathInput;
+            if (pathInput instanceof RemoteStorePathInput) {
+                RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput) pathInput;
                 DataCategory dataCategory = remoteStorePathInput.dataCategory();
                 DataType dataType = remoteStorePathInput.dataType();
                 assert dataCategory.isSupportedDataType(dataType) : "category:"
@@ -243,9 +240,10 @@ public class RemoteStoreEnums {
             @Override
             String hash(RemoteStorePathStrategy.BasePathInput pathInput) {
                 String input = pathInput.indexUUID();
-                if(pathInput instanceof RemoteStorePathInput) {
+                if (pathInput instanceof RemoteStorePathInput) {
                     RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput) pathInput;
-                    input += remoteStorePathInput.shardId() + remoteStorePathInput.dataCategory().getName() + remoteStorePathInput.dataType()
+                    input += remoteStorePathInput.shardId() + remoteStorePathInput.dataCategory().getName() + remoteStorePathInput
+                        .dataType()
                         .getName();
                 }
                 long hash = FNV1a.hash64(input);
@@ -260,9 +258,10 @@ public class RemoteStoreEnums {
             @Override
             String hash(RemoteStorePathStrategy.BasePathInput pathInput) {
                 String input = pathInput.indexUUID();
-                if(pathInput instanceof RemoteStorePathInput) {
+                if (pathInput instanceof RemoteStorePathInput) {
                     RemoteStorePathInput remoteStorePathInput = (RemoteStorePathInput) pathInput;
-                    input += remoteStorePathInput.shardId() + remoteStorePathInput.dataCategory().getName() + remoteStorePathInput.dataType()
+                    input += remoteStorePathInput.shardId() + remoteStorePathInput.dataCategory().getName() + remoteStorePathInput
+                        .dataType()
                         .getName();
                 }
                 long hash = FNV1a.hash64(input);

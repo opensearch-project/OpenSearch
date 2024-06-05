@@ -844,7 +844,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         private final String uploadedFilename;
 
         public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName) {
-            this( indexName,indexUUID,uploadedFileName, COMPONENT_PREFIX);
+            this(indexName, indexUUID, uploadedFileName, COMPONENT_PREFIX);
         }
 
         public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName, String componentPrefix) {
@@ -886,8 +886,6 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         public String getComponentPrefix() {
             return componentPrefix;
         }
-
-
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
