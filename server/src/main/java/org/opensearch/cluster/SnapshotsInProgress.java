@@ -870,9 +870,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                                         throw new IllegalArgumentException("unknown field [" + currentShardField + "]");
                                 }
                             }
-                            shards.put(new ShardId(index, shardId),
-                                reason != null ? new ShardSnapshotStatus(nodeId, shardState, reason, generation) :
-                                new ShardSnapshotStatus(nodeId, shardState, generation));
+                            shards.put(
+                                new ShardId(index, shardId),
+                                reason != null
+                                    ? new ShardSnapshotStatus(nodeId, shardState, reason, generation)
+                                    : new ShardSnapshotStatus(nodeId, shardState, generation)
+                            );
                         }
                         break;
                     case DATA_STREAMS:
@@ -927,9 +930,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                                         throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
                                 }
                             }
-                            clones.put(new RepositoryShardId(new IndexId(index, indexId), shardId),
-                                reason != null ? new ShardSnapshotStatus(nodeId, ShardState.fromValue(snapshotShardStatus), reason, generation) :
-                                new ShardSnapshotStatus(nodeId, ShardState.fromValue(snapshotShardStatus), generation));
+                            clones.put(
+                                new RepositoryShardId(new IndexId(index, indexId), shardId),
+                                reason != null
+                                    ? new ShardSnapshotStatus(nodeId, ShardState.fromValue(snapshotShardStatus), reason, generation)
+                                    : new ShardSnapshotStatus(nodeId, ShardState.fromValue(snapshotShardStatus), generation)
+                            );
                         }
                         break;
                     case VERSION:
@@ -1202,7 +1208,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public static State fromString(String value) {
-            switch(value) {
+            switch (value) {
                 case "INIT":
                     return INIT;
                 case "STARTED":

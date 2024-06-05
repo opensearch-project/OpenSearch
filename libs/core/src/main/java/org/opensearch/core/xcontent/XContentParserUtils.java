@@ -38,6 +38,8 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
@@ -177,5 +179,15 @@ public final class XContentParserUtils {
         } else {
             throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: empty key");
         }
+    }
+
+    public static List<String> parseStringList(XContentParser parser) throws IOException {
+        List<String> valueList = new ArrayList<>();
+        ensureExpectedToken(Token.START_ARRAY, parser.currentToken(), parser);
+        while (parser.nextToken() != Token.END_ARRAY) {
+            ensureExpectedToken(Token.VALUE_STRING, parser.currentToken(), parser);
+            valueList.add(parser.text());
+        }
+        return valueList;
     }
 }

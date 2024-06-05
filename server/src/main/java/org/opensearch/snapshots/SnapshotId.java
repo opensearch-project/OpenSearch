@@ -149,6 +149,9 @@ public final class SnapshotId implements Comparable<SnapshotId>, Writeable, ToXC
     }
 
     public static SnapshotId fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) { // fresh parser? move to next token
+            parser.nextToken();
+        }
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         String name = null;
         String uuid = null;

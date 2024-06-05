@@ -133,7 +133,8 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
                 if ("repository".equals(currentFieldName)) {
                     repository = parser.text();
                 } else if ("repository_state_id".equals(currentFieldName)) {
-                    // only XContent parsed with {@link Metadata.CONTEXT_MODE_GATEWAY} will have the repository state id and can be deserialized
+                    // only XContent parsed with {@link Metadata.CONTEXT_MODE_GATEWAY} will have the repository state id and can be
+                    // deserialized
                     repositoryStateId = parser.longValue();
                 } else {
                     throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");

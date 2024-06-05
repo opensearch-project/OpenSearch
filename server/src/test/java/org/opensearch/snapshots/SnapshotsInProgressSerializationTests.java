@@ -42,7 +42,6 @@ import org.opensearch.cluster.SnapshotsInProgress.Entry;
 import org.opensearch.cluster.SnapshotsInProgress.ShardState;
 import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -214,7 +213,13 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     }
 
     public void testToXContent_deletion() throws IOException {
-        SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(List.of(new SnapshotId("name1", "uuid1")), "repo", 10000000L, 10000L, SnapshotDeletionsInProgress.State.WAITING);
+        SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(
+            List.of(new SnapshotId("name1", "uuid1")),
+            "repo",
+            10000000L,
+            10000L,
+            SnapshotDeletionsInProgress.State.WAITING
+        );
         SnapshotDeletionsInProgress sdip = SnapshotDeletionsInProgress.of(List.of(entry));
         boolean humanReadable = false;
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();

@@ -291,7 +291,6 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         return SnapshotDeletionsInProgress.of(entries);
     }
 
-
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("SnapshotDeletionsInProgress[");

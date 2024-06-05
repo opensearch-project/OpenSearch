@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster;
 
-import org.elasticsearch.snapshots.SnapshotId;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.cluster.metadata.Metadata;
@@ -365,14 +364,23 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                                         throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
                                 }
                             }
-                            shards.put(new ShardId(indexName, indexUUID, shardId), new ShardRestoreStatus(nodeId, State.fromValue((byte) restoreState), reason));
+                            shards.put(
+                                new ShardId(indexName, indexUUID, shardId),
+                                new ShardRestoreStatus(nodeId, State.fromValue((byte) restoreState), reason)
+                            );
                         }
                         break;
                     default:
                         throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
                 }
             }
-            return new Entry(uuid, new Snapshot(snapshotRepository, new SnapshotId(snapshotName, snapshotUUID)), State.fromValue((byte) state), indices, shards);
+            return new Entry(
+                uuid,
+                new Snapshot(snapshotRepository, new SnapshotId(snapshotName, snapshotUUID)),
+                State.fromValue((byte) state),
+                indices,
+                shards
+            );
         }
     }
 
@@ -663,27 +671,3 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         entry.toXContent(builder, params);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
