@@ -536,4 +536,8 @@ public abstract class MappedFieldType {
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;
     }
+
+    public double getScalingFactor() {
+        throw new IllegalCallerException("Field [" + name() + "] of type [" + typeName() + "] does not support scaling factor");
+    }
 }

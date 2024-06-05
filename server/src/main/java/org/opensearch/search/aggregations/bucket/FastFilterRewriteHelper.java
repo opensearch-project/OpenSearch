@@ -45,10 +45,10 @@ import org.opensearch.search.aggregations.bucket.composite.RoundingValuesSource;
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.HashMap;
@@ -456,20 +456,32 @@ public final class FastFilterRewriteHelper {
     /**
      * For range aggregation
      */
-    public static class RangeAggregationType implements FastFilterRewriteHelper.AggregationType {
+    public static class RangeAggregationType implements AggregationType {
 
         private final ValuesSource.Numeric source;
+        private final ValuesSourceConfig config;
         private final Range[] ranges;
+        private FieldTypeEnum fieldTypeEnum;
 
-        public RangeAggregationType(ValuesSource.Numeric source, Range[] ranges) {
-            this.source = source;
+        public RangeAggregationType(ValuesSourceConfig config, Range[] ranges) {
+            this.source = (ValuesSource.Numeric) config.getValuesSource();
+            this.config = config;
             this.ranges = ranges;
         }
 
         @Override
         public boolean isRewriteable(Object parent, int subAggLength) {
-            if (parent == null && subAggLength == 0) {
-                // don't accept values source with scripts
+            if (parent == null && subAggLength == 0 && config.script() == null && config.missing() == null) {
+                try {
+                    fieldTypeEnum = FieldTypeEnum.fromTypeName(config.fieldType().typeName());
+                    if (fieldTypeEnum.isScaled()) {
+                        // make sure we can safely get scaling factor later on
+                        config.fieldType().getScalingFactor();
+                    }
+                } catch (Exception e) {
+                    return false;
+                }
+
                 if (source instanceof ValuesSource.Numeric.FieldData) {
                     // ranges are already sorted by from and then to
                     // we want ranges not overlapping with each other
@@ -488,57 +500,16 @@ public final class FastFilterRewriteHelper {
 
         @Override
         public Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) throws IOException {
-            int byteLen = -1;
-            boolean scaled = false;
-            String pointType = "";
-            switch (fieldType.typeName()) {
-                case "half_float":
-                    byteLen = 2;
-                    pointType = "half_float";
-                    break;
-                case "integer":
-                case "short":
-                case "byte":
-                    byteLen = 4;
-                    pointType = "int";
-                    break;
-                case "float":
-                    byteLen = 4;
-                    pointType = "float";
-                    break;
-                case "long":
-                case "date":
-                case "date_nanos":
-                    byteLen = 8;
-                    pointType = "long";
-                    break;
-                case "double":
-                    byteLen = 8;
-                    pointType = "double";
-                    break;
-                case "unsigned_long":
-                    byteLen = 16;
-                    pointType = "big_integer";
-                    break;
-                case "scaled_float":
-                    byteLen = 8;
-                    scaled = true;
-                    pointType = "long";
-                    break;
-            }
-            if (byteLen == -1) {
-                throw new IllegalArgumentException("Field type " + fieldType.name() + " is not supported");
-            }
+            int byteLen = this.fieldTypeEnum.getByteLen();
+            String pointType = this.fieldTypeEnum.getPointType();
 
             byte[][] mins = new byte[ranges.length][];
             byte[][] maxs = new byte[ranges.length][];
             for (int i = 0; i < ranges.length; i++) {
                 double rangeMin = ranges[i].getFrom();
                 double rangeMax = ranges[i].getTo();
-
                 byte[] min = new byte[byteLen];
                 byte[] max = new byte[byteLen];
-                // TODO any heavy operation that shouldn't be in the loop?
                 switch (pointType) {
                     case "half_float":
                         HalfFloatPoint.encodeDimension((float) rangeMin, min, 0);
@@ -557,18 +528,8 @@ public final class FastFilterRewriteHelper {
                         IntPoint.encodeDimension((int) rangeMax, max, 0);
                         break;
                     case "long":
-                        if (scaled) {
-                            // use reflection to see if fieldType has a method called getScalingFactor
-                            // if it does, use that to scale the rangeMin and rangeMax
-                            // if it doesn't, use the default scaling factor of 1000
-                            double scalingFactor = 100;
-                            try {
-                                // Method scalingFactorMethod = fieldType.getClass().getMethod("getScalingFactor");
-                                scalingFactor = (double) fieldType.getClass().getMethod("getScalingFactor").invoke(fieldType);
-                            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-                                logger.debug("Failed to get scaling factor from fieldType", e);
-                                // TODO fall back to default aggregation method
-                            }
+                        if (this.fieldTypeEnum.isScaled()) {
+                            double scalingFactor = fieldType.getScalingFactor();
                             rangeMin = scalingFactor * rangeMin;
                             rangeMax = scalingFactor * rangeMax;
                         }
@@ -586,6 +547,61 @@ public final class FastFilterRewriteHelper {
             }
 
             return new Ranges(mins, maxs, byteLen);
+        }
+
+        private enum FieldTypeEnum {
+            HALF_FLOAT("half_float", 2, "half_float"),
+            INTEGER("integer", 4, "int"),
+            SHORT("short", 4, "int"),
+            BYTE("byte", 4, "int"),
+            FLOAT("float", 4, "float"),
+            LONG("long", 8, "long"),
+            DATE("date", 8, "long"),
+            DATE_NANOS("date_nanos", 8, "long"),
+            DOUBLE("double", 8, "double"),
+            UNSIGNED_LONG("unsigned_long", 16, "big_integer"),
+            SCALED_FLOAT("scaled_float", 8, "long", true);
+
+            private final String typeName;
+            private final int byteLen;
+            private final String pointType;
+            private final boolean scaled;
+
+            FieldTypeEnum(String typeName, int byteLen, String pointType) {
+                this(typeName, byteLen, pointType, false);
+            }
+
+            FieldTypeEnum(String typeName, int byteLen, String pointType, boolean scaled) {
+                this.typeName = typeName;
+                this.byteLen = byteLen;
+                this.pointType = pointType;
+                this.scaled = scaled;
+            }
+
+            String getTypeName() {
+                return typeName;
+            }
+
+            int getByteLen() {
+                return byteLen;
+            }
+
+            String getPointType() {
+                return pointType;
+            }
+
+            boolean isScaled() {
+                return scaled;
+            }
+
+            static FieldTypeEnum fromTypeName(String typeName) {
+                for (FieldTypeEnum fieldTypeEnum : values()) {
+                    if (fieldTypeEnum.getTypeName().equals(typeName)) {
+                        return fieldTypeEnum;
+                    }
+                }
+                throw new IllegalArgumentException("Unknown field type: " + typeName);
+            }
         }
 
         public static BigInteger convertDoubleToBigInteger(double value) {
@@ -608,7 +624,7 @@ public final class FastFilterRewriteHelper {
 
         @Override
         public Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx, MappedFieldType fieldType) throws IOException {
-            return buildRanges(ctx, fieldType);
+            throw new UnsupportedOperationException("Range aggregation should not build ranges at segment level");
         }
 
         @Override
@@ -833,7 +849,7 @@ public final class FastFilterRewriteHelper {
             @Override
             public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
                 visitPoints(packedValue, () -> {
-                    for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                    for (int doc = iterator.nextDoc(); doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
                         collector.count();
                     }
                 });

@@ -271,11 +271,10 @@ public class RangeAggregator extends BucketsAggregator {
         this.format = format;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
-
         this.ranges = ranges; // already sorted by the range.from and range.to
 
         fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
-        fastFilterContext.setAggregationType(new FastFilterRewriteHelper.RangeAggregationType(valuesSource, ranges));
+        fastFilterContext.setAggregationType(new FastFilterRewriteHelper.RangeAggregationType(config, ranges));
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
             fastFilterContext.buildRanges(Objects.requireNonNull(config.fieldType()));
         }

@@ -188,6 +188,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             this(name, true, false, true, Collections.emptyMap(), scalingFactor, null);
         }
 
+        @Override
         public double getScalingFactor() {
             return scalingFactor;
         }

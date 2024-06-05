@@ -32,16 +32,22 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.document.DoubleField;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -66,6 +72,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMBER_FIELD_NAME = "number";
     private static final String DATE_FIELD_NAME = "date";
+
+    private static final String DOUBLE_FIELD_NAME = "double";
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
@@ -305,6 +313,26 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testDoubleType() throws IOException {
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(DOUBLE_FIELD_NAME)
+            .addRange(1, 2)
+            .addRange(2, 3);
+
+        testRewriteOptimizationCase(aggregationBuilder, DoublePoint.newRangeQuery(DOUBLE_FIELD_NAME, 0, 5), indexWriter -> {
+            indexWriter.addDocument(singleton(new DoubleField(DOUBLE_FIELD_NAME, 0.1, Field.Store.NO)));
+            indexWriter.addDocument(singleton(new DoubleField(DOUBLE_FIELD_NAME, 1.1, Field.Store.NO)));
+            indexWriter.addDocument(singleton(new DoubleField(DOUBLE_FIELD_NAME, 2.1, Field.Store.NO)));
+        }, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(2, ranges.size());
+            assertEquals("1.0-2.0", ranges.get(0).getKeyAsString());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertEquals("2.0-3.0", ranges.get(1).getKeyAsString());
+            assertEquals(1, ranges.get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, new NumberFieldMapper.NumberFieldType(DOUBLE_FIELD_NAME, NumberFieldMapper.NumberType.DOUBLE));
+    }
+
     private void testCase(
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
@@ -325,7 +353,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, query, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3)));
@@ -354,7 +382,32 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     fieldType
                 );
                 verify.accept(agg);
+            }
+        }
+    }
 
+    private void testRewriteOptimizationCase(
+        RangeAggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<IndexWriter, IOException> buildIndex,
+        Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
+        MappedFieldType fieldType
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
+                buildIndex.accept(indexWriter);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> agg = searchAndReduce(
+                    indexSearcher,
+                    query,
+                    aggregationBuilder,
+                    fieldType
+                );
+                verify.accept(agg);
             }
         }
     }
