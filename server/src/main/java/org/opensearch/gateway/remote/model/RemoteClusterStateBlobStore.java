@@ -20,10 +20,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
-
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMITER;
 
 /**
  * Abstract class for a blob type storage
@@ -58,7 +55,7 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
             try (InputStream inputStream = entity.serialize()) {
                 BlobPath blobPath = getBlobPathForUpload(entity);
                 entity.setFullBlobName(blobPath);
-                // todo uncomment below logic after merging PR https://github.com/opensearch-project/OpenSearch/pull/13836
+                // TODO uncomment below logic after merging PR https://github.com/opensearch-project/OpenSearch/pull/13836
                 // transferService.uploadBlob(inputStream, getBlobPathForUpload(entity), entity.getBlobFileName(), WritePriority.URGENT,
                 // listener);
             }
@@ -69,6 +66,7 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
 
     @Override
     public U read(final U entity) throws IOException {
+        // TODO Add timing logs and tracing
         assert entity.get() == null && entity.getFullBlobName() != null;
         T object = entity.deserialize(transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName()));
         entity.set(object);
@@ -98,16 +96,16 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
     }
 
     private BlobPath getBlobPathForDownload(final AbstractRemoteWritableBlobEntity<T> obj) {
-        String[] pathTokens = extractBlobPathTokens(obj.getFullBlobName());
+        String[] pathTokens = obj.getBlobPathTokens();
         BlobPath blobPath = new BlobPath();
-        for (String token : pathTokens) {
-            blobPath = blobPath.add(token);
+        if (pathTokens == null || pathTokens.length < 1) {
+            return blobPath;
+        }
+        // Iterate till second last path token to get the blob folder
+        for (int i = 0; i < pathTokens.length - 1; i++) {
+            blobPath = blobPath.add(pathTokens[i]);
         }
         return blobPath;
     }
 
-    private static String[] extractBlobPathTokens(final String blobName) {
-        String[] blobNameTokens = blobName.split(PATH_DELIMITER);
-        return Arrays.copyOfRange(blobNameTokens, 0, blobNameTokens.length - 1);
-    }
 }
