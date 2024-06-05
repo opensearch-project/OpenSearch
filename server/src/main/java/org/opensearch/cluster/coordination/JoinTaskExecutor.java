@@ -529,8 +529,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
 
         if (STRICT.equals(remoteStoreCompatibilityMode)) {
-
-            DiscoveryNode existingNode = existingNodes.get(0);
+            DiscoveryNode existingNode = remoteRoutingTableNode.orElseGet(() -> existingNodes.get(0));
             if (joiningNode.isRemoteStoreNode()) {
                 ensureRemoteStoreNodesCompatibility(joiningNode, existingNode, reposToSkip);
             } else {
@@ -554,7 +553,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     throw new IllegalStateException(reason);
                 }
                 if (joiningNode.isRemoteStoreNode()) {
-                    Optional<DiscoveryNode> remoteDN = existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
+                    Optional<DiscoveryNode> remoteDN = remoteRoutingTableNode.isPresent()
+                        ? remoteRoutingTableNode
+                        : existingNodes.stream().filter(DiscoveryNode::isRemoteStoreNode).findFirst();
                     remoteDN.ifPresent(discoveryNode -> ensureRemoteStoreNodesCompatibility(joiningNode, discoveryNode, reposToSkip));
                 }
             }
