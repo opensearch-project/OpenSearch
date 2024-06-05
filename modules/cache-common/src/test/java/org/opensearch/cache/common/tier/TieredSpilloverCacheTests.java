@@ -1522,7 +1522,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             return object.equals(deserialize(bytes));
         }
     }
-  
+
     private ImmutableCacheStats getTotalStatsSnapshot(TieredSpilloverCache<?, ?> tsc) throws IOException {
         ImmutableCacheStatsHolder cacheStats = tsc.stats(new String[0]);
         return cacheStats.getStatsForDimensionValues(List.of());
