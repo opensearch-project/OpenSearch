@@ -26,6 +26,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -212,7 +213,7 @@ public class RemoteClusterStateService implements Closeable {
     private final List<IndexMetadataUploadListener> indexMetadataUploadListeners;
     private BlobStoreRepository blobStoreRepository;
     private BlobStoreTransferService blobStoreTransferService;
-    private Optional<RemoteRoutingTableService> remoteRoutingTableService;
+    private final Optional<RemoteRoutingTableService> remoteRoutingTableService;
     private volatile TimeValue slowWriteLoggingThreshold;
 
     private volatile TimeValue indexMetadataUploadTimeout;
@@ -298,7 +299,7 @@ public class RemoteClusterStateService implements Closeable {
             true,
             true,
             true,
-            new ArrayList<>(clusterState.getRoutingTable().indicesRouting().values())
+            remoteRoutingTableService.isPresent() ? new ArrayList<>(clusterState.getRoutingTable().indicesRouting().values()) : List.of()
         );
         final ClusterMetadataManifest manifest = uploadManifest(
             clusterState,
@@ -316,16 +317,19 @@ public class RemoteClusterStateService implements Closeable {
         remoteStateStats.stateTook(durationMillis);
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
-                "writing cluster state took [{}ms] which is above the warn threshold of [{}]; " + "wrote full state with [{}] indices",
+                "writing cluster state took [{}ms] which is above the warn threshold of [{}]; "
+                    + "wrote full state with [{}] indices and [{}] indicesRouting",
                 durationMillis,
                 slowWriteLoggingThreshold,
-                uploadedMetadataResults.uploadedIndexMetadata.size()
+                uploadedMetadataResults.uploadedIndexMetadata.size(),
+                uploadedMetadataResults.uploadedIndicesRoutingMetadata.size()
             );
         } else {
             logger.info(
-                "writing cluster state took [{}ms]; " + "wrote full state with [{}] indices and global metadata",
+                "writing cluster state took [{}ms]; " + "wrote full state with [{}] indices, [{}] indicesRouting and global metadata",
                 durationMillis,
-                uploadedMetadataResults.uploadedIndexMetadata.size()
+                uploadedMetadataResults.uploadedIndexMetadata.size(),
+                uploadedMetadataResults.uploadedIndicesRoutingMetadata.size()
             );
         }
         return manifest;
@@ -392,9 +396,12 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         List<IndexRoutingTable> indicesRoutingToUpload = new ArrayList<>();
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = null;
         if (remoteRoutingTableService.isPresent()) {
-            DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = RemoteRoutingTableService
-                .getIndicesRoutingMapDiff(previousClusterState.getRoutingTable(), clusterState.getRoutingTable());
+            routingTableDiff = RemoteRoutingTableService.getIndicesRoutingMapDiff(
+                previousClusterState.getRoutingTable(),
+                clusterState.getRoutingTable()
+            );
             routingTableDiff.getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
         }
 
@@ -436,7 +443,7 @@ public class RemoteClusterStateService implements Closeable {
                 .getAllUploadedIndicesRouting(
                     previousManifest,
                     uploadedMetadataResults.uploadedIndicesRoutingMetadata,
-                    indicesToBeDeletedFromRemote.keySet()
+                    routingTableDiff.getDeletes()
                 );
         }
 
@@ -570,7 +577,7 @@ public class RemoteClusterStateService implements Closeable {
         indicesRoutingToUpload.forEach(indexRoutingTable -> {
             try {
                 uploadTasks.put(
-                    indexRoutingTable.getIndex().getName() + "--indexRouting",
+                    RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX + indexRoutingTable.getIndex().getName(),
                     remoteRoutingTableService.get()
                         .getIndexRoutingAsyncAction(
                             clusterState,
@@ -580,7 +587,7 @@ public class RemoteClusterStateService implements Closeable {
                         )
                 );
             } catch (IOException e) {
-                e.printStackTrace();
+                throw new RemoteStateTransferException("Failed to create upload tasks for index routing table", e);
             }
         });
 
@@ -811,9 +818,7 @@ public class RemoteClusterStateService implements Closeable {
         if (blobStoreRepository != null) {
             IOUtils.close(blobStoreRepository);
         }
-        if (this.remoteRoutingTableService.isPresent()) {
-            this.remoteRoutingTableService.get().close();
-        }
+        this.remoteRoutingTableService.ifPresent(AbstractLifecycleComponent::close);
     }
 
     public void start() {

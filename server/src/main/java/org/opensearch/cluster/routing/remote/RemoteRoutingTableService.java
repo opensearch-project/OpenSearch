@@ -48,7 +48,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -141,14 +140,14 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
 
     public List<ClusterMetadataManifest.UploadedIndexMetadata> getAllUploadedIndicesRouting(
         ClusterMetadataManifest previousManifest,
-        List<ClusterMetadataManifest.UploadedIndexMetadata> indicesRoutingToUpload,
-        Set<String> indicesRoutingToDelete
+        List<ClusterMetadataManifest.UploadedIndexMetadata> indicesRoutingUploaded,
+        List<String> indicesRoutingToDelete
     ) {
         final Map<String, ClusterMetadataManifest.UploadedIndexMetadata> allUploadedIndicesRouting = previousManifest.getIndicesRouting()
             .stream()
             .collect(Collectors.toMap(ClusterMetadataManifest.UploadedIndexMetadata::getIndexName, Function.identity()));
 
-        indicesRoutingToUpload.forEach(
+        indicesRoutingUploaded.forEach(
             uploadedIndexRouting -> allUploadedIndicesRouting.put(uploadedIndexRouting.getIndexName(), uploadedIndexRouting)
         );
         indicesRoutingToDelete.forEach(allUploadedIndicesRouting::remove);
@@ -176,7 +175,8 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
                 blobContainer.writeBlob(fileName, bytesInput.streamInput(), bytesInput.length(), true);
                 completionListener.onResponse(null);
             } catch (IOException e) {
-                throw new IOException("Failed to write IndexRoutingTable to remote store. ", e);
+                logger.error("Failed to write IndexRoutingTable to remote store. ", e);
+                completionListener.onFailure(e);
             }
             return;
         }
@@ -199,12 +199,13 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
                     completionListener
                 );
             } catch (IOException e) {
-                throw new IOException("Failed to write IndexRoutingTable to remote store. ", e);
+                logger.error("Failed to write IndexRoutingTable to remote store. ", e);
+                completionListener.onFailure(e);
             }
         } catch (IOException e) {
-            throw new IOException("Failed to create transfer object for IndexRoutingTable for remote store upload. ", e);
+            logger.error("Failed to create transfer object for IndexRoutingTable for remote store upload. ", e);
+            completionListener.onFailure(e);
         }
-
     }
 
     private String getIndexRoutingFileName() {
