@@ -65,7 +65,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
         return Arrays.asList(TieredSpilloverCachePlugin.class, MockDiskCachePlugin.class);
     }
 
-    private Settings defaultSettings(String onHeapCacheSizeInBytesOrPecentage) {
+    static Settings defaultSettings(String onHeapCacheSizeInBytesOrPercentage) {
         return Settings.builder()
             .put(FeatureFlags.PLUGGABLE_CACHE, "true")
             .put(
@@ -88,7 +88,7 @@ public class TieredSpilloverCacheIT extends OpenSearchIntegTestCase {
                 OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
                     .get(MAXIMUM_SIZE_IN_BYTES_KEY)
                     .getKey(),
-                onHeapCacheSizeInBytesOrPecentage
+                onHeapCacheSizeInBytesOrPercentage
             )
             .build();
     }
