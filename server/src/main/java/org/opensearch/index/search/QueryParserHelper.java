@@ -177,7 +177,7 @@ public final class QueryParserHelper {
     }
 
     static void checkForTooManyFields(int numberOfFields, QueryShardContext context, @Nullable String inputPattern) {
-        Integer limit = SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
+        int limit = SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
         if (numberOfFields > limit) {
             StringBuilder errorMsg = new StringBuilder("field expansion ");
             if (inputPattern != null) {

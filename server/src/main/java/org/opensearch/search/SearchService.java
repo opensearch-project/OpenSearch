@@ -328,6 +328,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile int maxOpenPitContext;
 
+    private volatile int maxClauseCount;
+
     private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
@@ -400,8 +402,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
 
-        IndexSearcher.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, IndexSearcher::setMaxClauseCount);
+        setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, this::setMaxClauseCount);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -476,6 +478,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    private void setMaxClauseCount(int maxClauseCount) {
+        this.maxClauseCount = maxClauseCount;
+        IndexSearcher.setMaxClauseCount(maxClauseCount);
     }
 
     @Override
