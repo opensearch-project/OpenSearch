@@ -26,7 +26,20 @@ public final class DebugExporter implements QueryInsightsExporter {
     /**
      * Constructor of DebugExporter
      */
-    public DebugExporter() {}
+    private DebugExporter() {}
+
+    private static class InstanceHolder {
+        private static final DebugExporter INSTANCE = new DebugExporter();
+    }
+
+    /**
+     Get the singleton instance of DebugExporter
+     *
+     @return DebugExporter instance
+     */
+    public static DebugExporter getInstance() {
+        return InstanceHolder.INSTANCE;
+    }
 
     /**
      * Write the list of SearchQueryRecord to debug log

@@ -23,7 +23,7 @@ public class DebugExporterTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        debugExporter = new DebugExporter();
+        debugExporter = DebugExporter.getInstance();
     }
 
     public void testExport() {

@@ -93,16 +93,12 @@ public class QueryInsightsExporterFactory {
      * @return QueryInsightsExporter the created exporter sink
      */
     public QueryInsightsExporter createExporter(SinkType type, String indexPattern) {
-        QueryInsightsExporter exporter;
-        switch (type) {
-            case LOCAL_INDEX:
-                exporter = new LocalIndexExporter(client, DateTimeFormat.forPattern(indexPattern));
-                break;
-            default:
-                exporter = new DebugExporter();
+        if (SinkType.LOCAL_INDEX.equals(type)) {
+            QueryInsightsExporter exporter = new LocalIndexExporter(client, DateTimeFormat.forPattern(indexPattern));
+            this.exporters.add(exporter);
+            return exporter;
         }
-        this.exporters.add(exporter);
-        return exporter;
+        return DebugExporter.getInstance();
     }
 
     /**
