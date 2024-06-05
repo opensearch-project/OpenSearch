@@ -19,7 +19,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
@@ -108,69 +107,6 @@ public class DerivedFieldQueryTests extends OpenSearchTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 TopDocs topDocs = searcher.search(derivedFieldQuery, 10);
                 assertEquals(3, topDocs.totalHits.value);
-            }
-        }
-    }
-
-    public void testDerivedFieldWithFilterQuery() throws IOException {
-        // Create lucene documents
-        List<Document> docs = new ArrayList<>();
-        for (String[] request : raw_requests) {
-            Document document = new Document();
-            document.add(new TextField("raw_request", request[0], Field.Store.YES));
-            document.add(new KeywordField("status", request[1], Field.Store.YES));
-            docs.add(document);
-        }
-
-        // Mock SearchLookup
-        SearchLookup searchLookup = mock(SearchLookup.class);
-        SourceLookup sourceLookup = new SourceLookup();
-        LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
-        when(leafLookup.source()).thenReturn(sourceLookup);
-
-        // Mock DerivedFieldScript.Factory
-        DerivedFieldScript.Factory factory = (params, lookup) -> (DerivedFieldScript.LeafFactory) ctx -> {
-            when(searchLookup.getLeafSearchLookup(ctx)).thenReturn(leafLookup);
-            return new DerivedFieldScript(params, lookup, ctx) {
-                @Override
-                public void execute() {
-                    addEmittedValue(raw_requests[sourceLookup.docId()][2]);
-                }
-            };
-        };
-
-        // Create ValueFetcher from mocked DerivedFieldScript.Factory
-        DerivedFieldScript.LeafFactory leafFactory = factory.newFactory((new Script("")).getParams(), searchLookup);
-        Function<Object, IndexableField> indexableFieldFunction = DerivedFieldSupportedTypes.getIndexableFieldGeneratorType(
-            "keyword",
-            "ip_from_raw_request"
-        );
-        DerivedFieldValueFetcher valueFetcher = new DerivedFieldValueFetcher(leafFactory, null);
-
-        Query filterQuery = new TermQuery(new Term("status", "200"));
-        // Create DerivedFieldQuery
-        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
-            new TermQuery(new Term("ip_from_raw_request", "247.37.0.0")),
-            filterQuery,
-            valueFetcher,
-            searchLookup,
-            Lucene.STANDARD_ANALYZER,
-            indexableFieldFunction,
-            true
-        );
-
-        // Index and Search
-
-        try (Directory dir = newDirectory()) {
-            IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
-            for (Document d : docs) {
-                iw.addDocument(d);
-            }
-            try (IndexReader reader = DirectoryReader.open(iw)) {
-                iw.close();
-                IndexSearcher searcher = new IndexSearcher(reader);
-                TopDocs topDocs = searcher.search(derivedFieldQuery, 10);
-                assertEquals(1, topDocs.totalHits.value);
             }
         }
     }

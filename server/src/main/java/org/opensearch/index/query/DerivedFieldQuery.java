@@ -37,9 +37,6 @@ import java.util.function.Function;
  */
 public final class DerivedFieldQuery extends Query {
     private final Query query;
-
-    private final Query filterQuery;
-
     private final DerivedFieldValueFetcher valueFetcher;
     private final SearchLookup searchLookup;
     private final Analyzer indexAnalyzer;
@@ -61,20 +58,7 @@ public final class DerivedFieldQuery extends Query {
         Function<Object, IndexableField> indexableFieldGenerator,
         boolean ignoreMalformed
     ) {
-        this(query, null, valueFetcher, searchLookup, indexAnalyzer, indexableFieldGenerator, ignoreMalformed);
-    }
-
-    public DerivedFieldQuery(
-        Query query,
-        Query filterQuery,
-        DerivedFieldValueFetcher valueFetcher,
-        SearchLookup searchLookup,
-        Analyzer indexAnalyzer,
-        Function<Object, IndexableField> indexableFieldGenerator,
-        boolean ignoreMalformed
-    ) {
         this.query = query;
-        this.filterQuery = filterQuery;
         this.valueFetcher = valueFetcher;
         this.searchLookup = searchLookup;
         this.indexAnalyzer = indexAnalyzer;
@@ -93,38 +77,17 @@ public final class DerivedFieldQuery extends Query {
         if (rewritten == query) {
             return this;
         }
-        Query rewrittenFilterQuery = filterQuery == null ? filterQuery : filterQuery.rewrite(indexSearcher);
-        return new DerivedFieldQuery(
-            rewritten,
-            rewrittenFilterQuery,
-            valueFetcher,
-            searchLookup,
-            indexAnalyzer,
-            indexableFieldGenerator,
-            ignoreMalformed
-        );
+        return new DerivedFieldQuery(rewritten, valueFetcher, searchLookup, indexAnalyzer, indexableFieldGenerator, ignoreMalformed);
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
 
-        Weight filterQueryWeight = filterQuery == null ? null : filterQuery.createWeight(searcher, scoreMode, boost);
-
         return new ConstantScoreWeight(this, boost) {
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public Scorer scorer(LeafReaderContext context) {
                 DocIdSetIterator approximation;
-
-                if (filterQueryWeight != null) {
-                    Scorer scorer = filterQueryWeight.scorer(context);
-                    if (scorer == null) {
-                        // none of the docs are matching
-                        return null;
-                    }
-                    approximation = scorer.iterator();
-                } else {
-                    approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                }
+                approximation = DocIdSetIterator.all(context.reader().maxDoc());
                 valueFetcher.setNextReader(context);
                 LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(context);
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
@@ -183,9 +146,6 @@ public final class DerivedFieldQuery extends Query {
 
     @Override
     public String toString(String f) {
-        return "DerivedFieldQuery (Query: [ "
-            + query.toString(f)
-            + "]"
-            + (filterQuery != null ? " FilterQuery: [ " + filterQuery.toString(f) + "])" : ")");
+        return "DerivedFieldQuery (Query: [ " + query.toString(f) + "])";
     }
 }

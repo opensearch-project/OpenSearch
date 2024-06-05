@@ -12,6 +12,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.Nullable;
@@ -33,6 +35,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -118,61 +121,57 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.termQuery(value, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.termQuery(value, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context))
+            .map(sourceIndexedFieldType -> createConjuctionQuery(sourceIndexedFieldType.termQuery(value, context), derivedFieldQuery))
+            .orElse(derivedFieldQuery);
     }
 
     @Override
     public Query termQueryCaseInsensitive(Object value, @Nullable QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.termQueryCaseInsensitive(value, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.termQueryCaseInsensitive(value, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context))
+            .map(
+                sourceIndexedFieldType -> createConjuctionQuery(
+                    sourceIndexedFieldType.termQueryCaseInsensitive(value, context),
+                    derivedFieldQuery
+                )
+            )
+            .orElse(derivedFieldQuery);
     }
 
     @Override
     public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.termsQuery(values, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.termsQuery(values, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context))
+            .map(sourceIndexedFieldType -> createConjuctionQuery(sourceIndexedFieldType.termsQuery(values, context), derivedFieldQuery))
+            .orElse(derivedFieldQuery);
     }
 
     @Override
@@ -217,21 +216,23 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context))
+            .map(
+                sourceIndexedFieldType -> createConjuctionQuery(
+                    sourceIndexedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context),
+                    derivedFieldQuery
+                )
+            )
+            .orElse(derivedFieldQuery);
     }
 
     @Override
@@ -253,21 +254,23 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             method,
             context
         );
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context))
+            .map(
+                sourceIndexedFieldType -> createConjuctionQuery(
+                    sourceIndexedFieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context),
+                    derivedFieldQuery
+                )
+            )
+            .orElse(derivedFieldQuery);
     }
 
     @Override
@@ -278,21 +281,23 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.prefixQuery(value, method, caseInsensitive, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.prefixQuery(value, method, caseInsensitive, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context))
+            .map(
+                sourceIndexedFieldType -> createConjuctionQuery(
+                    sourceIndexedFieldType.prefixQuery(value, method, caseInsensitive, context),
+                    derivedFieldQuery
+                )
+            )
+            .orElse(derivedFieldQuery);
     }
 
     @Override
@@ -303,41 +308,45 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.wildcardQuery(value, method, caseInsensitive, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.wildcardQuery(value, method, caseInsensitive, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context))
+            .map(
+                sourceIndexedFieldType -> createConjuctionQuery(
+                    sourceIndexedFieldType.wildcardQuery(value, method, caseInsensitive, context),
+                    derivedFieldQuery
+                )
+            )
+            .orElse(derivedFieldQuery);
     }
 
     @Override
     public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         Query query = typeFieldMapper.mappedFieldType.normalizedWildcardQuery(value, method, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.normalizedWildcardQuery(value, method, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context))
+            .map(
+                sourceIndexedFieldType -> createConjuctionQuery(
+                    sourceIndexedFieldType.normalizedWildcardQuery(value, method, context),
+                    derivedFieldQuery
+                )
+            )
+            .orElse(derivedFieldQuery);
     }
 
     @Override
@@ -350,82 +359,96 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         QueryShardContext context
     ) {
         Query query = typeFieldMapper.mappedFieldType.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context))
+            .map(
+                sourceIndexedFieldType -> createConjuctionQuery(
+                    sourceIndexedFieldType.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context),
+                    derivedFieldQuery
+                )
+            )
+            .orElse(derivedFieldQuery);
     }
 
     @Override
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) throws IOException {
         Query query = typeFieldMapper.mappedFieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context)).map(sourceIndexedFieldType -> {
+            try {
+                return createConjuctionQuery(
+                    sourceIndexedFieldType.phraseQuery(stream, slop, enablePositionIncrements, context),
+                    derivedFieldQuery
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).orElse(derivedFieldQuery);
     }
 
     @Override
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context)
         throws IOException {
         Query query = typeFieldMapper.mappedFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context)).map(sourceIndexedFieldType -> {
+            try {
+                return createConjuctionQuery(
+                    sourceIndexedFieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context),
+                    derivedFieldQuery
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).orElse(derivedFieldQuery);
     }
 
     @Override
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
         Query query = typeFieldMapper.mappedFieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
-        TextFieldMapper.TextFieldType sourceIndexedFieldType = getSourceIndexedFieldType(context);
-        Query filterQuery = null;
-        if (sourceIndexedFieldType != null) {
-            filterQuery = sourceIndexedFieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
-        }
         DerivedFieldValueFetcher valueFetcher = valueFetcher(context, context.lookup(), null);
-        return new DerivedFieldQuery(
+        DerivedFieldQuery derivedFieldQuery = new DerivedFieldQuery(
             query,
-            filterQuery,
             valueFetcher,
             context.lookup(),
             getIndexAnalyzer(),
             indexableFieldGenerator,
             derivedField.getIgnoreMalformed()
         );
+        return Optional.ofNullable(getSourceIndexedFieldType(context)).map(sourceIndexedFieldType -> {
+            try {
+                return createConjuctionQuery(
+                    sourceIndexedFieldType.phrasePrefixQuery(stream, slop, maxExpansions, context),
+                    derivedFieldQuery
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).orElse(derivedFieldQuery);
     }
 
     @Override
@@ -471,6 +494,13 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     @Override
     public boolean isAggregatable() {
         return false;
+    }
+
+    private Query createConjuctionQuery(Query filterQuery, DerivedFieldQuery derivedFieldQuery) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(filterQuery, BooleanClause.Occur.FILTER);
+        builder.add(derivedFieldQuery, BooleanClause.Occur.FILTER);
+        return builder.build();
     }
 
     public static DerivedFieldScript.LeafFactory getDerivedFieldLeafFactory(
