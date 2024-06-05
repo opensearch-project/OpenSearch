@@ -146,8 +146,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
                     ordinalsCollectorsUsed++;
                     collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+                } else {
+                    ordinalsCollectorsOverheadTooHigh++;
                 }
-                ordinalsCollectorsOverheadTooHigh++;
             }
         } else {
             stringHashingCollectorsUsed++;
@@ -155,7 +156,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         // dynamic pruning optimization
-        if (valuesSourceConfig.missing() == null) {
+        if (parent == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
             Terms terms = ctx.reader().terms(valuesSourceConfig.fieldContext().field());
             if (terms != null) {
                 collector = new PruningCollector(collector, terms.iterator(), ctx, context, valuesSourceConfig.fieldContext().field());
