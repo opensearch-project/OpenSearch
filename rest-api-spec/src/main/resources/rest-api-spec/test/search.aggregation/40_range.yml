@@ -528,3 +528,66 @@ setup:
   - is_false:  aggregations.unsigned_long_range.buckets.2.to
 
   - match: { aggregations.unsigned_long_range.buckets.2.doc_count: 0 }
+
+---
+"Double range profiler shows filter rewrite info":
+  - skip:
+      version: " - 2.99.99"
+      reason: debug info for filter rewrite added in 3.0.0 (to be backported to 2.14.0)
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "double" : 42 }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "double" : 100 }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "double" : 50 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          profile: true
+          aggs:
+            double_range:
+              range:
+                field: double
+                ranges:
+                  - to: 50
+                  - from: 50
+                    to: 150
+                  - from: 150
+
+  - length: { aggregations.double_range.buckets: 3 }
+
+  - match: { aggregations.double_range.buckets.0.key: "*-50.0" }
+  - is_false: aggregations.double_range.buckets.0.from
+  - match: { aggregations.double_range.buckets.0.to: 50.0 }
+  - match: { aggregations.double_range.buckets.0.doc_count: 1 }
+  - match: { aggregations.double_range.buckets.1.key: "50.0-150.0" }
+  - match: { aggregations.double_range.buckets.1.from: 50.0 }
+  - match: { aggregations.double_range.buckets.1.to: 150.0 }
+  - match: { aggregations.double_range.buckets.1.doc_count: 2 }
+  - match: { aggregations.double_range.buckets.2.key: "150.0-*" }
+  - match: { aggregations.double_range.buckets.2.from: 150.0 }
+  - is_false:  aggregations.double_range.buckets.2.to
+  - match: { aggregations.double_range.buckets.2.doc_count: 0 }
+
+  - match: { profile.shards.0.aggregations.0.debug.optimized_segments: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }
