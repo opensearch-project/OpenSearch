@@ -100,6 +100,10 @@ public abstract class AbstractTaskCancellation {
     }
 
     private long getReduceBy(Sandbox sandbox, SandboxResourceType resourceType) {
+        Long usage = getUsage(sandbox, resourceType);
+        if (usage == null) {
+            return 0;
+        }
         return getUsage(sandbox, resourceType) - sandbox.getResourceLimitFor(resourceType).getThresholdInLong();
     }
 
@@ -112,8 +116,8 @@ public abstract class AbstractTaskCancellation {
     }
 
     private TaskCancellation createTaskCancellation(CancellableTask task) {
-        // todo add reasons and callbacks
-        return new TaskCancellation(task, List.of(), List.of(this::callbackOnCancel));
+        // todo add correct reason and callbacks
+        return new TaskCancellation(task, List.of(new TaskCancellation.Reason("limits exceeded", 5)), List.of(this::callbackOnCancel));
     }
 
     private void callbackOnCancel() {
