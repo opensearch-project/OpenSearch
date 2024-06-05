@@ -10,7 +10,6 @@ package org.opensearch.search.sandboxing.cancellation;
 
 import org.opensearch.cluster.metadata.Sandbox;
 import org.opensearch.search.sandboxing.SandboxLevelResourceUsageView;
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -22,11 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DefaultTaskCancellationTests extends OpenSearchTestCase {
     @Mock
@@ -52,9 +47,20 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetSandboxesToCancelFrom_whenNotAllSandboxesAreBreachingForDifferentResourceTypes() {
         // setup mocks for sandbox1
-        Sandbox sandbox1 = createSandboxMock("sandbox1", "CPU", 10L, 50L);
+        String id = "sandbox1";
+        String resourceTypeStr = "CPU";
+        long usage = 50L;
+        Sandbox sandbox1 = SandboxTestHelpers.createSandboxMock(id, resourceTypeStr, 10L, usage);
+        SandboxLevelResourceUsageView mockView = SandboxTestHelpers.createResourceUsageViewMock(resourceTypeStr, usage);
+        sandboxLevelViews.put(id, mockView);
+
         // setup mocks for sandbox2
-        Sandbox sandbox2 = createSandboxMock("sandbox2", "JVM", 100L, 50L);
+        id = "sandbox2";
+        resourceTypeStr = "JVM";
+        usage = 50L;
+        Sandbox sandbox2 = SandboxTestHelpers.createSandboxMock(id, resourceTypeStr, 100L, usage);
+        SandboxLevelResourceUsageView mockView2 = SandboxTestHelpers.createResourceUsageViewMock(resourceTypeStr, usage);
+        sandboxLevelViews.put(id, mockView2);
         // add both sandboxes to active sandboxes
         Collections.addAll(activeSandboxes, sandbox1, sandbox2);
         // create a new instance of DefaultTaskCancellation and call getSandboxesToCancelFrom
@@ -69,9 +75,20 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetSandboxesToCancelFrom_whenNotAllSandboxesAreBreachingForSameResourceType() {
         // setup mocks for sandbox1
-        Sandbox sandbox1 = createSandboxMock("sandbox1", "CPU", 10L, 50L);
+        String id = "sandbox1";
+        String resourceTypeStr = "CPU";
+        long usage = 50L;
+        Sandbox sandbox1 = SandboxTestHelpers.createSandboxMock(id, resourceTypeStr, 10L, usage);
+        SandboxLevelResourceUsageView mockView = SandboxTestHelpers.createResourceUsageViewMock(resourceTypeStr, usage);
+        sandboxLevelViews.put(id, mockView);
+
         // setup mocks for sandbox2
-        Sandbox sandbox2 = createSandboxMock("sandbox2", "CPU", 100L, 50L);
+        id = "sandbox2";
+        resourceTypeStr = "CPU";
+        usage = 50L;
+        Sandbox sandbox2 = SandboxTestHelpers.createSandboxMock(id, resourceTypeStr, 100L, usage);
+        SandboxLevelResourceUsageView mockView2 = SandboxTestHelpers.createResourceUsageViewMock(resourceTypeStr, usage);
+        sandboxLevelViews.put(id, mockView2);
         // add both sandboxes to active sandboxes
         Collections.addAll(activeSandboxes, sandbox1, sandbox2);
         // create a new instance of DefaultTaskCancellation and call getSandboxesToCancelFrom
@@ -86,9 +103,20 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetSandboxesToCancelFrom_whenAllSandboxesAreBreachingForDifferentResourceTypes() {
         // setup mocks for sandbox1
-        Sandbox sandbox1 = createSandboxMock("sandbox1", "CPU", 10L, 50L);
+        String id = "sandbox1";
+        String resourceTypeStr = "CPU";
+        long usage = 50L;
+        Sandbox sandbox1 = SandboxTestHelpers.createSandboxMock(id, resourceTypeStr, 10L, usage);
+        SandboxLevelResourceUsageView mockView = SandboxTestHelpers.createResourceUsageViewMock(resourceTypeStr, usage);
+        sandboxLevelViews.put(id, mockView);
+
         // setup mocks for sandbox2
-        Sandbox sandbox2 = createSandboxMock("sandbox2", "JVM", 10L, 50L);
+        id = "sandbox2";
+        resourceTypeStr = "JVM";
+        usage = 50L;
+        Sandbox sandbox2 = SandboxTestHelpers.createSandboxMock(id, resourceTypeStr, 10L, usage);
+        SandboxLevelResourceUsageView mockView2 = SandboxTestHelpers.createResourceUsageViewMock(resourceTypeStr, usage);
+        sandboxLevelViews.put(id, mockView2);
         // add both sandboxes to active sandboxes
         Collections.addAll(activeSandboxes, sandbox1, sandbox2);
         // create a new instance of DefaultTaskCancellation and call getSandboxesToCancelFrom
@@ -103,9 +131,20 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetSandboxesToCancelFrom_whenAllSandboxesAreBreachingForSameResourceType() {
         // setup mocks for sandbox1
-        Sandbox sandbox1 = createSandboxMock("sandbox1", "CPU", 10L, 50L);
+        String id = "sandbox1";
+        String resourceTypeStr = "CPU";
+        long usage = 50L;
+        Sandbox sandbox1 = SandboxTestHelpers.createSandboxMock(id, resourceTypeStr, 10L, usage);
+        SandboxLevelResourceUsageView mockView = SandboxTestHelpers.createResourceUsageViewMock(resourceTypeStr, usage);
+        sandboxLevelViews.put(id, mockView);
+
         // setup mocks for sandbox2
-        Sandbox sandbox2 = createSandboxMock("sandbox2", "CPU", 10L, 50L);
+        id = "sandbox2";
+        resourceTypeStr = "CPU";
+        usage = 50L;
+        Sandbox sandbox2 = SandboxTestHelpers.createSandboxMock(id, resourceTypeStr, 10L, usage);
+        SandboxLevelResourceUsageView mockView2 = SandboxTestHelpers.createResourceUsageViewMock(resourceTypeStr, usage);
+        sandboxLevelViews.put(id, mockView2);
         // add both sandboxes to active sandboxes
         Collections.addAll(activeSandboxes, sandbox1, sandbox2);
         // create a new instance of DefaultTaskCancellation and call getSandboxesToCancelFrom
@@ -116,34 +155,5 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
         assertEquals(2, result.size());
         assertTrue(result.contains(sandbox1));
         assertTrue(result.contains(sandbox2));
-    }
-
-    // Utility methods
-    private Sandbox createSandboxMock(String id, String resourceTypeStr, Long threshold, Long usage) {
-        Sandbox sandbox = Mockito.mock(Sandbox.class);
-        when(sandbox.getId()).thenReturn(id);
-
-        Sandbox.ResourceLimit resourceLimitMock = createResourceLimitMock(resourceTypeStr, threshold);
-        when(sandbox.getResourceLimits()).thenReturn(Collections.singletonList(resourceLimitMock));
-
-        SandboxLevelResourceUsageView mockView = createResourceUsageViewMock(resourceTypeStr, usage);
-        sandboxLevelViews.put(id, mockView);
-
-        return sandbox;
-    }
-
-    private Sandbox.ResourceLimit createResourceLimitMock(String resourceTypeStr, Long threshold) {
-        Sandbox.ResourceLimit resourceLimitMock = mock(Sandbox.ResourceLimit.class);
-        SandboxResourceType resourceType = SandboxResourceType.fromString(resourceTypeStr);
-        when(resourceLimitMock.getResourceType()).thenReturn(resourceType);
-        when(resourceLimitMock.getThreshold()).thenReturn(threshold);
-        return resourceLimitMock;
-    }
-
-    private SandboxLevelResourceUsageView createResourceUsageViewMock(String resourceTypeStr, Long usage) {
-        SandboxLevelResourceUsageView mockView = mock(SandboxLevelResourceUsageView.class);
-        SandboxResourceType resourceType = SandboxResourceType.fromString(resourceTypeStr);
-        when(mockView.getResourceUsageData()).thenReturn(Collections.singletonMap(resourceType, usage));
-        return mockView;
     }
 }

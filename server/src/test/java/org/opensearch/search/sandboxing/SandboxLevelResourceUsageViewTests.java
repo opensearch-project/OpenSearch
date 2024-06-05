@@ -15,7 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.search.sandboxing.cancellation.SandboxCancellationStrategyTestHelpers.getRandomTask;
+import static org.opensearch.search.sandboxing.cancellation.SandboxTestHelpers.getRandomTask;
 
 public class SandboxLevelResourceUsageViewTests extends OpenSearchTestCase {
     Map<SandboxResourceType, Long> resourceUsage;
