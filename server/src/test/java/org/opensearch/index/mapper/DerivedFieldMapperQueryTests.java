@@ -624,6 +624,21 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
             b.endObject();
             b.startObject("derived");
             {
+                b.startObject("regular_derived_field");
+                {
+                    b.field("type", "text");
+                    b.field("script", "");
+                    b.field("ignore_malformed", true);
+                    b.field("source_indexed_field", "raw_message");
+                }
+                b.endObject();
+                b.startObject("regular_derived_field_without_source_indexed_field");
+                {
+                    b.field("type", "text");
+                    b.field("script", "");
+                    b.field("ignore_malformed", true);
+                }
+                b.endObject();
                 b.startObject("object_field");
                 {
                     b.field("type", "object");
@@ -773,6 +788,24 @@ public class DerivedFieldMapperQueryTests extends MapperServiceTestCase {
                     .toQuery(queryShardContext);
                 topDocs = searcher.search(query, 10);
                 assertEquals(4, topDocs.totalHits.value);
+
+                // test regular_derived_field
+                docsEvaluated[0] = 0;
+                scriptIndex[0] = 4;
+                query = QueryBuilders.termQuery("regular_derived_field", "delete").caseInsensitive(true).toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(2, docsEvaluated[0]);
+
+                // test regular_derived_field_without_source_indexed_field
+                docsEvaluated[0] = 0;
+                scriptIndex[0] = 4;
+                query = QueryBuilders.termQuery("regular_derived_field_without_source_indexed_field", "delete")
+                    .caseInsensitive(true)
+                    .toQuery(queryShardContext);
+                topDocs = searcher.search(query, 10);
+                assertEquals(2, topDocs.totalHits.value);
+                assertEquals(11, docsEvaluated[0]);
             }
         }
     }

@@ -82,29 +82,6 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
     }
 
     @Override
-    TextFieldMapper.TextFieldType getSourceIndexedFieldType(QueryShardContext context) {
-        if (derivedField.getSourceIndexedField() == null || derivedField.getSourceIndexedField().isEmpty()) {
-            return null;
-        }
-        MappedFieldType mappedFieldType = context.fieldMapper(derivedField.getSourceIndexedField());
-        if (mappedFieldType == null) {
-            throw new MapperException(
-                "source_index_field[" + derivedField.getSourceIndexedField() + "] is not defined in the index mappings"
-            );
-        }
-        if (!(mappedFieldType instanceof TextFieldMapper.TextFieldType)) {
-            throw new MapperException(
-                "source_index_field["
-                    + derivedField.getSourceIndexedField()
-                    + "] should be of type text. Type found ["
-                    + mappedFieldType.typeName()
-                    + "]."
-            );
-        }
-        return (TextFieldMapper.TextFieldType) mappedFieldType;
-    }
-
-    @Override
     public DerivedFieldValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
