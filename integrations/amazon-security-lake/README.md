@@ -206,7 +206,7 @@ The Logstash pipeline requires access to the following secrets:
 
    ```console
    sudo systemctl stop logstash
-   sudo -E /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/indexer-to-s3.conf --path.settings /etc/logstash ----config.test_and_exit
+   sudo -E /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/indexer-to-s3.conf --path.settings /etc/logstash --config.test_and_exit
    ```
 
 2. After confirming that the configuration loads correctly without errors, run Logstash as a service.
