@@ -589,7 +589,7 @@ public final class Script implements ToXContentObject, Writeable {
         @SuppressWarnings("unchecked")
         Map<String, String> options = (Map<String, String>) (Map) in.readMap();
         this.options = options;
-        this.params = in.readMap();
+        this.params = Collections.unmodifiableMap(in.readMap());
     }
 
     @Override

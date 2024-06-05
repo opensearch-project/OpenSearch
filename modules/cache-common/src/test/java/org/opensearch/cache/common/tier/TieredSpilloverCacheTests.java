@@ -926,14 +926,14 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             keyValueSize,
-            100,
+            keyValueSize * 100,
             removalListener,
             Settings.builder()
                 .put(
                     OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
                         .get(MAXIMUM_SIZE_IN_BYTES_KEY)
                         .getKey(),
-                    onHeapCacheSize * 50 + "b"
+                    onHeapCacheSize * keyValueSize + "b"
                 )
                 .build(),
             0,
@@ -955,6 +955,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         LoadAwareCacheLoader<ICacheKey<String>, String> loader = getLoadAwareCacheLoader(keyValuePairs);
 
+        int expectedEvictions = 0;
         for (String key : keyValuePairs.keySet()) {
             ICacheKey<String> iCacheKey = getICacheKey(key);
             Boolean expectedOutput = expectedOutputs.get(key);
@@ -967,8 +968,15 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             } else {
                 // Should miss as heap tier size = 0 and the policy rejected it
                 assertNull(result);
+                expectedEvictions++;
             }
         }
+
+        // We expect values that were evicted from the heap tier and not allowed into the disk tier by the policy
+        // to count towards total evictions
+        assertEquals(keyValuePairs.size(), getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
+        assertEquals(0, getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_DISK)); // Disk tier is large enough for no evictions
+        assertEquals(expectedEvictions, getTotalStatsSnapshot(tieredSpilloverCache).getEvictions());
     }
 
     public void testTookTimePolicyFromFactory() throws Exception {
@@ -1491,6 +1499,11 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             // dimensions yet
         }
         return snapshot;
+    }
+
+    private ImmutableCacheStats getTotalStatsSnapshot(TieredSpilloverCache<?, ?> tsc) throws IOException {
+        ImmutableCacheStatsHolder cacheStats = tsc.stats(new String[0]);
+        return cacheStats.getStatsForDimensionValues(List.of());
     }
 
     // Duplicated here from EhcacheDiskCacheTests.java, we can't add a dependency on that plugin
