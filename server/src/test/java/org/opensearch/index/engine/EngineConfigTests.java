@@ -8,10 +8,15 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
@@ -68,4 +73,33 @@ public class EngineConfigTests extends OpenSearchTestCase {
             .readOnlyReplica(true)
             .build();
     }
+
+    public void testExperimentalCodecs() throws Exception {
+        class ExperimentalCodec extends FilterCodec implements CodecSettings {
+
+            final boolean isExperimental;
+
+            protected ExperimentalCodec(String name, Codec delegate, boolean isExperimental) {
+                super(name, delegate);
+                this.isExperimental = isExperimental;
+            }
+
+            @Override
+            public boolean supports(Setting<?> setting) {
+                return false;
+            }
+
+            @Override
+            public boolean experimental() {
+                return isExperimental;
+            }
+        }
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EngineConfig.isExperimentalCodec(new ExperimentalCodec("experimentalcodec", new Lucene99Codec(), true))
+        );
+        assertTrue(e.getMessage().startsWith("experimental codecs are not enabled."));
+        assertFalse(EngineConfig.isExperimentalCodec(new ExperimentalCodec("nonexperimentalcodec", new Lucene99Codec(), false)));
+    }
+
 }

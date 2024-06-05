@@ -140,7 +140,9 @@ public final class EngineConfig {
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s)) {
-                    return s;
+                    if (!isExperimentalCodec(Codec.forName(s))) {
+                        return s;
+                    }
                 }
 
                 for (String codecName : Codec.availableCodecs()) {
@@ -148,7 +150,9 @@ public final class EngineConfig {
                     if (codec instanceof CodecAliases) {
                         CodecAliases codecWithAlias = (CodecAliases) codec;
                         if (codecWithAlias.aliases().contains(s)) {
-                            return s;
+                            if (!isExperimentalCodec(codec)) {
+                                return s;
+                            }
                         }
                     }
                 }
@@ -158,6 +162,21 @@ public final class EngineConfig {
                 );
         }
     }, Property.IndexScope, Property.NodeScope);
+
+    static boolean isExperimentalCodec(Codec codec) {
+        if (codec instanceof CodecSettings) {
+            CodecSettings codecWithSettings = (CodecSettings) codec;
+            if (!codecWithSettings.experimental()) {
+                return false;
+            } else {
+                throw new IllegalArgumentException(
+                    "experimental codecs are not enabled. value for [index.codec] must be one of [default, lz4, best_compression, zlib] but was: "
+                        + codec.getName()
+                );
+            }
+        }
+        return false;
+    }
 
     /**
      * Index setting to change the compression level of zstd and zstd_no_dict lucene codecs.

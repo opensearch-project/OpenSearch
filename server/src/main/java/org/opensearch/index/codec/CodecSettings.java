@@ -18,4 +18,6 @@ import org.opensearch.common.settings.Setting;
  */
 public interface CodecSettings {
     boolean supports(Setting<?> setting);
+
+    boolean experimental();
 }
