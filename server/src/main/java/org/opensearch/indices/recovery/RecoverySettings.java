@@ -177,7 +177,14 @@ public class RecoverySettings {
     );
 
     // choose 512KB-16B to ensure that the resulting byte[] is not a humongous allocation in G1.
-    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
+    public static final Setting<ByteSizeValue> INDICES_RECOVERY_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "indices.recovery.chunk_size",
+        new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES),
+        new ByteSizeValue(0, ByteSizeUnit.BYTES),
+        new ByteSizeValue(100 * 1024 * 1024, ByteSizeUnit.BYTES),
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile ByteSizeValue recoveryMaxBytesPerSec;
     private volatile ByteSizeValue replicationMaxBytesPerSec;
@@ -193,7 +200,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
 
-    private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
+    private volatile ByteSizeValue chunkSize;
     private volatile TimeValue internalRemoteUploadTimeout;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
@@ -221,6 +228,7 @@ public class RecoverySettings {
 
         logger.debug("using recovery max_bytes_per_sec[{}]", recoveryMaxBytesPerSec);
         this.internalRemoteUploadTimeout = INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.get(settings);
+        this.chunkSize = INDICES_RECOVERY_CHUNK_SIZE_SETTING.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
@@ -244,6 +252,7 @@ public class RecoverySettings {
             this::setInternalActionRetryTimeout
         );
 
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CHUNK_SIZE_SETTING, this::setChunkSize);
     }
 
     public RateLimiter recoveryRateLimiter() {
@@ -286,10 +295,7 @@ public class RecoverySettings {
         return chunkSize;
     }
 
-    public void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
-        if (chunkSize.bytesAsInt() <= 0) {
-            throw new IllegalArgumentException("chunkSize must be > 0");
-        }
+    public void setChunkSize(ByteSizeValue chunkSize) {
         this.chunkSize = chunkSize;
     }
 

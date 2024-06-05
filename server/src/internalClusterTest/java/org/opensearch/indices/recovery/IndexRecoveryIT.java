@@ -278,7 +278,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 .setTransientSettings(
                     Settings.builder()
                         .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
-                        .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
+                        .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING.getDefault(Settings.EMPTY))
                 )
                 .get()
                 .isAcknowledged()

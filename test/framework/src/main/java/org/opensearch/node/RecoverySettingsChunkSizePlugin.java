@@ -51,7 +51,7 @@ public class RecoverySettingsChunkSizePlugin extends Plugin {
      */
     public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "indices.recovery.chunk_size",
-        RecoverySettings.DEFAULT_CHUNK_SIZE,
+        RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING,
         Property.Dynamic,
         Property.NodeScope
     );
