@@ -32,7 +32,7 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
 /**
  * Processor that generating hash value for the specified fields or fields not in the specified excluded list
  */
-public class FingerprintProcessor extends AbstractProcessor {
+public final class FingerprintProcessor extends AbstractProcessor {
     public static final String TYPE = "fingerprint";
     private static final Set<String> HASH_METHODS = Set.of("MD5", "SHA-1", "SHA-256", "SHA3-256");
 
