@@ -41,6 +41,7 @@ public class RemoteStoreUploadIndexPathIT extends RemoteStoreBaseIntegTestCase {
      * wherever not required.
      */
     public void testRemoteIndexPathFileCreation() throws ExecutionException, InterruptedException, IOException {
+        asyncUploadMockFsRepo = false;
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(2);
 

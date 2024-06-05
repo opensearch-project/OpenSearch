@@ -36,7 +36,7 @@ plugins {
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
   id('opensearch.optional-dependencies')
-  id('me.champeau.gradle.japicmp') version '0.4.2'
+  id('me.champeau.gradle.japicmp') version '0.4.3'
 }
 
 publishing {
@@ -98,7 +98,7 @@ dependencies {
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.3'
   // precentil ranks aggregation
-  api 'org.hdrhistogram:HdrHistogram:2.1.12'
+  api 'org.hdrhistogram:HdrHistogram:2.2.1'
 
   // lucene spatial
   api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
