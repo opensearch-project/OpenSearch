@@ -50,22 +50,32 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RangeAggregatorTests extends AggregatorTestCase {
@@ -74,6 +84,10 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     private static final String DATE_FIELD_NAME = "date";
 
     private static final String DOUBLE_FIELD_NAME = "double";
+    private static final String FLOAT_FIELD_NAME = "float";
+    private static final String HALF_FLOAT_FIELD_NAME = "half_float";
+    private static final String UNSIGNED_LONG_FIELD_NAME = "unsigned_long";
+    private static final String SCALED_FLOAT_FIELD_NAME = "scaled_float";
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
@@ -313,15 +327,38 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testDoubleType() throws IOException {
+    public void testOverlappingRanges() throws IOException {
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(DOUBLE_FIELD_NAME)
             .addRange(1, 2)
-            .addRange(2, 3);
+            .addRange(1, 1.5)
+            .addRange(0, 0.5);
 
         testRewriteOptimizationCase(aggregationBuilder, DoublePoint.newRangeQuery(DOUBLE_FIELD_NAME, 0, 5), indexWriter -> {
             indexWriter.addDocument(singleton(new DoubleField(DOUBLE_FIELD_NAME, 0.1, Field.Store.NO)));
             indexWriter.addDocument(singleton(new DoubleField(DOUBLE_FIELD_NAME, 1.1, Field.Store.NO)));
             indexWriter.addDocument(singleton(new DoubleField(DOUBLE_FIELD_NAME, 2.1, Field.Store.NO)));
+        }, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(3, ranges.size());
+            assertEquals("0.0-0.5", ranges.get(0).getKeyAsString());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertEquals("1.0-1.5", ranges.get(1).getKeyAsString());
+            assertEquals(1, ranges.get(1).getDocCount());
+            assertEquals("1.0-2.0", ranges.get(2).getKeyAsString());
+            assertEquals(1, ranges.get(2).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        }, new NumberFieldMapper.NumberFieldType(DOUBLE_FIELD_NAME, NumberFieldMapper.NumberType.DOUBLE), false);
+    }
+
+    public void testDoubleType() throws IOException {
+        RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("range").field(DOUBLE_FIELD_NAME)
+            .addRange(1, 2)
+            .addRange(2, 3);
+
+        testRewriteOptimizationCase(aggregationBuilder, new MatchAllDocsQuery(), indexWriter -> {
+            indexWriter.addDocument(NumberFieldMapper.NumberType.DOUBLE.createFields(DOUBLE_FIELD_NAME, 0.1, true, true, false));
+            indexWriter.addDocument(NumberFieldMapper.NumberType.DOUBLE.createFields(DOUBLE_FIELD_NAME, 1.1, true, true, false));
+            indexWriter.addDocument(NumberFieldMapper.NumberType.DOUBLE.createFields(DOUBLE_FIELD_NAME, 2.1, true, true, false));
         }, range -> {
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertEquals(2, ranges.size());
@@ -330,7 +367,26 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             assertEquals("2.0-3.0", ranges.get(1).getKeyAsString());
             assertEquals(1, ranges.get(1).getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(range));
-        }, new NumberFieldMapper.NumberFieldType(DOUBLE_FIELD_NAME, NumberFieldMapper.NumberType.DOUBLE));
+        }, new NumberFieldMapper.NumberFieldType(DOUBLE_FIELD_NAME, NumberFieldMapper.NumberType.DOUBLE), true);
+    }
+
+    public void testConvertDoubleToBigInteger() {
+        double value = Double.NaN;
+        BigInteger result = FastFilterRewriteHelper.convertDoubleToBigInteger(value);
+        assertEquals(BigInteger.ZERO, result);
+
+        value = Double.POSITIVE_INFINITY;
+        result = FastFilterRewriteHelper.convertDoubleToBigInteger(value);
+        BigInteger maxUnsignedLong = BigInteger.valueOf(2).pow(64).subtract(BigInteger.ONE);
+        assertEquals(maxUnsignedLong, result);
+
+        value = Double.NEGATIVE_INFINITY;
+        result = FastFilterRewriteHelper.convertDoubleToBigInteger(value);
+        assertEquals(BigInteger.ZERO, result);
+
+        value = 123.456;
+        result = FastFilterRewriteHelper.convertDoubleToBigInteger(value);
+        assertEquals("123", result.toString());
     }
 
     private void testCase(
@@ -391,7 +447,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<IndexWriter, IOException> buildIndex,
         Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify,
-        MappedFieldType fieldType
+        MappedFieldType fieldType,
+        boolean optimized
     ) throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
@@ -401,14 +458,54 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> agg = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    aggregationBuilder,
-                    fieldType
+                CountingAggregator aggregator = createCountingAggregator(query, aggregationBuilder, indexSearcher, fieldType);
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+
+                MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                    Integer.MAX_VALUE,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
                 );
+                InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                    aggregator.context().bigArrays(),
+                    getMockScriptService(),
+                    reduceBucketConsumer,
+                    PipelineAggregator.PipelineTree.EMPTY
+                );
+                InternalRange topLevel = (InternalRange) aggregator.buildTopLevel();
+                InternalRange agg = (InternalRange) topLevel.reduce(Collections.singletonList(topLevel), context);
+                doAssertReducedMultiBucketConsumer(agg, reduceBucketConsumer);
+
                 verify.accept(agg);
+
+                if (optimized) {
+                    assertEquals(0, aggregator.getCollectCount().get());
+                } else {
+                    assertTrue(aggregator.getCollectCount().get() > 0);
+                }
             }
         }
+    }
+
+    protected CountingAggregator createCountingAggregator(
+        Query query,
+        AggregationBuilder builder,
+        IndexSearcher searcher,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return new CountingAggregator(
+            new AtomicInteger(),
+            createAggregator(
+                query,
+                builder,
+                searcher,
+                new MultiBucketConsumerService.MultiBucketConsumer(
+                    DEFAULT_MAX_BUCKETS,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                ),
+                fieldTypes
+            )
+        );
     }
 }

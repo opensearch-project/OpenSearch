@@ -195,7 +195,6 @@ public final class FastFilterRewriteHelper {
         private AggregationType aggregationType;
         private final SearchContext context;
 
-        private String fieldName;
         private MappedFieldType fieldType;
         private Ranges ranges;
 
@@ -228,7 +227,6 @@ public final class FastFilterRewriteHelper {
 
         public void buildRanges(MappedFieldType fieldType) throws IOException {
             assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
-            this.fieldName = fieldType.name();
             this.fieldType = fieldType;
             this.ranges = this.aggregationType.buildRanges(context, fieldType);
             if (ranges != null) {
@@ -249,6 +247,9 @@ public final class FastFilterRewriteHelper {
          * Try to populate the bucket doc counts for aggregation
          * <p>
          * Usage: invoked at segment level — in getLeafCollector of aggregator
+         *
+         * @param bucketOrd bucket ordinal producer
+         * @param incrementDocCount consume the doc_count results for certain ordinal
          */
         public boolean tryFastFilterAggregation(
             final LeafReaderContext ctx,
@@ -262,7 +263,7 @@ public final class FastFilterRewriteHelper {
 
             if (ctx.reader().hasDeletions()) return false;
 
-            PointValues values = ctx.reader().getPointValues(this.fieldName);
+            PointValues values = ctx.reader().getPointValues(this.fieldType.name());
             if (values == null) return false;
             // only proceed if every document corresponds to exactly one point
             if (values.getDocCount() != values.size()) return false;
@@ -458,13 +459,11 @@ public final class FastFilterRewriteHelper {
      */
     public static class RangeAggregationType implements AggregationType {
 
-        private final ValuesSource.Numeric source;
         private final ValuesSourceConfig config;
         private final Range[] ranges;
         private FieldTypeEnum fieldTypeEnum;
 
         public RangeAggregationType(ValuesSourceConfig config, Range[] ranges) {
-            this.source = (ValuesSource.Numeric) config.getValuesSource();
             this.config = config;
             this.ranges = ranges;
         }
@@ -482,7 +481,7 @@ public final class FastFilterRewriteHelper {
                     return false;
                 }
 
-                if (source instanceof ValuesSource.Numeric.FieldData) {
+                if (config.getValuesSource() instanceof ValuesSource.Numeric.FieldData) {
                     // ranges are already sorted by from and then to
                     // we want ranges not overlapping with each other
                     double prevTo = ranges[0].getTo();
@@ -499,7 +498,7 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) throws IOException {
+        public Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) {
             int byteLen = this.fieldTypeEnum.getByteLen();
             String pointType = this.fieldTypeEnum.getPointType();
 
@@ -604,26 +603,8 @@ public final class FastFilterRewriteHelper {
             }
         }
 
-        public static BigInteger convertDoubleToBigInteger(double value) {
-            // we use big integer to represent unsigned long
-            BigInteger maxUnsignedLong = BigInteger.valueOf(2).pow(64).subtract(BigInteger.ONE);
-
-            if (Double.isNaN(value)) {
-                return BigInteger.ZERO;
-            } else if (Double.isInfinite(value)) {
-                if (value > 0) {
-                    return maxUnsignedLong;
-                } else {
-                    return BigInteger.ZERO;
-                }
-            } else {
-                BigDecimal bigDecimal = BigDecimal.valueOf(value);
-                return bigDecimal.toBigInteger();
-            }
-        }
-
         @Override
-        public Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx, MappedFieldType fieldType) throws IOException {
+        public Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx, MappedFieldType fieldType) {
             throw new UnsupportedOperationException("Range aggregation should not build ranges at segment level");
         }
 
@@ -642,6 +623,24 @@ public final class FastFilterRewriteHelper {
             };
 
             return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
+        }
+    }
+
+    public static BigInteger convertDoubleToBigInteger(double value) {
+        // we use big integer to represent unsigned long
+        BigInteger maxUnsignedLong = BigInteger.valueOf(2).pow(64).subtract(BigInteger.ONE);
+
+        if (Double.isNaN(value)) {
+            return BigInteger.ZERO;
+        } else if (Double.isInfinite(value)) {
+            if (value > 0) {
+                return maxUnsignedLong;
+            } else {
+                return BigInteger.ZERO;
+            }
+        } else {
+            BigDecimal bigDecimal = BigDecimal.valueOf(value);
+            return bigDecimal.toBigInteger();
         }
     }
 
@@ -776,13 +775,6 @@ public final class FastFilterRewriteHelper {
             int i = 0;
             while (compareByteValue(uppers[i], globalMin) <= 0) {
                 i++;
-                // special case
-                // lower and upper may be same for the last range
-                // if (i == size - 1) {
-                // if (compareByteValue(lowers[i], globalMin) >= 0) {
-                // return i;
-                // }
-                // }
                 if (i >= size) {
                     return -1;
                 }
@@ -957,27 +949,18 @@ public final class FastFilterRewriteHelper {
         }
 
         private boolean withinUpperBound(byte[] value) {
-            // special case
-            // lower and upper may be same for the last range
-            // if (activeIndex == ranges.size - 1) {
-            // return Ranges.compareByteValue(value, activeRange[1]) <= 0;
-            // }
             return Ranges.withinUpperBound(value, activeRange[1]);
         }
 
         private boolean withinRange(byte[] value) {
             return withinLowerBound(value) && withinUpperBound(value);
         }
-
-        private boolean cellCross(byte[] min, byte[] max) {
-            return Ranges.compareByteValue(activeRange[0], min) > 0 || withinUpperBound(max);
-        }
     }
 
     /**
      * Contains debug info of BKD traversal to show in profile
      */
-    public static class DebugInfo {
+    private static class DebugInfo {
         private int leaf = 0; // leaf node visited
         private int inner = 0; // inner node visited
 

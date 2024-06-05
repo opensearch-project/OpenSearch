@@ -296,7 +296,6 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-
         boolean optimized = fastFilterContext.tryFastFilterAggregation(
             ctx,
             this::incrementBucketDocCount,
