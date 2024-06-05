@@ -204,7 +204,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
             observableGaugeName,
             description,
             unit,
-            () -> ObservableMeasurement.create(1.0, Tags.EMPTY)
+            () -> TaggedMeasurement.create(1.0, Tags.EMPTY)
         );
         closeable.close();
         verify(observableDoubleGauge).close();

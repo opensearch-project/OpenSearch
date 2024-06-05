@@ -73,6 +73,6 @@ public interface MetricsRegistry extends Closeable {
      * @param value       value provider.
      * @return closeable to dispose/close the Gauge metric.
      */
-    Closeable createGauge(String name, String description, String unit, Supplier<ObservableMeasurement> value);
+    Closeable createGauge(String name, String description, String unit, Supplier<TaggedMeasurement> value);
 
 }

@@ -156,8 +156,8 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
         InMemorySingletonMetricsExporter.INSTANCE.reset();
         Tags tags = Tags.create().addTag("test", "integ-test");
         final AtomicInteger testValue = new AtomicInteger(0);
-        Supplier<ObservableMeasurement> valueProvider = () -> {
-            return ObservableMeasurement.create(Double.valueOf(testValue.incrementAndGet()), tags);
+        Supplier<TaggedMeasurement> valueProvider = () -> {
+            return TaggedMeasurement.create(Double.valueOf(testValue.incrementAndGet()), tags);
         };
         Closeable gaugeCloseable = metricsRegistry.createGauge(metricName, "test", "ms", valueProvider);
         // Sleep for about 2.2s to wait for metrics to be published.

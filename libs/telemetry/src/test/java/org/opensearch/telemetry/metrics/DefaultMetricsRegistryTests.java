@@ -88,7 +88,7 @@ public class DefaultMetricsRegistryTests extends OpenSearchTestCase {
             "org.opensearch.telemetry.metrics.DefaultMeterRegistryTests.testObservableGauge",
             "test observable gauge",
             "ms",
-            () -> ObservableMeasurement.create(1.0, Tags.EMPTY)
+            () -> TaggedMeasurement.create(1.0, Tags.EMPTY)
         );
         assertSame(mockCloseable, closeable);
     }

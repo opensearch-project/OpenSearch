@@ -16,21 +16,21 @@ import org.opensearch.telemetry.metrics.tags.Tags;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class ObservableMeasurement {
+public class TaggedMeasurement {
     private final Double value;
     private final Tags tags;
 
     /**
-     * Factory method to create the {@link ObservableMeasurement} object.
+     * Factory method to create the {@link TaggedMeasurement} object.
      * @param value value.
      * @param tags tags to be added per value.
-     * @return ObservableMeasurement
+     * @return tagged measurement TaggedMeasurement
      */
-    public static ObservableMeasurement create(double value, Tags tags) {
-        return new ObservableMeasurement(value, tags);
+    public static TaggedMeasurement create(double value, Tags tags) {
+        return new TaggedMeasurement(value, tags);
     }
 
-    private ObservableMeasurement(double value, Tags tags) {
+    private TaggedMeasurement(double value, Tags tags) {
         this.value = value;
         this.tags = tags;
     }
