@@ -16,7 +16,7 @@ import org.opensearch.telemetry.metrics.tags.Tags;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class TaggedMeasurement {
+public final class TaggedMeasurement {
     private final Double value;
     private final Tags tags;
 
