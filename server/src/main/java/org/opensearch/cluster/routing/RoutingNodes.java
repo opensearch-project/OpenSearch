@@ -430,7 +430,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     public ShardRouting activeReplicaOnRemoteNode(ShardId shardId) {
         return assignedShards(shardId).stream().filter(shr -> !shr.primary() && shr.active()).filter((shr) -> {
             RoutingNode nd = node(shr.currentNodeId());
-            return (nd != null && nd.node().isRemoteStoreNode());
+            return (nd != null && nd.node().isRemoteDataNode());
         }).findFirst().orElse(null);
     }
 

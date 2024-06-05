@@ -842,7 +842,7 @@ public abstract class RecoverySourceHandler {
             if (request.isPrimaryRelocation()) {
                 logger.trace("performing relocation hand-off");
                 final Runnable forceSegRepRunnable = shard.indexSettings().isSegRepEnabledOrRemoteNode()
-                    || (request.sourceNode().isRemoteStoreNode() && request.targetNode().isRemoteStoreNode())
+                    || (request.sourceNode().isRemoteDataNode() && request.targetNode().isRemoteDataNode())
                         ? recoveryTarget::forceSegmentFileSync
                         : () -> {};
 

@@ -106,12 +106,12 @@ public class RemoteMigrationIndexMetadataUpdater {
         if (indexHasRemoteStoreSettings(currentIndexSettings) == false) {
             boolean allPrimariesStartedAndOnRemote = indexRoutingTable.shardsMatchingPredicate(ShardRouting::primary)
                 .stream()
-                .allMatch(shardRouting -> shardRouting.started() && discoveryNodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
+                .allMatch(shardRouting -> shardRouting.started() && discoveryNodes.get(shardRouting.currentNodeId()).isRemoteDataNode());
             List<ShardRouting> replicaShards = indexRoutingTable.shardsMatchingPredicate(shardRouting -> shardRouting.primary() == false);
             boolean noRelocatingReplicas = replicaShards.stream().noneMatch(ShardRouting::relocating);
             boolean allStartedReplicasOnRemote = replicaShards.stream()
                 .filter(ShardRouting::started)
-                .allMatch(shardRouting -> discoveryNodes.get(shardRouting.currentNodeId()).isRemoteStoreNode());
+                .allMatch(shardRouting -> discoveryNodes.get(shardRouting.currentNodeId()).isRemoteDataNode());
             return allPrimariesStartedAndOnRemote && noRelocatingReplicas && allStartedReplicasOnRemote;
         }
         return false;
