@@ -18,17 +18,6 @@ import java.io.InputStream;
  * @param <T> The object type which can be uploaded to or downloaded from remote storage.
  */
 public interface RemoteWriteableEntity<T> {
-
-    /**
-     * @param object The object T which is to be set in this writable entity
-     */
-    public void set(T object);
-
-    /**
-     * @return The entity T contained within this class
-     */
-    public T get();
-
     /**
      * @return An InputStream created by serializing the entity T
      * @throws IOException Exception encountered while serialization

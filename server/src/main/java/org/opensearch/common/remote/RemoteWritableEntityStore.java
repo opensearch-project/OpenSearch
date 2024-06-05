@@ -22,7 +22,7 @@ public interface RemoteWritableEntityStore<T, U extends RemoteWriteableEntity<T>
 
     public void writeAsync(U entity, ActionListener<Void> listener);
 
-    public U read(U entity) throws IOException;
+    public T read(U entity) throws IOException;
 
     public void readAsync(U entity, ActionListener<T> listener);
 }

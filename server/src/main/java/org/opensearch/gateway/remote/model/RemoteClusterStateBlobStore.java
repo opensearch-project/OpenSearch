@@ -50,7 +50,6 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
 
     @Override
     public void writeAsync(final U entity, final ActionListener<Void> listener) {
-        assert entity.get() != null;
         try {
             try (InputStream inputStream = entity.serialize()) {
                 BlobPath blobPath = getBlobPathForUpload(entity);
@@ -64,20 +63,17 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
         }
     }
 
-    @Override
-    public U read(final U entity) throws IOException {
+    public T read(final U entity) throws IOException {
         // TODO Add timing logs and tracing
-        assert entity.get() == null && entity.getFullBlobName() != null;
-        T object = entity.deserialize(transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName()));
-        entity.set(object);
-        return entity;
+        assert entity.getFullBlobName() != null;
+        return entity.deserialize(transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName()));
     }
 
     @Override
     public void readAsync(final U entity, final ActionListener<T> listener) {
         executorService.execute(() -> {
             try {
-                listener.onResponse(read(entity).get());
+                listener.onResponse(read(entity));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
