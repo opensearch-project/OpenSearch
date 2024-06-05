@@ -227,8 +227,9 @@ import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.fetch.FetchPhase;
-import org.opensearch.search.labels.RuleBasedLabelingService;
+import org.opensearch.search.labels.RequestLabelingService;
 import org.opensearch.search.labels.SearchRequestLabelingListener;
+import org.opensearch.search.labels.rules.Rule;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
@@ -965,8 +966,10 @@ public class Node implements Closeable {
             pluginComponents.addAll(telemetryAwarePluginComponents);
 
             final SearchRequestLabelingListener searchRequestLabelingListener = new SearchRequestLabelingListener(
-                threadPool,
-                new RuleBasedLabelingService(new ArrayList<>())
+                new RequestLabelingService(
+                    threadPool,
+                    pluginComponents.stream().filter(p -> p instanceof Rule).map(p -> (Rule) p).collect(toList())
+                )
             );
             // register all standard SearchRequestOperationsCompositeListenerFactory to the SearchRequestOperationsCompositeListenerFactory
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =

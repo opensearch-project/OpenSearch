@@ -79,7 +79,6 @@ import org.opensearch.search.suggest.SuggestBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -137,7 +136,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField SEARCH_PIPELINE = new ParseField("search_pipeline");
-    public static final ParseField LABELS = new ParseField("labels");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -226,8 +224,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> searchPipelineSource = null;
 
-    private Map<String, Object> labels;
-
     /**
      * Constructs a new search source builder.
      */
@@ -288,11 +284,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
             if (in.readBoolean()) {
                 searchPipelineSource = in.readMap();
-            }
-        }
-        if (in.getVersion().onOrAfter(Version.V_2_15_0)) {
-            if (in.readBoolean()) {
-                labels = in.readMap();
             }
         }
         if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
@@ -369,12 +360,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeBoolean(searchPipelineSource != null);
             if (searchPipelineSource != null) {
                 out.writeMap(searchPipelineSource);
-            }
-        }
-        if (out.getVersion().onOrAfter(Version.V_2_15_0)) {
-            out.writeBoolean(labels != null);
-            if (labels != null) {
-                out.writeMap(labels);
             }
         }
         if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
@@ -1135,27 +1120,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * @return labels defined within the search request.
-     */
-    public Map<String, Object> labels() {
-        if (this.labels == null) {
-            this.labels = new HashMap<>();
-        }
-        return labels;
-    }
-
-    /**
-     * Add labels within this search request.
-     */
-    public SearchSourceBuilder addLabels(Map<String, Object> labels) {
-        if (this.labels == null) {
-            this.labels = new HashMap<>();
-        }
-        this.labels.putAll(labels);
-        return this;
-    }
-
-    /**
      * Rewrites this search source builder into its primitive form. e.g. by
      * rewriting the QueryBuilder. If the builder did not change the identity
      * reference must be returned otherwise the builder will be rewritten
@@ -1399,8 +1363,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
                     } else if (SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
                         searchPipelineSource = parser.mapOrdered();
-                    } else if (LABELS.match(currentFieldName, parser.getDeprecationHandler())) {
-                        labels = parser.mapOrdered();
                     } else if (DERIVED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         derivedFieldsObject = parser.map();
                     } else {
@@ -1634,9 +1596,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (searchPipelineSource != null) {
             builder.field(SEARCH_PIPELINE.getPreferredName(), searchPipelineSource);
-        }
-        if (labels != null) {
-            builder.field(LABELS.getPreferredName(), labels);
         }
 
         if (derivedFieldsObject != null || derivedFields != null) {

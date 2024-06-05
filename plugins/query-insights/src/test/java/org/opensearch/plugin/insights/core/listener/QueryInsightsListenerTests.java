@@ -13,8 +13,10 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.core.service.TopQueriesService;
 import org.opensearch.plugin.insights.rules.model.MetricType;
@@ -22,11 +24,15 @@ import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.labels.RequestLabelingService;
+import org.opensearch.tasks.Task;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +54,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
     private final SearchRequest searchRequest = mock(SearchRequest.class);
     private final QueryInsightsService queryInsightsService = mock(QueryInsightsService.class);
     private final TopQueriesService topQueriesService = mock(TopQueriesService.class);
+    private final ThreadPool threadPool = mock(ThreadPool.class);
     private ClusterService clusterService;
 
     @Before
@@ -61,6 +68,11 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         clusterService = ClusterServiceUtils.createClusterService(settings, clusterSettings, null);
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
         when(queryInsightsService.getTopQueriesService(MetricType.LATENCY)).thenReturn(topQueriesService);
+
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.setHeaders(new Tuple<>(Collections.singletonMap(Task.X_OPAQUE_ID, "test"), new HashMap<>()));
+        threadContext.putTransient(RequestLabelingService.COMPUTED_LABELS, Map.of("a", "b"));
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
     }
 
     public void testOnRequestEnd() throws InterruptedException {
@@ -80,7 +92,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
 
         int numberOfShards = 10;
 
-        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService);
+        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(threadPool, clusterService, queryInsightsService);
 
         when(searchRequest.getOrCreateAbsoluteStartMillis()).thenReturn(timestamp);
         when(searchRequest.searchType()).thenReturn(searchType);
@@ -128,7 +140,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         CountDownLatch countDownLatch = new CountDownLatch(numRequests);
 
         for (int i = 0; i < numRequests; i++) {
-            searchListenersList.add(new QueryInsightsListener(clusterService, queryInsightsService));
+            searchListenersList.add(new QueryInsightsListener(threadPool, clusterService, queryInsightsService));
         }
 
         for (int i = 0; i < numRequests; i++) {
@@ -149,7 +161,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
 
     public void testSetEnabled() {
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
-        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService);
+        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(threadPool, clusterService, queryInsightsService);
         queryInsightsListener.setEnableTopQueries(MetricType.LATENCY, true);
         assertTrue(queryInsightsListener.isEnabled());
 

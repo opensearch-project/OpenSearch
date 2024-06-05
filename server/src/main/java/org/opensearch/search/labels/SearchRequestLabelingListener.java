@@ -11,7 +11,6 @@ package org.opensearch.search.labels;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
-import org.opensearch.threadpool.ThreadPool;
 
 /**
  * SearchRequestOperationsListener subscriber for labeling search requests
@@ -19,18 +18,16 @@ import org.opensearch.threadpool.ThreadPool;
  * @opensearch.internal
  */
 public final class SearchRequestLabelingListener extends SearchRequestOperationsListener {
-    final private ThreadPool threadPool;
-    final private RuleBasedLabelingService ruleBasedLabelingService;
+    final private RequestLabelingService requestLabelingService;
 
-    public SearchRequestLabelingListener(final ThreadPool threadPool, final RuleBasedLabelingService ruleBasedLabelingService) {
-        this.threadPool = threadPool;
-        this.ruleBasedLabelingService = ruleBasedLabelingService;
+    public SearchRequestLabelingListener(final RequestLabelingService requestLabelingService) {
+        this.requestLabelingService = requestLabelingService;
     }
 
     @Override
     public void onRequestStart(SearchRequestContext searchRequestContext) {
         // add tags to search request
-        ruleBasedLabelingService.applyAllRules(threadPool.getThreadContext(), searchRequestContext.getRequest());
+        requestLabelingService.applyAllRules(searchRequestContext.getRequest());
     }
 
     @Override
