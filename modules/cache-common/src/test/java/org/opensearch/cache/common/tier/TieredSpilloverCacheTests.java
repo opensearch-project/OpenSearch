@@ -16,6 +16,7 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.policy.CachedQueryResult;
+import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
@@ -32,6 +33,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -166,6 +169,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setKeyType(String.class)
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
                 .setSettings(settings)
                 .setDimensionNames(dimensionNames)
                 .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(20_000_000L)) // Values will always appear to have taken
@@ -318,6 +323,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setKeyType(String.class)
             .setWeigher((k, v) -> keyValueSize)
             .setRemovalListener(removalListener)
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
             .setDimensionNames(dimensionNames)
             .setSettings(
                 Settings.builder()
@@ -830,6 +837,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setKeyType(String.class)
             .setWeigher((k, v) -> 150)
             .setRemovalListener(removalListener)
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
             .setSettings(
                 Settings.builder()
                     .put(
@@ -1022,6 +1031,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setKeyType(String.class)
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
                 .setSettings(settings)
                 .setMaxSizeInBytes(onHeapCacheSize * keyValueSize)
                 .setDimensionNames(dimensionNames)
@@ -1423,6 +1434,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setSettings(settings)
             .setDimensionNames(dimensionNames)
             .setRemovalListener(removalListener)
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
             .setSettings(
                 Settings.builder()
                     .put(
@@ -1486,6 +1499,28 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             // dimensions yet
         }
         return snapshot;
+    }
+
+    // Duplicated here from EhcacheDiskCacheTests.java, we can't add a dependency on that plugin
+    static class StringSerializer implements Serializer<String, byte[]> {
+        private final Charset charset = StandardCharsets.UTF_8;
+
+        @Override
+        public byte[] serialize(String object) {
+            return object.getBytes(charset);
+        }
+
+        @Override
+        public String deserialize(byte[] bytes) {
+            if (bytes == null) {
+                return null;
+            }
+            return new String(bytes, charset);
+        }
+
+        public boolean equals(String object, byte[] bytes) {
+            return object.equals(deserialize(bytes));
+        }
     }
 
     private ImmutableCacheStats getTotalStatsSnapshot(TieredSpilloverCache<?, ?> tsc) throws IOException {
