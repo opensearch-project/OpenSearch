@@ -384,7 +384,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     protected void updateVisibleCheckpoint(long replicationId, IndexShard replicaShard) {
         // Update replication checkpoint on source via transport call only supported for remote store integration. For node-
         // node communication, checkpoint update is piggy-backed to GET_SEGMENT_FILES transport call
-        if (replicaShard.indexSettings().isAssignedOnRemoteNode() == false) {
+        if (replicaShard.indexSettings().isRemoteStoreEnabled() == false) {
             return;
         }
         ShardRouting primaryShard = clusterService.state().routingTable().shardRoutingTable(replicaShard.shardId()).primaryShard();
