@@ -14,10 +14,15 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedRunnable;
@@ -33,6 +38,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
@@ -814,6 +820,122 @@ public class RemoteClusterStateService implements Closeable {
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
         }
+    }
+
+    private ClusterState readClusterStateInParallel(
+        ClusterState previousState,
+        ClusterMetadataManifest manifest,
+        String clusterName,
+        String clusterUUID,
+        String localNodeId,
+        List<UploadedIndexMetadata> indicesToRead,
+        Map<String, UploadedMetadataAttribute> customToRead,
+        boolean readCoordinationMetadata,
+        boolean readSettingsMetadata,
+        boolean readTransientSettingsMetadata,
+        boolean readTemplatesMetadata,
+        boolean readDiscoveryNodes,
+        boolean readClusterBlocks,
+        List<UploadedIndexMetadata> indicesRoutingToRead,
+        boolean readHashesOfConsistentSettings,
+        Map<String, UploadedMetadataAttribute> clusterStateCustomToRead
+    ) throws IOException {
+        int totalReadTasks =
+            indicesToRead.size() + customToRead.size() + indicesRoutingToRead.size() + (readCoordinationMetadata ? 1 : 0) + (readSettingsMetadata ? 1 : 0) + (
+                readTemplatesMetadata ? 1 : 0) + (readDiscoveryNodes ? 1 : 0) + (readClusterBlocks ? 1 : 0) + (readTransientSettingsMetadata ? 1 : 0) + (readHashesOfConsistentSettings ? 1 : 0)
+                + clusterStateCustomToRead.size();
+        CountDownLatch latch = new CountDownLatch(totalReadTasks);
+        List<CheckedRunnable<IOException>> asyncMetadataReadActions = new ArrayList<>();
+        List<RemoteReadResult> readResults = Collections.synchronizedList(new ArrayList<>());
+        List<IndexRoutingTable> readIndexRoutingTableResults = Collections.synchronizedList(new ArrayList<>());
+        List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
+
+        LatchedActionListener<RemoteReadResult> listener = new LatchedActionListener<>(
+            ActionListener.wrap(
+                response -> {
+                    logger.debug("Successfully read cluster state component from remote");
+                    readResults.add(response);
+                },
+                ex -> {
+                    logger.error("Failed to read cluster state from remote", ex);
+                    exceptionList.add(ex);
+                }
+            ),
+            latch
+        );
+
+        for (UploadedIndexMetadata indexMetadata : indicesToRead) {
+            asyncMetadataReadActions.add(
+                remoteIndexMetadataManager.getAsyncIndexMetadataReadAction(
+                    clusterUUID,
+                    indexMetadata.getUploadedFilename(),
+                    listener
+                )
+            );
+        }
+
+        LatchedActionListener<IndexRoutingTable> routingTableLatchedActionListener = new LatchedActionListener<>(
+            ActionListener.wrap(
+                response -> {
+                    logger.debug("Successfully read cluster state component from remote");
+                    readIndexRoutingTableResults.add(response);
+                },
+                ex -> {
+                    logger.error("Failed to read cluster state from remote", ex);
+                    exceptionList.add(ex);
+                }
+            ),
+            latch
+        );
+
+        for (UploadedIndexMetadata indexRouting : indicesRoutingToRead) {
+            asyncMetadataReadActions.add(
+                remoteRoutingTableService.get().getAsyncIndexMetadataReadAction(
+                    indexRouting.getUploadedFilename(),
+                    new Index(indexRouting.getIndexName(), indexRouting.getIndexUUID()),
+                    routingTableLatchedActionListener
+                )
+            );
+        }
+
+        for (CheckedRunnable<IOException> asyncMetadataReadAction : asyncMetadataReadActions) {
+            asyncMetadataReadAction.run();
+        }
+
+        try {
+            if (latch.await(this.remoteStateReadTimeout.getMillis(), TimeUnit.MILLISECONDS) == false) {
+                RemoteStateTransferException exception = new RemoteStateTransferException(
+                    "Timed out waiting to read cluster state from remote within timeout " + this.remoteStateReadTimeout
+                );
+                exceptionList.forEach(exception::addSuppressed);
+                throw exception;
+            }
+        } catch (InterruptedException e) {
+            exceptionList.forEach(e::addSuppressed);
+            RemoteStateTransferException ex = new RemoteStateTransferException("Interrupted while waiting to read cluster state from metadata");
+            Thread.currentThread().interrupt();
+            throw ex;
+        }
+
+        if (!exceptionList.isEmpty()) {
+            RemoteStateTransferException exception = new RemoteStateTransferException("Exception during reading cluster state from remote");
+            exceptionList.forEach(exception::addSuppressed);
+            throw exception;
+        }
+
+        ClusterState.Builder clusterStateBuilder = ClusterState.builder(previousState);
+        Map<String, IndexRoutingTable> indicesRouting = new HashMap<>(previousState.routingTable().getIndicesRouting());
+
+
+        readIndexRoutingTableResults.forEach(indexRoutingTable -> {
+            indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);
+        });
+
+        return clusterStateBuilder.metadata(metadataBuilder)
+            .version(manifest.getStateVersion())
+            .stateUUID(manifest.getStateUUID())
+            .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indicesRouting))
+            .build();
     }
 
     private void writeMetadataManifest(String clusterName, String clusterUUID, ClusterMetadataManifest uploadManifest, String fileName)
