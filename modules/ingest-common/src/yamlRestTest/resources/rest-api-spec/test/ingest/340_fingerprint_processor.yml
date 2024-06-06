@@ -11,7 +11,7 @@ teardown:
       version: " - 2.14.99"
       reason: "introduced in 2.15"
   - do:
-      catch: /field path cannot be null nor empty/
+      catch: /field name in \[fields\] cannot be null nor empty/
       ingest.put_pipeline:
         id: "1"
         body:  >
@@ -25,7 +25,7 @@ teardown:
             ]
           }
   - do:
-      catch: /field path cannot be null nor empty/
+      catch: /field name in \[exclude_fields\] cannot be null nor empty/
       ingest.put_pipeline:
         id: "1"
         body:  >
@@ -33,7 +33,7 @@ teardown:
             "processors": [
               {
                 "fingerprint" : {
-                  "exclude_fields": [null]
+                  "exclude_fields": [""]
                 }
               }
             ]

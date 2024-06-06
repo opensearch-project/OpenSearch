@@ -32,7 +32,6 @@ public class FingerprintProcessorFactoryTests extends OpenSearchTestCase {
     public void testCreate() throws Exception {
         Map<String, Object> config = new HashMap<>();
 
-        boolean includeAllFields = randomBoolean();
         List<String> fields = null;
         List<String> excludeFields = null;
         if (randomBoolean()) {
@@ -73,24 +72,32 @@ public class FingerprintProcessorFactoryTests extends OpenSearchTestCase {
 
         config = new HashMap<>();
         List<String> fields = new ArrayList<>();
-        fields.add(null);
+        if (randomBoolean()) {
+            fields.add(null);
+        } else {
+            fields.add("");
+        }
         config.put("fields", fields);
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch (OpenSearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[fields] field path cannot be null nor empty"));
+            assertThat(e.getMessage(), equalTo("[fields] field name cannot be null nor empty"));
         }
 
         config = new HashMap<>();
         List<String> excludeFields = new ArrayList<>();
-        excludeFields.add(null);
+        if (randomBoolean()) {
+            excludeFields.add(null);
+        } else {
+            excludeFields.add("");
+        }
         config.put("exclude_fields", excludeFields);
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch (OpenSearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[exclude_fields] field path cannot be null nor empty"));
+            assertThat(e.getMessage(), equalTo("[exclude_fields] field name cannot be null nor empty"));
         }
     }
 

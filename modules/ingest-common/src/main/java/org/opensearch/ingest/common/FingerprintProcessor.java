@@ -10,6 +10,7 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.hash.MessageDigests;
+import org.opensearch.core.common.Strings;
 import org.opensearch.ingest.AbstractProcessor;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
@@ -23,7 +24,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -57,15 +57,15 @@ public final class FingerprintProcessor extends AbstractProcessor {
     ) {
         super(tag, description);
         if (fields != null && !fields.isEmpty()) {
-            if (fields.stream().anyMatch(Objects::isNull)) {
-                throw new IllegalArgumentException("field path cannot be null nor empty");
+            if (fields.stream().anyMatch(Strings::isNullOrEmpty)) {
+                throw new IllegalArgumentException("field name in [fields] cannot be null nor empty");
             }
             if (excludeFields != null && !excludeFields.isEmpty()) {
                 throw new IllegalArgumentException("either fields or exclude_fields can be set");
             }
         }
-        if (excludeFields != null && !excludeFields.isEmpty() && excludeFields.stream().anyMatch(Objects::isNull)) {
-            throw new IllegalArgumentException("field path cannot be null nor empty");
+        if (excludeFields != null && !excludeFields.isEmpty() && excludeFields.stream().anyMatch(Strings::isNullOrEmpty)) {
+            throw new IllegalArgumentException("field name in [exclude_fields] cannot be null nor empty");
         }
 
         if (!HASH_METHODS.contains(hashMethod.toUpperCase(Locale.ROOT))) {
@@ -247,16 +247,15 @@ public final class FingerprintProcessor extends AbstractProcessor {
             List<String> fields = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "fields");
             List<String> excludeFields = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "exclude_fields");
             if (fields != null && !fields.isEmpty()) {
-
-                if (fields.stream().anyMatch(Objects::isNull)) {
-                    throw newConfigurationException(TYPE, processorTag, "fields", "field path cannot be null nor empty");
+                if (fields.stream().anyMatch(Strings::isNullOrEmpty)) {
+                    throw newConfigurationException(TYPE, processorTag, "fields", "field name cannot be null nor empty");
                 }
                 if (excludeFields != null && !excludeFields.isEmpty()) {
                     throw newConfigurationException(TYPE, processorTag, "fields", "either fields or exclude_fields can be set");
                 }
             }
-            if (excludeFields != null && !excludeFields.isEmpty() && excludeFields.stream().anyMatch(Objects::isNull)) {
-                throw newConfigurationException(TYPE, processorTag, "exclude_fields", "field path cannot be null nor empty");
+            if (excludeFields != null && !excludeFields.isEmpty() && excludeFields.stream().anyMatch(Strings::isNullOrEmpty)) {
+                throw newConfigurationException(TYPE, processorTag, "exclude_fields", "field name cannot be null nor empty");
             }
 
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "fingerprint");

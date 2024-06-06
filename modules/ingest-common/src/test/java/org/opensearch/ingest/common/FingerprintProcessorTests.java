@@ -53,21 +53,29 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
 
     public void testCreateFingerprintProcessorFailed() {
         List<String> fields = new ArrayList<>();
-        fields.add(null);
+        if (randomBoolean()) {
+            fields.add(null);
+        } else {
+            fields.add("");
+        }
         fields.add(randomAlphaOfLength(10));
 
         assertThrows(
-            "field path cannot be null nor empty",
+            "field name in [fields] cannot be null nor empty",
             IllegalArgumentException.class,
             () -> createFingerprintProcessor(fields, null, null, randomFrom(List.of("MD5", "SHA-1", "SHA-256", "SHA3-256")), false)
         );
 
         List<String> excludeFields = new ArrayList<>();
-        excludeFields.add(null);
+        if (randomBoolean()) {
+            excludeFields.add(null);
+        } else {
+            excludeFields.add("");
+        }
         excludeFields.add(randomAlphaOfLength(10));
 
         assertThrows(
-            "field path cannot be null nor empty",
+            "field name in [exclude_fields] cannot be null nor empty",
             IllegalArgumentException.class,
             () -> createFingerprintProcessor(null, excludeFields, null, randomFrom(List.of("MD5", "SHA-1", "SHA-256", "SHA3-256")), false)
         );
