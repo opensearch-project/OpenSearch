@@ -17,10 +17,12 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
@@ -112,6 +114,10 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                 .get()
                 .isAcknowledged()
         );
+    }
+
+    public ClusterHealthStatus ensureGreen(String... indices) {
+        return ensureGreen(TimeValue.timeValueSeconds(60), indices);
     }
 
     public BulkResponse indexBulk(String indexName, int numDocs) {
