@@ -66,7 +66,10 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -338,6 +341,65 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    /**
+     * @return Map [lower, upper) -> data points
+     */
+    private Map<double[], double[]> buildRandomRanges(double[][] possibleRanges) {
+        Map<double[], double[]> dataSet = new LinkedHashMap<>();
+        for (double[] range : possibleRanges) {
+            double lower = randomDoubleBetween(range[0], range[1], true);
+            double upper = randomDoubleBetween(range[0], range[1], true);
+            if (lower > upper) {
+                double d = lower;
+                lower = upper;
+                upper = d;
+            }
+
+            int dataNumber = randomInt(200);
+            double[] data = new double[dataNumber];
+            for (int i = 0; i < dataNumber; i++) {
+                data[i] = randomDoubleBetween(lower, upper, true);
+            }
+            dataSet.put(new double[] { lower, upper }, data);
+        }
+
+        return dataSet;
+    }
+
+    public void testRandomRanges() throws IOException {
+        Map<double[], double[]> dataSet = buildRandomRanges(new double[][] { { 0, 100 }, { 200, 1000 }, { 1000, 3000 } });
+
+        int size = dataSet.size();
+        double[][] ranges = new double[size][];
+        int[] expected = new int[size];
+        List<Number> dataPoints = new LinkedList<>();
+
+        int i = 0;
+        for (Map.Entry<double[], double[]> entry : dataSet.entrySet()) {
+            ranges[i] = entry.getKey();
+            expected[i] = entry.getValue().length;
+            for (double dataPoint : entry.getValue()) {
+                dataPoints.add(dataPoint);
+            }
+            i++;
+        }
+
+        testRewriteOptimizationCase(
+            new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE),
+            ranges,
+            new MatchAllDocsQuery(),
+            dataPoints.toArray(new Number[0]),
+            range -> {
+                List<? extends InternalRange.Bucket> rangeBuckets = range.getBuckets();
+                assertEquals(size, rangeBuckets.size());
+                for (int j = 0; j < rangeBuckets.size(); j++) {
+                    assertEquals(expected[j], rangeBuckets.get(j).getDocCount());
+                }
+            },
+            true
+        );
+    }
+
     public void testDoubleType() throws IOException {
         testRewriteOptimizationCase(
             new NumberFieldType(NumberType.DOUBLE.typeName(), NumberType.DOUBLE),
@@ -407,6 +469,23 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 assertEquals("1.0-2.0", ranges.get(0).getKeyAsString());
                 assertEquals(1, ranges.get(0).getDocCount());
                 assertEquals("2.0-3.0", ranges.get(1).getKeyAsString());
+                assertEquals(1, ranges.get(1).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(range));
+            },
+            true
+        );
+
+        testRewriteOptimizationCase(
+            new NumberFieldType(NumberType.UNSIGNED_LONG.typeName(), NumberType.UNSIGNED_LONG),
+            new double[][] { { Double.NEGATIVE_INFINITY, 1 }, { 2, Double.POSITIVE_INFINITY } },
+            new MatchAllDocsQuery(),
+            new Number[] { 0, 1, 2 },
+            range -> {
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals("*-1.0", ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals("2.0-*", ranges.get(1).getKeyAsString());
                 assertEquals(1, ranges.get(1).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(range));
             },

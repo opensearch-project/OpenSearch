@@ -1050,7 +1050,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         UNSIGNED_LONG("unsigned_long", NumericType.UNSIGNED_LONG) {
             @Override
             public BigInteger parse(Object value, boolean coerce) {
-                return objectToUnsignedLong(value, coerce);
+                return objectToUnsignedLong(value, coerce, false);
             }
 
             @Override
@@ -1060,7 +1060,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public void encodePoint(Number value, byte[] point) {
-                BigIntegerPoint.encodeDimension(objectToUnsignedLong(value, false), point, 0);
+                BigIntegerPoint.encodeDimension(objectToUnsignedLong(value, false, true), point, 0);
             }
 
             @Override
@@ -1300,15 +1300,25 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         /**
-         * Converts and Object to a {@code long} by checking it against known
+         * Converts an Object to a {@code BigInteger} by checking it against known
          * types and checking its range.
+         *
+         * @param lenientBound if true, use MIN or MAX if the value is out of bound
          */
-        public static BigInteger objectToUnsignedLong(Object value, boolean coerce) {
+        public static BigInteger objectToUnsignedLong(Object value, boolean coerce, boolean lenientBound) {
             if (value instanceof Long) {
                 return Numbers.toUnsignedBigInteger(((Long) value).longValue());
             }
 
             double doubleValue = objectToDouble(value);
+            if (lenientBound) {
+                if (doubleValue < Numbers.MIN_UNSIGNED_LONG_VALUE.doubleValue()) {
+                    return Numbers.MIN_UNSIGNED_LONG_VALUE;
+                }
+                if (doubleValue > Numbers.MAX_UNSIGNED_LONG_VALUE.doubleValue()) {
+                    return Numbers.MAX_UNSIGNED_LONG_VALUE;
+                }
+            }
             if (doubleValue < Numbers.MIN_UNSIGNED_LONG_VALUE.doubleValue()
                 || doubleValue > Numbers.MAX_UNSIGNED_LONG_VALUE.doubleValue()) {
                 throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned long");
@@ -1400,7 +1410,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             BigInteger l = Numbers.MIN_UNSIGNED_LONG_VALUE;
             BigInteger u = Numbers.MAX_UNSIGNED_LONG_VALUE;
             if (lowerTerm != null) {
-                l = objectToUnsignedLong(lowerTerm, true);
+                l = objectToUnsignedLong(lowerTerm, true, false);
                 // if the lower bound is decimal:
                 // - if the bound is positive then we increment it:
                 // if lowerTerm=1.5 then the (inclusive) bound becomes 2
@@ -1415,7 +1425,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
             }
             if (upperTerm != null) {
-                u = objectToUnsignedLong(upperTerm, true);
+                u = objectToUnsignedLong(upperTerm, true, false);
                 boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
                 if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                     if (u.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) == 0) {
