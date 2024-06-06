@@ -79,6 +79,7 @@ public class DefaultMetricsRegistryTests extends OpenSearchTestCase {
         assertSame(mockCloseable, closeable);
     }
 
+    @SuppressWarnings("unchecked")
     public void testGaugeWithValueAndTagSupplier() {
         Closeable mockCloseable = mock(Closeable.class);
         when(defaultMeterRegistry.createGauge(any(String.class), any(String.class), any(String.class), any(Supplier.class))).thenReturn(

@@ -181,6 +181,7 @@ public class OTelMetricsTelemetryTests extends OpenSearchTestCase {
         verify(observableDoubleGauge).close();
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testGaugeWithValueAndTagsSupplier() throws Exception {
         String observableGaugeName = "test-gauge";
         String description = "test";
