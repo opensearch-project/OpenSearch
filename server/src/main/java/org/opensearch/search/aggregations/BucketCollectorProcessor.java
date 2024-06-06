@@ -71,10 +71,10 @@ public class BucketCollectorProcessor {
                     collectors.offer(innerCollector);
                 }
             } else if (currentCollector instanceof BucketCollector) {
-                ((BucketCollector) currentCollector).postCollection();
-
                 // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator) {
+                    // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
+                    ((BucketCollector) currentCollector).postCollection();
                     ((Aggregator) currentCollector).buildTopLevel();
                 } else if (currentCollector instanceof MultiBucketCollector) {
                     for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
