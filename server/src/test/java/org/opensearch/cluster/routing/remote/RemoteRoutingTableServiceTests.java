@@ -230,6 +230,30 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertEquals(0, diff.getDeletes().size());
     }
 
+    public void testGetIndicesRoutingMapDiffShardDetailChanged() {
+        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
+        final Index index = new Index(indexName, "uuid");
+        int noOfShards = randomInt(1000);
+        int noOfReplicas = randomInt(10);
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                .build()
+        ).numberOfShards(noOfShards).numberOfReplicas(noOfReplicas).build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
+        RoutingTable routingTable2 = RoutingTable.builder().addAsRecovery(indexMetadata).build();
+
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = RemoteRoutingTableService
+            .getIndicesRoutingMapDiff(routingTable, routingTable2);
+        assertEquals(1, diff.getUpserts().size());
+        assertNotNull(diff.getUpserts().get(indexName));
+        assertEquals(noOfShards, diff.getUpserts().get(indexName).getShards().size());
+        assertEquals(noOfReplicas +1, diff.getUpserts().get(indexName).getShards().get(0).getSize());
+        assertEquals(0, diff.getDeletes().size());
+    }
+
     public void testGetIndicesRoutingMapDiffIndexDeleted() {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(

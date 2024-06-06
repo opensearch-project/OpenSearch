@@ -828,8 +828,8 @@ public class RemoteClusterStateService implements Closeable {
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         blobStoreRepository = (BlobStoreRepository) repository;
-        this.remoteRoutingTableService.ifPresent(RemoteRoutingTableService::start);
         remoteClusterStateCleanupManager.start();
+        this.remoteRoutingTableService.ifPresent(RemoteRoutingTableService::start);
     }
 
     private ClusterMetadataManifest uploadManifest(
