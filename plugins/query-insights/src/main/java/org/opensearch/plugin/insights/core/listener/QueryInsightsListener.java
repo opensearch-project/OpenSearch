@@ -21,9 +21,7 @@ import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
-import org.opensearch.search.labels.RequestLabelingService;
 import org.opensearch.tasks.Task;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,21 +46,15 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     private static final Logger log = LogManager.getLogger(QueryInsightsListener.class);
 
     private final QueryInsightsService queryInsightsService;
-    private final ThreadPool threadPool;
 
     /**
      * Constructor for QueryInsightsListener
      *
-     * @param threadPool the OpenSearch internal threadPool
      * @param clusterService The Node's cluster service.
      * @param queryInsightsService The topQueriesByLatencyService associated with this listener
      */
     @Inject
-    public QueryInsightsListener(
-        final ThreadPool threadPool,
-        final ClusterService clusterService,
-        final QueryInsightsService queryInsightsService
-    ) {
+    public QueryInsightsListener(final ClusterService clusterService, final QueryInsightsService queryInsightsService) {
         this.queryInsightsService = queryInsightsService;
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(TOP_N_LATENCY_QUERIES_ENABLED, v -> this.setEnableTopQueries(MetricType.LATENCY, v));
@@ -83,7 +75,6 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             .setTopNSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_SIZE));
         this.queryInsightsService.getTopQueriesService(MetricType.LATENCY)
             .setWindowSize(clusterService.getClusterSettings().get(TOP_N_LATENCY_QUERIES_WINDOW_SIZE));
-        this.threadPool = threadPool;
     }
 
     /**
@@ -149,17 +140,11 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());
 
-            // Get internal computed and user provided labels
             Map<String, Object> labels = new HashMap<>();
             // Retrieve user provided label if exists
-            String userProvidedLabel = RequestLabelingService.getUserProvidedTag(threadPool);
+            String userProvidedLabel = context.getTask().getHeader(Task.X_OPAQUE_ID);
             if (userProvidedLabel != null) {
                 labels.put(Task.X_OPAQUE_ID, userProvidedLabel);
-            }
-            // Retrieve computed labels if exists
-            Map<String, Object> computedLabels = RequestLabelingService.getRuleBasedLabels(threadPool);
-            if (computedLabels != null) {
-                labels.putAll(computedLabels);
             }
             attributes.put(Attribute.LABELS, labels);
             // construct SearchQueryRecord from attributes and measurements

@@ -11,6 +11,7 @@ package org.opensearch.plugin.insights.core.listener;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestContext;
+import org.opensearch.action.search.SearchTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
@@ -26,7 +27,6 @@ import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.labels.RequestLabelingService;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -76,7 +76,6 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.setHeaders(new Tuple<>(Collections.singletonMap(Task.X_OPAQUE_ID, "userLabel"), new HashMap<>()));
-        threadContext.putTransient(RequestLabelingService.RULE_BASED_LABELS, Map.of("labelKey", "labelValue"));
         when(threadPool.getThreadContext()).thenReturn(threadContext);
     }
 
@@ -88,6 +87,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING).field("type.keyword"));
         searchSourceBuilder.size(0);
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "userLabel"));
 
         String[] indices = new String[] { "index-1", "index-2" };
 
@@ -98,7 +98,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
 
         int numberOfShards = 10;
 
-        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(threadPool, clusterService, queryInsightsService);
+        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService);
 
         when(searchRequest.getOrCreateAbsoluteStartMillis()).thenReturn(timestamp);
         when(searchRequest.searchType()).thenReturn(searchType);
@@ -107,6 +107,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         when(searchRequestContext.phaseTookMap()).thenReturn(phaseLatencyMap);
         when(searchPhaseContext.getRequest()).thenReturn(searchRequest);
         when(searchPhaseContext.getNumShards()).thenReturn(numberOfShards);
+        when(searchPhaseContext.getTask()).thenReturn(task);
         ArgumentCaptor<SearchQueryRecord> captor = ArgumentCaptor.forClass(SearchQueryRecord.class);
 
         queryInsightsListener.onRequestEnd(searchPhaseContext, searchRequestContext);
@@ -118,7 +119,6 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         assertEquals(searchType.toString().toLowerCase(Locale.ROOT), generatedRecord.getAttributes().get(Attribute.SEARCH_TYPE));
         assertEquals(searchSourceBuilder.toString(), generatedRecord.getAttributes().get(Attribute.SOURCE));
         Map<String, String> labels = (Map<String, String>) generatedRecord.getAttributes().get(Attribute.LABELS);
-        assertEquals("labelValue", labels.get("labelKey"));
         assertEquals("userLabel", labels.get(Task.X_OPAQUE_ID));
     }
 
@@ -129,6 +129,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING).field("type.keyword"));
         searchSourceBuilder.size(0);
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "userLabel"));
 
         String[] indices = new String[] { "index-1", "index-2" };
 
@@ -148,6 +149,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         when(searchRequestContext.phaseTookMap()).thenReturn(phaseLatencyMap);
         when(searchPhaseContext.getRequest()).thenReturn(searchRequest);
         when(searchPhaseContext.getNumShards()).thenReturn(numberOfShards);
+        when(searchPhaseContext.getTask()).thenReturn(task);
 
         int numRequests = 50;
         Thread[] threads = new Thread[numRequests];
@@ -155,7 +157,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         CountDownLatch countDownLatch = new CountDownLatch(numRequests);
 
         for (int i = 0; i < numRequests; i++) {
-            searchListenersList.add(new QueryInsightsListener(threadPool, clusterService, queryInsightsService));
+            searchListenersList.add(new QueryInsightsListener(clusterService, queryInsightsService));
         }
 
         for (int i = 0; i < numRequests; i++) {
@@ -176,7 +178,7 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
 
     public void testSetEnabled() {
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
-        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(threadPool, clusterService, queryInsightsService);
+        QueryInsightsListener queryInsightsListener = new QueryInsightsListener(clusterService, queryInsightsService);
         queryInsightsListener.setEnableTopQueries(MetricType.LATENCY, true);
         assertTrue(queryInsightsListener.isEnabled());
 
