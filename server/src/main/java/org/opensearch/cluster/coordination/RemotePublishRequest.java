@@ -8,10 +8,11 @@
 
 package org.opensearch.cluster.coordination;
 
-import java.io.IOException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 public class RemotePublishRequest extends TermVersionRequest {
 

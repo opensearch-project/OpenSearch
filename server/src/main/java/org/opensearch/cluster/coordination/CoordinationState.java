@@ -52,6 +52,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -78,7 +79,7 @@ public class CoordinationState {
     private long lastPublishedVersion;
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
-    private final boolean isRemoteStateEnabled;
+    private final boolean isRemotePublicationEnabled;
 
     public CoordinationState(
         DiscoveryNode localNode,
@@ -101,11 +102,11 @@ public class CoordinationState {
             .getLastAcceptedState()
             .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
-        this.isRemoteStateEnabled = isRemoteStoreClusterStateEnabled(settings);
+        this.isRemotePublicationEnabled = isRemoteStoreClusterStateEnabled(settings) && isRemoteRoutingTableEnabled(settings);
     }
 
-    public boolean isRemoteStateEnabled() {
-        return isRemoteStateEnabled;
+    public boolean isRemotePublicationEnabled() {
+        return isRemotePublicationEnabled;
     }
 
     public long getCurrentTerm() {
@@ -579,7 +580,7 @@ public class CoordinationState {
         // This is to ensure the remote store is the single source of truth for current state. Even if the current node
         // goes down after sending the cluster state to other nodes, we should be able to read the remote state and
         // recover the cluster.
-        if (isRemoteStateEnabled) {
+        if (isRemotePublicationEnabled) {
             assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
             persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(clusterState);
         }
@@ -590,7 +591,7 @@ public class CoordinationState {
      */
     public void handlePreCommit() {
         // Publishing the committed state to remote store before sending apply commit to other nodes.
-        if (isRemoteStateEnabled) {
+        if (isRemotePublicationEnabled) {
             assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
             persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).markLastAcceptedStateAsCommitted();
         }
