@@ -16,6 +16,7 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.policy.CachedQueryResult;
+import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
@@ -32,6 +33,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -166,6 +169,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setKeyType(String.class)
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
                 .setSettings(settings)
                 .setDimensionNames(dimensionNames)
                 .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(20_000_000L)) // Values will always appear to have taken
@@ -318,6 +323,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setKeyType(String.class)
             .setWeigher((k, v) -> keyValueSize)
             .setRemovalListener(removalListener)
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
             .setDimensionNames(dimensionNames)
             .setSettings(
                 Settings.builder()
@@ -830,6 +837,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setKeyType(String.class)
             .setWeigher((k, v) -> 150)
             .setRemovalListener(removalListener)
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
             .setSettings(
                 Settings.builder()
                     .put(
@@ -917,14 +926,14 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             keyValueSize,
-            100,
+            keyValueSize * 100,
             removalListener,
             Settings.builder()
                 .put(
                     OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
                         .get(MAXIMUM_SIZE_IN_BYTES_KEY)
                         .getKey(),
-                    onHeapCacheSize * 50 + "b"
+                    onHeapCacheSize * keyValueSize + "b"
                 )
                 .build(),
             0,
@@ -946,6 +955,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         LoadAwareCacheLoader<ICacheKey<String>, String> loader = getLoadAwareCacheLoader(keyValuePairs);
 
+        int expectedEvictions = 0;
         for (String key : keyValuePairs.keySet()) {
             ICacheKey<String> iCacheKey = getICacheKey(key);
             Boolean expectedOutput = expectedOutputs.get(key);
@@ -958,8 +968,15 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             } else {
                 // Should miss as heap tier size = 0 and the policy rejected it
                 assertNull(result);
+                expectedEvictions++;
             }
         }
+
+        // We expect values that were evicted from the heap tier and not allowed into the disk tier by the policy
+        // to count towards total evictions
+        assertEquals(keyValuePairs.size(), getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
+        assertEquals(0, getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_DISK)); // Disk tier is large enough for no evictions
+        assertEquals(expectedEvictions, getTotalStatsSnapshot(tieredSpilloverCache).getEvictions());
     }
 
     public void testTookTimePolicyFromFactory() throws Exception {
@@ -1014,6 +1031,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setKeyType(String.class)
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
                 .setSettings(settings)
                 .setMaxSizeInBytes(onHeapCacheSize * keyValueSize)
                 .setDimensionNames(dimensionNames)
@@ -1415,6 +1434,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setSettings(settings)
             .setDimensionNames(dimensionNames)
             .setRemovalListener(removalListener)
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
             .setSettings(
                 Settings.builder()
                     .put(
@@ -1478,5 +1499,32 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             // dimensions yet
         }
         return snapshot;
+    }
+
+    private ImmutableCacheStats getTotalStatsSnapshot(TieredSpilloverCache<?, ?> tsc) throws IOException {
+        ImmutableCacheStatsHolder cacheStats = tsc.stats(new String[0]);
+        return cacheStats.getStatsForDimensionValues(List.of());
+    }
+
+    // Duplicated here from EhcacheDiskCacheTests.java, we can't add a dependency on that plugin
+    static class StringSerializer implements Serializer<String, byte[]> {
+        private final Charset charset = StandardCharsets.UTF_8;
+
+        @Override
+        public byte[] serialize(String object) {
+            return object.getBytes(charset);
+        }
+
+        @Override
+        public String deserialize(byte[] bytes) {
+            if (bytes == null) {
+                return null;
+            }
+            return new String(bytes, charset);
+        }
+
+        public boolean equals(String object, byte[] bytes) {
+            return object.equals(deserialize(bytes));
+        }
     }
 }
