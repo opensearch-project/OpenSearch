@@ -33,6 +33,7 @@ import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.PointFieldType;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.search.aggregations.bucket.composite.CompositeAggregator;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
@@ -472,7 +473,7 @@ public final class FastFilterRewriteHelper {
         public boolean isRewriteable(Object parent, int subAggLength) {
             if (config.fieldType() == null) return false;
             MappedFieldType fieldType = config.fieldType();
-            if (fieldType.isSearchable() == false) return false;
+            if (fieldType.isSearchable() == false || !(fieldType instanceof PointFieldType)) return false;
 
             if (parent == null && subAggLength == 0 && config.script() == null && config.missing() == null) {
                 if (config.getValuesSource() instanceof ValuesSource.Numeric.FieldData) {
@@ -493,21 +494,20 @@ public final class FastFilterRewriteHelper {
 
         @Override
         public Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) {
-            int byteLen = fieldType.pointNumBytes();
+            assert fieldType instanceof PointFieldType;
+            PointFieldType pointFieldType = (PointFieldType) fieldType;
             byte[][] lowers = new byte[ranges.length][];
             byte[][] uppers = new byte[ranges.length][];
             for (int i = 0; i < ranges.length; i++) {
                 double rangeMin = ranges[i].getFrom();
                 double rangeMax = ranges[i].getTo();
-                byte[] lower = new byte[byteLen];
-                byte[] upper = new byte[byteLen];
-                fieldType.encodePoint(rangeMin, lower);
-                fieldType.encodePoint(rangeMax, upper);
+                byte[] lower = pointFieldType.encodePoint(rangeMin);
+                byte[] upper = pointFieldType.encodePoint(rangeMax);
                 lowers[i] = lower;
                 uppers[i] = upper;
             }
 
-            return new Ranges(lowers, uppers, byteLen);
+            return new Ranges(lowers, uppers);
         }
 
         @Override
@@ -603,7 +603,7 @@ public final class FastFilterRewriteHelper {
             uppers[i] = max;
         }
 
-        return new Ranges(lowers, uppers, 8);
+        return new Ranges(lowers, uppers);
     }
 
     /**
@@ -640,12 +640,12 @@ public final class FastFilterRewriteHelper {
         int byteLen;
         static ArrayUtil.ByteArrayComparator comparator;
 
-        Ranges(byte[][] lowers, byte[][] uppers, int byteLen) {
+        Ranges(byte[][] lowers, byte[][] uppers) {
             this.lowers = lowers;
             this.uppers = uppers;
             assert lowers.length == uppers.length;
             this.size = lowers.length;
-            this.byteLen = byteLen;
+            this.byteLen = lowers[0].length;
             comparator = ArrayUtil.getUnsignedComparator(byteLen);
         }
 

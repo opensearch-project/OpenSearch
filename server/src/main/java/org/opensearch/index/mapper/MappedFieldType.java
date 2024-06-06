@@ -536,12 +536,4 @@ public abstract class MappedFieldType {
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;
     }
-
-    public void encodePoint(Number value, byte[] point) {
-        throw new IllegalCallerException("Field [" + name() + "] of type [" + typeName() + "] does not support encoding points");
-    }
-
-    public int pointNumBytes() {
-        throw new IllegalCallerException("Field [" + name() + "] of type [" + typeName() + "] does not support encoding points");
-    }
 }

@@ -195,13 +195,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public void encodePoint(Number value, byte[] point) {
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[HalfFloatPoint.BYTES];
                 HalfFloatPoint.encodeDimension(value.floatValue(), point, 0);
-            }
-
-            @Override
-            public int pointNumBytes() {
-                return Float.BYTES / 2;
+                return point;
             }
 
             @Override
@@ -342,13 +339,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public void encodePoint(Number value, byte[] point) {
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Float.BYTES];
                 FloatPoint.encodeDimension(value.floatValue(), point, 0);
-            }
-
-            @Override
-            public int pointNumBytes() {
-                return Float.BYTES;
+                return point;
             }
 
             @Override
@@ -478,13 +472,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public void encodePoint(Number value, byte[] point) {
-                DoublePoint.encodeDimension((double) value, point, 0);
-            }
-
-            @Override
-            public int pointNumBytes() {
-                return Double.BYTES;
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Double.BYTES];
+                DoublePoint.encodeDimension(value.doubleValue(), point, 0);
+                return point;
             }
 
             @Override
@@ -613,13 +604,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public void encodePoint(Number value, byte[] point) {
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Integer.BYTES];
                 IntPoint.encodeDimension(value.intValue(), point, 0);
-            }
-
-            @Override
-            public int pointNumBytes() {
-                return Integer.BYTES;
+                return point;
             }
 
             @Override
@@ -695,13 +683,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public void encodePoint(Number value, byte[] point) {
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Integer.BYTES];
                 IntPoint.encodeDimension(value.intValue(), point, 0);
-            }
-
-            @Override
-            public int pointNumBytes() {
-                return Integer.BYTES;
+                return point;
             }
 
             @Override
@@ -773,13 +758,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public void encodePoint(Number value, byte[] point) {
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Integer.BYTES];
                 IntPoint.encodeDimension(value.intValue(), point, 0);
-            }
-
-            @Override
-            public int pointNumBytes() {
-                return Integer.BYTES;
+                return point;
             }
 
             @Override
@@ -929,13 +911,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public void encodePoint(Number value, byte[] point) {
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Long.BYTES];
                 LongPoint.encodeDimension(value.longValue(), point, 0);
-            }
-
-            @Override
-            public int pointNumBytes() {
-                return Long.BYTES;
+                return point;
             }
 
             @Override
@@ -1059,13 +1038,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public void encodePoint(Number value, byte[] point) {
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[BigIntegerPoint.BYTES];
                 BigIntegerPoint.encodeDimension(objectToUnsignedLong(value, false, true), point, 0);
-            }
-
-            @Override
-            public int pointNumBytes() {
-                return BigIntegerPoint.BYTES;
+                return point;
             }
 
             @Override
@@ -1215,9 +1191,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public abstract Number parsePoint(byte[] value);
 
-        public abstract void encodePoint(Number value, byte[] point);
-
-        public abstract int pointNumBytes();
+        public abstract byte[] encodePoint(Number value);
 
         public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
 
@@ -1443,7 +1417,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static class NumberFieldType extends SimpleMappedFieldType {
+    public static class NumberFieldType extends SimpleMappedFieldType implements PointFieldType {
 
         private final NumberType type;
         private final boolean coerce;
@@ -1601,13 +1575,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public void encodePoint(Number value, byte[] point) {
-            type.encodePoint(value, point);
-        }
-
-        @Override
-        public int pointNumBytes() {
-            return type.pointNumBytes();
+        public byte[] encodePoint(Number value) {
+            return type.encodePoint(value);
         }
     }
 

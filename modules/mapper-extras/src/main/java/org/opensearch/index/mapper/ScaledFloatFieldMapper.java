@@ -166,7 +166,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings()));
 
-    public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
+    public static final class ScaledFloatFieldType extends SimpleMappedFieldType implements PointFieldType {
 
         private final double scalingFactor;
         private final Double nullValue;
@@ -190,14 +190,11 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public void encodePoint(Number value, byte[] point) {
+        public byte[] encodePoint(Number value) {
             assert value instanceof Double;
+            byte[] point = new byte[Long.BYTES];
             LongPoint.encodeDimension((long) (scalingFactor * value.doubleValue()), point, 0);
-        }
-
-        @Override
-        public int pointNumBytes() {
-            return Long.BYTES;
+            return point;
         }
 
         public double getScalingFactor() {

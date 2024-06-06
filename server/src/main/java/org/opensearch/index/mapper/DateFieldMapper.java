@@ -348,7 +348,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static final class DateFieldType extends MappedFieldType {
+    public static final class DateFieldType extends MappedFieldType implements PointFieldType {
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;
         protected final Resolution resolution;
@@ -550,13 +550,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public void encodePoint(Number value, byte[] point) {
+        public byte[] encodePoint(Number value) {
+            byte[] point = new byte[Long.BYTES];
             LongPoint.encodeDimension(value.longValue(), point, 0);
-        }
-
-        @Override
-        public int pointNumBytes() {
-            return Long.BYTES;
+            return point;
         }
 
         @Override
