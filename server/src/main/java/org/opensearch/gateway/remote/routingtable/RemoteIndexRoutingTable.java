@@ -34,9 +34,9 @@ public class RemoteIndexRoutingTable implements Writeable {
 
     /**
      * Reads data from inputStream and creates RemoteIndexRoutingTable object with the {@link IndexRoutingTable}
-     * @param inputStream
-     * @param index
-     * @throws IOException
+     * @param inputStream input stream with index routing data
+     * @param index index for the current routing data
+     * @throws IOException exception thrown on failing to read from stream.
      */
     public RemoteIndexRoutingTable(InputStream inputStream, Index index) throws IOException {
         try {
@@ -65,8 +65,8 @@ public class RemoteIndexRoutingTable implements Writeable {
 
     /**
      * Writes {@link IndexRoutingTable} to the given stream
-     * @param streamOutput
-     * @throws IOException
+     * @param streamOutput output stream to write
+     * @throws IOException exception thrown on failing to write to stream.
      */
     @Override
     public void writeTo(StreamOutput streamOutput) throws IOException {
