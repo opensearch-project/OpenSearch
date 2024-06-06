@@ -124,8 +124,10 @@ public abstract class DerivedFieldScript {
         } else if (obj instanceof Tuple) {
             // Assuming each element in the tuple is a double for GeoPoint case
             return Double.BYTES * 2;
+        } else if (obj == null) {
+            return 0;
         } else {
-            throw new IllegalArgumentException("Unsupported object type passed in emit()");
+            throw new IllegalArgumentException("Unsupported object type passed in emit() - " + obj);
         }
     }
 
