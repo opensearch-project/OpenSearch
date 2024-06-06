@@ -39,12 +39,19 @@ import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoPoint;
@@ -104,7 +111,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
-        testAggregation(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
+        testCase2(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
             iw.addDocument(
                 asList(
                     new KeywordField(fieldName, "1", Field.Store.NO),
@@ -270,5 +277,26 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType
     ) throws IOException {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    }
+
+    protected void testCase2(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<IndexWriter, IOException> buildIndex,
+        Consumer<InternalCardinality> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()));
+            buildIndex.accept(indexWriter);
+            indexWriter.close();
+
+            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                InternalCardinality agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
+                verify.accept(agg);
+            }
+        }
     }
 }

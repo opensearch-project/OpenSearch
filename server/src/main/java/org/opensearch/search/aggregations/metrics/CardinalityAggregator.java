@@ -32,12 +32,16 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -45,6 +49,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -78,6 +83,8 @@ import java.util.function.BiConsumer;
  */
 public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
+    private static final Logger logger = LogManager.getLogger(CardinalityAggregator.class);
+
     private final int precision;
     private final ValuesSource valuesSource;
 
@@ -94,6 +101,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private int ordinalsCollectorsUsed;
     private int ordinalsCollectorsOverheadTooHigh;
     private int stringHashingCollectorsUsed;
+    private int dynamicPruningSegments;
 
     public CardinalityAggregator(
         String name,
@@ -155,11 +163,19 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             collector = new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
         }
 
-        // dynamic pruning optimization
         if (parent == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
             Terms terms = ctx.reader().terms(valuesSourceConfig.fieldContext().field());
             if (terms != null) {
+                Weight weight = context.searcher().createWeight(context.searcher().rewrite(context.query()), ScoreMode.TOP_DOCS, 1f);
+                Bits liveDocs = ctx.reader().getLiveDocs();
+                BulkScorer scorer = weight.bulkScorer(ctx);
                 collector = new PruningCollector(collector, terms.iterator(), ctx, context, valuesSourceConfig.fieldContext().field());
+                scorer.score(collector, liveDocs);
+                collector.postCollect();
+                Releasables.close(collector);
+                logger.debug("Dynamic pruning shard {} segment {}", context.indexShard().shardId(), ctx.ord);
+                dynamicPruningSegments++;
+                throw new CollectionTerminatedException();
             }
         }
 
@@ -224,6 +240,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
+        add.accept("dynamic_pruning_segments", dynamicPruningSegments);
     }
 
     /**
@@ -240,7 +257,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private static class PruningCollector extends Collector {
 
         private final Collector delegate;
-        private final DisiPriorityQueue pq;
+        private final DisiPriorityQueue queue;
+        private final DocIdSetIterator competitiveIterator;
 
         PruningCollector(Collector delegate, TermsEnum terms, LeafReaderContext ctx, SearchContext context, String field)
             throws IOException {
@@ -255,10 +273,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 postingMap.put(term, scorer);
             }
 
-            this.pq = new DisiPriorityQueue(postingMap.size());
+            this.queue = new DisiPriorityQueue(postingMap.size());
             for (Map.Entry<BytesRef, Scorer> entry : postingMap.entrySet()) {
-                pq.add(new DisiWrapper(entry.getValue()));
+                queue.add(new DisiWrapper(entry.getValue()));
             }
+
+            competitiveIterator = new DisjunctionDISI(queue);
         }
 
         @Override
@@ -269,11 +289,26 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         @Override
         public void collect(int doc, long owningBucketOrd) throws IOException {
             delegate.collect(doc, owningBucketOrd);
+            prune(doc);
+        }
+
+        /**
+         * Note: the queue may be empty or the queue top may be null after pruning
+         */
+        private void prune(int doc) {
+            DisiWrapper top = queue.top();
+            int curTopDoc = top.doc;
+            if (curTopDoc == doc) {
+                do {
+                    queue.pop();
+                    top = queue.updateTop();
+                } while (queue.size() > 1 && top.doc == curTopDoc);
+            }
         }
 
         @Override
         public DocIdSetIterator competitiveIterator() {
-            return new DisjunctionDISIWithPruning(pq);
+            return competitiveIterator;
         }
 
         @Override
@@ -282,50 +317,53 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
     }
 
-    private static class DisjunctionDISIWithPruning extends DocIdSetIterator {
+    /**
+     * This DISI is a disjunction of all terms in a segment
+     * And it will be the competitive iterator of the leaf pruning collector
+     * After pruning done after collect, queue top doc may exceed the next doc of (lead) iterator
+     * To still providing a docID slower than the lead iterator for the next iteration
+     * We keep track of a slowDocId that will be updated later during advance
+     */
+    private static class DisjunctionDISI extends DocIdSetIterator {
+        private final DisiPriorityQueue queue;
+        private int slowDocId = -1;
 
-        final DisiPriorityQueue queue;
-
-        public DisjunctionDISIWithPruning(DisiPriorityQueue queue) {
+        public DisjunctionDISI(DisiPriorityQueue queue) {
             this.queue = queue;
         }
 
         @Override
         public int docID() {
-            return queue.top().doc;
+            return slowDocId;
         }
 
-        @Override
-        public int nextDoc() throws IOException {
-            // don't expect this to be called based on its usage in DefaultBulkScorer
-            throw new UnsupportedOperationException();
-        }
-
-        /**
-         * Aside from advancing to disi towards target
-         * Also perform the subScorer pruning here
-         * advance is performed after collecting the current document
-         * So we can safely remove the subScorers that are on current doc
-         */
         @Override
         public int advance(int target) throws IOException {
             DisiWrapper top = queue.top();
-            // don't do the pruning if this iterator hasn't been used yet
-            if (top.doc != -1) {
-                int curTopDoc = top.doc;
-                do {
-                    top.doc = top.approximation.advance(Integer.MAX_VALUE); // prune
-                    top = queue.updateTop();
-                } while (top.doc == curTopDoc); // there may be multiple subScorers on current doc
+            if (top == null) {
+                return slowDocId = NO_MORE_DOCS;
             }
 
-            if (top.doc >= target) return top.doc;
+            // This would be the outcome of last pruning
+            // this DISI's docID is already making to the target
+            if (top.doc >= target) {
+                slowDocId = top.doc;
+                return top.doc;
+            }
+
             do {
                 top.doc = top.approximation.advance(target);
                 top = queue.updateTop();
             } while (top.doc < target);
+            slowDocId = queue.size() == 0 ? NO_MORE_DOCS : queue.top().doc;
 
-            return top.doc;
+            return slowDocId;
+        }
+
+        @Override
+        public int nextDoc() {
+            // don't expect this to be called based on its usage in DefaultBulkScorer
+            throw new UnsupportedOperationException();
         }
 
         @Override
