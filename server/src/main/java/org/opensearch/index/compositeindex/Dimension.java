@@ -26,8 +26,4 @@ public class Dimension {
     public String getField() {
         return field;
     }
-
-    public void setDefaults(CompositeIndexSettings compositeIndexSettings) {
-        // no implementation
-    }
 }

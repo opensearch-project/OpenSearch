@@ -33,9 +33,9 @@ public class Metric {
         return metrics;
     }
 
-    public void setDefaults(CompositeIndexSettings compositeIndexSettings) {
+    public void setDefaults(CompositeIndexConfig compositeIndexConfig) {
         if (metrics.isEmpty()) {
-            metrics.addAll(compositeIndexSettings.getDefaultMetrics());
+            metrics.addAll(compositeIndexConfig.getDefaultMetrics());
         }
     }
 

@@ -24,28 +24,16 @@ import java.util.List;
 public class DateDimension extends Dimension {
     private final List<Rounding.DateTimeUnit> calendarIntervals;
 
-    public DateDimension(String name, Settings settings) {
+    public DateDimension(String name, Settings settings, CompositeIndexConfig compositeIndexConfig) {
         super(name);
         List<String> intervalStrings = settings.getAsList("calendar_interval");
         if (intervalStrings == null || intervalStrings.isEmpty()) {
-            this.calendarIntervals = new ArrayList<>();
+            this.calendarIntervals = compositeIndexConfig.getDefaultDateIntervals();
         } else {
             this.calendarIntervals = new ArrayList<>();
             for (String interval : intervalStrings) {
                 this.calendarIntervals.add(CompositeIndexConfig.getTimeUnit(interval));
             }
-        }
-    }
-
-    public DateDimension(String name, List<Rounding.DateTimeUnit> calendarIntervals) {
-        super(name);
-        this.calendarIntervals = calendarIntervals;
-    }
-
-    @Override
-    public void setDefaults(CompositeIndexSettings compositeIndexSettings) {
-        if (calendarIntervals.isEmpty()) {
-            this.calendarIntervals.addAll(compositeIndexSettings.getDefaultDateIntervals());
         }
     }
 

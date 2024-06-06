@@ -17,6 +17,4 @@ import org.opensearch.common.annotation.ExperimentalApi;
  */
 
 @ExperimentalApi
-public interface CompositeFieldSpec {
-    void setDefaults(CompositeIndexSettings compositeIndexSettings);
-}
+public interface CompositeFieldSpec {}

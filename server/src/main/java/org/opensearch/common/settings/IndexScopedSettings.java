@@ -51,6 +51,7 @@ import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.SearchSlowLog;
 import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.compositeindex.CompositeIndexConfig;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.FieldMapper;
@@ -238,6 +239,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Settings for concurrent segment search
                 IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING,
                 IndexSettings.ALLOW_DERIVED_FIELDS,
+
+                // Settings for composite index defaults
+                CompositeIndexConfig.STAR_TREE_DEFAULT_MAX_LEAF_DOCS,
+                CompositeIndexConfig.COMPOSITE_INDEX_MAX_DIMENSIONS_SETTING,
+                CompositeIndexConfig.COMPOSITE_INDEX_MAX_FIELDS_SETTING,
+                CompositeIndexConfig.DEFAULT_METRICS_LIST,
+                CompositeIndexConfig.DEFAULT_DATE_INTERVALS,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();
@@ -250,7 +259,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                     }
                 }, Property.IndexScope), // this allows similarity settings to be passed
                 Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
-                Setting.groupSetting("index.composite_index.", Property.IndexScope) // this allows composite index settings to be passed
+                Setting.groupSetting("index.composite_index.config.", Property.IndexScope) // this allows composite index settings to be
+                                                                                           // passed
             )
         )
     );
