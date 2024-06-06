@@ -412,7 +412,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, this::setMaxClauseCount);
-        
+
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
     }
