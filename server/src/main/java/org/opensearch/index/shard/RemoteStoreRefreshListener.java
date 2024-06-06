@@ -170,6 +170,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true if sync is needed
      */
     private boolean shouldSync(boolean didRefresh, boolean skipPrimaryTermCheck) {
+        // Ignore syncing segments if the underlying shard is closed
+        // This also makes sure that retries are not scheduled for shards
+        // with failed syncSegments invocation after they are closed
+        if (shardClosed()) {
+            logger.info("Shard is already closed. Not attempting sync to remote store");
+            return false;
+        }
         boolean shouldSync = didRefresh // If the readers change, didRefresh is always true.
             // The third condition exists for uploading the zero state segments where the refresh has not changed the reader
             // reference, but it is important to upload the zero state segments so that the restore does not break.
@@ -179,13 +186,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // Below check ensures that if there is commit, then that gets picked up by both 1st and 2nd shouldSync call.
             || isRefreshAfterCommitSafe()
             || isRemoteSegmentStoreInSync() == false;
-        // Ignore syncing segments if the underlying shard is closed
-        // This also makes sure that retries are not scheduled for shards
-        // with failed syncSegments invocation after they are closed
-        if (shardClosed()) {
-            logger.info("Shard is already closed, will stop scheduling retries");
-            return false;
-        }
         if (shouldSync || skipPrimaryTermCheck) {
             return shouldSync;
         }
