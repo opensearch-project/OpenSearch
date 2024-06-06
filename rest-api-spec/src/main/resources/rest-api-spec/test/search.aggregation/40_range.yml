@@ -14,6 +14,9 @@ setup:
                 date:
                   type: date
                   format: epoch_second
+                scaled_field:
+                  type: scaled_float
+                  scaling_factor: 100
 
   - do:
       cluster.health:
@@ -591,3 +594,68 @@ setup:
   - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
   - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 1 }
   - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }
+
+---
+"Scaled Float Range Aggregation":
+  - do:
+      index:
+        index: test
+        id: 1
+        body: { "scaled_field": 1 }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: { "scaled_field": 1.53 }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body: { "scaled_field": -2.1 }
+
+  - do:
+      index:
+        index: test
+        id: 4
+        body: { "scaled_field": 1.53 }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            my_range:
+              range:
+                field: scaled_field
+                ranges:
+                  - to: 0
+                  - from: 0
+                    to: 1
+                  - from: 1
+                    to: 1.5
+                  - from: 1.5
+
+  - length: { aggregations.my_range.buckets: 4 }
+
+  - match: { aggregations.my_range.buckets.0.key: "*-0.0" }
+  - is_false: aggregations.my_range.buckets.0.from
+  - match: { aggregations.my_range.buckets.0.to: 0.0 }
+  - match: { aggregations.my_range.buckets.0.doc_count: 1 }
+  - match: { aggregations.my_range.buckets.1.key: "0.0-1.0" }
+  - match: { aggregations.my_range.buckets.1.from: 0.0 }
+  - match: { aggregations.my_range.buckets.1.to: 1.0 }
+  - match: { aggregations.my_range.buckets.1.doc_count: 0 }
+  - match: { aggregations.my_range.buckets.2.key: "1.0-1.5" }
+  - match: { aggregations.my_range.buckets.2.from: 1.0 }
+  - match: { aggregations.my_range.buckets.2.to: 1.5 }
+  - match: { aggregations.my_range.buckets.2.doc_count: 1 }
+  - match: { aggregations.my_range.buckets.3.key: "1.5-*" }
+  - match: { aggregations.my_range.buckets.3.from: 1.5 }
+  - is_false:  aggregations.my_range.buckets.3.to
+  - match: { aggregations.my_range.buckets.3.doc_count: 2 }

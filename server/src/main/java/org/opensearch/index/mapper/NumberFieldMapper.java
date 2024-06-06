@@ -1394,6 +1394,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return type.name;
         }
 
+        public NumberType numberType() {
+            return type;
+        }
+
         public NumericType numericType() {
             return type.numericType();
         }
