@@ -73,7 +73,6 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.index.compositeindex.CompositeIndexConfig;
-import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
@@ -227,7 +226,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        CompositeIndexSettings compositeIndexSettings
+        BooleanSupplier isCompositeIndexCreationEnabled
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -267,8 +266,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
 
             if (indexSettings.getCompositeIndexConfig().hasCompositeFields()) {
+                // The validation is done right after the merge of the mapping later in the process ( similar to sort )
                 this.compositeIndexConfigSupplier = () -> indexSettings.getCompositeIndexConfig()
-                    .validateAndGetCompositeIndexConfig(mapperService::fieldType, compositeIndexSettings);
+                    .validateAndGetCompositeIndexConfig(mapperService::fieldType, isCompositeIndexCreationEnabled);
             } else {
                 this.compositeIndexConfigSupplier = () -> null;
             }

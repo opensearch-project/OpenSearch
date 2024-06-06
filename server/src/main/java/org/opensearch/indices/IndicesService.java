@@ -74,6 +74,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -106,7 +107,6 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
-import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
@@ -308,6 +308,25 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * This cluster level setting determines whether composite index is enabled or not
+     */
+    public static final Setting<Boolean> COMPOSITE_INDEX_ENABLED_SETTING = Setting.boolSetting(
+        "indices.composite_index.enabled",
+        false,
+        value -> {
+            if (FeatureFlags.isEnabled(FeatureFlags.COMPOSITE_INDEX_SETTING) == false && value == true) {
+                throw new IllegalArgumentException(
+                    "star tree index is under an experimental feature and can be activated only by enabling "
+                        + FeatureFlags.COMPOSITE_INDEX_SETTING.getKey()
+                        + " feature flag in the JVM options"
+                );
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;
@@ -355,7 +374,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private volatile TimeValue clusterDefaultRefreshInterval;
     private final SearchRequestStats searchRequestStats;
-    private final CompositeIndexSettings compositeIndexSettings;
+    private volatile boolean compositeIndexCreationEnabled;
 
     @Override
     protected void doStart() {
@@ -390,8 +409,7 @@ public class IndicesService extends AbstractLifecycleComponent
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         RecoverySettings recoverySettings,
         CacheService cacheService,
-        RemoteStoreSettings remoteStoreSettings,
-        CompositeIndexSettings compositeIndexSettings
+        RemoteStoreSettings remoteStoreSettings
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -443,6 +461,8 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(COMPOSITE_INDEX_ENABLED_SETTING, this::setCompositeIndexCreationEnabled);
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -498,7 +518,6 @@ public class IndicesService extends AbstractLifecycleComponent
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING, this::onRefreshIntervalUpdate);
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
-        this.compositeIndexSettings = compositeIndexSettings;
     }
 
     /**
@@ -908,7 +927,7 @@ public class IndicesService extends AbstractLifecycleComponent
             this::getClusterDefaultRefreshInterval,
             this.recoverySettings,
             this.remoteStoreSettings,
-            this.compositeIndexSettings
+            this::isCompositeIndexCreationEnabled
         );
     }
 
@@ -1899,6 +1918,14 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private void setIdFieldDataEnabled(boolean value) {
         this.idFieldDataEnabled = value;
+    }
+
+    private void setCompositeIndexCreationEnabled(boolean value) {
+        this.compositeIndexCreationEnabled = value;
+    }
+
+    public boolean isCompositeIndexCreationEnabled() {
+        return compositeIndexCreationEnabled;
     }
 
     private void updateDanglingIndicesInfo(Index index) {

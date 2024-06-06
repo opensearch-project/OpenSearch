@@ -114,7 +114,6 @@ import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
-import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
@@ -748,13 +747,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA,
 
-                // Composite index settings
-                CompositeIndexSettings.COMPOSITE_INDEX_ENABLED_SETTING,
-                CompositeIndexSettings.COMPOSITE_INDEX_MAX_FIELDS_SETTING,
-                CompositeIndexSettings.COMPOSITE_INDEX_MAX_DIMENSIONS_SETTING,
-                CompositeIndexSettings.STAR_TREE_DEFAULT_MAX_LEAF_DOCS,
-                CompositeIndexSettings.DEFAULT_METRICS_LIST,
-                CompositeIndexSettings.DEFAULT_DATE_INTERVALS
+                // Composite index setting
+                IndicesService.COMPOSITE_INDEX_ENABLED_SETTING
             )
         )
     );

@@ -63,11 +63,4 @@ public class StarTreeFieldSpec implements CompositeFieldSpec {
     public int maxLeafDocs() {
         return maxLeafDocs.get();
     }
-
-    @Override
-    public void setDefaults(CompositeIndexSettings compositeIndexSettings) {
-        if (maxLeafDocs.get() == Integer.MAX_VALUE) {
-            maxLeafDocs.set(compositeIndexSettings.getMaxLeafDocs());
-        }
-    }
 }
