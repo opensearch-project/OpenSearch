@@ -11,7 +11,10 @@ package org.opensearch.index.translog.transfer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.ByteBuffersDataInput;
+import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
@@ -24,8 +27,10 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
 import org.opensearch.index.translog.ChannelFactory;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
@@ -36,6 +41,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -113,10 +119,10 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadBlobAsync(
+    public void uploadBlob(
         InputStream inputStream,
         Iterable<String> remotePath,
-        String blobName,
+        String fileName,
         WritePriority writePriority,
         ActionListener<Void> listener
     ) throws IOException {
@@ -124,13 +130,19 @@ public class BlobStoreTransferService implements TransferService {
         BlobPath blobPath = (BlobPath) remotePath;
         final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
         if (blobContainer instanceof AsyncMultiStreamBlobContainer == false) {
-            blobContainer.writeBlob(blobName, inputStream, inputStream.available(), false);
+            blobContainer.writeBlob(fileName, inputStream, inputStream.available(), false);
             listener.onResponse(null);
             return;
         }
-        final String resourceDescription = "BlobStoreTransferService.uploadBlob(blob=\"" + blobName + "\")";
-        byte[] bytes = inputStream.readAllBytes();
-        try (IndexInput input = new ByteArrayIndexInput(resourceDescription, bytes)) {
+        final String resourceDescription = "BlobStoreTransferService.uploadBlob(blob=\"" + fileName + "\")";
+        try (
+            IndexInput input = inputStream.available() > 0
+                ? new ByteBuffersIndexInput(
+                    new ByteBuffersDataInput(Arrays.asList(BytesReference.toByteBuffers(Streams.readFully(inputStream)))),
+                    resourceDescription
+                )
+                : new ByteArrayIndexInput(resourceDescription, BytesRef.EMPTY_BYTES)
+        ) {
             long expectedChecksum;
             try {
                 expectedChecksum = checksumOfChecksum(input.clone(), 8);
@@ -143,16 +155,16 @@ public class BlobStoreTransferService implements TransferService {
                 );
             }
 
-            asyncBlobUpload(
-                blobName,
-                blobName,
-                bytes.length,
+            uploadBlobAsyncInternal(
+                fileName,
+                fileName,
+                inputStream.available(),
                 blobPath,
                 writePriority,
                 (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
                 expectedChecksum,
-                null,
-                listener
+                listener,
+                null
             );
         }
     }
@@ -205,7 +217,7 @@ public class BlobStoreTransferService implements TransferService {
             });
 
             Objects.requireNonNull(fileSnapshot.getChecksum());
-            asyncBlobUpload(
+            uploadBlobAsyncInternal(
                 fileSnapshot.getName(),
                 fileSnapshot.getName(),
                 contentLength,
@@ -213,8 +225,8 @@ public class BlobStoreTransferService implements TransferService {
                 writePriority,
                 (size, position) -> new OffsetRangeFileInputStream(fileSnapshot.getPath(), size, position),
                 fileSnapshot.getChecksum(),
-                metadata,
-                completionListener
+                completionListener,
+                metadata
             );
 
         } catch (Exception e) {
@@ -230,7 +242,7 @@ public class BlobStoreTransferService implements TransferService {
 
     }
 
-    private void asyncBlobUpload(
+    private void uploadBlobAsyncInternal(
         String fileName,
         String remoteFileName,
         long contentLength,
@@ -238,8 +250,8 @@ public class BlobStoreTransferService implements TransferService {
         WritePriority writePriority,
         RemoteTransferContainer.OffsetRangeInputStreamSupplier inputStreamSupplier,
         long expectedChecksum,
-        Map<String, String> metadata,
-        ActionListener<Void> completionListener
+        ActionListener<Void> completionListener,
+        Map<String, String> metadata
     ) throws IOException {
         BlobContainer blobContainer = blobStore.blobContainer(blobPath);
         assert blobContainer instanceof AsyncMultiStreamBlobContainer;

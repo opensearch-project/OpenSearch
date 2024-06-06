@@ -186,7 +186,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
                 resp -> listener.onResponse(testObject),
                 ex -> listener.onFailure(ex)
             );
-            transferService.uploadBlobAsync(inputStream, repository.basePath(), "test-object", WritePriority.URGENT, completionListener);
+            transferService.uploadBlob(inputStream, repository.basePath(), "test-object", WritePriority.URGENT, completionListener);
             assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
             assertTrue(succeeded.get());
         }

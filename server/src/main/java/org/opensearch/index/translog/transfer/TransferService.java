@@ -75,7 +75,7 @@ public interface TransferService {
      * @param listener the callback to be invoked once uploads complete successfully/fail
      * @throws IOException the exception thrown while uploading
      */
-    void uploadBlobAsync(
+    void uploadBlob(
         InputStream inputStream,
         Iterable<String> remotePath,
         String blobName,
