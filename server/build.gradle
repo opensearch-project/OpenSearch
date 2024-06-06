@@ -96,9 +96,9 @@ dependencies {
   api "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
-  api 'com.tdunning:t-digest:3.2'
-  // precentil ranks aggregation
-  api 'org.hdrhistogram:HdrHistogram:2.2.1'
+  api "com.tdunning:t-digest:${versions.tdigest}"
+  // percentile ranks aggregation
+  api "org.hdrhistogram:HdrHistogram:${versions.hdrhistogram}"
 
   // lucene spatial
   api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
