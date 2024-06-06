@@ -180,7 +180,7 @@ public class RecoverySettings {
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "indices.recovery.chunk_size",
         new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES),
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),
+        new ByteSizeValue(1, ByteSizeUnit.BYTES),
         new ByteSizeValue(100 * 1024 * 1024, ByteSizeUnit.BYTES),
         Property.Dynamic,
         Property.NodeScope
