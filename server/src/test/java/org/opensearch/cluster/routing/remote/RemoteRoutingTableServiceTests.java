@@ -250,7 +250,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertEquals(1, diff.getUpserts().size());
         assertNotNull(diff.getUpserts().get(indexName));
         assertEquals(noOfShards, diff.getUpserts().get(indexName).getShards().size());
-        assertEquals(noOfReplicas +1, diff.getUpserts().get(indexName).getShards().get(0).getSize());
+        assertEquals(noOfReplicas + 1, diff.getUpserts().get(indexName).getShards().get(0).getSize());
         assertEquals(0, diff.getDeletes().size());
     }
 
