@@ -398,10 +398,9 @@ public class Cache<K, V> {
         if (entry == null) {
             return null;
         } else {
-            List<RemovalNotification<K, V>> removalNotifications = promote(entry,
-                now).v2();
+            List<RemovalNotification<K, V>> removalNotifications = promote(entry, now).v2();
             if (!removalNotifications.isEmpty()) {
-                for (RemovalNotification<K, V> removalNotification: removalNotifications) {
+                for (RemovalNotification<K, V> removalNotification : removalNotifications) {
                     removalListener.onRemoval(removalNotification);
                 }
             }
@@ -459,7 +458,7 @@ public class Cache<K, V> {
                     removalNotifications = promote(ok, now).v2();
                 }
                 if (!removalNotifications.isEmpty()) {
-                    for (RemovalNotification<K, V> removalNotification: removalNotifications) {
+                    for (RemovalNotification<K, V> removalNotification : removalNotifications) {
                         removalListener.onRemoval(removalNotification);
                     }
                 }
@@ -539,7 +538,7 @@ public class Cache<K, V> {
             removalNotifications.add(new RemovalNotification<>(tuple.v2().key, tuple.v2().value, RemovalReason.REPLACED));
         }
         if (!removalNotifications.isEmpty()) {
-            for (RemovalNotification<K, V> removalNotification: removalNotifications) {
+            for (RemovalNotification<K, V> removalNotification : removalNotifications) {
                 removalListener.onRemoval(removalNotification);
             }
         }
@@ -795,8 +794,7 @@ public class Cache<K, V> {
      * @return Returns a tuple. v1 signifies whether an entry got promoted, v2 signifies the list of removal
      * notifications that the callers needs to handle.
      */
-    private Tuple<Boolean, List<RemovalNotification<K, V>>> promote(Entry<K, V> entry,
-                                                                    long now) {
+    private Tuple<Boolean, List<RemovalNotification<K, V>>> promote(Entry<K, V> entry, long now) {
         boolean promoted = true;
         List<RemovalNotification<K, V>> removalNotifications = new ArrayList<>();
         try (ReleasableLock ignored = lruLock.acquire()) {
@@ -819,8 +817,9 @@ public class Cache<K, V> {
                         segment.remove(entryToBeRemoved.key, entryToBeRemoved.value, f -> {});
                     }
                     if (unlink(entryToBeRemoved)) {
-                        removalNotifications.add(new RemovalNotification<>(entryToBeRemoved.key, entryToBeRemoved.value,
-                            RemovalReason.EVICTED));
+                        removalNotifications.add(
+                            new RemovalNotification<>(entryToBeRemoved.key, entryToBeRemoved.value, RemovalReason.EVICTED)
+                        );
                     }
                 }
             }
