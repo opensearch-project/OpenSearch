@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -208,7 +209,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
         PersistedStateRegistry persistedStateRegistry,
-        RemoteStoreNodeService remoteStoreNodeService
+        RemoteStoreNodeService remoteStoreNodeService,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -262,14 +264,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this::handlePublishRequest,
             this::handleApplyCommit
         );
-        this.leaderChecker = new LeaderChecker(settings, clusterSettings, transportService, this::onLeaderFailure, nodeHealthService);
+        this.leaderChecker = new LeaderChecker(
+            settings,
+            clusterSettings,
+            transportService,
+            this::onLeaderFailure,
+            nodeHealthService,
+            clusterManagerMetrics
+        );
         this.followersChecker = new FollowersChecker(
             settings,
             clusterSettings,
             transportService,
             this::onFollowerCheckRequest,
             this::removeNode,
-            nodeHealthService
+            nodeHealthService,
+            clusterManagerMetrics
         );
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
