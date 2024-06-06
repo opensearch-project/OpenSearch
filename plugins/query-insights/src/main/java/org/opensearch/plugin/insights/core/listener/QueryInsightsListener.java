@@ -16,7 +16,6 @@ import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
@@ -153,18 +152,16 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             // Get internal computed and user provided labels
             Map<String, Object> labels = new HashMap<>();
             // Retrieve user provided label if exists
-            ThreadContext threadContext = threadPool.getThreadContext();
-            String userProvidedLabel = threadContext.getRequestHeadersOnly().get(Task.X_OPAQUE_ID);
+            String userProvidedLabel = RequestLabelingService.getUserProvidedTag(threadPool);
             if (userProvidedLabel != null) {
                 labels.put(Task.X_OPAQUE_ID, userProvidedLabel);
             }
             // Retrieve computed labels if exists
-            Map<String, Object> computedLabels = threadContext.getTransient(RequestLabelingService.COMPUTED_LABELS);
+            Map<String, Object> computedLabels = RequestLabelingService.getRuleBasedLabels(threadPool);
             if (computedLabels != null) {
                 labels.putAll(computedLabels);
             }
             attributes.put(Attribute.LABELS, labels);
-
             // construct SearchQueryRecord from attributes and measurements
             SearchQueryRecord record = new SearchQueryRecord(request.getOrCreateAbsoluteStartMillis(), measurements, attributes);
             queryInsightsService.addRecord(record);

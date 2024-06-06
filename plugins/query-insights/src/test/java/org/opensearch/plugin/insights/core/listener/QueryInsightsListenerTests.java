@@ -19,7 +19,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.core.service.TopQueriesService;
+import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
+import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
@@ -35,9 +37,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -70,11 +75,12 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         when(queryInsightsService.getTopQueriesService(MetricType.LATENCY)).thenReturn(topQueriesService);
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.setHeaders(new Tuple<>(Collections.singletonMap(Task.X_OPAQUE_ID, "test"), new HashMap<>()));
-        threadContext.putTransient(RequestLabelingService.COMPUTED_LABELS, Map.of("a", "b"));
+        threadContext.setHeaders(new Tuple<>(Collections.singletonMap(Task.X_OPAQUE_ID, "userLabel"), new HashMap<>()));
+        threadContext.putTransient(RequestLabelingService.RULE_BASED_LABELS, Map.of("labelKey", "labelValue"));
         when(threadPool.getThreadContext()).thenReturn(threadContext);
     }
 
+    @SuppressWarnings("unchecked")
     public void testOnRequestEnd() throws InterruptedException {
         Long timestamp = System.currentTimeMillis() - 100L;
         SearchType searchType = SearchType.QUERY_THEN_FETCH;
@@ -101,10 +107,19 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         when(searchRequestContext.phaseTookMap()).thenReturn(phaseLatencyMap);
         when(searchPhaseContext.getRequest()).thenReturn(searchRequest);
         when(searchPhaseContext.getNumShards()).thenReturn(numberOfShards);
+        ArgumentCaptor<SearchQueryRecord> captor = ArgumentCaptor.forClass(SearchQueryRecord.class);
 
         queryInsightsListener.onRequestEnd(searchPhaseContext, searchRequestContext);
 
-        verify(queryInsightsService, times(1)).addRecord(any());
+        verify(queryInsightsService, times(1)).addRecord(captor.capture());
+        SearchQueryRecord generatedRecord = captor.getValue();
+        assertEquals(timestamp.longValue(), generatedRecord.getTimestamp());
+        assertEquals(numberOfShards, generatedRecord.getAttributes().get(Attribute.TOTAL_SHARDS));
+        assertEquals(searchType.toString().toLowerCase(Locale.ROOT), generatedRecord.getAttributes().get(Attribute.SEARCH_TYPE));
+        assertEquals(searchSourceBuilder.toString(), generatedRecord.getAttributes().get(Attribute.SOURCE));
+        Map<String, String> labels = (Map<String, String>) generatedRecord.getAttributes().get(Attribute.LABELS);
+        assertEquals("labelValue", labels.get("labelKey"));
+        assertEquals("userLabel", labels.get(Task.X_OPAQUE_ID));
     }
 
     public void testConcurrentOnRequestEnd() throws InterruptedException {

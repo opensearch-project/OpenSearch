@@ -8,7 +8,6 @@
 
 package org.opensearch.search.labels;
 
-import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
 
@@ -29,7 +28,4 @@ public final class SearchRequestLabelingListener extends SearchRequestOperations
         // add tags to search request
         requestLabelingService.applyAllRules(searchRequestContext.getRequest());
     }
-
-    @Override
-    public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 }

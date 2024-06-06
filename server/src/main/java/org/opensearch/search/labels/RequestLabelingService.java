@@ -14,6 +14,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -25,40 +26,13 @@ public class RequestLabelingService {
     /**
      * Field name for computed labels
      */
-    public static final String COMPUTED_LABELS = "computed_labels";
+    public static final String RULE_BASED_LABELS = "rule_based_labels";
     private final ThreadPool threadPool;
     private final List<Rule> rules;
 
     public RequestLabelingService(final ThreadPool threadPool, final List<Rule> rules) {
         this.threadPool = threadPool;
         this.rules = rules;
-    }
-
-    /**
-     * Get all the existing rules
-     *
-     * @return list of existing rules
-     */
-    public List<Rule> getRules() {
-        return rules;
-    }
-
-    /**
-     * Add a labeling rule to the service
-     *
-     * @param rule {@link Rule}
-     */
-    public void addRule(final Rule rule) {
-        this.rules.add(rule);
-    }
-
-    /**
-     * Get the user provided tag from the X-Opaque-Id header
-     *
-     * @return user provided tag
-     */
-    public String getUserProvidedTag() {
-        return threadPool.getThreadContext().getRequestHeadersOnly().getOrDefault(Task.X_OPAQUE_ID, null);
     }
 
     /**
@@ -71,6 +45,25 @@ public class RequestLabelingService {
             .map(rule -> rule.evaluate(threadPool.getThreadContext(), searchRequest))
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> replacement));
-        threadPool.getThreadContext().putTransient(COMPUTED_LABELS, labels);
+        String userProvidedTag = getUserProvidedTag(threadPool);
+        if (labels.containsKey(Task.X_OPAQUE_ID) && userProvidedTag.equals(labels.get(Task.X_OPAQUE_ID))) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Unexpected label %s found: %s", Task.X_OPAQUE_ID, userProvidedTag)
+            );
+        }
+        threadPool.getThreadContext().putTransient(RULE_BASED_LABELS, labels);
+    }
+
+    /**
+     * Get the user provided tag from the X-Opaque-Id header
+     *
+     * @return user provided tag
+     */
+    public static String getUserProvidedTag(ThreadPool threadPool) {
+        return threadPool.getThreadContext().getRequestHeadersOnly().getOrDefault(Task.X_OPAQUE_ID, null);
+    }
+
+    public static Map<String, Object> getRuleBasedLabels(ThreadPool threadPool) {
+        return threadPool.getThreadContext().getTransient(RequestLabelingService.RULE_BASED_LABELS);
     }
 }

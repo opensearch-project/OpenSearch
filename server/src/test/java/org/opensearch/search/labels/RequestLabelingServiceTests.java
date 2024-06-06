@@ -42,18 +42,10 @@ public class RequestLabelingServiceTests extends OpenSearchTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
     }
 
-    public void testAddRule() {
-        Rule mockRule = mock(Rule.class);
-        requestLabelingService.addRule(mockRule);
-        List<Rule> rules = requestLabelingService.getRules();
-        assertEquals(1, rules.size());
-        assertEquals(mockRule, rules.get(0));
-    }
-
     public void testGetUserProvidedTag() {
         String expectedTag = "test-tag";
         threadContext.setHeaders(new Tuple<>(Collections.singletonMap(Task.X_OPAQUE_ID, expectedTag), new HashMap<>()));
-        String actualTag = requestLabelingService.getUserProvidedTag();
+        String actualTag = RequestLabelingService.getUserProvidedTag(threadPool);
         assertEquals(expectedTag, actualTag);
     }
 
@@ -63,7 +55,7 @@ public class RequestLabelingServiceTests extends OpenSearchTestCase {
         when(mockRule1.evaluate(threadContext, mockSearchRequest)).thenReturn(mockLabelMap);
         rules.add(mockRule1);
         requestLabelingService.applyAllRules(mockSearchRequest);
-        Map<String, Object> computedLabels = threadContext.getTransient(RequestLabelingService.COMPUTED_LABELS);
+        Map<String, Object> computedLabels = threadContext.getTransient(RequestLabelingService.RULE_BASED_LABELS);
         assertEquals(1, computedLabels.size());
         assertEquals("value1", computedLabels.get("label1"));
     }
@@ -77,7 +69,7 @@ public class RequestLabelingServiceTests extends OpenSearchTestCase {
         rules.add(mockRule1);
         rules.add(mockRule2);
         requestLabelingService.applyAllRules(mockSearchRequest);
-        Map<String, Object> computedLabels = threadContext.getTransient(RequestLabelingService.COMPUTED_LABELS);
+        Map<String, Object> computedLabels = threadContext.getTransient(RequestLabelingService.RULE_BASED_LABELS);
         assertEquals(1, computedLabels.size());
         assertEquals("value2", computedLabels.get("conflictingLabel"));
     }
@@ -91,7 +83,7 @@ public class RequestLabelingServiceTests extends OpenSearchTestCase {
         rules.add(mockRule1);
         rules.add(mockRule2);
         requestLabelingService.applyAllRules(mockSearchRequest);
-        Map<String, Object> computedLabels = threadContext.getTransient(RequestLabelingService.COMPUTED_LABELS);
+        Map<String, Object> computedLabels = threadContext.getTransient(RequestLabelingService.RULE_BASED_LABELS);
         assertEquals(2, computedLabels.size());
         assertEquals("value1", computedLabels.get("label1"));
         assertEquals("value2", computedLabels.get("label2"));
