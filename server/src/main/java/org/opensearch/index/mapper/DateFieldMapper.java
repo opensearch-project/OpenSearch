@@ -550,6 +550,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public void encodePoint(Number value, byte[] point) {
+            LongPoint.encodeDimension(value.longValue(), point, 0);
+        }
+
+        @Override
+        public int pointNumBytes() {
+            return Long.BYTES;
+        }
+
+        @Override
         public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);

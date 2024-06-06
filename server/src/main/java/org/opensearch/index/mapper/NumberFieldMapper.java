@@ -195,6 +195,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public void encodePoint(Number value, byte[] point) {
+                HalfFloatPoint.encodeDimension(value.floatValue(), point, 0);
+            }
+
+            @Override
+            public int pointNumBytes() {
+                return Float.BYTES / 2;
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -332,6 +342,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public void encodePoint(Number value, byte[] point) {
+                FloatPoint.encodeDimension(value.floatValue(), point, 0);
+            }
+
+            @Override
+            public int pointNumBytes() {
+                return Float.BYTES;
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -455,6 +475,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return DoublePoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public void encodePoint(Number value, byte[] point) {
+                DoublePoint.encodeDimension((double) value, point, 0);
+            }
+
+            @Override
+            public int pointNumBytes() {
+                return Double.BYTES;
             }
 
             @Override
@@ -583,6 +613,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public void encodePoint(Number value, byte[] point) {
+                IntPoint.encodeDimension(value.intValue(), point, 0);
+            }
+
+            @Override
+            public int pointNumBytes() {
+                return Integer.BYTES;
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -655,6 +695,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public void encodePoint(Number value, byte[] point) {
+                IntPoint.encodeDimension(value.intValue(), point, 0);
+            }
+
+            @Override
+            public int pointNumBytes() {
+                return Integer.BYTES;
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.shortValue(coerce);
             }
@@ -720,6 +770,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return IntPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public void encodePoint(Number value, byte[] point) {
+                IntPoint.encodeDimension(value.intValue(), point, 0);
+            }
+
+            @Override
+            public int pointNumBytes() {
+                return Integer.BYTES;
             }
 
             @Override
@@ -869,6 +929,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public void encodePoint(Number value, byte[] point) {
+                LongPoint.encodeDimension(value.longValue(), point, 0);
+            }
+
+            @Override
+            public int pointNumBytes() {
+                return Long.BYTES;
+            }
+
+            @Override
             public Long parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.longValue(coerce);
             }
@@ -986,6 +1056,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return BigIntegerPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public void encodePoint(Number value, byte[] point) {
+                BigIntegerPoint.encodeDimension(objectToUnsignedLong(value, false), point, 0);
+            }
+
+            @Override
+            public int pointNumBytes() {
+                return BigIntegerPoint.BYTES;
             }
 
             @Override
@@ -1134,6 +1214,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         public abstract Number parse(Object value, boolean coerce);
 
         public abstract Number parsePoint(byte[] value);
+
+        public abstract void encodePoint(Number value, byte[] point);
+
+        public abstract int pointNumBytes();
 
         public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
 
@@ -1504,6 +1588,16 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
+        }
+
+        @Override
+        public void encodePoint(Number value, byte[] point) {
+            type.encodePoint(value, point);
+        }
+
+        @Override
+        public int pointNumBytes() {
+            return type.pointNumBytes();
         }
     }
 

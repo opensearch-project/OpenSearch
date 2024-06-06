@@ -537,7 +537,11 @@ public abstract class MappedFieldType {
         return textSearchInfo;
     }
 
-    public double getScalingFactor() {
-        throw new IllegalCallerException("Field [" + name() + "] of type [" + typeName() + "] does not support scaling factor");
+    public void encodePoint(Number value, byte[] point) {
+        throw new IllegalCallerException("Field [" + name() + "] of type [" + typeName() + "] does not support encoding points");
+    }
+
+    public int pointNumBytes() {
+        throw new IllegalCallerException("Field [" + name() + "] of type [" + typeName() + "] does not support encoding points");
     }
 }

@@ -10,16 +10,11 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.DoublePoint;
-import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.sandbox.document.BigIntegerPoint;
-import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -49,8 +44,6 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -452,6 +445,14 @@ public final class FastFilterRewriteHelper {
 
             return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
         }
+
+        private static long getBucketOrd(long bucketOrd) {
+            if (bucketOrd < 0) { // already seen
+                bucketOrd = -1 - bucketOrd;
+            }
+
+            return bucketOrd;
+        }
     }
 
     /**
@@ -461,7 +462,6 @@ public final class FastFilterRewriteHelper {
 
         private final ValuesSourceConfig config;
         private final Range[] ranges;
-        private FieldTypeEnum fieldTypeEnum;
 
         public RangeAggregationType(ValuesSourceConfig config, Range[] ranges) {
             this.config = config;
@@ -470,17 +470,11 @@ public final class FastFilterRewriteHelper {
 
         @Override
         public boolean isRewriteable(Object parent, int subAggLength) {
-            if (parent == null && subAggLength == 0 && config.script() == null && config.missing() == null) {
-                try {
-                    fieldTypeEnum = FieldTypeEnum.fromTypeName(config.fieldType().typeName());
-                    if (fieldTypeEnum.isScaled()) {
-                        // make sure we can safely get scaling factor later on
-                        config.fieldType().getScalingFactor();
-                    }
-                } catch (Exception e) {
-                    return false;
-                }
+            if (config.fieldType() == null) return false;
+            MappedFieldType fieldType = config.fieldType();
+            if (fieldType.isSearchable() == false) return false;
 
+            if (parent == null && subAggLength == 0 && config.script() == null && config.missing() == null) {
                 if (config.getValuesSource() instanceof ValuesSource.Numeric.FieldData) {
                     // ranges are already sorted by from and then to
                     // we want ranges not overlapping with each other
@@ -499,108 +493,21 @@ public final class FastFilterRewriteHelper {
 
         @Override
         public Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) {
-            int byteLen = this.fieldTypeEnum.getByteLen();
-            String pointType = this.fieldTypeEnum.getPointType();
-
-            byte[][] mins = new byte[ranges.length][];
-            byte[][] maxs = new byte[ranges.length][];
+            int byteLen = fieldType.pointNumBytes();
+            byte[][] lowers = new byte[ranges.length][];
+            byte[][] uppers = new byte[ranges.length][];
             for (int i = 0; i < ranges.length; i++) {
                 double rangeMin = ranges[i].getFrom();
                 double rangeMax = ranges[i].getTo();
-                byte[] min = new byte[byteLen];
-                byte[] max = new byte[byteLen];
-                switch (pointType) {
-                    case "half_float":
-                        HalfFloatPoint.encodeDimension((float) rangeMin, min, 0);
-                        HalfFloatPoint.encodeDimension((float) rangeMax, max, 0);
-                        break;
-                    case "float":
-                        FloatPoint.encodeDimension((float) rangeMin, min, 0);
-                        FloatPoint.encodeDimension((float) rangeMax, max, 0);
-                        break;
-                    case "double":
-                        DoublePoint.encodeDimension(rangeMin, min, 0);
-                        DoublePoint.encodeDimension(rangeMax, max, 0);
-                        break;
-                    case "int":
-                        IntPoint.encodeDimension((int) rangeMin, min, 0);
-                        IntPoint.encodeDimension((int) rangeMax, max, 0);
-                        break;
-                    case "long":
-                        if (this.fieldTypeEnum.isScaled()) {
-                            double scalingFactor = fieldType.getScalingFactor();
-                            rangeMin = scalingFactor * rangeMin;
-                            rangeMax = scalingFactor * rangeMax;
-                        }
-                        LongPoint.encodeDimension((long) rangeMin, min, 0);
-                        LongPoint.encodeDimension((long) rangeMax, max, 0);
-                        break;
-                    case "big_integer":
-                        BigIntegerPoint.encodeDimension(convertDoubleToBigInteger(rangeMin), min, 0);
-                        BigIntegerPoint.encodeDimension(convertDoubleToBigInteger(rangeMax), max, 0);
-                        break;
-                }
-
-                mins[i] = min;
-                maxs[i] = max;
+                byte[] lower = new byte[byteLen];
+                byte[] upper = new byte[byteLen];
+                fieldType.encodePoint(rangeMin, lower);
+                fieldType.encodePoint(rangeMax, upper);
+                lowers[i] = lower;
+                uppers[i] = upper;
             }
 
-            return new Ranges(mins, maxs, byteLen);
-        }
-
-        private enum FieldTypeEnum {
-            HALF_FLOAT("half_float", 2, "half_float"),
-            INTEGER("integer", 4, "int"),
-            SHORT("short", 4, "int"),
-            BYTE("byte", 4, "int"),
-            FLOAT("float", 4, "float"),
-            LONG("long", 8, "long"),
-            DATE("date", 8, "long"),
-            DATE_NANOS("date_nanos", 8, "long"),
-            DOUBLE("double", 8, "double"),
-            UNSIGNED_LONG("unsigned_long", 16, "big_integer"),
-            SCALED_FLOAT("scaled_float", 8, "long", true);
-
-            private final String typeName;
-            private final int byteLen;
-            private final String pointType;
-            private final boolean scaled;
-
-            FieldTypeEnum(String typeName, int byteLen, String pointType) {
-                this(typeName, byteLen, pointType, false);
-            }
-
-            FieldTypeEnum(String typeName, int byteLen, String pointType, boolean scaled) {
-                this.typeName = typeName;
-                this.byteLen = byteLen;
-                this.pointType = pointType;
-                this.scaled = scaled;
-            }
-
-            String getTypeName() {
-                return typeName;
-            }
-
-            int getByteLen() {
-                return byteLen;
-            }
-
-            String getPointType() {
-                return pointType;
-            }
-
-            boolean isScaled() {
-                return scaled;
-            }
-
-            static FieldTypeEnum fromTypeName(String typeName) {
-                for (FieldTypeEnum fieldTypeEnum : values()) {
-                    if (fieldTypeEnum.getTypeName().equals(typeName)) {
-                        return fieldTypeEnum;
-                    }
-                }
-                throw new IllegalArgumentException("Unknown field type: " + typeName);
-            }
+            return new Ranges(lowers, uppers, byteLen);
         }
 
         @Override
@@ -626,34 +533,8 @@ public final class FastFilterRewriteHelper {
         }
     }
 
-    public static BigInteger convertDoubleToBigInteger(double value) {
-        // we use big integer to represent unsigned long
-        BigInteger maxUnsignedLong = BigInteger.valueOf(2).pow(64).subtract(BigInteger.ONE);
-
-        if (Double.isNaN(value)) {
-            return BigInteger.ZERO;
-        } else if (Double.isInfinite(value)) {
-            if (value > 0) {
-                return maxUnsignedLong;
-            } else {
-                return BigInteger.ZERO;
-            }
-        } else {
-            BigDecimal bigDecimal = BigDecimal.valueOf(value);
-            return bigDecimal.toBigInteger();
-        }
-    }
-
     public static boolean isCompositeAggRewriteable(CompositeValuesSourceConfig[] sourceConfigs) {
         return sourceConfigs.length == 1 && sourceConfigs[0].valuesSource() instanceof RoundingValuesSource;
-    }
-
-    public static long getBucketOrd(long bucketOrd) {
-        if (bucketOrd < 0) { // already seen
-            bucketOrd = -1 - bucketOrd;
-        }
-
-        return bucketOrd;
     }
 
     private static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
@@ -862,22 +743,22 @@ public final class FastFilterRewriteHelper {
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                if (Ranges.compareByteValue(collector.activeRange[0], minPackedValue) > 0) {
-                    return PointValues.Relation.CELL_CROSSES_QUERY;
-                }
-
+                // try to find the first range that may collect values from this cell
                 if (!collector.withinUpperBound(minPackedValue)) {
                     collector.finalizePreviousRange();
                     if (collector.iterateRangeEnd(minPackedValue)) {
                         throw new CollectionTerminatedException();
                     }
                 }
-
-                if (Ranges.compareByteValue(collector.activeRange[1], maxPackedValue) <= 0) {
-                    return PointValues.Relation.CELL_CROSSES_QUERY;
-                } else {
+                // after the loop, min < upper
+                // cell could be outside [min max] lower
+                if (!collector.withinLowerBound(maxPackedValue)) {
+                    return PointValues.Relation.CELL_OUTSIDE_QUERY;
+                }
+                if (collector.withinRange(minPackedValue) && collector.withinRange(maxPackedValue)) {
                     return PointValues.Relation.CELL_INSIDE_QUERY;
                 }
+                return PointValues.Relation.CELL_CROSSES_QUERY;
             }
         };
     }

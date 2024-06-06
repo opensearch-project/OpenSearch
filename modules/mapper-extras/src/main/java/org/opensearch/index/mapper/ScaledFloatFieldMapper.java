@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -189,6 +190,16 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public void encodePoint(Number value, byte[] point) {
+            assert value instanceof Double;
+            LongPoint.encodeDimension((long) (scalingFactor * value.doubleValue()), point, 0);
+        }
+
+        @Override
+        public int pointNumBytes() {
+            return Long.BYTES;
+        }
+
         public double getScalingFactor() {
             return scalingFactor;
         }

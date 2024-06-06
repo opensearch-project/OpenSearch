@@ -59,12 +59,10 @@ import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
-import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
@@ -414,25 +412,6 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             },
             true
         );
-    }
-
-    public void testConvertDoubleToBigInteger() {
-        double value = Double.NaN;
-        BigInteger result = FastFilterRewriteHelper.convertDoubleToBigInteger(value);
-        assertEquals(BigInteger.ZERO, result);
-
-        value = Double.POSITIVE_INFINITY;
-        result = FastFilterRewriteHelper.convertDoubleToBigInteger(value);
-        BigInteger maxUnsignedLong = BigInteger.valueOf(2).pow(64).subtract(BigInteger.ONE);
-        assertEquals(maxUnsignedLong, result);
-
-        value = Double.NEGATIVE_INFINITY;
-        result = FastFilterRewriteHelper.convertDoubleToBigInteger(value);
-        assertEquals(BigInteger.ZERO, result);
-
-        value = 123.456;
-        result = FastFilterRewriteHelper.convertDoubleToBigInteger(value);
-        assertEquals("123", result.toString());
     }
 
     private void testCase(
