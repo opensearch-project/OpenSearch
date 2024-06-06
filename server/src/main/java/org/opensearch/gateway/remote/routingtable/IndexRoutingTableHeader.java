@@ -38,8 +38,8 @@ public class IndexRoutingTableHeader implements Writeable {
     /**
      * Reads the contents on the stream into the corresponding {@link IndexRoutingTableHeader}
      *
-     * @param in
-     * @throws IOException
+     * @param in streamInput
+     * @throws IOException exception thrown on failing to read from stream.
      */
     public IndexRoutingTableHeader(StreamInput in) throws IOException {
         try {
@@ -62,7 +62,7 @@ public class IndexRoutingTableHeader implements Writeable {
      * Write the IndexRoutingTable to given stream.
      *
      * @param out stream to write
-     * @throws IOException
+     * @throws IOException exception thrown on failing to write to stream.
      */
     public void writeTo(StreamOutput out) throws IOException {
         try {

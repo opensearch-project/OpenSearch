@@ -39,7 +39,7 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
 
         initialRoutingTable.getIndicesRouting().values().forEach(indexShardRoutingTables -> {
             RemoteIndexRoutingTable indexRouting = new RemoteIndexRoutingTable(indexShardRoutingTables);
-            try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+            try (BytesStreamOutput streamOutput = new BytesStreamOutput();) {
                 indexRouting.writeTo(streamOutput);
                 RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
                     streamOutput.bytes().streamInput(),

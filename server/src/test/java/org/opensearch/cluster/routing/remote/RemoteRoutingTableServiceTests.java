@@ -85,12 +85,14 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
             .put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), false)
             .build();
+
         blobStoreRepository = mock(BlobStoreRepository.class);
         when(blobStoreRepository.getCompressor()).thenReturn(new DeflateCompressor());
         blobStore = mock(BlobStore.class);
         blobContainer = mock(BlobContainer.class);
         when(repositoriesService.repository("routing_repository")).thenReturn(blobStoreRepository);
         when(blobStoreRepository.blobStore()).thenReturn(blobStore);
+
         Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
 
