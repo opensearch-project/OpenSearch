@@ -25,6 +25,7 @@ import org.opensearch.index.remote.RemoteStoreEnums;
  */
 @PublicApi(since = "2.14.0")
 public class RemoteStoreSettings {
+    private static final int MIN_CLUSTER_REMOTE_MAX_TRANSLOG_READERS = 100;
 
     /**
      * Used to specify the default translog buffer interval for remote store backed indexes.
@@ -112,7 +113,12 @@ public class RemoteStoreSettings {
     public static final Setting<Integer> CLUSTER_REMOTE_MAX_TRANSLOG_READERS = Setting.intSetting(
         "cluster.remote_store.translog.max_readers",
         1000,
-        100,
+        -1,
+        v -> {
+            if (v != -1 && v < MIN_CLUSTER_REMOTE_MAX_TRANSLOG_READERS) {
+                throw new IllegalArgumentException("Cannot set value lower than " + MIN_CLUSTER_REMOTE_MAX_TRANSLOG_READERS);
+            }
+        },
         Property.Dynamic,
         Property.NodeScope
     );
