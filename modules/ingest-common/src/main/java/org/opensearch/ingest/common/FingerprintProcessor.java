@@ -139,19 +139,20 @@ public final class FingerprintProcessor extends AbstractProcessor {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> flattenedMap = toFlattenedMap((Map<String, Object>) value);
-                flattenedMap.entrySet()
-                    .stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .forEach(
-                        entry -> concatenatedFields.append("|")
-                            .append(field)
-                            .append(".")
-                            .append(entry.getKey())
-                            .append("|")
-                            .append(entry.getValue())
-                    );
+                flattenedMap.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+                    String fieldValue = String.valueOf(entry.getValue());
+                    concatenatedFields.append("|")
+                        .append(field)
+                        .append(".")
+                        .append(entry.getKey())
+                        .append("|")
+                        .append(fieldValue.length())
+                        .append(":")
+                        .append(fieldValue);
+                });
             } else {
-                concatenatedFields.append("|").append(field).append("|").append(value);
+                String fieldValue = String.valueOf(value);
+                concatenatedFields.append("|").append(field).append("|").append(fieldValue.length()).append(":").append(fieldValue);
             }
         });
         // if all specified fields don't exist and ignore_missing is true, then do nothing
