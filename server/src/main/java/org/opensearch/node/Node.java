@@ -1338,7 +1338,6 @@ public class Node implements Closeable {
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
                 b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                 {
-                    processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
                     b.bind(PeerRecoveryTargetService.class)
@@ -1444,10 +1443,6 @@ public class Node implements Closeable {
         Tracer tracer
     ) {
         return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, tracer);
-    }
-
-    protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
-        // Noop in production, overridden by tests
     }
 
     /**
