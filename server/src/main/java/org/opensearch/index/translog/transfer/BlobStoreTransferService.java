@@ -57,6 +57,7 @@ public class BlobStoreTransferService implements TransferService {
     private final BlobStore blobStore;
     private final ThreadPool threadPool;
 
+    private static final int CHECKSUM_BYTES_LENGTH = 8;
     private static final Logger logger = LogManager.getLogger(BlobStoreTransferService.class);
 
     public BlobStoreTransferService(BlobStore blobStore, ThreadPool threadPool) {
@@ -131,18 +132,7 @@ public class BlobStoreTransferService implements TransferService {
         final String resourceDescription = "BlobStoreTransferService.uploadBlob(blob=\"" + fileName + "\")";
         byte[] bytes = inputStream.readAllBytes();
         try (IndexInput input = new ByteArrayIndexInput(resourceDescription, bytes)) {
-            long expectedChecksum;
-            try {
-                expectedChecksum = checksumOfChecksum(input.clone(), 8);
-            } catch (Exception e) {
-                throw new ChecksumCombinationException(
-                    "Potentially corrupted file: Checksum combination failed while combining stored checksum "
-                        + "and calculated checksum of stored checksum",
-                    resourceDescription,
-                    e
-                );
-            }
-
+            long expectedChecksum = computeChecksum(input, resourceDescription);
             uploadBlobAsyncInternal(
                 fileName,
                 fileName,
@@ -343,6 +333,21 @@ public class BlobStoreTransferService implements TransferService {
         ActionListener<List<BlobMetadata>> listener
     ) {
         threadPool.executor(threadpoolName).execute(() -> { listAllInSortedOrder(path, filenamePrefix, limit, listener); });
+    }
+
+    private static long computeChecksum(IndexInput indexInput, String resourceDescription) throws ChecksumCombinationException {
+        long expectedChecksum;
+        try {
+            expectedChecksum = checksumOfChecksum(indexInput.clone(), CHECKSUM_BYTES_LENGTH);
+        } catch (Exception e) {
+            throw new ChecksumCombinationException(
+                "Potentially corrupted file: Checksum combination failed while combining stored checksum "
+                    + "and calculated checksum of stored checksum",
+                resourceDescription,
+                e
+            );
+        }
+        return expectedChecksum;
     }
 
 }
