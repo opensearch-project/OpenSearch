@@ -21,6 +21,7 @@ import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
+import org.opensearch.tasks.Task;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -138,6 +139,15 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             attributes.put(Attribute.TOTAL_SHARDS, context.getNumShards());
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());
+
+            Map<String, Object> labels = new HashMap<>();
+            // Retrieve user provided label if exists
+            String userProvidedLabel = context.getTask().getHeader(Task.X_OPAQUE_ID);
+            if (userProvidedLabel != null) {
+                labels.put(Task.X_OPAQUE_ID, userProvidedLabel);
+            }
+            attributes.put(Attribute.LABELS, labels);
+            // construct SearchQueryRecord from attributes and measurements
             SearchQueryRecord record = new SearchQueryRecord(request.getOrCreateAbsoluteStartMillis(), measurements, attributes);
             queryInsightsService.addRecord(record);
         } catch (Exception e) {
