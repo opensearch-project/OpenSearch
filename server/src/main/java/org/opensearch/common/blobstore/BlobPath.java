@@ -115,8 +115,8 @@ public class BlobPath implements Iterable<String> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        BlobPath strings = (BlobPath) o;
-        return Objects.equals(paths, strings.paths);
+        BlobPath that = (BlobPath) o;
+        return Objects.equals(paths, that.paths);
     }
 
     @Override

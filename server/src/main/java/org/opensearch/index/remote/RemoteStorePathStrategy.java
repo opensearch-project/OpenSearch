@@ -67,7 +67,7 @@ public class RemoteStorePathStrategy {
         return "RemoteStorePathStrategy{" + "type=" + type + ", hashAlgorithm=" + hashAlgorithm + '}';
     }
 
-    public BlobPath generatePath(RemoteStorePathInput pathInput) {
+    public BlobPath generatePath(PathInput pathInput) {
         return type.path(pathInput, hashAlgorithm);
     }
 
@@ -92,6 +92,10 @@ public class RemoteStorePathStrategy {
 
         String indexUUID() {
             return indexUUID;
+        }
+
+        BlobPath variablePath() {
+            return BlobPath.cleanPath().add(indexUUID);
         }
 
         /**
@@ -134,16 +138,22 @@ public class RemoteStorePathStrategy {
      */
     @PublicApi(since = "2.14.0")
     @ExperimentalApi
-    public static class RemoteStorePathInput extends BasePathInput {
+    public static class PathInput extends BasePathInput {
         private final String shardId;
         private final DataCategory dataCategory;
         private final DataType dataType;
 
-        public RemoteStorePathInput(BlobPath basePath, String indexUUID, String shardId, DataCategory dataCategory, DataType dataType) {
+        public PathInput(BlobPath basePath, String indexUUID, String shardId, DataCategory dataCategory, DataType dataType) {
             super(basePath, indexUUID);
             this.shardId = Objects.requireNonNull(shardId);
             this.dataCategory = Objects.requireNonNull(dataCategory);
             this.dataType = Objects.requireNonNull(dataType);
+            assert dataCategory.isSupportedDataType(dataType) : "category:"
+                + dataCategory
+                + " type:"
+                + dataType
+                + " are not supported together";
+
         }
 
         String shardId() {
@@ -158,15 +168,20 @@ public class RemoteStorePathStrategy {
             return dataType;
         }
 
+        @Override
+        BlobPath variablePath() {
+            return super.variablePath().add(shardId).add(dataCategory.getName()).add(dataType.getName());
+        }
+
         /**
-         * Returns a new builder for {@link RemoteStorePathInput}.
+         * Returns a new builder for {@link PathInput}.
          */
         public static Builder builder() {
             return new Builder();
         }
 
         /**
-         * Builder for {@link RemoteStorePathInput}.
+         * Builder for {@link PathInput}.
          *
          * @opensearch.internal
          */
@@ -202,8 +217,8 @@ public class RemoteStorePathStrategy {
                 return this;
             }
 
-            public RemoteStorePathInput build() {
-                return new RemoteStorePathInput(super.basePath, super.indexUUID, shardId, dataCategory, dataType);
+            public PathInput build() {
+                return new PathInput(super.basePath, super.indexUUID, shardId, dataCategory, dataType);
             }
         }
     }

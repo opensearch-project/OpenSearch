@@ -1828,7 +1828,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
                 ? RemoteStoreEnums.PathHashAlgorithm.valueOf(remoteCustomData.get(RemoteStoreEnums.PathHashAlgorithm.NAME))
                 : null
             : null;
-        RemoteStorePathStrategy.RemoteStorePathInput pathInput = RemoteStorePathStrategy.RemoteStorePathInput.builder()
+        RemoteStorePathStrategy.PathInput pathInput = RemoteStorePathStrategy.PathInput.builder()
             .basePath(basePath)
             .indexUUID(indexUUID)
             .shardId(shardId)

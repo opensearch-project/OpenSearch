@@ -13,7 +13,9 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
+import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.CheckedRunnable;
@@ -24,6 +26,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.compress.DeflateCompressor;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
@@ -33,6 +36,7 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
+import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -50,6 +54,7 @@ import java.util.function.Supplier;
 
 import org.mockito.ArgumentCaptor;
 
+import static org.opensearch.cluster.routing.remote.RemoteRoutingTableService.INDEX_ROUTING_FILE_PREFIX;
 import static org.opensearch.cluster.routing.remote.RemoteRoutingTableService.INDEX_ROUTING_PATH_TOKEN;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
@@ -58,6 +63,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -98,7 +104,11 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         basePath = BlobPath.cleanPath().add("base-path");
 
-        remoteRoutingTableService = new RemoteRoutingTableService(repositoriesServiceSupplier, settings);
+        remoteRoutingTableService = new RemoteRoutingTableService(
+            repositoriesServiceSupplier,
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
     }
 
     @After
@@ -109,7 +119,14 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
     public void testFailInitializationWhenRemoteRoutingDisabled() {
         final Settings settings = Settings.builder().build();
-        assertThrows(AssertionError.class, () -> new RemoteRoutingTableService(repositoriesServiceSupplier, settings));
+        assertThrows(
+            AssertionError.class,
+            () -> new RemoteRoutingTableService(
+                repositoriesServiceSupplier,
+                settings,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            )
+        );
     }
 
     public void testFailStartWhenRepositoryNotSet() {
@@ -300,7 +317,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertNotNull(runnable);
         runnable.run();
 
-        verify(blobContainer, times(1)).writeBlob(anyString(), any(StreamInput.class), anyLong(), eq(true));
+        String expectedFilePrefix = String.join(
+            DELIMITER,
+            INDEX_ROUTING_FILE_PREFIX,
+            RemoteStoreUtils.invertLong(clusterState.term()),
+            RemoteStoreUtils.invertLong(clusterState.version())
+        );
+        verify(blobContainer, times(1)).writeBlob(startsWith(expectedFilePrefix), any(StreamInput.class), anyLong(), eq(true));
         verify(listener, times(1)).onResponse(any(ClusterMetadataManifest.UploadedMetadata.class));
     }
 
@@ -322,8 +345,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         );
         assertNotNull(runnable);
         runnable.run();
-
-        verify(blobContainer, times(1)).writeBlob(anyString(), any(StreamInput.class), anyLong(), eq(true));
+        String expectedFilePrefix = String.join(
+            DELIMITER,
+            INDEX_ROUTING_FILE_PREFIX,
+            RemoteStoreUtils.invertLong(clusterState.term()),
+            RemoteStoreUtils.invertLong(clusterState.version())
+        );
+        verify(blobContainer, times(1)).writeBlob(startsWith(expectedFilePrefix), any(StreamInput.class), anyLong(), eq(true));
         verify(listener, times(1)).onFailure(any(RemoteClusterStateService.RemoteStateTransferException.class));
     }
 
@@ -357,11 +385,17 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertNotNull(runnable);
         runnable.run();
 
+        String expectedFilePrefix = String.join(
+            DELIMITER,
+            INDEX_ROUTING_FILE_PREFIX,
+            RemoteStoreUtils.invertLong(clusterState.term()),
+            RemoteStoreUtils.invertLong(clusterState.version())
+        );
         assertEquals(1, actionListenerArgumentCaptor.getAllValues().size());
         assertEquals(1, writeContextArgumentCaptor.getAllValues().size());
         assertNotNull(capturedWriteContext.get("index_routing"));
         assertEquals(capturedWriteContext.get("index_routing").getWritePriority(), WritePriority.URGENT);
-        assertTrue(capturedWriteContext.get("index_routing").getFileName().startsWith(RemoteRoutingTableService.INDEX_ROUTING_FILE_PREFIX));
+        assertTrue(capturedWriteContext.get("index_routing").getFileName().startsWith(expectedFilePrefix));
     }
 
     public void testGetIndexRoutingAsyncActionAsyncRepoFailureInRepo() throws IOException {
@@ -504,7 +538,11 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
                 .build()
         ).numberOfShards(randomInt(1000)).numberOfReplicas(randomInt(10)).build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
-        return ClusterState.builder(ClusterName.DEFAULT).routingTable(routingTable).build();
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .routingTable(routingTable)
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(1L).build()))
+            .version(2L)
+            .build();
     }
 
     private BlobPath getPath() {

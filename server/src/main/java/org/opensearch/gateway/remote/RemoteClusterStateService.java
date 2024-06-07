@@ -265,7 +265,7 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(this, clusterService);
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
         this.remoteRoutingTableService = isRemoteRoutingTableEnabled(settings)
-            ? Optional.of(new RemoteRoutingTableService(repositoriesService, settings))
+            ? Optional.of(new RemoteRoutingTableService(repositoriesService, settings, clusterSettings))
             : Optional.empty();
     }
 

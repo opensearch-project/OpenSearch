@@ -26,6 +26,8 @@ import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStre
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
@@ -61,6 +63,30 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteR
  */
 public class RemoteRoutingTableService extends AbstractLifecycleComponent {
 
+    /**
+     * This setting is used to set the remote routing table store blob store path type strategy.
+     */
+    public static final Setting<RemoteStoreEnums.PathType> REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING = new Setting<>(
+        "cluster.remote_store.routing_table.path_type",
+        RemoteStoreEnums.PathType.HASHED_PREFIX.toString(),
+        RemoteStoreEnums.PathType::parseString,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * This setting is used to set the remote routing table store blob store path hash algorithm strategy.
+     * This setting will come to effect if the {@link #REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING}
+     * is either {@code HASHED_PREFIX} or {@code HASHED_INFIX}.
+     */
+    public static final Setting<RemoteStoreEnums.PathHashAlgorithm> REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING = new Setting<>(
+        "cluster.remote_store.routing_table.path_hash_algo",
+        RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64.toString(),
+        RemoteStoreEnums.PathHashAlgorithm::parseString,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final String INDEX_ROUTING_PATH_TOKEN = "index-routing";
     public static final String INDEX_ROUTING_FILE_PREFIX = "index_routing";
     public static final String DELIMITER = "__";
@@ -70,11 +96,29 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
     private final Settings settings;
     private final Supplier<RepositoriesService> repositoriesService;
     private BlobStoreRepository blobStoreRepository;
+    private RemoteStoreEnums.PathType pathType;
+    private RemoteStoreEnums.PathHashAlgorithm pathHashAlgo;
 
-    public RemoteRoutingTableService(Supplier<RepositoriesService> repositoriesService, Settings settings) {
+    public RemoteRoutingTableService(
+        Supplier<RepositoriesService> repositoriesService,
+        Settings settings,
+        ClusterSettings clusterSettings
+    ) {
         assert isRemoteRoutingTableEnabled(settings) : "Remote routing table is not enabled";
         this.repositoriesService = repositoriesService;
         this.settings = settings;
+        this.pathType = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING);
+        this.pathHashAlgo = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING, this::setPathTypeSetting);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING, this::setPathHashAlgoSetting);
+    }
+
+    private void setPathTypeSetting(RemoteStoreEnums.PathType pathType) {
+        this.pathType = pathType;
+    }
+
+    private void setPathHashAlgoSetting(RemoteStoreEnums.PathHashAlgorithm pathHashAlgo) {
+        this.pathHashAlgo = pathHashAlgo;
     }
 
     private static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
@@ -90,6 +134,12 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
             }
         };
 
+    /**
+     * Returns diff between the two routing tables, which includes upserts and deletes.
+     * @param before previous routing table
+     * @param after current routing table
+     * @return diff of the previous and current routing table
+     */
     public static DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> getIndicesRoutingMapDiff(
         RoutingTable before,
         RoutingTable after
@@ -102,6 +152,15 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
         );
     }
 
+    /**
+     * Create async action for writing one {@code IndexRoutingTable} to remote store
+     * @param clusterState current cluster state
+     * @param indexRouting indexRoutingTable to write to remote store
+     * @param latchedActionListener listener for handling async action response
+     * @param clusterBasePath base path for remote file
+     * @return returns runnable async action
+     * @throws IOException exception thrown on failure in writing to remote store
+     */
     public CheckedRunnable<IOException> getIndexRoutingAsyncAction(
         ClusterState clusterState,
         IndexRoutingTable indexRouting,
@@ -110,13 +169,13 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
     ) throws IOException {
 
         BlobPath indexRoutingPath = clusterBasePath.add(INDEX_ROUTING_PATH_TOKEN);
-        BlobPath path = RemoteStoreEnums.PathType.HASHED_PREFIX.path(
+        BlobPath path = pathType.path(
             RemoteStorePathStrategy.BasePathInput.builder().basePath(indexRoutingPath).indexUUID(indexRouting.getIndex().getUUID()).build(),
-            RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64
+            pathHashAlgo
         );
         final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
 
-        final String fileName = getIndexRoutingFileName();
+        final String fileName = getIndexRoutingFileName(clusterState.term(), clusterState.version());
 
         ActionListener<Void> completionListener = ActionListener.wrap(
             resp -> latchedActionListener.onResponse(
@@ -138,6 +197,13 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
         return () -> uploadIndex(indexRouting, fileName, blobContainer, completionListener);
     }
 
+    /**
+     * Combines IndicesRoutingMetadata from previous manifest and current uploaded indices, removes deleted indices.
+     * @param previousManifest previous manifest, used to get all existing indices routing paths
+     * @param indicesRoutingUploaded current uploaded indices routings
+     * @param indicesRoutingToDelete indices to delete
+     * @return combined list of metadata
+     */
     public List<ClusterMetadataManifest.UploadedIndexMetadata> getAllUploadedIndicesRouting(
         ClusterMetadataManifest previousManifest,
         List<ClusterMetadataManifest.UploadedIndexMetadata> indicesRoutingUploaded,
@@ -208,9 +274,14 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
         }
     }
 
-    private String getIndexRoutingFileName() {
-        return String.join(DELIMITER, INDEX_ROUTING_FILE_PREFIX, RemoteStoreUtils.invertLong(System.currentTimeMillis()));
-
+    private String getIndexRoutingFileName(long term, long version) {
+        return String.join(
+            DELIMITER,
+            INDEX_ROUTING_FILE_PREFIX,
+            RemoteStoreUtils.invertLong(term),
+            RemoteStoreUtils.invertLong(version),
+            RemoteStoreUtils.invertLong(System.currentTimeMillis())
+        );
     }
 
     @Override

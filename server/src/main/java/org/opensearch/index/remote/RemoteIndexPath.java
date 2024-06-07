@@ -18,7 +18,7 @@ import org.opensearch.index.remote.RemoteStoreEnums.DataCategory;
 import org.opensearch.index.remote.RemoteStoreEnums.DataType;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
-import org.opensearch.index.remote.RemoteStorePathStrategy.RemoteStorePathInput;
+import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -141,7 +141,7 @@ public class RemoteIndexPath implements ToXContentFragment {
             DataCategory dataCategory = entry.getKey();
             for (DataType type : entry.getValue()) {
                 for (int shardNo = 0; shardNo < shardCount; shardNo++) {
-                    RemoteStorePathInput pathInput = RemoteStorePathInput.builder()
+                    PathInput pathInput = PathInput.builder()
                         .basePath(new BlobPath().add(basePath))
                         .indexUUID(indexUUID)
                         .shardId(Integer.toString(shardNo))
