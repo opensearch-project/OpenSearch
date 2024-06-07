@@ -2291,8 +2291,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
-                    null,
-                    new TaskResourceTrackingService(settings, clusterSettings, threadPool)
+                    null
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
@@ -2327,8 +2326,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         ),
                         NoopMetricsRegistry.INSTANCE,
                         searchRequestOperationsCompositeListenerFactory,
-                        NoopTracer.INSTANCE,
-                        new TaskResourceTrackingService(settings, clusterSettings, threadPool)
+                        NoopTracer.INSTANCE
                     )
                 );
                 actions.put(

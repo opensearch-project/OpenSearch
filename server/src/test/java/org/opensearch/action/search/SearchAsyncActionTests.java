@@ -162,7 +162,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(searchRequestOperationsListener, request, () -> null),
+            new SearchRequestContext(searchRequestOperationsListener, request),
             NoopTracer.INSTANCE
         ) {
 
@@ -287,7 +287,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(searchRequestOperationsListener, request, () -> null),
+            new SearchRequestContext(searchRequestOperationsListener, request),
             NoopTracer.INSTANCE
         ) {
 
@@ -409,8 +409,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
-                request,
-                () -> null
+                request
             ),
             NoopTracer.INSTANCE
         ) {
@@ -538,8 +537,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
-                request,
-                () -> null
+                request
             ),
             NoopTracer.INSTANCE
         ) {
@@ -659,7 +657,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            new SearchRequestContext(searchRequestOperationsListener, request, () -> null),
+            new SearchRequestContext(searchRequestOperationsListener, request),
             NoopTracer.INSTANCE
         ) {
             @Override

@@ -60,7 +60,6 @@ import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.query.QueryPhase;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.transport.MockTransportService;
@@ -156,8 +155,7 @@ public class MockNode extends Node {
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        Executor indexSearcherExecutor,
-        TaskResourceTrackingService taskResourceTrackingService
+        Executor indexSearcherExecutor
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -170,8 +168,7 @@ public class MockNode extends Node {
                 fetchPhase,
                 responseCollectorService,
                 circuitBreakerService,
-                indexSearcherExecutor,
-                taskResourceTrackingService
+                indexSearcherExecutor
             );
         }
         return new MockSearchService(
@@ -183,8 +180,7 @@ public class MockNode extends Node {
             queryPhase,
             fetchPhase,
             circuitBreakerService,
-            indexSearcherExecutor,
-            taskResourceTrackingService
+            indexSearcherExecutor
         );
     }
 

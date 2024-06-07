@@ -484,15 +484,6 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Remove the {@code value} for the specified {@code key}.
-     *
-     * @param key         the header name
-     */
-    public void removeResponseHeader(final String key) {
-        threadLocal.get().responseHeaders.remove(key);
-    }
-
-    /**
      * Add the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
      * {@code value} after applying {@code uniqueValue} is ignored.
      *

@@ -51,8 +51,6 @@ public abstract class SearchRequestOperationsListener {
 
     protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
-    protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
-
     protected boolean isEnabled(SearchRequest searchRequest) {
         return isEnabled();
     }
@@ -131,17 +129,6 @@ public abstract class SearchRequestOperationsListener {
                     listener.onRequestEnd(context, searchRequestContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onRequestEnd listener [{}] failed", listener), e);
-                }
-            }
-        }
-
-        @Override
-        public void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
-            for (SearchRequestOperationsListener listener : listeners) {
-                try {
-                    listener.onRequestFailure(context, searchRequestContext);
-                } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("onRequestFailure listener [{}] failed", listener), e);
                 }
             }
         }
