@@ -79,12 +79,23 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
         public Path() {}
 
-        public Path(String path, @Nullable String mount, long total, long free, long available) {
+        // Used only in tests
+        public Path(
+            String path,
+            @Nullable String mount,
+            long total,
+            long free,
+            long available,
+            long fileCacheReserved,
+            long fileCacheUtilized
+        ) {
             this.path = path;
             this.mount = mount;
             this.total = total;
             this.free = free;
             this.available = available;
+            this.fileCacheReserved = fileCacheReserved;
+            this.fileCacheUtilized = fileCacheUtilized;
         }
 
         /**
@@ -211,7 +222,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             if (fileCacheReserved != -1) {
                 builder.humanReadableField(Fields.CACHE_RESERVED_IN_BYTES, Fields.CACHE_RESERVED, getFileCacheReserved());
             }
-            if (fileCacheUtilized != 0) {
+            if (fileCacheUtilized != -1) {
                 builder.humanReadableField(Fields.CACHE_UTILIZED_IN_BYTES, Fields.CACHE_UTILIZED, getFileCacheUtilized());
             }
 

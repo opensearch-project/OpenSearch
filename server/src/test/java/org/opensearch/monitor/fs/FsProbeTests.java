@@ -204,24 +204,49 @@ public class FsProbeTests extends OpenSearchTestCase {
     }
 
     public void testFsInfoOverflow() throws Exception {
+        final String path_r = "/foo/bar";
+        final String path_z = "/foo/baz";
         final FsInfo.Path pathStats = new FsInfo.Path(
-            "/foo/bar",
+            path_r,
             null,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
 
-        addUntilOverflow(pathStats, p -> p.total, "total", () -> new FsInfo.Path("/foo/baz", null, randomNonNegativeLong(), 0, 0));
+        addUntilOverflow(pathStats, p -> p.total, "total", () -> new FsInfo.Path(path_z, null, randomNonNegativeLong(), 0, 0, 0, 0));
 
-        addUntilOverflow(pathStats, p -> p.free, "free", () -> new FsInfo.Path("/foo/baz", null, 0, randomNonNegativeLong(), 0));
+        addUntilOverflow(pathStats, p -> p.free, "free", () -> new FsInfo.Path(path_z, null, 0, randomNonNegativeLong(), 0, 0, 0));
 
-        addUntilOverflow(pathStats, p -> p.available, "available", () -> new FsInfo.Path("/foo/baz", null, 0, 0, randomNonNegativeLong()));
+        addUntilOverflow(
+            pathStats,
+            p -> p.available,
+            "available",
+            () -> new FsInfo.Path(path_z, null, 0, 0, randomNonNegativeLong(), 0, 0)
+        );
+
+        addUntilOverflow(
+            pathStats,
+            p -> p.fileCacheReserved,
+            "fileCacheReserved",
+            () -> new FsInfo.Path(path_z, null, 0, 0, 0, randomNonNegativeLong(), 0)
+        );
+
+        addUntilOverflow(
+            pathStats,
+            p -> p.fileCacheUtilized,
+            "fileCacheUtilized",
+            () -> new FsInfo.Path(path_z, null, 0, 0, 0, 0, randomNonNegativeLong())
+        );
 
         // even after overflowing these should not be negative
         assertThat(pathStats.total, greaterThan(0L));
         assertThat(pathStats.free, greaterThan(0L));
         assertThat(pathStats.available, greaterThan(0L));
+        assertThat(pathStats.fileCacheReserved, greaterThan(0L));
+        assertThat(pathStats.fileCacheUtilized, greaterThan(0L));
     }
 
     private void addUntilOverflow(
