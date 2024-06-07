@@ -322,10 +322,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
                 )
                 .build();
             // Remove the existing TASK_RESOURCE_USAGE header since it would have come from an earlier phase in the same request.
-            synchronized (this) {
-                threadPool.getThreadContext().removeResponseHeader(TASK_RESOURCE_USAGE);
-                threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
-            }
+            threadPool.getThreadContext().updateResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
         } catch (Exception e) {
             logger.debug("Error during writing task resource usage: ", e);
         }
