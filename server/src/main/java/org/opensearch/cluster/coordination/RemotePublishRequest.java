@@ -16,20 +16,22 @@ import java.io.IOException;
 
 public class RemotePublishRequest extends TermVersionRequest {
 
-    // todo Do we need cluster name and UUID ?
     private final String clusterName;
     private final String clusterUUID;
+    private final String manifestFile;
 
-    public RemotePublishRequest(DiscoveryNode sourceNode, long term, long version, String clusterName, String clusterUUID) {
+    public RemotePublishRequest(DiscoveryNode sourceNode, long term, long version, String clusterName, String clusterUUID, String manifestFile) {
         super(sourceNode, term, version);
         this.clusterName = clusterName;
         this.clusterUUID = clusterUUID;
+        this.manifestFile = manifestFile;
     }
 
     public RemotePublishRequest(StreamInput in) throws IOException {
         super(in);
         this.clusterName = in.readString();
         this.clusterUUID = in.readString();
+        this.manifestFile = in.readString();
     }
 
     @Override
@@ -37,6 +39,13 @@ public class RemotePublishRequest extends TermVersionRequest {
         super.writeTo(out);
         out.writeString(clusterName);
         out.writeString(clusterUUID);
+        out.writeString(manifestFile);
+    }
+
+    @Override
+    public String toString() {
+        return "RemotePublishRequest{" + "term=" + term + ", version=" + version + ", clusterName=" + clusterName + ", clusterUUID=" + clusterUUID
+            + ", sourceNode=" + sourceNode + ", manifestFile=" + manifestFile + '}';
     }
 
     public String getClusterName() {
@@ -45,5 +54,9 @@ public class RemotePublishRequest extends TermVersionRequest {
 
     public String getClusterUUID() {
         return clusterUUID;
+    }
+
+    public String getManifestFile() {
+        return manifestFile;
     }
 }

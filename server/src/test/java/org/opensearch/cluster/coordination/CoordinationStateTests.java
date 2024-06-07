@@ -48,6 +48,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.model.RemoteUploadDetails;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -944,7 +945,8 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             .previousClusterUUID(randomAlphaOfLength(10))
             .clusterUUIDCommitted(true)
             .build();
-        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID)).thenReturn(manifest);
+        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID))
+            .thenReturn(new RemoteUploadDetails(manifest, "path/to/manifest"));
 
         final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
         persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);

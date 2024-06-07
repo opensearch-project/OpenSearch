@@ -49,6 +49,7 @@ import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigurat
 import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.opensearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.opensearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
+import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -1334,7 +1335,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 final PublicationTransportHandler.PublicationContext publicationContext = publicationHandler.newPublicationContext(
                     clusterChangedEvent,
-                    coordinationState.get().isRemotePublicationEnabled()
+                    coordinationState.get().isRemotePublicationEnabled(),
+                    persistedStateRegistry
                 );
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);

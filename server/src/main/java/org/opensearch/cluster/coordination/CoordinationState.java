@@ -50,6 +50,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
@@ -79,6 +80,7 @@ public class CoordinationState {
     private long lastPublishedVersion;
     private VotingConfiguration lastPublishedConfiguration;
     private VoteCollection publishVotes;
+    private final boolean isRemoteStateEnabled;
     private final boolean isRemotePublicationEnabled;
 
     public CoordinationState(
@@ -102,7 +104,8 @@ public class CoordinationState {
             .getLastAcceptedState()
             .getLastAcceptedConfiguration();
         this.publishVotes = new VoteCollection();
-        this.isRemotePublicationEnabled = isRemoteStoreClusterStateEnabled(settings) && isRemoteRoutingTableEnabled(settings);
+        this.isRemoteStateEnabled = isRemoteStoreClusterStateEnabled(settings);
+        this.isRemotePublicationEnabled = RemoteStoreNodeAttribute.isRemotePublicationEnabled(settings);
     }
 
     public boolean isRemotePublicationEnabled() {

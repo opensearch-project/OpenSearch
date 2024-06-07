@@ -33,6 +33,7 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
@@ -43,6 +44,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -474,20 +476,20 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /**
      * Returns whether the node is a remote cluster state enabled node.
-     * @return true if the node contains remote cluster state and remote routing table node attributes, false otherwise
+     * @return true if the node contains remote cluster state node attribute, false otherwise
      */
-    public boolean isRemoteStateNode() {
-        return isRemoteClusterStateEnabled() && isRemoteRoutingTableEnabled();
-    }
-
-    private boolean isRemoteClusterStateEnabled() {
+    public boolean isRemoteClusterStateEnabled() {
         return this.getAttributes()
             .keySet()
             .stream()
             .anyMatch(key -> (key.equals(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)));
     }
 
-    private boolean isRemoteRoutingTableEnabled() {
+    /**
+     * Returns whether remote routing table is enabled on the node
+     * @return true if the node contains remote routing table node attributes, false otherwise
+     */
+    public boolean isRemoteRoutingTableEnabled() {
         return this.getAttributes().keySet().stream().anyMatch(key -> key.equals(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
     }
 
