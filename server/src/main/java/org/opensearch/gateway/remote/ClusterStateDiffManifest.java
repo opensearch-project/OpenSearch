@@ -24,13 +24,16 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.opensearch.core.xcontent.XContentParserUtils.parseStringList;
 
+/**
+ * Manifest of diff between two cluster states
+ *
+ * @opensearch.internal
+ */
 public class ClusterStateDiffManifest implements ToXContentObject {
     private static final String FROM_STATE_UUID_FIELD = "from_state_uuid";
     private static final String TO_STATE_UUID_FIELD = "to_state_uuid";
@@ -80,7 +83,8 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         discoveryNodesUpdated = state.nodes().delta(previousState.nodes()).hasChanges();
         customMetadataUpdated = new ArrayList<>();
         for (String custom : state.metadata().customs().keySet()) {
-            if (!previousState.metadata().customs().containsKey(custom) || !state.metadata().customs().get(custom).equals(previousState.metadata().customs().get(custom))) {
+            if (!previousState.metadata().customs().containsKey(custom)
+                || !state.metadata().customs().get(custom).equals(previousState.metadata().customs().get(custom))) {
                 customMetadataUpdated.add(custom);
             }
         }
@@ -91,14 +95,16 @@ public class ClusterStateDiffManifest implements ToXContentObject {
             }
         }
 
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = RemoteRoutingTableService.getIndicesRoutingMapDiff(previousState.getRoutingTable(),
-            state.getRoutingTable());
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = RemoteRoutingTableService
+            .getIndicesRoutingMapDiff(previousState.getRoutingTable(), state.getRoutingTable());
 
         indicesRoutingUpdated = new ArrayList<>();
-        routingTableDiff.getUpserts().forEach((k,v) -> indicesRoutingUpdated.add(k));
+        routingTableDiff.getUpserts().forEach((k, v) -> indicesRoutingUpdated.add(k));
 
         indicesRoutingDeleted = routingTableDiff.getDeletes();
-        hashesOfConsistentSettingsUpdated = !state.metadata().hashesOfConsistentSettings().equals(previousState.metadata().hashesOfConsistentSettings());
+        hashesOfConsistentSettingsUpdated = !state.metadata()
+            .hashesOfConsistentSettings()
+            .equals(previousState.metadata().hashesOfConsistentSettings());
         clusterStateCustomUpdated = new ArrayList<>();
         clusterStateCustomDeleted = new ArrayList<>();
         for (String custom : state.customs().keySet()) {
@@ -126,8 +132,8 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         List<String> indicesDeleted,
         boolean clusterBlocksUpdated,
         boolean discoveryNodesUpdated,
-        List<String>indicesRoutingUpdated,
-        List<String>indicesRoutingDeleted,
+        List<String> indicesRoutingUpdated,
+        List<String> indicesRoutingDeleted,
         boolean hashesOfConsistentSettingsUpdated,
         List<String> clusterStateCustomUpdated,
         List<String> clusterStateCustomDeleted
@@ -267,10 +273,10 @@ public class ClusterStateDiffManifest implements ToXContentObject {
                                     token = parser.nextToken();
                                     switch (currentFieldName) {
                                         case UPSERTS_FIELD:
-                                            builder.indicesUpdated(parseStringList(parser));
+                                            builder.indicesUpdated(convertListToString(parser.listOrderedMap()));
                                             break;
                                         case DELETES_FIELD:
-                                            builder.indicesDeleted(parseStringList(parser));
+                                            builder.indicesDeleted(convertListToString(parser.listOrderedMap()));
                                             break;
                                         default:
                                             throw new XContentParseException("Unexpected field [" + currentFieldName + "]");
@@ -282,10 +288,10 @@ public class ClusterStateDiffManifest implements ToXContentObject {
                                     token = parser.nextToken();
                                     switch (currentFieldName) {
                                         case UPSERTS_FIELD:
-                                            builder.customMetadataUpdated(parseStringList(parser));
+                                            builder.customMetadataUpdated(convertListToString(parser.listOrderedMap()));
                                             break;
                                         case DELETES_FIELD:
-                                            builder.customMetadataDeleted(parseStringList(parser));
+                                            builder.customMetadataDeleted(convertListToString(parser.listOrderedMap()));
                                             break;
                                         default:
                                             throw new XContentParseException("Unexpected field [" + currentFieldName + "]");
@@ -304,10 +310,10 @@ public class ClusterStateDiffManifest implements ToXContentObject {
                         parser.nextToken();
                         switch (currentFieldName) {
                             case UPSERTS_FIELD:
-                                builder.indicesRoutingUpdated(parseStringList(parser));
+                                builder.indicesRoutingUpdated(convertListToString(parser.listOrderedMap()));
                                 break;
                             case DELETES_FIELD:
-                                builder.indicesRoutingDeleted(parseStringList(parser));
+                                builder.indicesRoutingDeleted(convertListToString(parser.listOrderedMap()));
                                 break;
                             default:
                                 throw new XContentParseException("Unexpected field [" + currentFieldName + "]");
@@ -319,10 +325,10 @@ public class ClusterStateDiffManifest implements ToXContentObject {
                         parser.nextToken();
                         switch (currentFieldName) {
                             case UPSERTS_FIELD:
-                                builder.clusterStateCustomUpdated(parseStringList(parser));
+                                builder.clusterStateCustomUpdated(convertListToString(parser.listOrderedMap()));
                                 break;
                             case DELETES_FIELD:
-                                builder.clusterStateCustomDeleted(parseStringList(parser));
+                                builder.clusterStateCustomDeleted(convertListToString(parser.listOrderedMap()));
                                 break;
                             default:
                                 throw new XContentParseException("Unexpected field [" + currentFieldName + "]");
@@ -371,6 +377,14 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         return removedIndices;
     }
 
+    private static List<String> convertListToString(List<Object> list) {
+        List<String> convertedList = new ArrayList<>();
+        for (Object o : list) {
+            convertedList.add(o.toString());
+        }
+        return convertedList;
+    }
+
     public List<String> findUpdatedIndices(Map<String, IndexMetadata> indices, Map<String, IndexMetadata> previousIndices) {
         List<String> updatedIndices = new ArrayList<>();
         for (String index : indices.keySet()) {
@@ -381,34 +395,6 @@ public class ClusterStateDiffManifest implements ToXContentObject {
             }
         }
         return updatedIndices;
-    }
-
-    public List<String> getIndicesRoutingDeleted(RoutingTable previousRoutingTable, RoutingTable currentRoutingTable) {
-        List<String> deletedIndicesRouting = new ArrayList<>();
-        for(IndexRoutingTable previousIndexRouting: previousRoutingTable.getIndicesRouting().values()) {
-            if(!currentRoutingTable.getIndicesRouting().containsKey(previousIndexRouting.getIndex().getName())) {
-                // Latest Routing Table does not have entry for the index which means the index is deleted
-                deletedIndicesRouting.add(previousIndexRouting.getIndex().getName());
-            }
-        }
-        return deletedIndicesRouting;
-    }
-
-    public List<String> getIndicesRoutingUpdated(RoutingTable previousRoutingTable, RoutingTable currentRoutingTable) {
-        List<String> updatedIndicesRouting = new ArrayList<>();
-        for(IndexRoutingTable currentIndicesRouting: currentRoutingTable.getIndicesRouting().values()) {
-            if(!previousRoutingTable.getIndicesRouting().containsKey(currentIndicesRouting.getIndex().getName())) {
-                // Latest Routing Table does not have entry for the index which means the index is created
-                updatedIndicesRouting.add(currentIndicesRouting.getIndex().getName());
-            } else {
-                if(previousRoutingTable.getIndicesRouting().get(currentIndicesRouting.getIndex().getName()).equals(currentIndicesRouting)) {
-                    // if the latest routing table has the same routing table as the previous routing table, then the index is not updated
-                    continue;
-                }
-                updatedIndicesRouting.add(currentIndicesRouting.getIndex().getName());
-            }
-        }
-        return updatedIndicesRouting;
     }
 
     public String getFromStateUUID() {
@@ -483,6 +469,11 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         return new Builder();
     }
 
+    /**
+     * Builder for ClusterStateDiffManifest
+     *
+     * @opensearch.internal
+     */
     public static class Builder {
         private String fromStateUUID;
         private String toStateUUID;

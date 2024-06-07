@@ -790,27 +790,24 @@ public class RemoteClusterStateService implements Closeable {
                 committed,
                 MANIFEST_CURRENT_CODEC_VERSION
             );
-            final ClusterMetadataManifest manifest = new ClusterMetadataManifest(
-                clusterState.term(),
-                clusterState.getVersion(),
-                clusterState.metadata().clusterUUID(),
-                clusterState.stateUUID(),
-                Version.CURRENT,
-                nodeId,
-                committed,
-                MANIFEST_CURRENT_CODEC_VERSION,
-                null,
-                uploadedIndexMetadata,
-                previousClusterUUID,
-                clusterState.metadata().clusterUUIDCommitted(),
-                uploadedCoordinationMetadata,
-                uploadedSettingsMetadata,
-                uploadedTemplatesMetadata,
-                uploadedCustomMetadataMap,
-                clusterState.routingTable().version(),
-                // TODO: Add actual list of changed indices routing with index routing upload flow.
-                new ArrayList<>()
-            );
+            final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+                .clusterTerm(clusterState.term())
+                .stateVersion(clusterState.getVersion())
+                .clusterUUID(clusterState.metadata().clusterUUID())
+                .stateUUID(clusterState.stateUUID())
+                .opensearchVersion(Version.CURRENT)
+                .nodeId(nodeId)
+                .committed(committed)
+                .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
+                .indices(uploadedIndexMetadata)
+                .previousClusterUUID(previousClusterUUID)
+                .clusterUUIDCommitted(clusterState.metadata().clusterUUIDCommitted())
+                .coordinationMetadata(uploadedCoordinationMetadata)
+                .settingMetadata(uploadedSettingsMetadata)
+                .templatesMetadata(uploadedTemplatesMetadata)
+                .customMetadataMap(uploadedCustomMetadataMap)
+                .routingTableVersion(clusterState.routingTable().version())
+                .build();
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
         }

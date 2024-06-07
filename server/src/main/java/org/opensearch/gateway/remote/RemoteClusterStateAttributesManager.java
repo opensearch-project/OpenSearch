@@ -8,33 +8,39 @@
 
 package org.opensearch.gateway.remote;
 
-import java.io.IOException;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterState.Custom;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils.RemoteStateTransferException;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterBlocks;
+import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterStateCustoms;
 import org.opensearch.gateway.remote.model.RemoteDiscoveryNodes;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CUSTOM_DELIMITER;
 import static org.opensearch.gateway.remote.model.RemoteClusterStateCustoms.CLUSTER_STATE_CUSTOM;
-import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_DELIMITER;
 
+/**
+ * A Manager which provides APIs to upload and download attributes of ClusterState to the {@link RemoteClusterStateBlobStore}
+ *
+ * @opensearch.internal
+ */
 public class RemoteClusterStateAttributesManager {
     public static final String CLUSTER_STATE_ATTRIBUTE = "cluster_state_attribute";
     public static final String DISCOVERY_NODES = "nodes";
@@ -45,14 +51,22 @@ public class RemoteClusterStateAttributesManager {
     private final RemoteClusterStateBlobStore<Custom, RemoteClusterStateCustoms> customsBlobStore;
     private final Compressor compressor;
     private final NamedXContentRegistry namedXContentRegistry;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     RemoteClusterStateAttributesManager(
-        RemoteClusterStateBlobStore<ClusterBlocks, RemoteClusterBlocks> clusterBlocksBlobStore, RemoteClusterStateBlobStore<DiscoveryNodes, RemoteDiscoveryNodes> discoveryNodesBlobStore, RemoteClusterStateBlobStore<Custom, RemoteClusterStateCustoms> customsBlobStore, Compressor compressor, NamedXContentRegistry namedXContentRegistry) {
+        RemoteClusterStateBlobStore<ClusterBlocks, RemoteClusterBlocks> clusterBlocksBlobStore,
+        RemoteClusterStateBlobStore<DiscoveryNodes, RemoteDiscoveryNodes> discoveryNodesBlobStore,
+        RemoteClusterStateBlobStore<Custom, RemoteClusterStateCustoms> customsBlobStore,
+        Compressor compressor,
+        NamedXContentRegistry namedXContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         this.clusterBlocksBlobStore = clusterBlocksBlobStore;
         this.discoveryNodesBlobStore = discoveryNodesBlobStore;
         this.customsBlobStore = customsBlobStore;
         this.compressor = compressor;
         this.namedXContentRegistry = namedXContentRegistry;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     /**
@@ -65,10 +79,25 @@ public class RemoteClusterStateAttributesManager {
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
         if (componentData instanceof DiscoveryNodes) {
-            RemoteDiscoveryNodes remoteObject = new RemoteDiscoveryNodes((DiscoveryNodes)componentData, clusterState.version(), clusterState.metadata().clusterUUID(), compressor, namedXContentRegistry);
-            return () -> discoveryNodesBlobStore.writeAsync(remoteObject, getActionListener(component, remoteObject, latchedActionListener));
+            RemoteDiscoveryNodes remoteObject = new RemoteDiscoveryNodes(
+                (DiscoveryNodes) componentData,
+                clusterState.version(),
+                clusterState.metadata().clusterUUID(),
+                compressor,
+                namedXContentRegistry
+            );
+            return () -> discoveryNodesBlobStore.writeAsync(
+                remoteObject,
+                getActionListener(component, remoteObject, latchedActionListener)
+            );
         } else if (componentData instanceof ClusterBlocks) {
-            RemoteClusterBlocks remoteObject = new RemoteClusterBlocks((ClusterBlocks) componentData, clusterState.version(), clusterState.metadata().clusterUUID(), compressor, namedXContentRegistry);
+            RemoteClusterBlocks remoteObject = new RemoteClusterBlocks(
+                (ClusterBlocks) componentData,
+                clusterState.version(),
+                clusterState.metadata().clusterUUID(),
+                compressor,
+                namedXContentRegistry
+            );
             return () -> clusterBlocksBlobStore.writeAsync(remoteObject, getActionListener(component, remoteObject, latchedActionListener));
         } else if (componentData instanceof ClusterState.Custom) {
             RemoteClusterStateCustoms remoteObject = new RemoteClusterStateCustoms(
@@ -77,19 +106,22 @@ public class RemoteClusterStateAttributesManager {
                 clusterState.version(),
                 clusterState.metadata().clusterUUID(),
                 compressor,
-                namedXContentRegistry
+                namedXContentRegistry,
+                namedWriteableRegistry
             );
             return () -> customsBlobStore.writeAsync(remoteObject, getActionListener(component, remoteObject, latchedActionListener));
         } else {
-            throw new RemoteStateTransferException("Remote object not found for "+ componentData.getClass());
+            throw new RemoteStateTransferException("Remote object not found for " + componentData.getClass());
         }
     }
 
-    private ActionListener<Void> getActionListener(String component, AbstractRemoteWritableBlobEntity remoteObject, LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener) {
+    private ActionListener<Void> getActionListener(
+        String component,
+        AbstractRemoteWritableBlobEntity remoteObject,
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+    ) {
         return ActionListener.wrap(
-            resp -> latchedActionListener.onResponse(
-                remoteObject.getUploadedMetadata()
-            ),
+            resp -> latchedActionListener.onResponse(remoteObject.getUploadedMetadata()),
             ex -> latchedActionListener.onFailure(new RemoteClusterStateUtils.RemoteStateTransferException(component, ex))
         );
     }
@@ -101,19 +133,48 @@ public class RemoteClusterStateAttributesManager {
         String uploadedFilename,
         LatchedActionListener<RemoteReadResult> listener
     ) {
-        final ActionListener actionListener = ActionListener.wrap(response -> listener.onResponse(new RemoteReadResult((ToXContent) response, CLUSTER_STATE_ATTRIBUTE, component)), listener::onFailure);
+        final ActionListener actionListener = ActionListener.wrap(
+            response -> listener.onResponse(new RemoteReadResult((ToXContent) response, CLUSTER_STATE_ATTRIBUTE, component)),
+            listener::onFailure
+        );
         if (component.equals(RemoteDiscoveryNodes.DISCOVERY_NODES)) {
-            RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(uploadedFilename, clusterUUID, compressor, namedXContentRegistry);
+            RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(
+                uploadedFilename,
+                clusterUUID,
+                compressor,
+                namedXContentRegistry
+            );
             return () -> discoveryNodesBlobStore.readAsync(remoteDiscoveryNodes, actionListener);
         } else if (component.equals(RemoteClusterBlocks.CLUSTER_BLOCKS)) {
-            RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(uploadedFilename, clusterUUID, compressor, namedXContentRegistry);
+            RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(
+                uploadedFilename,
+                clusterUUID,
+                compressor,
+                namedXContentRegistry
+            );
             return () -> clusterBlocksBlobStore.readAsync(remoteClusterBlocks, actionListener);
         } else if (component.equals(CLUSTER_STATE_CUSTOM)) {
-            final ActionListener customActionListener = ActionListener.wrap(response -> listener.onResponse(new RemoteReadResult((ToXContent) response, CLUSTER_STATE_ATTRIBUTE, String.join(CUSTOM_DELIMITER, component, componentName))), listener::onFailure);
-            RemoteClusterStateCustoms remoteClusterStateCustoms = new RemoteClusterStateCustoms(uploadedFilename, componentName, clusterUUID, compressor, namedXContentRegistry);
+            final ActionListener customActionListener = ActionListener.wrap(
+                response -> listener.onResponse(
+                    new RemoteReadResult(
+                        (ToXContent) response,
+                        CLUSTER_STATE_ATTRIBUTE,
+                        String.join(CUSTOM_DELIMITER, component, componentName)
+                    )
+                ),
+                listener::onFailure
+            );
+            RemoteClusterStateCustoms remoteClusterStateCustoms = new RemoteClusterStateCustoms(
+                uploadedFilename,
+                componentName,
+                clusterUUID,
+                compressor,
+                namedXContentRegistry,
+                namedWriteableRegistry
+            );
             return () -> customsBlobStore.readAsync(remoteClusterStateCustoms, customActionListener);
         } else {
-            throw new RemoteStateTransferException("Remote object not found for "+ component);
+            throw new RemoteStateTransferException("Remote object not found for " + component);
         }
     }
 

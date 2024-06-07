@@ -42,17 +42,18 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
     private final Supplier<RepositoriesService> repositoriesService;
     private BlobStoreRepository blobStoreRepository;
 
-    private static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER = new DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable>() {
-        @Override
-        public void write(IndexRoutingTable value, StreamOutput out) throws IOException {
-            value.writeTo(out);
-        }
+    private static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
+        new DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable>() {
+            @Override
+            public void write(IndexRoutingTable value, StreamOutput out) throws IOException {
+                value.writeTo(out);
+            }
 
-        @Override
-        public IndexRoutingTable read(StreamInput in, String key) throws IOException {
-            return IndexRoutingTable.readFrom(in);
-        }
-    };
+            @Override
+            public IndexRoutingTable read(StreamInput in, String key) throws IOException {
+                return IndexRoutingTable.readFrom(in);
+            }
+        };
 
     public RemoteRoutingTableService(Supplier<RepositoriesService> repositoriesService, Settings settings) {
         assert isRemoteRoutingTableEnabled(settings) : "Remote routing table is not enabled";
@@ -60,8 +61,10 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
         this.settings = settings;
     }
 
-
-    public static DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> getIndicesRoutingMapDiff(RoutingTable before, RoutingTable after) {
+    public static DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> getIndicesRoutingMapDiff(
+        RoutingTable before,
+        RoutingTable after
+    ) {
         return DiffableUtils.diff(
             before.getIndicesRouting(),
             after.getIndicesRouting(),
@@ -69,7 +72,6 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
             CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER
         );
     }
-
 
     @Override
     protected void doClose() throws IOException {

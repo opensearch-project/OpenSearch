@@ -8,13 +8,6 @@
 
 package org.opensearch.gateway.remote.model;
 
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_FORMAT;
-import static org.opensearch.gateway.remote.RemoteGlobalMetadataManager.GLOBAL_METADATA_CURRENT_CODEC_VERSION;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
@@ -26,6 +19,15 @@ import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAtt
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_CURRENT_CODEC_VERSION;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_PATH_TOKEN;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_FORMAT;
 
 /**
  * Wrapper class for uploading/downloading transient {@link Settings} to/from remote blob store
@@ -43,20 +45,31 @@ public class RemoteTransientSettingsMetadata extends AbstractRemoteWritableBlobE
     private Settings transientSettings;
     private long metadataVersion;
 
-    public RemoteTransientSettingsMetadata(final Settings transientSettings, final long metadataVersion, final String clusterUUID, final Compressor compressor, final NamedXContentRegistry namedXContentRegistry) {
+    public RemoteTransientSettingsMetadata(
+        final Settings transientSettings,
+        final long metadataVersion,
+        final String clusterUUID,
+        final Compressor compressor,
+        final NamedXContentRegistry namedXContentRegistry
+    ) {
         super(clusterUUID, compressor, namedXContentRegistry);
         this.transientSettings = transientSettings;
         this.metadataVersion = metadataVersion;
     }
 
-    public RemoteTransientSettingsMetadata(final String blobName, final String clusterUUID, final Compressor compressor, final NamedXContentRegistry namedXContentRegistry) {
+    public RemoteTransientSettingsMetadata(
+        final String blobName,
+        final String clusterUUID,
+        final Compressor compressor,
+        final NamedXContentRegistry namedXContentRegistry
+    ) {
         super(clusterUUID, compressor, namedXContentRegistry);
         this.blobName = blobName;
     }
 
     @Override
     public BlobPathParameters getBlobPathParameters() {
-        return new BlobPathParameters(List.of("global-metadata"), TRANSIENT_SETTING_METADATA);
+        return new BlobPathParameters(List.of(GLOBAL_METADATA_PATH_TOKEN), TRANSIENT_SETTING_METADATA);
     }
 
     @Override
@@ -73,19 +86,13 @@ public class RemoteTransientSettingsMetadata extends AbstractRemoteWritableBlobE
     }
 
     @Override
-    public void set(final Settings settings) {
-        this.transientSettings = settings;
-    }
-
-    @Override
-    public Settings get() {
-        return transientSettings;
-    }
-
-    @Override
     public InputStream serialize() throws IOException {
-        return SETTINGS_METADATA_FORMAT.serialize(transientSettings, generateBlobFileName(), getCompressor(), RemoteClusterStateUtils.FORMAT_PARAMS)
-            .streamInput();
+        return SETTINGS_METADATA_FORMAT.serialize(
+            transientSettings,
+            generateBlobFileName(),
+            getCompressor(),
+            RemoteClusterStateUtils.FORMAT_PARAMS
+        ).streamInput();
     }
 
     @Override
