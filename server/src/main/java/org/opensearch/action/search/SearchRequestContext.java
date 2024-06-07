@@ -107,6 +107,10 @@ public class SearchRequestContext {
             );
         }
     }
+
+    public SearchRequest getRequest() {
+        return searchRequest;
+    }
 }
 
 enum ShardStatsFieldNames {
