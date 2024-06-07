@@ -116,4 +116,15 @@ public class RemoteStoreSettingsDynamicUpdateTests extends OpenSearchTestCase {
         );
         assertEquals(500, remoteStoreSettings.getMaxRemoteTranslogReaders());
     }
+
+    public void testDisableMaxRemoteReferencedTranslogFiles() {
+        // Test default value
+        assertEquals(1000, remoteStoreSettings.getMaxRemoteTranslogReaders());
+
+        // Test override with valid value
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "-1").build()
+        );
+        assertEquals(-1, remoteStoreSettings.getMaxRemoteTranslogReaders());
+    }
 }

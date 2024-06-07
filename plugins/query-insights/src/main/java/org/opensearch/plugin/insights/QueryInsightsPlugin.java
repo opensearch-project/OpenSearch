@@ -70,7 +70,7 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         // create top n queries service
-        final QueryInsightsService queryInsightsService = new QueryInsightsService(threadPool);
+        final QueryInsightsService queryInsightsService = new QueryInsightsService(clusterService.getClusterSettings(), threadPool, client);
         return List.of(queryInsightsService, new QueryInsightsListener(clusterService, queryInsightsService));
     }
 
@@ -110,7 +110,8 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
             // Settings for top N queries
             QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED,
             QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE,
-            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE
+            QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
+            QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS
         );
     }
 }
