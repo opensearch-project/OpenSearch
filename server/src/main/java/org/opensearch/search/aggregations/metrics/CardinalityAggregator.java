@@ -146,7 +146,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {
                 emptyCollectorsUsed++;
-                collector = new EmptyCollector();
+                return new EmptyCollector();
             } else {
                 final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
                 final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
@@ -158,7 +158,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     ordinalsCollectorsOverheadTooHigh++;
                 }
             }
-        } else {
+        }
+
+        if (collector == null) { // not able to build an OrdinalsCollector
             stringHashingCollectorsUsed++;
             collector = new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
         }
@@ -166,6 +168,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         if (parent == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
             Terms terms = ctx.reader().terms(valuesSourceConfig.fieldContext().field());
             if (terms != null) {
+                // Specify TOP_DOCS score mode to use competitive iterator from collector
                 Weight weight = context.searcher().createWeight(context.searcher().rewrite(context.query()), ScoreMode.TOP_DOCS, 1f);
                 Bits liveDocs = ctx.reader().getLiveDocs();
                 BulkScorer scorer = weight.bulkScorer(ctx);
@@ -175,7 +178,19 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 Releasables.close(collector);
                 logger.debug("Dynamic pruning shard {} segment {}", context.indexShard().shardId(), ctx.ord);
                 dynamicPruningSegments++;
-                throw new CollectionTerminatedException();
+                // return a no-op collector to not breaking profile results
+                return new Collector() {
+                    @Override
+                    public void close() {}
+
+                    @Override
+                    public void postCollect() throws IOException {}
+
+                    @Override
+                    public void collect(int doc, long owningBucketOrd) throws IOException {
+                        throw new CollectionTerminatedException();
+                    }
+                };
             }
         }
 
