@@ -186,11 +186,10 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                     indexSingleDoc(indexName);
                     long currentDocCount = indexedDocs.incrementAndGet();
                     if (currentDocCount > 0 && currentDocCount % refreshFrequency == 0) {
+                        logger.info("--> [iteration {}] flushing index", currentDocCount);
                         if (rarely()) {
-                            logger.info("--> [iteration {}] flushing index", currentDocCount);
                             client().admin().indices().prepareFlush(indexName).get();
                         } else {
-                            logger.info("--> [iteration {}] refreshing index", currentDocCount);
                             client().admin().indices().prepareRefresh(indexName).get();
                         }
                     }
