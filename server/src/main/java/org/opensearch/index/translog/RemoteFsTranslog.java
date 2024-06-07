@@ -706,6 +706,10 @@ public class RemoteFsTranslog extends Translog {
      */
     @Override
     protected boolean shouldFlush() {
-        return readers.size() >= translogTransferManager.getMaxRemoteTranslogReadersSettings();
+        int maxRemoteTlogReaders = translogTransferManager.getMaxRemoteTranslogReadersSettings();
+        if (maxRemoteTlogReaders == -1) {
+            return false;
+        }
+        return readers.size() >= maxRemoteTlogReaders;
     }
 }

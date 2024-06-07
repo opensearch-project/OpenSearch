@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
@@ -470,6 +471,25 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         assertFalse("remote store should not in sync", tuple.v1().isRemoteSegmentStoreInSync());
     }
 
+    public void testRefreshPersistentFailureAndIndexShardClosed() throws Exception {
+        int succeedOnAttempt = 3;
+        int closeShardOnAttempt = 1;
+        CountDownLatch refreshCountLatch = new CountDownLatch(1);
+        CountDownLatch successLatch = new CountDownLatch(10);
+        Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> tuple = mockIndexShardWithRetryAndScheduleRefresh(
+            succeedOnAttempt,
+            refreshCountLatch,
+            successLatch,
+            true,
+            closeShardOnAttempt
+        );
+        // Giving 10ms for some iterations of remote refresh upload
+        Thread.sleep(TimeUnit.SECONDS.toMillis(2));
+        RemoteStoreRefreshListener listener = tuple.v1();
+        assertFalse("remote store should not in sync", listener.isRemoteSegmentStoreInSync());
+        assertFalse(listener.getRetryScheduledStatus());
+    }
+
     private void assertNoLagAndTotalUploadsFailed(RemoteSegmentTransferTracker segmentTracker, long totalUploadsFailed) throws Exception {
         assertBusy(() -> {
             assertEquals(0, segmentTracker.getBytesLag());
@@ -549,6 +569,49 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     private Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> mockIndexShardWithRetryAndScheduleRefresh(
+        int totalAttempt,
+        CountDownLatch refreshCountLatch,
+        CountDownLatch successLatch,
+        int checkpointPublishSucceedOnAttempt,
+        CountDownLatch reachedCheckpointPublishLatch,
+        boolean mockPrimaryTerm,
+        boolean testUploadTimeout
+    ) throws IOException {
+        return mockIndexShardWithRetryAndScheduleRefresh(
+            totalAttempt,
+            refreshCountLatch,
+            successLatch,
+            checkpointPublishSucceedOnAttempt,
+            reachedCheckpointPublishLatch,
+            mockPrimaryTerm,
+            testUploadTimeout,
+            false,
+            0
+        );
+    }
+
+    private Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> mockIndexShardWithRetryAndScheduleRefresh(
+        int succeedOnAttempt,
+        CountDownLatch refreshCountLatch,
+        CountDownLatch successLatch,
+        boolean closedShard,
+        int closeShardAfterAttempt
+    ) throws IOException {
+        CountDownLatch noOpLatch = new CountDownLatch(0);
+        return mockIndexShardWithRetryAndScheduleRefresh(
+            succeedOnAttempt,
+            refreshCountLatch,
+            successLatch,
+            1,
+            noOpLatch,
+            true,
+            false,
+            closedShard,
+            closeShardAfterAttempt
+        );
+    }
+
+    private Tuple<RemoteStoreRefreshListener, RemoteStoreStatsTrackerFactory> mockIndexShardWithRetryAndScheduleRefresh(
         int succeedOnAttempt,
         CountDownLatch refreshCountLatch,
         CountDownLatch successLatch,
@@ -562,7 +625,9 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             succeedCheckpointPublishOnAttempt,
             reachedCheckpointPublishLatch,
             true,
-            false
+            false,
+            false,
+            0
         );
     }
 
@@ -573,7 +638,9 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         int succeedCheckpointPublishOnAttempt,
         CountDownLatch reachedCheckpointPublishLatch,
         boolean mockPrimaryTerm,
-        boolean testUploadTimeout
+        boolean testUploadTimeout,
+        boolean closeShard,
+        int closeShardAfterAttempt
     ) throws IOException {
         // Create index shard that we will be using to mock different methods in IndexShard for the unit test
         indexShard = newStartedShard(
@@ -601,7 +668,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         IndexShard shard = mock(IndexShard.class);
         Store store = mock(Store.class);
         when(shard.store()).thenReturn(store);
-        when(shard.state()).thenReturn(IndexShardState.STARTED);
         when(store.directory()).thenReturn(indexShard.store().directory());
 
         // Mock (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
@@ -662,6 +728,14 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             }
             return indexShard.getLatestReplicationCheckpoint();
         })).when(shard).computeReplicationCheckpoint(any());
+
+        doAnswer((invocationOnMock -> {
+            if (closeShard && counter.get() == closeShardAfterAttempt) {
+                logger.info("Closing shard...");
+                return IndexShardState.CLOSED;
+            }
+            return IndexShardState.STARTED;
+        })).when(shard).state();
 
         doAnswer(invocation -> {
             if (Objects.nonNull(successLatch)) {
