@@ -94,22 +94,6 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
         this.threadPool = threadPool;
     }
 
-    public List<ClusterMetadataManifest.UploadedIndexMetadata> getAllUploadedIndicesRouting(ClusterMetadataManifest previousManifest, List<ClusterMetadataManifest.UploadedIndexMetadata> indicesRoutingToUpload, Set<String> indicesRoutingToDelete) {
-        final Map<String, ClusterMetadataManifest.UploadedIndexMetadata> allUploadedIndicesRouting = previousManifest.getIndicesRouting()
-            .stream()
-            .collect(Collectors.toMap(ClusterMetadataManifest.UploadedIndexMetadata::getIndexName, Function.identity()));
-
-        indicesRoutingToUpload.forEach(
-            uploadedIndexRouting -> allUploadedIndicesRouting.put(uploadedIndexRouting.getIndexName(), uploadedIndexRouting)
-        );
-
-        indicesRoutingToDelete.forEach(allUploadedIndicesRouting::remove);
-
-        logger.info("allUploadedIndicesRouting ROUTING {}", allUploadedIndicesRouting);
-
-        return new ArrayList<>(allUploadedIndicesRouting.values());
-    }
-
 
     private String getIndexRoutingFileName() {
         return String.join(

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -822,6 +823,73 @@ public class RemoteClusterStateService implements Closeable {
         }
     }
 
+    public ClusterState getClusterStateForManifest(String clusterName, ClusterMetadataManifest manifest, String localNodeId, boolean includeEphemeral)
+        throws IOException {
+        return readClusterStateInParallel(
+            ClusterState.builder(new ClusterName(clusterName)).build(),
+            manifest,
+            clusterName,
+            manifest.getClusterUUID(),
+            localNodeId,
+            manifest.getIndices(),
+            manifest.getCustomMetadataMap(),
+            manifest.getCoordinationMetadata() != null,
+            manifest.getSettingsMetadata() != null,
+            manifest.getTransientSettingsMetadata() != null,
+            manifest.getTemplatesMetadata() != null,
+            includeEphemeral && manifest.getDiscoveryNodesMetadata() != null,
+            includeEphemeral && manifest.getClusterBlocksMetadata() != null,
+            includeEphemeral ? manifest.getIndicesRouting() : Collections.emptyList(),
+            includeEphemeral && manifest.getHashesOfConsistentSettings() != null,
+            includeEphemeral ? manifest.getClusterStateCustomMap() : Collections.emptyMap()
+        );
+    }
+
+    public ClusterState getClusterStateUsingDiff(String clusterName, ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId)
+        throws IOException {
+        assert manifest.getDiffManifest() != null;
+
+
+        List<UploadedIndexMetadata> updatedIndexRouting = remoteRoutingTableService.get().getUpdatedIndexRoutingTableMetadata(diff.getIndicesRoutingUpdated(),
+            manifest.getIndicesRouting());
+
+
+        ClusterState updatedClusterState = readClusterStateInParallel(
+            previousState,
+            manifest,
+            clusterName,
+            manifest.getClusterUUID(),
+            localNodeId,
+            updatedIndices,
+            updatedCustomMetadata,
+            diff.isCoordinationMetadataUpdated(),
+            diff.isSettingsMetadataUpdated(),
+            diff.isTransientSettingsMetadataUpdated(),
+            diff.isTemplatesMetadataUpdated(),
+            diff.isDiscoveryNodesUpdated(),
+            diff.isClusterBlocksUpdated(),
+            updatedIndexRouting,
+            diff.isHashesOfConsistentSettingsUpdated(),
+            updatedClusterStateCustom
+        );
+        ClusterState.Builder clusterStateBuilder = ClusterState.builder(updatedClusterState);
+
+        HashMap<String, IndexRoutingTable> indexRoutingTables = new HashMap<>(updatedClusterState.getRoutingTable().getIndicesRouting());
+
+        for (String indexName : diff.getIndicesRoutingDeleted()) {
+            indexRoutingTables.remove(indexName);
+        }
+
+        RoutingTable routingTable = new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables);
+
+        return clusterStateBuilder.
+            stateUUID(manifest.getStateUUID()).
+            version(manifest.getStateVersion()).
+            metadata(metadataBuilder).
+            routingTable(routingTable).
+            build();
+    }
+
     private ClusterState readClusterStateInParallel(
         ClusterState previousState,
         ClusterMetadataManifest manifest,
@@ -849,20 +917,6 @@ public class RemoteClusterStateService implements Closeable {
         List<RemoteReadResult> readResults = Collections.synchronizedList(new ArrayList<>());
         List<IndexRoutingTable> readIndexRoutingTableResults = Collections.synchronizedList(new ArrayList<>());
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
-
-        LatchedActionListener<RemoteReadResult> listener = new LatchedActionListener<>(
-            ActionListener.wrap(
-                response -> {
-                    logger.debug("Successfully read cluster state component from remote");
-                    readResults.add(response);
-                },
-                ex -> {
-                    logger.error("Failed to read cluster state from remote", ex);
-                    exceptionList.add(ex);
-                }
-            ),
-            latch
-        );
 
         for (UploadedIndexMetadata indexMetadata : indicesToRead) {
             asyncMetadataReadActions.add(
