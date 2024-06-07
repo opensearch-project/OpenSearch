@@ -9,11 +9,15 @@
 package org.opensearch.tasks;
 
 import org.opensearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -31,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.opensearch.core.tasks.resourcetracker.ResourceStats.CPU;
 import static org.opensearch.core.tasks.resourcetracker.ResourceStats.MEMORY;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
+import static org.opensearch.tasks.TaskResourceTrackingService.TASK_RESOURCE_USAGE;
 
 public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
 
@@ -140,6 +145,36 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         assertTrue(task.getMaxResourceStats().getMemoryInBytes() < task.getTotalResourceStats().getMemoryInBytes());
         // Each execution of a runnable should record an entry in resourceStats even if it's the same thread
         assertEquals(numTasks, numExecutions);
+    }
+
+    public void testWriteTaskResourceUsage() {
+        SearchShardTask task = new SearchShardTask(1, "test", "test", "task", TaskId.EMPTY_TASK_ID, new HashMap<>());
+        taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
+        taskResourceTrackingService.startTracking(task);
+        task.startThreadResourceTracking(
+            Thread.currentThread().getId(),
+            ResourceStatsType.WORKER_STATS,
+            new ResourceUsageMetric(CPU, 100),
+            new ResourceUsageMetric(MEMORY, 100)
+        );
+        taskResourceTrackingService.writeTaskResourceUsage(task, "node_1");
+        Map<String, List<String>> headers = threadPool.getThreadContext().getResponseHeaders();
+        assertEquals(1, headers.size());
+        assertTrue(headers.containsKey(TASK_RESOURCE_USAGE));
+    }
+
+    public void testGetTaskResourceUsageFromThreadContext() {
+        String taskResourceUsageJson =
+            "{\"action\":\"testAction\",\"taskId\":1,\"parentTaskId\":2,\"nodeId\":\"nodeId\",\"taskResourceUsage\":{\"cpu_time_in_nanos\":1000,\"memory_in_bytes\":2000}}";
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, taskResourceUsageJson);
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNotNull(result);
+        assertEquals("testAction", result.getAction());
+        assertEquals(1L, result.getTaskId());
+        assertEquals(2L, result.getParentTaskId());
+        assertEquals("nodeId", result.getNodeId());
+        assertEquals(1000L, result.getTaskResourceUsage().getCpuTimeInNanos());
+        assertEquals(2000L, result.getTaskResourceUsage().getMemoryInBytes());
     }
 
     private void verifyThreadContextFixedHeaders(String key, String value) {
