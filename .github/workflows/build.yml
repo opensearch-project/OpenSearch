@@ -1,3 +1,4 @@
+run-name: Build ${{ inputs.distribution }} Wazuh Indexer on ${{ inputs.architecture }} | ${{ inputs.id }}
 name: Build packages (on demand)
 
 # This workflow runs when any of the following occur:
@@ -30,6 +31,10 @@ on:
         description: "Checksum ?"
         type: boolean
         default: false
+      id:
+        description: "ID used to identify the workflow uniquely."
+        type: string
+        required: false
   workflow_call:
     inputs:
       revision:
@@ -56,6 +61,9 @@ on:
         description: "Checksum ?"
         type: boolean
         default: false
+      id:
+        type: string
+        required: false
     secrets:
       CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY:
         required: true
@@ -185,6 +193,8 @@ jobs:
           src="artifacts/dist/${{ steps.package.outputs.name }}"
           dest="s3://packages-dev.internal.wazuh.com/development/wazuh/4.x/main/packages/"
           aws s3 cp "$src" "$dest"
+          s3uri="${dest}${{ steps.package.outputs.name }}"
+          echo "S3 URI: ${s3uri}"
 
       - name: Upload checksum to S3
         if: ${{ inputs.upload && inputs.checksum }}
@@ -192,3 +202,5 @@ jobs:
           src="artifacts/dist/${{ steps.package.outputs.name }}.sha512"
           dest="s3://packages-dev.internal.wazuh.com/development/wazuh/4.x/main/packages/"
           aws s3 cp "$src" "$dest"
+          s3uri="${dest}${{ steps.package.outputs.name }}.sha512"
+          echo "S3 sha512 URI: ${s3uri}"
