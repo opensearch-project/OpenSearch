@@ -248,6 +248,10 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT, this::setInternalRemoteUploadTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CHUNK_SIZE_SETTING, this::setChunkSize);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
+            this::setInternalActionRetryTimeout
+        );
     }
 
     public RateLimiter recoveryRateLimiter() {
@@ -316,6 +320,10 @@ public class RecoverySettings {
 
     public void setInternalRemoteUploadTimeout(TimeValue internalRemoteUploadTimeout) {
         this.internalRemoteUploadTimeout = internalRemoteUploadTimeout;
+    }
+
+    public void setInternalActionRetryTimeout(TimeValue internalActionRetryTimeout) {
+        this.internalActionRetryTimeout = internalActionRetryTimeout;
     }
 
     private void setRecoveryMaxBytesPerSec(ByteSizeValue recoveryMaxBytesPerSec) {
