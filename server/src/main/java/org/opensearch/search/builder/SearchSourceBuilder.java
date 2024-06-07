@@ -1010,7 +1010,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @param type type of the derived field
      * @param script script associated with derived field
      * @param properties map of field name and type of field for nested fields within object derived field
-     * @param sourceIndexedField source text field which is indexed to filter documents for better performance
+     * @param prefilterField source text field which is indexed to filter documents for better performance
      * @param format date format
      * @param ignoreMalformed ignores malformed fields instead of failing search request
      */
@@ -1019,7 +1019,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         String type,
         Script script,
         Map<String, Object> properties,
-        String sourceIndexedField,
+        String prefilterField,
         String format,
         Boolean ignoreMalformed
     ) {
@@ -1028,7 +1028,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         DerivedField derivedField = new DerivedField(name, type, script);
         derivedField.setProperties(properties);
-        derivedField.setSourceIndexedField(sourceIndexedField);
+        derivedField.setPrefilterField(prefilterField);
         derivedField.setFormat(format);
         derivedField.setIgnoreMalformed(ignoreMalformed);
         derivedFields.add(derivedField);
