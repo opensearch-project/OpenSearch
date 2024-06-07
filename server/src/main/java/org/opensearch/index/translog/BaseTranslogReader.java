@@ -32,7 +32,6 @@
 
 package org.opensearch.index.translog;
 
-import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.index.seqno.SequenceNumbers;
 

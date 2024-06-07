@@ -30,10 +30,12 @@
  * GitHub history for details.
  */
 
-package org.opensearch.core.common.io.stream;
+package org.opensearch.index.translog;
 
 import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.util.BitUtil;
+import org.opensearch.core.common.io.stream.FilterStreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.EOFException;
 import java.io.IOException;

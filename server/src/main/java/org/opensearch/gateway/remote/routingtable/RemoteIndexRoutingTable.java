@@ -10,12 +10,12 @@ package org.opensearch.gateway.remote.routingtable;
 
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;
-import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.translog.BufferedChecksumStreamInput;
+import org.opensearch.index.translog.BufferedChecksumStreamOutput;
 
 import java.io.EOFException;
 import java.io.IOException;
