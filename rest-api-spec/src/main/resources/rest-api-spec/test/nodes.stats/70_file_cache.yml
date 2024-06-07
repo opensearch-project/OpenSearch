@@ -1,0 +1,31 @@
+# As of now only nodes with the "search" role can utilize file caching.
+# Moreover, until the remote store is used in the test and some searches executed (which will force
+# downloading the files from remote store to node file cache) we should always expect 0b size.
+# But at least the cache file fields must be present.
+---
+"File Cache stats":
+  - skip:
+      version: " - 2.15.99"
+      reason: "file cache fields were added in 2.7 but #13232 was not back-ported yet"
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats:
+        metric: [ fs ]
+
+  # In the future we shall test that the node has a "search" role
+  # otherwise the file cache will be always 0.
+  - is_true: nodes.$node_id.roles
+
+  - is_true: nodes.$node_id.fs.total
+  - gte: { nodes.$node_id.fs.total.cache_reserved_in_bytes: 0 }
+  - gte: { nodes.$node_id.fs.total.cache_utilized_in_bytes: 0 }
+
+  - is_true: nodes.$node_id.fs.data
+  - gte: { nodes.$node_id.fs.data.0.cache_reserved_in_bytes: 0 }
+  - gte: { nodes.$node_id.fs.data.0.cache_utilized_in_bytes: 0 }

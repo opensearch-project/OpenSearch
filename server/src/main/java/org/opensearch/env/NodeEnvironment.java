@@ -126,6 +126,7 @@ public final class NodeEnvironment implements Closeable {
         public final Path indicesPath;
         /** Cached FileStore from path */
         public final FileStore fileStore;
+        /* ${data.paths}/nodes/{node.id}/cache */
         public final Path fileCachePath;
         /*
           Cache reserved size can default to a different value depending on configuration
@@ -171,18 +172,21 @@ public final class NodeEnvironment implements Closeable {
 
         @Override
         public String toString() {
-            return "NodePath{"
-                + "path="
-                + path
-                + ", indicesPath="
-                + indicesPath
-                + ", fileStore="
-                + fileStore
-                + ", majorDeviceNumber="
-                + majorDeviceNumber
-                + ", minorDeviceNumber="
-                + minorDeviceNumber
-                + '}';
+            StringBuilder sb = new StringBuilder().append("NodePath{")
+                .append("path=")
+                .append(path)
+                .append(", indicesPath=")
+                .append(indicesPath)
+                .append(", fileStore=")
+                .append(fileStore)
+                .append(", fileCachePath=")
+                .append(fileCachePath)
+                .append(", majorDeviceNumber=")
+                .append(majorDeviceNumber)
+                .append(", minorDeviceNumber=")
+                .append(minorDeviceNumber)
+                .append("}");
+            return sb.toString();
         }
 
     }
