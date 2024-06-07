@@ -160,7 +160,7 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
             UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
-            assertThat(uploadedMetadata.getUploadedFilename(), is(remoteObjectForUpload.getFullBlobName()));
+            assertThat(uploadedMetadata.getUploadedFilename(), is(remoteObjectForUpload.getBlobFileName()));
         }
     }
 

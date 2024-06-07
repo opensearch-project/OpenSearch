@@ -36,6 +36,8 @@ public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEnt
 
     public static final String METADATA_MANIFEST_NAME_FORMAT = "%s";
     public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V3;
+    public static final String COMMITTED = "C";
+    public static final String PUBLISHED = "P";
 
     /**
      * Manifest format compatible with older codec v0, where codec version was missing.
@@ -93,11 +95,10 @@ public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEnt
             MANIFEST,
             RemoteStoreUtils.invertLong(clusterMetadataManifest.getClusterTerm()),
             RemoteStoreUtils.invertLong(clusterMetadataManifest.getStateVersion()),
-            (clusterMetadataManifest.isCommitted() ? "C" : "P"), // C for committed and P for published
+            (clusterMetadataManifest.isCommitted() ? COMMITTED : PUBLISHED),
             RemoteStoreUtils.invertLong(System.currentTimeMillis()),
-            String.valueOf(clusterMetadataManifest.getCodecVersion()) // Keep the codec version at last place only, during read we reads
-                                                                      // last place to
-            // determine codec version.
+            String.valueOf(clusterMetadataManifest.getCodecVersion())
+            // Keep the codec version at last place only, during we read last place to determine codec version.
         );
         this.blobFileName = blobFileName;
         return blobFileName;

@@ -22,6 +22,9 @@ import java.io.InputStream;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_FORMAT;
 
+/**
+ * Wrapper class for uploading/downloading global metadata ({@link Metadata}) to/from remote blob store
+ */
 public class RemoteGlobalMetadata extends AbstractRemoteWritableBlobEntity<Metadata> {
 
     public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
@@ -29,9 +32,6 @@ public class RemoteGlobalMetadata extends AbstractRemoteWritableBlobEntity<Metad
         METADATA_NAME_FORMAT,
         Metadata::fromXContent
     );
-
-    private Metadata metadata;
-    private final String blobName;
 
     public RemoteGlobalMetadata(
         final String blobName,
