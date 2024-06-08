@@ -769,7 +769,6 @@ public final class FastFilterRewriteHelper {
 
         private final Ranges ranges;
         private int activeIndex;
-        private final byte[][] activeRange = new byte[2][];
 
         private int visitedRange = 0;
         private final int maxNumNonZeroRange;
@@ -784,7 +783,6 @@ public final class FastFilterRewriteHelper {
             this.maxNumNonZeroRange = maxNumNonZeroRange;
             this.ranges = ranges;
             this.activeIndex = activeIndex;
-            updateActiveRange();
         }
 
         private void count() {
@@ -797,8 +795,6 @@ public final class FastFilterRewriteHelper {
 
         private void finalizePreviousRange() {
             if (counter > 0) {
-                logger.debug("finalize previous range: {}", activeIndex);
-                logger.debug("counter: {}", counter);
                 incrementRangeDocCount.accept(activeIndex, counter);
                 counter = 0;
             }
@@ -814,23 +810,17 @@ public final class FastFilterRewriteHelper {
                 if (++activeIndex >= ranges.size) {
                     return true;
                 }
-                updateActiveRange();
             }
             visitedRange++;
             return visitedRange > maxNumNonZeroRange;
         }
 
-        private void updateActiveRange() {
-            activeRange[0] = ranges.lowers[activeIndex];
-            activeRange[1] = ranges.uppers[activeIndex];
-        }
-
         private boolean withinLowerBound(byte[] value) {
-            return Ranges.withinLowerBound(value, activeRange[0]);
+            return Ranges.withinLowerBound(value, ranges.lowers[activeIndex]);
         }
 
         private boolean withinUpperBound(byte[] value) {
-            return Ranges.withinUpperBound(value, activeRange[1]);
+            return Ranges.withinUpperBound(value, ranges.uppers[activeIndex]);
         }
 
         private boolean withinRange(byte[] value) {
