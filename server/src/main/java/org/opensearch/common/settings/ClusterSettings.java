@@ -116,7 +116,7 @@ import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.IndexingMemoryController;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
@@ -302,6 +302,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
+                RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
@@ -689,7 +690,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
-                FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
+                FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
@@ -743,7 +744,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS,
-                RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA
+                RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA,
+                SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING
             )
         )
     );
