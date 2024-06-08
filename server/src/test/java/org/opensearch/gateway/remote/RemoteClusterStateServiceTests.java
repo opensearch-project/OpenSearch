@@ -19,6 +19,7 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -72,9 +73,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -93,7 +91,6 @@ import static org.opensearch.gateway.remote.RemoteClusterStateService.INDEX_META
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.MANIFEST_FILE_PREFIX;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.METADATA_FILE_PREFIX;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.RETAINED_MANIFESTS;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.SETTING_METADATA;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.TEMPLATES_METADATA;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -109,13 +106,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     private RemoteClusterStateService remoteClusterStateService;
+    private ClusterService clusterService;
     private ClusterSettings clusterSettings;
     private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private RepositoriesService repositoriesService;
@@ -148,6 +144,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
 
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
             Stream.of(
                 NetworkModule.getNamedXContents().stream(),
@@ -165,7 +163,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "test-node-id",
             repositoriesServiceSupplier,
             settings,
-            clusterSettings,
+            clusterService,
             () -> 0L,
             threadPool,
             List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings))
@@ -187,14 +185,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testFailInitializationWhenRemoteStateDisabled() {
         final Settings settings = Settings.builder().build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         assertThrows(
             AssertionError.class,
             () -> new RemoteClusterStateService(
                 "test-node-id",
                 repositoriesServiceSupplier,
                 settings,
-                clusterSettings,
+                clusterService,
                 () -> 0L,
                 threadPool,
                 List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings))
@@ -1282,72 +1280,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(previousClusterUUID, equalTo("cluster-uuid2"));
     }
 
-    public void testDeleteStaleClusterUUIDs() throws IOException {
-        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
-        ClusterMetadataManifest clusterMetadataManifest = ClusterMetadataManifest.builder()
-            .indices(List.of())
-            .clusterTerm(1L)
-            .stateVersion(1L)
-            .stateUUID(randomAlphaOfLength(10))
-            .clusterUUID("cluster-uuid1")
-            .nodeId("nodeA")
-            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
-            .previousClusterUUID(ClusterState.UNKNOWN_UUID)
-            .committed(true)
-            .build();
-
-        BlobPath blobPath = new BlobPath().add("random-path");
-        when((blobStoreRepository.basePath())).thenReturn(blobPath);
-        BlobContainer uuidContainerContainer = mock(BlobContainer.class);
-        BlobContainer manifest2Container = mock(BlobContainer.class);
-        BlobContainer manifest3Container = mock(BlobContainer.class);
-        when(blobStore.blobContainer(any())).then(invocation -> {
-            BlobPath blobPath1 = invocation.getArgument(0);
-            if (blobPath1.buildAsString().endsWith("cluster-state/")) {
-                return uuidContainerContainer;
-            } else if (blobPath1.buildAsString().contains("cluster-state/cluster-uuid2/")) {
-                return manifest2Container;
-            } else if (blobPath1.buildAsString().contains("cluster-state/cluster-uuid3/")) {
-                return manifest3Container;
-            } else {
-                throw new IllegalArgumentException("Unexpected blob path " + blobPath1);
-            }
-        });
-        Map<String, BlobContainer> blobMetadataMap = Map.of(
-            "cluster-uuid1",
-            mock(BlobContainer.class),
-            "cluster-uuid2",
-            mock(BlobContainer.class),
-            "cluster-uuid3",
-            mock(BlobContainer.class)
-        );
-        when(uuidContainerContainer.children()).thenReturn(blobMetadataMap);
-        when(
-            manifest2Container.listBlobsByPrefixInSortedOrder(
-                MANIFEST_FILE_PREFIX + DELIMITER,
-                Integer.MAX_VALUE,
-                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
-            )
-        ).thenReturn(List.of(new PlainBlobMetadata("mainfest2", 1L)));
-        when(
-            manifest3Container.listBlobsByPrefixInSortedOrder(
-                MANIFEST_FILE_PREFIX + DELIMITER,
-                Integer.MAX_VALUE,
-                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
-            )
-        ).thenReturn(List.of(new PlainBlobMetadata("mainfest3", 1L)));
-        remoteClusterStateService.start();
-        remoteClusterStateService.deleteStaleClusterUUIDs(clusterState, clusterMetadataManifest);
-        try {
-            assertBusy(() -> {
-                verify(manifest2Container, times(1)).delete();
-                verify(manifest3Container, times(1)).delete();
-            });
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public void testRemoteStateStats() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
@@ -1358,26 +1290,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertEquals(1, remoteClusterStateService.getStats().getSuccessCount());
         assertEquals(0, remoteClusterStateService.getStats().getCleanupAttemptFailedCount());
         assertEquals(0, remoteClusterStateService.getStats().getFailedCount());
-    }
-
-    public void testRemoteStateCleanupFailureStats() throws IOException {
-        BlobContainer blobContainer = mock(BlobContainer.class);
-        doThrow(IOException.class).when(blobContainer).delete();
-        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-        BlobPath blobPath = new BlobPath().add("random-path");
-        when((blobStoreRepository.basePath())).thenReturn(blobPath);
-        remoteClusterStateService.start();
-        remoteClusterStateService.deleteStaleUUIDsClusterMetadata("cluster1", Arrays.asList("cluster-uuid1"));
-        try {
-            assertBusy(() -> {
-                // wait for stats to get updated
-                assertTrue(remoteClusterStateService.getStats() != null);
-                assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
-                assertEquals(1, remoteClusterStateService.getStats().getCleanupAttemptFailedCount());
-            });
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public void testFileNames() {
@@ -1418,36 +1330,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         manifestFileName = RemoteClusterStateService.getManifestFileName(term, version, false, codecVersion);
         splittedName = manifestFileName.split(DELIMITER);
         assertThat(splittedName[3], is("P"));
-    }
-
-    public void testSingleConcurrentExecutionOfStaleManifestCleanup() throws Exception {
-        BlobContainer blobContainer = mock(BlobContainer.class);
-        BlobPath blobPath = new BlobPath().add("random-path");
-        when((blobStoreRepository.basePath())).thenReturn(blobPath);
-        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicInteger callCount = new AtomicInteger(0);
-        doAnswer(invocation -> {
-            callCount.incrementAndGet();
-            if (latch.await(5000, TimeUnit.SECONDS) == false) {
-                throw new Exception("Timed out waiting for delete task queuing to complete");
-            }
-            return null;
-        }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(
-                any(String.class),
-                any(int.class),
-                any(BlobContainer.BlobNameSortOrder.class),
-                any(ActionListener.class)
-            );
-
-        remoteClusterStateService.start();
-        remoteClusterStateService.deleteStaleClusterMetadata("cluster-name", "cluster-uuid", RETAINED_MANIFESTS);
-        remoteClusterStateService.deleteStaleClusterMetadata("cluster-name", "cluster-uuid", RETAINED_MANIFESTS);
-
-        latch.countDown();
-        assertBusy(() -> assertEquals(1, callCount.get()));
     }
 
     public void testIndexMetadataUploadWaitTimeSetting() {
@@ -1893,7 +1775,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             );
     }
 
-    private static ClusterState.Builder generateClusterStateWithOneIndex() {
+    static ClusterState.Builder generateClusterStateWithOneIndex() {
         final Index index = new Index("test-index", "index-uuid");
         final Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -1923,7 +1805,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             );
     }
 
-    private static DiscoveryNodes nodesWithLocalNodeClusterManager() {
+    static DiscoveryNodes nodesWithLocalNodeClusterManager() {
         return DiscoveryNodes.builder().clusterManagerNodeId("cluster-manager-id").localNodeId("cluster-manager-id").build();
     }
 
