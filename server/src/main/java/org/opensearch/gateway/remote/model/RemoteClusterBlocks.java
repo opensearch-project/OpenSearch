@@ -89,14 +89,20 @@ public class RemoteClusterBlocks extends AbstractRemoteWritableBlobEntity<Cluste
 
     @Override
     public InputStream serialize() throws IOException {
-        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-        clusterBlocks.writeTo(bytesStreamOutput);
-        return bytesStreamOutput.bytes().streamInput();
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+            clusterBlocks.writeTo(bytesStreamOutput);
+            return bytesStreamOutput.bytes().streamInput();
+        } catch (IOException e) {
+            throw new IOException("Failed to serialize remote cluster blocks", e);
+        }
     }
 
     @Override
     public ClusterBlocks deserialize(final InputStream inputStream) throws IOException {
-        StreamInput in = new BytesStreamInput(toBytes(Streams.readFully(inputStream)));
-        return ClusterBlocks.readFrom(in);
+        try (StreamInput in = new BytesStreamInput(toBytes(Streams.readFully(inputStream)))) {
+            return ClusterBlocks.readFrom(in);
+        } catch (IOException e) {
+            throw new IOException("Failed to deserialize remote cluster blocks", e);
+        }
     }
 }

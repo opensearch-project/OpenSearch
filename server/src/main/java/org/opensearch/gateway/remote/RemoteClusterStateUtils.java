@@ -11,6 +11,7 @@ package org.opensearch.gateway.remote;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.remote.RemoteWriteableEntity;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
@@ -71,6 +72,7 @@ public class RemoteClusterStateUtils {
      * Exception for Remote state transfer.
      */
     public static class RemoteStateTransferException extends RuntimeException {
+        private RemoteWriteableEntity<?> entity;
 
         public RemoteStateTransferException(String errorDesc) {
             super(errorDesc);
@@ -78,6 +80,16 @@ public class RemoteClusterStateUtils {
 
         public RemoteStateTransferException(String errorDesc, Throwable cause) {
             super(errorDesc, cause);
+        }
+
+        public RemoteStateTransferException(String errorDesc, RemoteWriteableEntity<?> entity) {
+            super(errorDesc);
+            this.entity = entity;
+        }
+
+        public RemoteStateTransferException(String errorDesc, RemoteWriteableEntity<?> entity, Throwable cause) {
+            super(errorDesc, cause);
+            this.entity = entity;
         }
     }
 

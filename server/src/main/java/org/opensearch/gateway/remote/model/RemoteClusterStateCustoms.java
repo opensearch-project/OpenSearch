@@ -104,19 +104,27 @@ public class RemoteClusterStateCustoms extends AbstractRemoteWritableBlobEntity<
 
     @Override
     public InputStream serialize() throws IOException {
-        BytesStreamOutput outputStream = new BytesStreamOutput();
-        if (shouldSerialize(outputStream, custom)) {
-            outputStream.writeNamedWriteable(custom);
+        try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
+            if (shouldSerialize(outputStream, custom)) {
+                outputStream.writeNamedWriteable(custom);
+            }
+            return outputStream.bytes().streamInput();
+        } catch (IOException e) {
+            throw new IOException("Failed to serialize cluster state custom of type " + customType, e);
         }
-        return outputStream.bytes().streamInput();
     }
 
     @Override
     public ClusterState.Custom deserialize(final InputStream inputStream) throws IOException {
-        NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(
-            new BytesStreamInput(toBytes(Streams.readFully(inputStream))),
-            this.namedWriteableRegistry
-        );
-        return in.readNamedWriteable(Custom.class);
+        try (
+            NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(
+                new BytesStreamInput(toBytes(Streams.readFully(inputStream))),
+                this.namedWriteableRegistry
+            )
+        ) {
+            return in.readNamedWriteable(Custom.class);
+        } catch (IOException e) {
+            throw new IOException("Failed to deserialize cluster state custom of type " + customType, e);
+        }
     }
 }

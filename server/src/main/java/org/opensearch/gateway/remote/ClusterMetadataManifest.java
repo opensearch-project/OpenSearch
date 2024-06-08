@@ -753,36 +753,34 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return false;
         }
         final ClusterMetadataManifest that = (ClusterMetadataManifest) o;
-        boolean ret = Objects.equals(indices, that.indices);
-        ret = ret && clusterTerm == that.clusterTerm;
-        ret = ret && stateVersion == that.stateVersion;
-        ret = ret && Objects.equals(clusterUUID, that.clusterUUID);
-        ret = ret && Objects.equals(stateUUID, that.stateUUID);
-        ret = ret && Objects.equals(opensearchVersion, that.opensearchVersion);
-        ret = ret && Objects.equals(nodeId, that.nodeId);
-        ret = ret && Objects.equals(committed, that.committed);
-        ret = ret && Objects.equals(previousClusterUUID, that.previousClusterUUID);
-        ret = ret && Objects.equals(clusterUUIDCommitted, that.clusterUUIDCommitted);
-        ret = ret && Objects.equals(globalMetadataFileName, that.globalMetadataFileName);
-        ret = ret && Objects.equals(codecVersion, that.codecVersion);
-        ret = ret && Objects.equals(routingTableVersion, that.routingTableVersion);
-        ret = ret && Objects.equals(indicesRouting, that.indicesRouting);
-        ret = ret && Objects.equals(uploadedCoordinationMetadata, that.uploadedCoordinationMetadata);
-        ret = ret && Objects.equals(uploadedSettingsMetadata, that.uploadedSettingsMetadata);
-        ret = ret && Objects.equals(uploadedTemplatesMetadata, that.uploadedTemplatesMetadata);
-        ret = ret && Objects.equals(uploadedCustomMetadataMap, that.uploadedCustomMetadataMap);
-        ret = ret && Objects.equals(metadataVersion, that.metadataVersion);
-        ret = ret && Objects.equals(uploadedDiscoveryNodesMetadata, that.uploadedDiscoveryNodesMetadata);
-        ret = ret && Objects.equals(uploadedClusterBlocksMetadata, that.uploadedClusterBlocksMetadata);
-        ret = ret && Objects.equals(uploadedTransientSettingsMetadata, that.uploadedTransientSettingsMetadata);
-        ret = ret && Objects.equals(uploadedHashesOfConsistentSettings, that.uploadedHashesOfConsistentSettings);
-        ret = ret && Objects.equals(uploadedClusterStateCustomMap, that.uploadedClusterStateCustomMap);
-        return ret;
+        return Objects.equals(indices, that.indices)
+            && clusterTerm == that.clusterTerm
+            && stateVersion == that.stateVersion
+            && Objects.equals(clusterUUID, that.clusterUUID)
+            && Objects.equals(stateUUID, that.stateUUID)
+            && Objects.equals(opensearchVersion, that.opensearchVersion)
+            && Objects.equals(nodeId, that.nodeId)
+            && Objects.equals(committed, that.committed)
+            && Objects.equals(previousClusterUUID, that.previousClusterUUID)
+            && Objects.equals(clusterUUIDCommitted, that.clusterUUIDCommitted)
+            && Objects.equals(globalMetadataFileName, that.globalMetadataFileName)
+            && Objects.equals(codecVersion, that.codecVersion)
+            && Objects.equals(routingTableVersion, that.routingTableVersion)
+            && Objects.equals(indicesRouting, that.indicesRouting)
+            && Objects.equals(uploadedCoordinationMetadata, that.uploadedCoordinationMetadata)
+            && Objects.equals(uploadedSettingsMetadata, that.uploadedSettingsMetadata)
+            && Objects.equals(uploadedTemplatesMetadata, that.uploadedTemplatesMetadata)
+            && Objects.equals(uploadedCustomMetadataMap, that.uploadedCustomMetadataMap)
+            && Objects.equals(metadataVersion, that.metadataVersion)
+            && Objects.equals(uploadedDiscoveryNodesMetadata, that.uploadedDiscoveryNodesMetadata)
+            && Objects.equals(uploadedClusterBlocksMetadata, that.uploadedClusterBlocksMetadata)
+            && Objects.equals(uploadedTransientSettingsMetadata, that.uploadedTransientSettingsMetadata)
+            && Objects.equals(uploadedHashesOfConsistentSettings, that.uploadedHashesOfConsistentSettings)
+            && Objects.equals(uploadedClusterStateCustomMap, that.uploadedClusterStateCustomMap);
     }
 
     @Override
     public int hashCode() {
-        // ToDo: update this method to contain new attributes
         return Objects.hash(
             codecVersion,
             globalMetadataFileName,
@@ -1033,6 +1031,9 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             this.clusterUUIDCommitted = manifest.clusterUUIDCommitted;
             this.routingTableVersion = manifest.routingTableVersion;
             this.indicesRouting = new ArrayList<>(manifest.indicesRouting);
+            this.discoveryNodesMetadata = manifest.uploadedDiscoveryNodesMetadata;
+            this.clusterBlocksMetadata = manifest.uploadedClusterBlocksMetadata;
+            this.transientSettingsMetadata = manifest.uploadedTransientSettingsMetadata;
             this.diffManifest = manifest.diffManifest;
             this.hashesOfConsistentSettings = manifest.uploadedHashesOfConsistentSettings;
             this.clusterStateCustomMetadataMap = manifest.uploadedClusterStateCustomMap;

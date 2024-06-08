@@ -122,7 +122,7 @@ public class RemoteClusterStateAttributesManager {
     ) {
         return ActionListener.wrap(
             resp -> latchedActionListener.onResponse(remoteObject.getUploadedMetadata()),
-            ex -> latchedActionListener.onFailure(new RemoteClusterStateUtils.RemoteStateTransferException(component, ex))
+            ex -> latchedActionListener.onFailure(new RemoteClusterStateUtils.RemoteStateTransferException(component, remoteObject, ex))
         );
     }
 

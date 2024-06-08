@@ -86,14 +86,21 @@ public class RemoteHashesOfConsistentSettings extends AbstractRemoteWritableBlob
 
     @Override
     public InputStream serialize() throws IOException {
-        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-        hashesOfConsistentSettings.writeTo(bytesStreamOutput);
-        return bytesStreamOutput.bytes().streamInput();
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+            hashesOfConsistentSettings.writeTo(bytesStreamOutput);
+            return bytesStreamOutput.bytes().streamInput();
+        } catch (IOException e) {
+            throw new IOException("Failed to serialize hashes of consistent settings", e);
+        }
+
     }
 
     @Override
     public DiffableStringMap deserialize(final InputStream inputStream) throws IOException {
-        StreamInput in = new BytesStreamInput(toBytes(Streams.readFully(inputStream)));
-        return DiffableStringMap.readFrom(in);
+        try (StreamInput in = new BytesStreamInput(toBytes(Streams.readFully(inputStream)))) {
+            return DiffableStringMap.readFrom(in);
+        } catch (IOException e) {
+            throw new IOException("Failed to deserialize hashes of consistent settings", e);
+        }
     }
 }

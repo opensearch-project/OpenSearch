@@ -14,6 +14,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
@@ -88,13 +89,20 @@ public class RemoteDiscoveryNodes extends AbstractRemoteWritableBlobEntity<Disco
 
     @Override
     public InputStream serialize() throws IOException {
-        BytesStreamOutput outputStream = new BytesStreamOutput();
-        discoveryNodes.writeTo(outputStream);
-        return outputStream.bytes().streamInput();
+        try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
+            discoveryNodes.writeTo(outputStream);
+            return outputStream.bytes().streamInput();
+        } catch (IOException e) {
+            throw new IOException("Failed to serialize remote discovery nodes", e);
+        }
     }
 
     @Override
     public DiscoveryNodes deserialize(final InputStream inputStream) throws IOException {
-        return DiscoveryNodes.readFrom(new BytesStreamInput(toBytes(Streams.readFully(inputStream))), null);
+        try (StreamInput streamInput = new BytesStreamInput(toBytes(Streams.readFully(inputStream)))) {
+            return DiscoveryNodes.readFrom(streamInput, null);
+        } catch (IOException e) {
+            throw new IOException("Failed to deserialize remote discovery nodes", e);
+        }
     }
 }
