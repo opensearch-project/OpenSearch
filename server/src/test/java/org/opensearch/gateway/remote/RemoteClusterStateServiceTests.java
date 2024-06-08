@@ -182,7 +182,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings))
+            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+            writableRegistry()
         );
     }
 
@@ -214,7 +215,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 clusterService,
                 () -> 0L,
                 threadPool,
-                List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings))
+                List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+                writableRegistry()
             )
         );
     }
@@ -989,10 +991,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         remoteClusterStateService.start();
         assertEquals(
-            remoteClusterStateService.getLatestClusterState(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID())
-                .getMetadata()
-                .getIndices()
-                .size(),
+            remoteClusterStateService.getLatestClusterState(
+                clusterState.getClusterName().value(),
+                clusterState.metadata().clusterUUID(),
+                false
+            ).getMetadata().getIndices().size(),
             0
         );
     }
@@ -1021,7 +1024,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> remoteClusterStateService.getLatestClusterState(
                 clusterState.getClusterName().value(),
-                clusterState.metadata().clusterUUID()
+                clusterState.metadata().clusterUUID(),
+                false
             ).getMetadata().getIndices()
         );
         assertEquals(e.getMessage(), "Error while downloading IndexMetadata - " + uploadedIndexMetadata.getUploadedFilename());
@@ -1091,7 +1095,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         ClusterState newClusterState = remoteClusterStateService.getLatestClusterState(
             clusterState.getClusterName().value(),
-            clusterState.metadata().clusterUUID()
+            clusterState.metadata().clusterUUID(),
+            false
         );
 
         assertTrue(Metadata.isGlobalStateEquals(newClusterState.getMetadata(), expectedMetadata));
@@ -1134,7 +1139,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> remoteClusterStateService.getLatestClusterState(
                 clusterState.getClusterName().value(),
-                clusterState.metadata().clusterUUID()
+                clusterState.metadata().clusterUUID(),
+                false
             )
         );
         assertEquals(e.getMessage(), "Error while downloading Global Metadata - " + globalIndexMetadataName);
@@ -1173,7 +1179,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestClusterState(
             clusterState.getClusterName().value(),
-            clusterState.metadata().clusterUUID()
+            clusterState.metadata().clusterUUID(),
+            false
         ).getMetadata().getIndices();
 
         assertEquals(indexMetadataMap.size(), 1);
@@ -1327,7 +1334,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings))
+            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings)),
+            writableRegistry()
         );
         assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
     }
@@ -1493,7 +1501,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings))
+            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings)),
+            writableRegistry()
         );
     }
 
