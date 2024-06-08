@@ -215,7 +215,7 @@ public class RemoteClusterStateService implements Closeable {
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}]";
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
-    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V2;
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V3;
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 2;
 
     // ToXContent Params with gateway mode.
@@ -795,7 +795,10 @@ public class RemoteClusterStateService implements Closeable {
                 uploadedCoordinationMetadata,
                 uploadedSettingsMetadata,
                 uploadedTemplatesMetadata,
-                uploadedCustomMetadataMap
+                uploadedCustomMetadataMap,
+                clusterState.routingTable().version(),
+                // TODO: Add actual list of changed indices routing with index routing upload flow.
+                new ArrayList<>()
             );
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return manifest;
