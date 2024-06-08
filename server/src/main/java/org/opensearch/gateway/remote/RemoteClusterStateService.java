@@ -18,6 +18,7 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
+import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
@@ -69,6 +70,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -201,6 +203,7 @@ public class RemoteClusterStateService implements Closeable {
     private final List<IndexMetadataUploadListener> indexMetadataUploadListeners;
     private BlobStoreRepository blobStoreRepository;
     private BlobStoreTransferService blobStoreTransferService;
+    private Optional<RemoteRoutingTableService> remoteRoutingTableService;
     private volatile TimeValue slowWriteLoggingThreshold;
 
     private volatile TimeValue indexMetadataUploadTimeout;
@@ -253,6 +256,9 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateStats = new RemotePersistenceStats();
         this.remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(this, clusterService);
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
+        this.remoteRoutingTableService = isRemoteRoutingTableEnabled(settings)
+            ? Optional.of(new RemoteRoutingTableService(repositoriesService, settings))
+            : Optional.empty();
     }
 
     /**
@@ -749,6 +755,9 @@ public class RemoteClusterStateService implements Closeable {
         if (blobStoreRepository != null) {
             IOUtils.close(blobStoreRepository);
         }
+        if (this.remoteRoutingTableService.isPresent()) {
+            this.remoteRoutingTableService.get().close();
+        }
     }
 
     public void start() {
@@ -761,6 +770,7 @@ public class RemoteClusterStateService implements Closeable {
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         blobStoreRepository = (BlobStoreRepository) repository;
         remoteClusterStateCleanupManager.start();
+        this.remoteRoutingTableService.ifPresent(RemoteRoutingTableService::start);
     }
 
     private ClusterMetadataManifest uploadManifest(
@@ -943,6 +953,11 @@ public class RemoteClusterStateService implements Closeable {
 
     public TimeValue getMetadataManifestUploadTimeout() {
         return this.metadataManifestUploadTimeout;
+    }
+
+    // Package private for unit test
+    Optional<RemoteRoutingTableService> getRemoteRoutingTableService() {
+        return this.remoteRoutingTableService;
     }
 
     static String getManifestFileName(long term, long version, boolean committed, int codecVersion) {
