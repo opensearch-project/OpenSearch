@@ -54,7 +54,6 @@ import org.opensearch.cluster.routing.allocation.decider.RemoteStoreMigrationAll
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
@@ -68,7 +67,6 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_SEGME
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.NONE;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.Direction.REMOTE_STORE;
@@ -80,8 +78,6 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
 
     private final static String TEST_INDEX = "test_index";
     private final static String TEST_REPO = "test_repo";
-
-    private final Settings directionEnabledNodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
 
     private final Settings strictModeCompatibilitySettings = Settings.builder()
         .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
@@ -111,7 +107,6 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
     private ShardId shardId = new ShardId(TEST_INDEX, "_na_", 0);
 
     private void beforeAllocation(String direction) {
-        FeatureFlags.initializeFeatureFlags(directionEnabledNodeSettings);
         if (isRemoteStoreBackedIndex == null) {
             isRemoteStoreBackedIndex = randomBoolean();
         }
@@ -584,9 +579,6 @@ public class RemoteStoreMigrationAllocationDeciderTests extends OpenSearchAlloca
 
         // index metadata settings
         builder.put(indexMetadataBuilder.build().getSettings());
-
-        builder.put(directionEnabledNodeSettings);
-
         return builder.build();
     }
 
