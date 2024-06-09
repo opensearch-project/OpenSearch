@@ -548,7 +548,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
     private BlobPath getPath() {
         BlobPath indexRoutingPath = basePath.add(INDEX_ROUTING_PATH_TOKEN);
         return RemoteStoreEnums.PathType.HASHED_PREFIX.path(
-            RemoteStorePathStrategy.BasePathInput.builder().basePath(indexRoutingPath).indexUUID("uuid").build(),
+            RemoteStorePathStrategy.PathInput.builder().basePath(indexRoutingPath).indexUUID("uuid").build(),
             RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64
         );
     }

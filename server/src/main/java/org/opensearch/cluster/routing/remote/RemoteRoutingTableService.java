@@ -45,6 +45,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -170,7 +171,7 @@ public class RemoteRoutingTableService extends AbstractLifecycleComponent {
 
         BlobPath indexRoutingPath = clusterBasePath.add(INDEX_ROUTING_PATH_TOKEN);
         BlobPath path = pathType.path(
-            RemoteStorePathStrategy.BasePathInput.builder().basePath(indexRoutingPath).indexUUID(indexRouting.getIndex().getUUID()).build(),
+            PathInput.builder().basePath(indexRoutingPath).indexUUID(indexRouting.getIndex().getUUID()).build(),
             pathHashAlgo
         );
         final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);

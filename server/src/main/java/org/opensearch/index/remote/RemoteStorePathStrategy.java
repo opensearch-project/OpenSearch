@@ -72,18 +72,20 @@ public class RemoteStorePathStrategy {
     }
 
     /**
-     * Wrapper class for the input required to generate path for remote store uploads.
+     * Wrapper class for the path input required to generate path for remote store uploads. This input is composed of
+     * basePath and indexUUID.
+     *
      * @opensearch.internal
      */
     @PublicApi(since = "2.14.0")
     @ExperimentalApi
-    public static class BasePathInput {
+    public static class PathInput {
         private final BlobPath basePath;
         private final String indexUUID;
 
-        public BasePathInput(BlobPath basePath, String indexUUID) {
-            this.basePath = Objects.requireNonNull(basePath);
-            this.indexUUID = Objects.requireNonNull(indexUUID);
+        public PathInput(Builder<?> builder) {
+            this.basePath = Objects.requireNonNull(builder.basePath);
+            this.indexUUID = Objects.requireNonNull(builder.indexUUID);
         }
 
         BlobPath basePath() {
@@ -94,60 +96,70 @@ public class RemoteStorePathStrategy {
             return indexUUID;
         }
 
-        BlobPath variablePath() {
+        BlobPath fixedSubPath() {
             return BlobPath.cleanPath().add(indexUUID);
         }
 
         /**
-         * Returns a new builder for {@link BasePathInput}.
+         * Returns a new builder for {@link PathInput}.
          */
-        public static Builder builder() {
-            return new Builder();
+        public static Builder<?> builder() {
+            return new Builder<>();
+        }
+
+        public void assertIsValid() {
+            // Input is always valid here.
         }
 
         /**
-         * Builder for {@link BasePathInput}.
+         * Builder for {@link PathInput}.
          *
          * @opensearch.internal
          */
         @PublicApi(since = "2.14.0")
         @ExperimentalApi
-        public static class Builder {
+        public static class Builder<T extends Builder<T>> {
             private BlobPath basePath;
             private String indexUUID;
 
-            public Builder basePath(BlobPath basePath) {
+            public T basePath(BlobPath basePath) {
                 this.basePath = basePath;
-                return this;
+                return self();
             }
 
             public Builder indexUUID(String indexUUID) {
                 this.indexUUID = indexUUID;
-                return this;
+                return self();
             }
 
-            public BasePathInput build() {
-                return new BasePathInput(basePath, indexUUID);
+            protected T self() {
+                return (T) this;
+            }
+
+            public PathInput build() {
+                return new PathInput(this);
             }
         }
     }
 
     /**
-     * Wrapper class for the input required to generate path for remote store uploads.
+     * Wrapper class for the data aware path input required to generate path for remote store uploads. This input is
+     * composed of the parent inputs, shard id, data category and data type.
+     *
      * @opensearch.internal
      */
     @PublicApi(since = "2.14.0")
     @ExperimentalApi
-    public static class PathInput extends BasePathInput {
+    public static class ShardDataPathInput extends PathInput {
         private final String shardId;
         private final DataCategory dataCategory;
         private final DataType dataType;
 
-        public PathInput(BlobPath basePath, String indexUUID, String shardId, DataCategory dataCategory, DataType dataType) {
-            super(basePath, indexUUID);
-            this.shardId = Objects.requireNonNull(shardId);
-            this.dataCategory = Objects.requireNonNull(dataCategory);
-            this.dataType = Objects.requireNonNull(dataType);
+        public ShardDataPathInput(Builder builder) {
+            super(builder);
+            this.shardId = Objects.requireNonNull(builder.shardId);
+            this.dataCategory = Objects.requireNonNull(builder.dataCategory);
+            this.dataType = Objects.requireNonNull(builder.dataType);
             assert dataCategory.isSupportedDataType(dataType) : "category:"
                 + dataCategory
                 + " type:"
@@ -169,25 +181,34 @@ public class RemoteStorePathStrategy {
         }
 
         @Override
-        BlobPath variablePath() {
-            return super.variablePath().add(shardId).add(dataCategory.getName()).add(dataType.getName());
+        BlobPath fixedSubPath() {
+            return super.fixedSubPath().add(shardId).add(dataCategory.getName()).add(dataType.getName());
         }
 
+        @Override
+        public void assertIsValid() {
+            super.assertIsValid();
+            assert dataCategory.isSupportedDataType(dataType) : "category:"
+                + dataCategory
+                + " type:"
+                + dataType
+                + " are not supported together";
+        }
         /**
-         * Returns a new builder for {@link PathInput}.
+         * Returns a new builder for {@link ShardDataPathInput}.
          */
         public static Builder builder() {
             return new Builder();
         }
 
         /**
-         * Builder for {@link PathInput}.
+         * Builder for {@link ShardDataPathInput}.
          *
          * @opensearch.internal
          */
         @PublicApi(since = "2.14.0")
         @ExperimentalApi
-        public static class Builder extends BasePathInput.Builder {
+        public static class Builder extends PathInput.Builder<Builder> {
             private String shardId;
             private DataCategory dataCategory;
             private DataType dataType;
@@ -217,8 +238,13 @@ public class RemoteStorePathStrategy {
                 return this;
             }
 
-            public PathInput build() {
-                return new PathInput(super.basePath, super.indexUUID, shardId, dataCategory, dataType);
+            @Override
+            protected Builder self() {
+                return this;
+            }
+
+            public ShardDataPathInput build() {
+                return new ShardDataPathInput(this);
             }
         }
     }
