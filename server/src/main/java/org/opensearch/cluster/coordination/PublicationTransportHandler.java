@@ -228,14 +228,19 @@ public class PublicationTransportHandler {
         }
     }
 
-    private PublishWithJoinResponse handleIncomingRemotePublishRequest(RemotePublishRequest request) throws IOException {
+    // package private for testing
+    PublishWithJoinResponse handleIncomingRemotePublishRequest(RemotePublishRequest request) throws IOException {
         if (transportService.getLocalNode().equals(request.getSourceNode())) {
             return acceptRemoteStateOnLocalNode(request);
         }
+        // TODO Make cluster state download non-blocking: https://github.com/opensearch-project/OpenSearch/issues/14102
         ClusterMetadataManifest manifest = remoteClusterStateService.getClusterMetadataManifestByFileName(
             request.getClusterUUID(),
             request.getManifestFile()
         );
+        if (manifest == null) {
+            throw new IllegalStateException("Publication failed as manifest was not found for " + request);
+        }
         boolean applyFullState = false;
         final ClusterState lastSeen = lastSeenClusterState.get();
         if (lastSeen == null) {
@@ -309,6 +314,13 @@ public class PublicationTransportHandler {
         if (publishRequest == null
             || publishRequest.getAcceptedState().coordinationMetadata().term() != remotePublishRequest.term
             || publishRequest.getAcceptedState().version() != remotePublishRequest.version) {
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Publication failure for current publish request : {} and remote publish request: {}",
+                    publishRequest,
+                    remotePublishRequest
+                )
+            );
             throw new IllegalStateException("publication to self failed for " + remotePublishRequest);
         }
         PublishWithJoinResponse publishWithJoinResponse = handlePublishRequest.apply(publishRequest);
@@ -332,6 +344,16 @@ public class PublicationTransportHandler {
         // therefore serializing it) if the diff-based publication fails.
         publicationContext.buildDiffAndSerializeStates();
         return publicationContext;
+    }
+
+    // package private for testing
+    void setCurrentPublishRequestToSelf(PublishRequest publishRequest) {
+        this.currentPublishRequestToSelf.set(publishRequest);
+    }
+
+    // package private for testing
+    void setLastSeenClusterState(ClusterState clusterState) {
+        this.lastSeenClusterState.set(clusterState);
     }
 
     private static BytesReference serializeFullClusterState(ClusterState clusterState, Version nodeVersion) throws IOException {
@@ -447,7 +469,8 @@ public class PublicationTransportHandler {
             } else {
                 responseActionListener = listener;
             }
-            if (sendRemoteState && destination.isRemoteClusterStateEnabled() && destination.isRemoteRoutingTableEnabled()) {
+            if (sendRemoteState && destination.isRemoteStatePublicationEnabled()) {
+                logger.trace("sending remote cluster state version [{}] to [{}]", newState.version(), destination);
                 sendRemoteClusterState(destination, publishRequest.getAcceptedState(), responseActionListener);
             } else if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
                 logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);

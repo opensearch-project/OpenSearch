@@ -492,6 +492,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Returns whether remote cluster state publication is enabled on this node
+     * @return true if the node contains remote cluster state node attribute and remote routing table node attribute
+     */
+    public boolean isRemoteStatePublicationEnabled() {
+        return isRemoteClusterStateEnabled() && isRemoteRoutingTableEnabled();
+    }
+
+    /**
      * Returns a set of all the roles that the node has. The roles are returned in sorted order by the role name.
      * <p>
      * If a node does not have any specific role, the returned set is empty, which means that the node is a coordinating-only node.
