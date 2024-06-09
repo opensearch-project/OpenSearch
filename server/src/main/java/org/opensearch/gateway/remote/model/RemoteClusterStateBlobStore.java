@@ -9,6 +9,7 @@
 package org.opensearch.gateway.remote.model;
 
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.common.remote.RemoteWritableEntityStore;
 import org.opensearch.common.remote.RemoteWriteableEntity;
@@ -54,15 +55,20 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
             try (InputStream inputStream = entity.serialize()) {
                 BlobPath blobPath = getBlobPathForUpload(entity);
                 entity.setFullBlobName(blobPath);
-                // TODO uncomment below logic after merging PR https://github.com/opensearch-project/OpenSearch/pull/13836
-                // transferService.uploadBlob(inputStream, getBlobPathForUpload(entity), entity.getBlobFileName(), WritePriority.URGENT,
-                // listener);
+                transferService.uploadBlob(
+                    inputStream,
+                    getBlobPathForUpload(entity),
+                    entity.getBlobFileName(),
+                    WritePriority.URGENT,
+                    listener
+                );
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
+    @Override
     public T read(final U entity) throws IOException {
         // TODO Add timing logs and tracing
         assert entity.getFullBlobName() != null;
