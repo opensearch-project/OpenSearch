@@ -10,8 +10,8 @@ package org.opensearch.index.compositeindex;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -21,10 +21,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class StarTreeFieldSpec implements CompositeFieldSpec {
 
     private final AtomicInteger maxLeafDocs = new AtomicInteger();
-    private final List<String> skipStarNodeCreationInDims;
+    private final Set<String> skipStarNodeCreationInDims;
+
+    public AtomicInteger getMaxLeafDocs() {
+        return maxLeafDocs;
+    }
+
+    public Set<String> getSkipStarNodeCreationInDims() {
+        return skipStarNodeCreationInDims;
+    }
+
+    public StarTreeBuildMode getBuildMode() {
+        return buildMode;
+    }
+
     private final StarTreeBuildMode buildMode;
 
-    public StarTreeFieldSpec(int maxLeafDocs, List<String> skipStarNodeCreationInDims, StarTreeBuildMode buildMode) {
+    public StarTreeFieldSpec(int maxLeafDocs, Set<String> skipStarNodeCreationInDims, StarTreeBuildMode buildMode) {
         this.maxLeafDocs.set(maxLeafDocs);
         this.skipStarNodeCreationInDims = skipStarNodeCreationInDims;
         this.buildMode = buildMode;

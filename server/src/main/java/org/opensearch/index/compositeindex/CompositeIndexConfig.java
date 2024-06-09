@@ -351,7 +351,7 @@ public class CompositeIndexConfig {
             if (settings == null) {
                 return new StarTreeFieldSpec(
                     compositeIndexConfig.getMaxLeafDocs(),
-                    new ArrayList<>(),
+                    new HashSet<>(),
                     StarTreeFieldSpec.StarTreeBuildMode.OFF_HEAP
                 );
             }
@@ -391,10 +391,12 @@ public class CompositeIndexConfig {
             }
             boolean duplicate = !(skipListWithMappedFieldNames.add(dimensions.get(dimensionsString.indexOf(dim)).getField()));
             if (duplicate) {
-                throw new IllegalArgumentException(String.format("duplicate dimension [%s] found in skipStarNodeCreationInDims", dim));
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "duplicate dimension [%s] found in skipStarNodeCreationInDims", dim)
+                );
             }
         }
-        return new StarTreeFieldSpec(maxLeafDocs, new ArrayList<>(skipListWithMappedFieldNames), buildMode);
+        return new StarTreeFieldSpec(maxLeafDocs, new HashSet<>(skipListWithMappedFieldNames), buildMode);
     }
 
     /**
