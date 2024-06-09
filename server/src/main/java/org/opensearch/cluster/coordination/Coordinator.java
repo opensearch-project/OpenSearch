@@ -49,7 +49,6 @@ import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigurat
 import org.opensearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.opensearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.opensearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
-import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;

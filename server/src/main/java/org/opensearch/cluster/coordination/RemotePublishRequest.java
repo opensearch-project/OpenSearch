@@ -14,13 +14,24 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Send the publish request with the remote cluster state details
+ * @opensearch.internal
+ */
 public class RemotePublishRequest extends TermVersionRequest {
 
     private final String clusterName;
     private final String clusterUUID;
     private final String manifestFile;
 
-    public RemotePublishRequest(DiscoveryNode sourceNode, long term, long version, String clusterName, String clusterUUID, String manifestFile) {
+    public RemotePublishRequest(
+        DiscoveryNode sourceNode,
+        long term,
+        long version,
+        String clusterName,
+        String clusterUUID,
+        String manifestFile
+    ) {
         super(sourceNode, term, version);
         this.clusterName = clusterName;
         this.clusterUUID = clusterUUID;
@@ -44,8 +55,20 @@ public class RemotePublishRequest extends TermVersionRequest {
 
     @Override
     public String toString() {
-        return "RemotePublishRequest{" + "term=" + term + ", version=" + version + ", clusterName=" + clusterName + ", clusterUUID=" + clusterUUID
-            + ", sourceNode=" + sourceNode + ", manifestFile=" + manifestFile + '}';
+        return "RemotePublishRequest{"
+            + "term="
+            + term
+            + ", version="
+            + version
+            + ", clusterName="
+            + clusterName
+            + ", clusterUUID="
+            + clusterUUID
+            + ", sourceNode="
+            + sourceNode
+            + ", manifestFile="
+            + manifestFile
+            + '}';
     }
 
     public String getClusterName() {

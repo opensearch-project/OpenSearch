@@ -36,7 +36,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
-import org.opensearch.gateway.remote.model.RemoteUploadDetails;
+import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.node.Node;
@@ -269,7 +269,7 @@ public class RemoteClusterStateService implements Closeable {
      * @return A manifest object which contains the details of uploaded entity metadata.
      */
     @Nullable
-    public RemoteUploadDetails writeFullMetadata(ClusterState clusterState, String previousClusterUUID) throws IOException {
+    public RemoteClusterStateManifestInfo writeFullMetadata(ClusterState clusterState, String previousClusterUUID) throws IOException {
         final long startTimeNanos = relativeTimeNanosSupplier.getAsLong();
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
             logger.error("Local node is not elected cluster manager. Exiting");
@@ -285,7 +285,7 @@ public class RemoteClusterStateService implements Closeable {
             true,
             true
         );
-        final RemoteUploadDetails manifestDetails = uploadManifest(
+        final RemoteClusterStateManifestInfo manifestDetails = uploadManifest(
             clusterState,
             uploadedMetadataResults.uploadedIndexMetadata,
             previousClusterUUID,
@@ -323,7 +323,7 @@ public class RemoteClusterStateService implements Closeable {
      * @return The uploaded ClusterMetadataManifest file
      */
     @Nullable
-    public RemoteUploadDetails writeIncrementalMetadata(
+    public RemoteClusterStateManifestInfo writeIncrementalMetadata(
         ClusterState previousClusterState,
         ClusterState clusterState,
         ClusterMetadataManifest previousManifest
@@ -405,7 +405,7 @@ public class RemoteClusterStateService implements Closeable {
         customsToBeDeletedFromRemote.keySet().forEach(allUploadedCustomMap::remove);
         indicesToBeDeletedFromRemote.keySet().forEach(allUploadedIndexMetadata::remove);
 
-        final RemoteUploadDetails manifestDetails = uploadManifest(
+        final RemoteClusterStateManifestInfo manifestDetails = uploadManifest(
             clusterState,
             new ArrayList<>(allUploadedIndexMetadata.values()),
             previousManifest.getPreviousClusterUUID(),
@@ -725,7 +725,7 @@ public class RemoteClusterStateService implements Closeable {
     }
 
     @Nullable
-    public RemoteUploadDetails markLastStateAsCommitted(ClusterState clusterState, ClusterMetadataManifest previousManifest)
+    public RemoteClusterStateManifestInfo markLastStateAsCommitted(ClusterState clusterState, ClusterMetadataManifest previousManifest)
         throws IOException {
         assert clusterState != null : "Last accepted cluster state is not set";
         if (clusterState.nodes().isLocalNodeElectedClusterManager() == false) {
@@ -733,7 +733,7 @@ public class RemoteClusterStateService implements Closeable {
             return null;
         }
         assert previousManifest != null : "Last cluster metadata manifest is not set";
-        RemoteUploadDetails committedManifestDetails = uploadManifest(
+        RemoteClusterStateManifestInfo committedManifestDetails = uploadManifest(
             clusterState,
             previousManifest.getIndices(),
             previousManifest.getPreviousClusterUUID(),
@@ -774,7 +774,7 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteRoutingTableService.ifPresent(RemoteRoutingTableService::start);
     }
 
-    private RemoteUploadDetails uploadManifest(
+    private RemoteClusterStateManifestInfo uploadManifest(
         ClusterState clusterState,
         List<UploadedIndexMetadata> uploadedIndexMetadata,
         String previousClusterUUID,
@@ -813,7 +813,7 @@ public class RemoteClusterStateService implements Closeable {
                 new ArrayList<>()
             );
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
-            return new RemoteUploadDetails(manifest, manifestFileName);
+            return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
         }
     }
 
@@ -1090,6 +1090,31 @@ public class RemoteClusterStateService implements Closeable {
             .version(clusterMetadataManifest.get().getStateVersion())
             .metadata(Metadata.builder(globalMetadata).indices(indexMetadataMap).build())
             .build();
+    }
+
+    public ClusterState getClusterStateForManifest(
+        String clusterName,
+        ClusterMetadataManifest manifest,
+        String localNodeId,
+        boolean includeEphemeral
+    ) {
+        // TODO https://github.com/opensearch-project/OpenSearch/pull/14089
+        return null;
+    }
+
+    public ClusterState getClusterStateUsingDiff(
+        String clusterName,
+        ClusterMetadataManifest manifest,
+        ClusterState previousClusterState,
+        String localNodeId
+    ) {
+        // TODO https://github.com/opensearch-project/OpenSearch/pull/14089
+        return null;
+    }
+
+    public ClusterMetadataManifest getClusterMetadataManifestByFileName(String clusterUUID, String manifestFileName) {
+        // TODO https://github.com/opensearch-project/OpenSearch/pull/14089
+        return null;
     }
 
     private Metadata getGlobalMetadata(String clusterName, String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {

@@ -10,12 +10,12 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
-public class RemoteUploadDetails {
+public class RemoteClusterStateManifestInfo {
 
     private final ClusterMetadataManifest clusterMetadataManifest;
     private final String manifestFileName;
 
-    public RemoteUploadDetails(final ClusterMetadataManifest manifest, final String manifestFileName) {
+    public RemoteClusterStateManifestInfo(final ClusterMetadataManifest manifest, final String manifestFileName) {
         this.clusterMetadataManifest = manifest;
         this.manifestFileName = manifestFileName;
     }

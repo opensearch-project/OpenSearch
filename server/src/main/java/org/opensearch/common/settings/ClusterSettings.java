@@ -77,7 +77,6 @@ import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocation
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
@@ -716,6 +715,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Remote cluster state settings
                 RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
+                RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
+                RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
+                RemoteClusterStateService.METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
                 RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,

@@ -33,7 +33,6 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.Version;
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
@@ -44,7 +43,6 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.node.Node;
 
 import java.io.IOException;

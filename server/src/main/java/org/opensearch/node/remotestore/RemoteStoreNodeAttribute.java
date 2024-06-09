@@ -202,7 +202,8 @@ public class RemoteStoreNodeAttribute {
     }
 
     public static boolean isRemotePublicationEnabled(Settings settings) {
-        return FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL) && isRemoteRoutingTableAttributePresent(settings)
+        return FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
+            && isRemoteRoutingTableAttributePresent(settings)
             && isRemoteStoreClusterStateEnabled(settings);
     }
 

@@ -40,6 +40,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -50,10 +51,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
-import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -457,7 +456,6 @@ public class CoordinationState {
             clusterState.version(),
             clusterState.term()
         );
-        logger.info("Setting last accepted state : term - {}, version - {}", clusterState.term(), clusterState.version());
         persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastAcceptedState(clusterState);
         assert getLastAcceptedState() == clusterState;
 
@@ -583,7 +581,7 @@ public class CoordinationState {
         // This is to ensure the remote store is the single source of truth for current state. Even if the current node
         // goes down after sending the cluster state to other nodes, we should be able to read the remote state and
         // recover the cluster.
-        if (isRemotePublicationEnabled) {
+        if (isRemoteStateEnabled) {
             assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
             persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(clusterState);
         }
@@ -594,7 +592,7 @@ public class CoordinationState {
      */
     public void handlePreCommit() {
         // Publishing the committed state to remote store before sending apply commit to other nodes.
-        if (isRemotePublicationEnabled) {
+        if (isRemoteStateEnabled) {
             assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
             persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).markLastAcceptedStateAsCommitted();
         }
