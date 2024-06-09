@@ -54,8 +54,8 @@ import java.util.function.Supplier;
 
 import org.mockito.ArgumentCaptor;
 
-import static org.opensearch.cluster.routing.remote.RemoteRoutingTableService.INDEX_ROUTING_FILE_PREFIX;
-import static org.opensearch.cluster.routing.remote.RemoteRoutingTableService.INDEX_ROUTING_PATH_TOKEN;
+import static org.opensearch.cluster.routing.remote.DefaultRemoteRoutingTableService.INDEX_ROUTING_FILE_PREFIX;
+import static org.opensearch.cluster.routing.remote.DefaultRemoteRoutingTableService.INDEX_ROUTING_PATH_TOKEN;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -73,7 +73,7 @@ import static org.mockito.Mockito.when;
 
 public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
-    private RemoteRoutingTableService remoteRoutingTableService;
+    private DefaultRemoteRoutingTableService remoteRoutingTableService;
     private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private RepositoriesService repositoriesService;
     private BlobStoreRepository blobStoreRepository;
@@ -104,7 +104,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         basePath = BlobPath.cleanPath().add("base-path");
 
-        remoteRoutingTableService = new RemoteRoutingTableService(
+        remoteRoutingTableService = new DefaultRemoteRoutingTableService(
             repositoriesServiceSupplier,
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -121,7 +121,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         final Settings settings = Settings.builder().build();
         assertThrows(
             AssertionError.class,
-            () -> new RemoteRoutingTableService(
+            () -> new DefaultRemoteRoutingTableService(
                 repositoriesServiceSupplier,
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -152,7 +152,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
 
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = RemoteRoutingTableService
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
             .getIndicesRoutingMapDiff(routingTable, routingTable);
         assertEquals(0, diff.getUpserts().size());
         assertEquals(0, diff.getDeletes().size());
@@ -165,7 +165,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             .build();
         RoutingTable routingTable2 = RoutingTable.builder().add(indexRoutingTableReversed).build();
 
-        diff = RemoteRoutingTableService.getIndicesRoutingMapDiff(routingTable, routingTable2);
+        diff = remoteRoutingTableService.getIndicesRoutingMapDiff(routingTable, routingTable2);
         assertEquals(0, diff.getUpserts().size());
         assertEquals(0, diff.getDeletes().size());
     }
@@ -191,7 +191,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         ).numberOfShards(noOfShards).numberOfReplicas(noOfReplicas).build();
         RoutingTable routingTable2 = RoutingTable.builder(routingTable).addAsNew(indexMetadata2).build();
 
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = RemoteRoutingTableService
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
             .getIndicesRoutingMapDiff(routingTable, routingTable2);
         assertEquals(1, diff.getUpserts().size());
         assertNotNull(diff.getUpserts().get(indexName2));
@@ -222,7 +222,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         ).numberOfShards(noOfShards + 1).numberOfReplicas(noOfReplicas).build();
         RoutingTable routingTable2 = RoutingTable.builder().addAsNew(indexMetadata2).build();
 
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = RemoteRoutingTableService
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
             .getIndicesRoutingMapDiff(routingTable, routingTable2);
         assertEquals(1, diff.getUpserts().size());
         assertNotNull(diff.getUpserts().get(indexName));
@@ -238,7 +238,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         ).numberOfShards(noOfShards + 1).numberOfReplicas(noOfReplicas + 1).build();
         RoutingTable routingTable3 = RoutingTable.builder().addAsNew(indexMetadata3).build();
 
-        diff = RemoteRoutingTableService.getIndicesRoutingMapDiff(routingTable2, routingTable3);
+        diff = remoteRoutingTableService.getIndicesRoutingMapDiff(routingTable2, routingTable3);
         assertEquals(1, diff.getUpserts().size());
         assertNotNull(diff.getUpserts().get(indexName));
         assertEquals(noOfShards + 1, diff.getUpserts().get(indexName).getShards().size());
@@ -262,7 +262,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
         RoutingTable routingTable2 = RoutingTable.builder().addAsRecovery(indexMetadata).build();
 
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = RemoteRoutingTableService
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
             .getIndicesRoutingMapDiff(routingTable, routingTable2);
         assertEquals(1, diff.getUpserts().size());
         assertNotNull(diff.getUpserts().get(indexName));
@@ -290,7 +290,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         ).numberOfShards(randomInt(1000)).numberOfReplicas(randomInt(10)).build();
         RoutingTable routingTable2 = RoutingTable.builder().addAsNew(indexMetadata2).build();
 
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = RemoteRoutingTableService
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
             .getIndicesRoutingMapDiff(routingTable, routingTable2);
         assertEquals(1, diff.getUpserts().size());
         assertNotNull(diff.getUpserts().get(indexName2));
@@ -428,7 +428,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
 
         List<ClusterMetadataManifest.UploadedIndexMetadata> allIndiceRoutingMetadata = remoteRoutingTableService
@@ -443,7 +443,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata))
@@ -461,7 +461,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata))
@@ -470,7 +470,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index2",
             "index-uuid",
             "index-filename",
-            RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
 
         List<ClusterMetadataManifest.UploadedIndexMetadata> allIndiceRoutingMetadata = remoteRoutingTableService
@@ -486,13 +486,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata2 = new ClusterMetadataManifest.UploadedIndexMetadata(
             "test-index2",
             "index-uuid",
             "index-filename",
-            RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata, uploadedIndexMetadata2))
@@ -510,13 +510,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata2 = new ClusterMetadataManifest.UploadedIndexMetadata(
             "test-index2",
             "index-uuid",
             "index-filename",
-            RemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata, uploadedIndexMetadata2))
