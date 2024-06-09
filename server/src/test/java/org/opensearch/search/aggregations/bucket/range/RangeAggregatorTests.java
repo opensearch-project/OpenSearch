@@ -342,7 +342,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * @return Map [lower, upper) -> data points
+     * @return Map [lower, upper) TO data points
      */
     private Map<double[], double[]> buildRandomRanges(double[][] possibleRanges) {
         Map<double[], double[]> dataSet = new LinkedHashMap<>();
