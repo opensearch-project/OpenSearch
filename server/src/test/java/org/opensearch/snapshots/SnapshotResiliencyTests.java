@@ -1921,13 +1921,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     settings,
                     clusterSettings,
                     clusterManagerService,
-                    new ClusterApplierService(
-                        node.getName(),
-                        settings,
-                        clusterSettings,
-                        threadPool,
-                        new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
-                    ) {
+                    new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);

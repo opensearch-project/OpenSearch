@@ -8,6 +8,7 @@
 
 package org.opensearch.common.remote;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.io.IOException;
  * @param <T> The object type which can be uploaded to or downloaded from remote storage.
  * @param <U> The wrapper entity which provides methods for serializing/deserializing entity T.
  */
+@ExperimentalApi
 public interface RemoteWritableEntityStore<T, U extends RemoteWriteableEntity<T>> {
 
     public void writeAsync(U entity, ActionListener<Void> listener);
