@@ -417,6 +417,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+            NamedAnalyzer normalizer = normalizer();
+            if (normalizer != null) {
+                value = normalizeWildcardPattern(name(), value, normalizer);
+            }
             final String finalValue;
             if (caseInsensitive) {
                 // Use ROOT locale, as it seems to be consistent with AutomatonQueries.toCaseInsensitiveChar.
@@ -429,6 +433,9 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 Automaton automaton = WildcardQuery.toAutomaton(new Term(name(), finalValue));
                 CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
                 matchPredicate = s -> {
+                    if (caseInsensitive) {
+                        s = s.toLowerCase(Locale.ROOT);
+                    }
                     BytesRef valueBytes = BytesRefs.toBytesRef(s);
                     return compiledAutomaton.runAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length);
                 };
@@ -524,6 +531,11 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             MultiTermQuery.RewriteMethod method,
             QueryShardContext context
         ) {
+            NamedAnalyzer normalizer = normalizer();
+            if (normalizer != null) {
+                value = normalizer.normalize(name(), value).utf8ToString();
+            }
+
             RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
             Automaton automaton = regExp.toAutomaton(maxDeterminizedStates);
             CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
