@@ -34,7 +34,7 @@ public class RemoteRoutingTableServiceFactory {
         ClusterSettings clusterSettings
     ) {
         if (isRemoteRoutingTableEnabled(settings)) {
-            return new DefaultRemoteRoutingTableService(repositoriesService, settings, clusterSettings);
+            return new InternalRemoteRoutingTableService(repositoriesService, settings, clusterSettings);
         }
         return new NoopRemoteRoutingTableService();
     }

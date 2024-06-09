@@ -13,13 +13,13 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.hash.FNV1a;
+import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;

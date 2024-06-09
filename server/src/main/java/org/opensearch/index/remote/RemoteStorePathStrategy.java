@@ -194,6 +194,7 @@ public class RemoteStorePathStrategy {
                 + dataType
                 + " are not supported together";
         }
+
         /**
          * Returns a new builder for {@link ShardDataPathInput}.
          */

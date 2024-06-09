@@ -59,7 +59,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteR
  *
  * @opensearch.internal
  */
-public class DefaultRemoteRoutingTableService extends AbstractLifecycleComponent implements RemoteRoutingTableService {
+public class InternalRemoteRoutingTableService extends AbstractLifecycleComponent implements RemoteRoutingTableService {
 
     /**
      * This setting is used to set the remote routing table store blob store path type strategy.
@@ -90,14 +90,14 @@ public class DefaultRemoteRoutingTableService extends AbstractLifecycleComponent
     public static final String DELIMITER = "__";
     public static final String INDEX_ROUTING_METADATA_PREFIX = "indexRouting--";
 
-    private static final Logger logger = LogManager.getLogger(DefaultRemoteRoutingTableService.class);
+    private static final Logger logger = LogManager.getLogger(InternalRemoteRoutingTableService.class);
     private final Settings settings;
     private final Supplier<RepositoriesService> repositoriesService;
     private BlobStoreRepository blobStoreRepository;
     private RemoteStoreEnums.PathType pathType;
     private RemoteStoreEnums.PathHashAlgorithm pathHashAlgo;
 
-    public DefaultRemoteRoutingTableService(
+    public InternalRemoteRoutingTableService(
         Supplier<RepositoriesService> repositoriesService,
         Settings settings,
         ClusterSettings clusterSettings
@@ -158,7 +158,7 @@ public class DefaultRemoteRoutingTableService extends AbstractLifecycleComponent
 
         BlobPath indexRoutingPath = clusterBasePath.add(INDEX_ROUTING_PATH_TOKEN);
         BlobPath path = pathType.path(
-            RemoteStorePathStrategy.BasePathInput.builder().basePath(indexRoutingPath).indexUUID(indexRouting.getIndex().getUUID()).build(),
+            RemoteStorePathStrategy.PathInput.builder().basePath(indexRoutingPath).indexUUID(indexRouting.getIndex().getUUID()).build(),
             pathHashAlgo
         );
         final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);

@@ -20,7 +20,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.cluster.routing.remote.DefaultRemoteRoutingTableService;
+import org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.NoopRemoteRoutingTableService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
@@ -1412,7 +1412,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             threadPool,
             List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings))
         );
-        assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof DefaultRemoteRoutingTableService);
+        assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
     }
 
     public void testWriteFullMetadataSuccessWithRoutingTable() throws IOException {
@@ -1428,7 +1428,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "routing-filename",
-            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
             .indices(List.of(uploadedIndexMetadata))
@@ -1478,7 +1478,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "routing-filename",
-            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
 
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
@@ -1533,7 +1533,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "routing-filename",
-            DefaultRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
             .indices(List.of(uploadedIndexMetadata))

@@ -44,7 +44,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener,
         BlobPath clusterBasePath
     ) {
-        //noop
+        // noop
         return () -> {};
     }
 

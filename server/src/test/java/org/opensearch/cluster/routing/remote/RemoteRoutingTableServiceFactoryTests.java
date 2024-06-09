@@ -46,6 +46,6 @@ public class RemoteRoutingTableServiceFactoryTests extends OpenSearchTestCase {
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        assertTrue(service instanceof DefaultRemoteRoutingTableService);
+        assertTrue(service instanceof InternalRemoteRoutingTableService);
     }
 }
