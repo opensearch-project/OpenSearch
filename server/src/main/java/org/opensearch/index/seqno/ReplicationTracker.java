@@ -1319,14 +1319,23 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     public synchronized Set<SegmentReplicationShardStats> getSegmentReplicationStats() {
         assert indexSettings.isSegRepEnabledOrRemoteNode();
         if (primaryMode) {
+            // Check if the current primary shard is migrating to remote and
+            // all the other shard copies of the same index still hasn't completely moved over
+            // to the remote enabled nodes
+            boolean migratingPrimaryOnRemoteNode = indexSettings.isAssignedOnRemoteNode() && indexSettings.isRemoteStoreEnabled() == false;
             return this.checkpoints.entrySet()
                 .stream()
-                // filter out this shard's allocation id, any shards that are out of sync or unavailable (shard marked in-sync but has not
-                // been assigned to a node).
+                /* Filter out:
+                - This shard's allocation id
+                - Any shards that are out of sync or unavailable (shard marked in-sync but has not been assigned to a node).
+                - (For remote store enabled clusters) Any shard that is not yet migrated to remote store enabled nodes during migration
+                 */
                 .filter(
                     entry -> entry.getKey().equals(this.shardAllocationId) == false
                         && entry.getValue().inSync
                         && replicationGroup.getUnavailableInSyncShards().contains(entry.getKey()) == false
+                        && (migratingPrimaryOnRemoteNode
+                            && isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(entry.getKey()).currentNodeId()))
                         && isPrimaryRelocation(entry.getKey()) == false
                 )
                 .map(entry -> buildShardStats(entry.getKey(), entry.getValue()))
