@@ -53,7 +53,7 @@ public class RemoteClusterStateUtils {
     }
 
     public static String getFormattedFileName(String fileName, int codecVersion) {
-        if (codecVersion < ClusterMetadataManifest.CODEC_V3) {
+        if (codecVersion < ClusterMetadataManifest.CODEC_V2) {
             return String.format(Locale.ROOT, METADATA_NAME_FORMAT, fileName);
         }
         return fileName;
@@ -66,31 +66,6 @@ public class RemoteClusterStateUtils {
                     .add(Base64.getUrlEncoder().withoutPadding().encodeToString(clusterName.getBytes(StandardCharsets.UTF_8)))
                     .add(CLUSTER_STATE_PATH_TOKEN)
             );
-    }
-
-    /**
-     * Exception for Remote state transfer.
-     */
-    public static class RemoteStateTransferException extends RuntimeException {
-        private RemoteWriteableEntity<?> entity;
-
-        public RemoteStateTransferException(String errorDesc) {
-            super(errorDesc);
-        }
-
-        public RemoteStateTransferException(String errorDesc, Throwable cause) {
-            super(errorDesc, cause);
-        }
-
-        public RemoteStateTransferException(String errorDesc, RemoteWriteableEntity<?> entity) {
-            super(errorDesc);
-            this.entity = entity;
-        }
-
-        public RemoteStateTransferException(String errorDesc, RemoteWriteableEntity<?> entity, Throwable cause) {
-            super(errorDesc, cause);
-            this.entity = entity;
-        }
     }
 
     /**

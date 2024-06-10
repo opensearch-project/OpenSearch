@@ -15,6 +15,9 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -25,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer.getAbstractInstance;
 import static org.opensearch.cluster.DiffableUtils.getStringKeySerializer;
@@ -35,7 +39,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  *
  * @opensearch.internal
  */
-public class ClusterStateDiffManifest implements ToXContentObject {
+public class ClusterStateDiffManifest implements ToXContentObject, Writeable {
     private static final String FROM_STATE_UUID_FIELD = "from_state_uuid";
     private static final String TO_STATE_UUID_FIELD = "to_state_uuid";
     private static final String METADATA_DIFF_FIELD = "metadata_diff";
@@ -57,12 +61,12 @@ public class ClusterStateDiffManifest implements ToXContentObject {
     private final String toStateUUID;
     private final boolean coordinationMetadataUpdated;
     private final boolean settingsMetadataUpdated;
-    private final boolean transientSettingsMetadataUpdate;
+    private final boolean transientSettingsMetadataUpdated;
     private final boolean templatesMetadataUpdated;
-    private List<String> customMetadataUpdated;
-    private final List<String> customMetadataDeleted;
     private final List<String> indicesUpdated;
     private final List<String> indicesDeleted;
+    private final List<String> customMetadataUpdated;
+    private final List<String> customMetadataDeleted;
     private final boolean clusterBlocksUpdated;
     private final boolean discoveryNodesUpdated;
     private final List<String> indicesRoutingUpdated;
@@ -76,7 +80,7 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         toStateUUID = state.stateUUID();
         coordinationMetadataUpdated = !Metadata.isCoordinationMetadataEqual(state.metadata(), previousState.metadata());
         settingsMetadataUpdated = !Metadata.isSettingsMetadataEqual(state.metadata(), previousState.metadata());
-        transientSettingsMetadataUpdate = !Metadata.isTransientSettingsMetadataEqual(state.metadata(), previousState.metadata());
+        transientSettingsMetadataUpdated = !Metadata.isTransientSettingsMetadataEqual(state.metadata(), previousState.metadata());
         templatesMetadataUpdated = !Metadata.isTemplatesMetadataEqual(state.metadata(), previousState.metadata());
         DiffableUtils.MapDiff<String, IndexMetadata, Map<String, IndexMetadata>> indicesDiff = DiffableUtils.diff(
             previousState.metadata().indices(),
@@ -142,7 +146,7 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         this.toStateUUID = toStateUUID;
         this.coordinationMetadataUpdated = coordinationMetadataUpdated;
         this.settingsMetadataUpdated = settingsMetadataUpdated;
-        this.transientSettingsMetadataUpdate = transientSettingsMetadataUpdate;
+        this.transientSettingsMetadataUpdated = transientSettingsMetadataUpdate;
         this.templatesMetadataUpdated = templatesMetadataUpdated;
         this.customMetadataUpdated = customMetadataUpdated;
         this.customMetadataDeleted = customMetadataDeleted;
@@ -157,6 +161,26 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         this.clusterStateCustomDeleted = clusterStateCustomDeleted;
     }
 
+    public ClusterStateDiffManifest(StreamInput in) throws IOException {
+        this.fromStateUUID = in.readString();
+        this.toStateUUID = in.readString();
+        this.coordinationMetadataUpdated = in.readBoolean();
+        this.settingsMetadataUpdated = in.readBoolean();
+        this.transientSettingsMetadataUpdated = in.readBoolean();
+        this.templatesMetadataUpdated = in.readBoolean();
+        this.indicesUpdated = in.readStringList();
+        this.indicesDeleted = in.readStringList();
+        this.customMetadataUpdated = in.readStringList();
+        this.customMetadataDeleted = in.readStringList();
+        this.clusterBlocksUpdated = in.readBoolean();
+        this.discoveryNodesUpdated = in.readBoolean();
+        this.indicesRoutingUpdated = in.readStringList();
+        this.indicesRoutingDeleted = in.readStringList();
+        this.hashesOfConsistentSettingsUpdated = in.readBoolean();
+        this.clusterStateCustomUpdated = in.readStringList();
+        this.clusterStateCustomDeleted = in.readStringList();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         {
@@ -166,7 +190,7 @@ public class ClusterStateDiffManifest implements ToXContentObject {
             {
                 builder.field(COORDINATION_METADATA_UPDATED_FIELD, coordinationMetadataUpdated);
                 builder.field(SETTINGS_METADATA_UPDATED_FIELD, settingsMetadataUpdated);
-                builder.field(TRANSIENT_SETTINGS_METADATA_UPDATED_FIELD, transientSettingsMetadataUpdate);
+                builder.field(TRANSIENT_SETTINGS_METADATA_UPDATED_FIELD, transientSettingsMetadataUpdated);
                 builder.field(TEMPLATES_METADATA_UPDATED_FIELD, templatesMetadataUpdated);
                 builder.startObject(INDICES_DIFF_FIELD);
                 builder.startArray(UPSERTS_FIELD);
@@ -391,7 +415,7 @@ public class ClusterStateDiffManifest implements ToXContentObject {
     }
 
     public boolean isTransientSettingsMetadataUpdated() {
-        return transientSettingsMetadataUpdate;
+        return transientSettingsMetadataUpdated;
     }
 
     public boolean isTemplatesMetadataUpdated() {
@@ -442,8 +466,44 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         return clusterStateCustomDeleted;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusterStateDiffManifest that = (ClusterStateDiffManifest) o;
+        return coordinationMetadataUpdated == that.coordinationMetadataUpdated && settingsMetadataUpdated == that.settingsMetadataUpdated && transientSettingsMetadataUpdated == that.transientSettingsMetadataUpdated && templatesMetadataUpdated == that.templatesMetadataUpdated && clusterBlocksUpdated == that.clusterBlocksUpdated && discoveryNodesUpdated == that.discoveryNodesUpdated && hashesOfConsistentSettingsUpdated == that.hashesOfConsistentSettingsUpdated && Objects.equals(fromStateUUID, that.fromStateUUID) && Objects.equals(toStateUUID, that.toStateUUID) && Objects.equals(customMetadataUpdated, that.customMetadataUpdated) && Objects.equals(customMetadataDeleted, that.customMetadataDeleted) && Objects.equals(indicesUpdated, that.indicesUpdated) && Objects.equals(indicesDeleted, that.indicesDeleted) && Objects.equals(indicesRoutingUpdated, that.indicesRoutingUpdated) && Objects.equals(indicesRoutingDeleted, that.indicesRoutingDeleted) && Objects.equals(clusterStateCustomUpdated, that.clusterStateCustomUpdated) && Objects.equals(clusterStateCustomDeleted, that.clusterStateCustomDeleted);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(fromStateUUID, toStateUUID, coordinationMetadataUpdated, settingsMetadataUpdated, transientSettingsMetadataUpdated, templatesMetadataUpdated, customMetadataUpdated, customMetadataDeleted, indicesUpdated, indicesDeleted, clusterBlocksUpdated, discoveryNodesUpdated, indicesRoutingUpdated, indicesRoutingDeleted, hashesOfConsistentSettingsUpdated, clusterStateCustomUpdated, clusterStateCustomDeleted);
+    }
+
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(fromStateUUID);
+        out.writeString(toStateUUID);
+        out.writeBoolean(coordinationMetadataUpdated);
+        out.writeBoolean(settingsMetadataUpdated);
+        out.writeBoolean(transientSettingsMetadataUpdated);
+        out.writeBoolean(templatesMetadataUpdated);
+        out.writeStringCollection(indicesUpdated);
+        out.writeStringCollection(indicesDeleted);
+        out.writeStringCollection(customMetadataUpdated);
+        out.writeStringCollection(customMetadataDeleted);
+        out.writeStringCollection(indicesRoutingUpdated);
+        out.writeStringCollection(indicesRoutingDeleted);
+        out.writeBoolean(clusterBlocksUpdated);
+        out.writeBoolean(discoveryNodesUpdated);
+        out.writeStringCollection(indicesRoutingUpdated);
+        out.writeStringCollection(indicesRoutingDeleted);
+        out.writeBoolean(hashesOfConsistentSettingsUpdated);
+        out.writeStringCollection(clusterStateCustomUpdated);
+        out.writeStringCollection(clusterStateCustomDeleted);
     }
 
     /**

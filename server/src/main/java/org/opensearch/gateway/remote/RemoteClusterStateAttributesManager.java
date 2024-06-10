@@ -20,7 +20,6 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.gateway.remote.RemoteClusterStateUtils.RemoteStateTransferException;
 import org.opensearch.gateway.remote.model.RemoteClusterBlocks;
 import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterStateCustoms;
@@ -73,46 +72,15 @@ public class RemoteClusterStateAttributesManager {
      * Allows async upload of Cluster State Attribute components to remote
      */
     CheckedRunnable<IOException> getAsyncMetadataWriteAction(
-        ClusterState clusterState,
         String component,
-        ToXContent componentData,
+        AbstractRemoteWritableBlobEntity blobEntity,
+        RemoteClusterStateBlobStore remoteEntityStore,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
-        if (componentData instanceof DiscoveryNodes) {
-            RemoteDiscoveryNodes remoteObject = new RemoteDiscoveryNodes(
-                (DiscoveryNodes) componentData,
-                clusterState.version(),
-                clusterState.metadata().clusterUUID(),
-                compressor,
-                namedXContentRegistry
-            );
-            return () -> discoveryNodesBlobStore.writeAsync(
-                remoteObject,
-                getActionListener(component, remoteObject, latchedActionListener)
-            );
-        } else if (componentData instanceof ClusterBlocks) {
-            RemoteClusterBlocks remoteObject = new RemoteClusterBlocks(
-                (ClusterBlocks) componentData,
-                clusterState.version(),
-                clusterState.metadata().clusterUUID(),
-                compressor,
-                namedXContentRegistry
-            );
-            return () -> clusterBlocksBlobStore.writeAsync(remoteObject, getActionListener(component, remoteObject, latchedActionListener));
-        } else if (componentData instanceof ClusterState.Custom) {
-            RemoteClusterStateCustoms remoteObject = new RemoteClusterStateCustoms(
-                (ClusterState.Custom) componentData,
-                component,
-                clusterState.version(),
-                clusterState.metadata().clusterUUID(),
-                compressor,
-                namedXContentRegistry,
-                namedWriteableRegistry
-            );
-            return () -> customsBlobStore.writeAsync(remoteObject, getActionListener(component, remoteObject, latchedActionListener));
-        } else {
-            throw new RemoteStateTransferException("Remote object not found for " + componentData.getClass());
-        }
+        return () -> remoteEntityStore.writeAsync(
+            blobEntity,
+            getActionListener(component, blobEntity, latchedActionListener)
+        );
     }
 
     private ActionListener<Void> getActionListener(
@@ -122,60 +90,21 @@ public class RemoteClusterStateAttributesManager {
     ) {
         return ActionListener.wrap(
             resp -> latchedActionListener.onResponse(remoteObject.getUploadedMetadata()),
-            ex -> latchedActionListener.onFailure(new RemoteClusterStateUtils.RemoteStateTransferException(component, remoteObject, ex))
+            ex -> latchedActionListener.onFailure(new RemoteStateTransferException(component, remoteObject, ex))
         );
     }
 
     public CheckedRunnable<IOException> getAsyncMetadataReadAction(
-        String clusterUUID,
         String component,
-        String componentName,
-        String uploadedFilename,
+        AbstractRemoteWritableBlobEntity blobEntity,
+        RemoteClusterStateBlobStore remoteEntityStore,
         LatchedActionListener<RemoteReadResult> listener
     ) {
         final ActionListener actionListener = ActionListener.wrap(
             response -> listener.onResponse(new RemoteReadResult((ToXContent) response, CLUSTER_STATE_ATTRIBUTE, component)),
             listener::onFailure
         );
-        if (component.equals(RemoteDiscoveryNodes.DISCOVERY_NODES)) {
-            RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(
-                uploadedFilename,
-                clusterUUID,
-                compressor,
-                namedXContentRegistry
-            );
-            return () -> discoveryNodesBlobStore.readAsync(remoteDiscoveryNodes, actionListener);
-        } else if (component.equals(RemoteClusterBlocks.CLUSTER_BLOCKS)) {
-            RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(
-                uploadedFilename,
-                clusterUUID,
-                compressor,
-                namedXContentRegistry
-            );
-            return () -> clusterBlocksBlobStore.readAsync(remoteClusterBlocks, actionListener);
-        } else if (component.equals(CLUSTER_STATE_CUSTOM)) {
-            final ActionListener customActionListener = ActionListener.wrap(
-                response -> listener.onResponse(
-                    new RemoteReadResult(
-                        (ToXContent) response,
-                        CLUSTER_STATE_ATTRIBUTE,
-                        String.join(CUSTOM_DELIMITER, component, componentName)
-                    )
-                ),
-                listener::onFailure
-            );
-            RemoteClusterStateCustoms remoteClusterStateCustoms = new RemoteClusterStateCustoms(
-                uploadedFilename,
-                componentName,
-                clusterUUID,
-                compressor,
-                namedXContentRegistry,
-                namedWriteableRegistry
-            );
-            return () -> customsBlobStore.readAsync(remoteClusterStateCustoms, customActionListener);
-        } else {
-            throw new RemoteStateTransferException("Remote object not found for " + component);
-        }
+        return () -> remoteEntityStore.readAsync(blobEntity, actionListener);
     }
 
     public Map<String, ClusterState.Custom> getUpdatedCustoms(ClusterState clusterState, ClusterState previousClusterState) {
