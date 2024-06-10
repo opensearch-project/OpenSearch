@@ -187,7 +187,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
         when(blobStoreMock.isBlobMetadataEnabled()).thenReturn(true);
         RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
             remoteStoreSettings,
-            () -> Version.CURRENT,
+            () -> Version.V_2_15_0,
             () -> repositoriesService,
             settings
         );
@@ -200,7 +200,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
         RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
         RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
             remoteStoreSettings,
-            () -> Version.CURRENT,
+            () -> Version.V_2_15_0,
             () -> repositoriesService,
             settings
         );
