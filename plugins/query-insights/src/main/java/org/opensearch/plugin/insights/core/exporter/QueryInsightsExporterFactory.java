@@ -19,7 +19,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_N_QUERIES_INDEX_PATTERN;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_QUERIES_EXPORTER_TYPE;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPORTER_TYPE;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPORT_INDEX;
@@ -71,7 +71,7 @@ public class QueryInsightsExporterFactory {
         }
         switch (type) {
             case LOCAL_INDEX:
-                final String indexPattern = settings.get(EXPORT_INDEX, DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN);
+                final String indexPattern = settings.get(EXPORT_INDEX, DEFAULT_TOP_N_QUERIES_INDEX_PATTERN);
                 if (indexPattern.length() == 0) {
                     throw new IllegalArgumentException("Empty index pattern configured for the exporter");
                 }
