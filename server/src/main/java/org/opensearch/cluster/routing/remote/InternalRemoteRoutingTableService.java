@@ -221,7 +221,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             indexRoutingInput.writeTo(streamOutput);
             bytesInput = streamOutput.bytes();
         } catch (IOException e) {
-            logger.error("Failed to serialize IndexRoutingTable for {}. ", indexRouting, e);
+            logger.error("Failed to serialize IndexRoutingTable for [{}]: [{}]", indexRouting, e);
             completionListener.onFailure(e);
             return;
         }
@@ -231,7 +231,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
                 blobContainer.writeBlob(fileName, bytesInput.streamInput(), bytesInput.length(), true);
                 completionListener.onResponse(null);
             } catch (IOException e) {
-                logger.error("Failed to write IndexRoutingTable to remote store for indexRouting {}. ", indexRouting, e);
+                logger.error("Failed to write IndexRoutingTable to remote store for indexRouting [{}]: [{}]", indexRouting, e);
                 completionListener.onFailure(e);
             }
             return;
@@ -255,12 +255,12 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
                     completionListener
                 );
             } catch (IOException e) {
-                logger.error("Failed to write IndexRoutingTable to remote store for indexRouting {}. ", indexRouting, e);
+                logger.error("Failed to write IndexRoutingTable to remote store for indexRouting [{}]: [{}]", indexRouting, e);
                 completionListener.onFailure(e);
             }
         } catch (IOException e) {
             logger.error(
-                "Failed to create transfer object for IndexRoutingTable for remote store upload for indexRouting {}. ",
+                "Failed to create transfer object for IndexRoutingTable for remote store upload for indexRouting [{}]: [{}]",
                 indexRouting,
                 e
             );
