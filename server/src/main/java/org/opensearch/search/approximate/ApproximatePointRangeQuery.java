@@ -22,9 +22,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 
 import java.io.IOException;
@@ -43,6 +41,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
     final byte[] upperPoint;
 
     private int size;
+
+    private long[] docCount = { 0 };
 
     protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims) {
         this(field, lowerPoint, upperPoint, numDims, 10_000);
@@ -70,6 +70,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
         this.lowerPoint = lowerPoint;
         this.upperPoint = upperPoint;
+        this.size = size;
     }
 
     public int getSize() {
@@ -147,7 +148,10 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
                     @Override
                     public void visit(int docID) {
-                        adder.add(docID);
+                        if (docCount[0] <= size) {
+                            adder.add(docID);
+                            docCount[0]++;
+                        }
                     }
 
                     @Override
@@ -183,63 +187,6 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 };
             }
 
-            /**
-             * Create a visitor that clears documents that do NOT match the range.
-             */
-            private PointValues.IntersectVisitor getInverseIntersectVisitor(FixedBitSet result, long[] cost) {
-                return new PointValues.IntersectVisitor() {
-                    @Override
-                    public void visit(int docID) {
-                        result.clear(docID);
-                        cost[0]--;
-                    }
-
-                    @Override
-                    public void visit(DocIdSetIterator iterator) throws IOException {
-                        result.andNot(iterator);
-                        cost[0] = Math.max(0, cost[0] - iterator.cost());
-                    }
-
-                    @Override
-                    public void visit(IntsRef ref) {
-                        for (int i = ref.offset; i < ref.offset + ref.length; i++) {
-                            result.clear(ref.ints[i]);
-                        }
-                        cost[0] -= ref.length;
-                    }
-
-                    @Override
-                    public void visit(int docID, byte[] packedValue) {
-                        if (matches(packedValue) == false) {
-                            visit(docID);
-                        }
-                    }
-
-                    @Override
-                    public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
-                        if (matches(packedValue) == false) {
-                            visit(iterator);
-                        }
-                    }
-
-                    @Override
-                    public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                        PointValues.Relation relation = relate(minPackedValue, maxPackedValue);
-                        switch (relation) {
-                            case CELL_INSIDE_QUERY:
-                                // all points match, skip this subtree
-                                return PointValues.Relation.CELL_OUTSIDE_QUERY;
-                            case CELL_OUTSIDE_QUERY:
-                                // none of the points match, clear all documents
-                                return PointValues.Relation.CELL_INSIDE_QUERY;
-                            case CELL_CROSSES_QUERY:
-                            default:
-                                return relation;
-                        }
-                    }
-                };
-            }
-
             private boolean checkValidPointValues(PointValues values) throws IOException {
                 if (values == null) {
                     // No docs in this segment/field indexed any points
@@ -270,14 +217,13 @@ public abstract class ApproximatePointRangeQuery extends Query {
             }
 
             private void intersect(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, int count) throws IOException {
-                intersect(visitor, pointTree, count, 0);
+                intersect(visitor, pointTree, count);
                 assert pointTree.moveToParent() == false;
             }
 
-            private long intersect(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count, long docCount)
-                throws IOException {
+            private long intersect(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count) throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
-                if (docCount >= count) {
+                if (docCount[0] >= count) {
                     return 0;
                 }
                 switch (r) {
@@ -294,14 +240,14 @@ public abstract class ApproximatePointRangeQuery extends Query {
                         // through and do full filtering:
                         if (pointTree.moveToChild()) {
                             do {
-                                docCount += intersect(visitor, pointTree, count, docCount);
-                            } while (pointTree.moveToSibling() && docCount <= count);
+                                docCount[0] += intersect(visitor, pointTree, count);
+                            } while (pointTree.moveToSibling() && docCount[0] <= count);
                             pointTree.moveToParent();
                         } else {
                             // TODO: we can assert that the first value here in fact matches what the pointTree
                             // claimed?
                             // Leaf node; scan and filter all points in this block:
-                            if (docCount <= count) {
+                            if (docCount[0] <= count) {
                                 pointTree.visitDocValues(visitor);
                             } else break;
                         }
@@ -309,7 +255,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
                     default:
                         throw new IllegalArgumentException("Unreachable code");
                 }
-                return 0;
+                // docCount can be updated by the local visitor so we ensure that we return docCount after pointTree.visitDocValues(visitor)
+                return docCount[0] > 0 ? docCount[0] : 0;
             }
 
             @Override
@@ -379,20 +326,6 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
                         @Override
                         public Scorer get(long leadCost) throws IOException {
-                            if (values.getDocCount() == reader.maxDoc()
-                                && values.getDocCount() == values.size()
-                                && cost() > reader.maxDoc() / 2) {
-                                // If all docs have exactly one value and the cost is greater
-                                // than half the leaf size then maybe we can make things faster
-                                // by computing the set of documents that do NOT match the range
-                                final FixedBitSet result = new FixedBitSet(reader.maxDoc());
-                                result.set(0, reader.maxDoc());
-                                long[] cost = new long[] { reader.maxDoc() };
-                                intersect(values.getPointTree(), getInverseIntersectVisitor(result, cost), size);
-                                final DocIdSetIterator iterator = new BitSetIterator(result, cost[0]);
-                                return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
-                            }
-
                             intersect(values.getPointTree(), visitor, size);
                             DocIdSetIterator iterator = result.build().iterator();
                             return new ConstantScoreScorer(weight, score(), scoreMode, iterator);

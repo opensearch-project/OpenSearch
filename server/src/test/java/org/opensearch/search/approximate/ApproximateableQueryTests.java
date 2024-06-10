@@ -78,6 +78,5 @@ public class ApproximateableQueryTests extends OpenSearchTestCase {
                 }
             }
         }
-
     }
 }
