@@ -86,6 +86,7 @@ import org.mockito.ArgumentMatchers;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.FORMAT_PARAMS;
@@ -475,7 +476,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
      * even if it was not changed in this cluster state update
      */
     public void testMigrationFromCodecV1ManifestToCodecV2Manifest() throws IOException {
-        verifyCodecMigrationManifest(ClusterMetadataManifest.CODEC_V1);
+        verifyCodecMigrationManifest(CODEC_V1);
     }
 
     private void verifyCodecMigrationManifest(int previousCodec) throws IOException {
@@ -524,7 +525,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testWriteIncrementalGlobalMetadataFromCodecV1Success() throws IOException {
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
-            .codecVersion(1)
+            .codecVersion(CODEC_V1)
             .globalMetadataFileName("global-metadata-file")
             .indices(Collections.emptyList())
             .build();
@@ -548,7 +549,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         );
 
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
-            .codecVersion(3)
+            .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
             .indices(Collections.emptyList())
             .clusterTerm(1L)
             .stateVersion(1L)
@@ -1105,7 +1106,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .stateVersion(1L)
             .stateUUID("state-uuid")
             .clusterUUID("cluster-uuid")
-            .codecVersion(ClusterMetadataManifest.CODEC_V1)
+            .codecVersion(CODEC_V1)
             .globalMetadataFileName(globalIndexMetadataName)
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
@@ -1314,7 +1315,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(splittedIndexMetadataFileName[3], is(String.valueOf(INDEX_METADATA_CURRENT_CODEC_VERSION)));
 
         verifyManifestFileNameWithCodec(MANIFEST_CURRENT_CODEC_VERSION);
-        verifyManifestFileNameWithCodec(ClusterMetadataManifest.CODEC_V1);
+        verifyManifestFileNameWithCodec(CODEC_V1);
         verifyManifestFileNameWithCodec(ClusterMetadataManifest.CODEC_V0);
     }
 
@@ -1577,7 +1578,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .committed(true)
             .clusterUUIDCommitted(isUUIDCommitted)
             .globalMetadataFileName(globalMetadataFileName)
-            .codecVersion(ClusterMetadataManifest.CODEC_V1)
+            .codecVersion(CODEC_V1)
             .build();
     }
 
@@ -1649,7 +1650,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Map<String, IndexMetadata> indexMetadataMap,
         int codecVersion
     ) throws IOException {
-        String manifestFileName = codecVersion >= ClusterMetadataManifest.CODEC_V1
+        String manifestFileName = codecVersion >= CODEC_V1
             ? "manifest__manifestFileName__abcd__abcd__abcd__" + codecVersion
             : "manifestFileName";
         BlobMetadata blobMetadata = new PlainBlobMetadata(manifestFileName, 1);
@@ -1769,7 +1770,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     }
                 );
             }
-        } else if (codecVersion == ClusterMetadataManifest.CODEC_V1) {
+        } else if (codecVersion == CODEC_V1) {
             String[] splitPath = clusterMetadataManifest.getGlobalMetadataFileName().split("/");
             when(blobContainer.readBlob(RemoteClusterStateService.GLOBAL_METADATA_FORMAT.blobName(splitPath[splitPath.length - 1])))
                 .thenAnswer((invocationOnMock) -> {

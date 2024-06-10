@@ -746,30 +746,30 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         }
         final ClusterMetadataManifest that = (ClusterMetadataManifest) o;
         return Objects.equals(indices, that.indices)
-        && clusterTerm == that.clusterTerm
-        && stateVersion == that.stateVersion
-        && Objects.equals(clusterUUID, that.clusterUUID)
-        && Objects.equals(stateUUID, that.stateUUID)
-        && Objects.equals(opensearchVersion, that.opensearchVersion)
-        && Objects.equals(nodeId, that.nodeId)
-        && Objects.equals(committed, that.committed)
-        && Objects.equals(previousClusterUUID, that.previousClusterUUID)
-        && Objects.equals(clusterUUIDCommitted, that.clusterUUIDCommitted)
-        && Objects.equals(globalMetadataFileName, that.globalMetadataFileName)
-        && Objects.equals(codecVersion, that.codecVersion)
-        && Objects.equals(routingTableVersion, that.routingTableVersion)
-        && Objects.equals(indicesRouting, that.indicesRouting)
-        && Objects.equals(uploadedCoordinationMetadata, that.uploadedCoordinationMetadata)
-        && Objects.equals(uploadedSettingsMetadata, that.uploadedSettingsMetadata)
-        && Objects.equals(uploadedTemplatesMetadata, that.uploadedTemplatesMetadata)
-        && Objects.equals(uploadedCustomMetadataMap, that.uploadedCustomMetadataMap)
-        && Objects.equals(metadataVersion, that.metadataVersion)
-        && Objects.equals(uploadedDiscoveryNodesMetadata, that.uploadedDiscoveryNodesMetadata)
-        && Objects.equals(uploadedClusterBlocksMetadata, that.uploadedClusterBlocksMetadata)
-        && Objects.equals(uploadedTransientSettingsMetadata, that.uploadedTransientSettingsMetadata)
-        && Objects.equals(uploadedHashesOfConsistentSettings, that.uploadedHashesOfConsistentSettings)
-        && Objects.equals(uploadedClusterStateCustomMap, that.uploadedClusterStateCustomMap)
-        && Objects.equals(diffManifest, that.diffManifest);
+            && clusterTerm == that.clusterTerm
+            && stateVersion == that.stateVersion
+            && Objects.equals(clusterUUID, that.clusterUUID)
+            && Objects.equals(stateUUID, that.stateUUID)
+            && Objects.equals(opensearchVersion, that.opensearchVersion)
+            && Objects.equals(nodeId, that.nodeId)
+            && Objects.equals(committed, that.committed)
+            && Objects.equals(previousClusterUUID, that.previousClusterUUID)
+            && Objects.equals(clusterUUIDCommitted, that.clusterUUIDCommitted)
+            && Objects.equals(globalMetadataFileName, that.globalMetadataFileName)
+            && Objects.equals(codecVersion, that.codecVersion)
+            && Objects.equals(routingTableVersion, that.routingTableVersion)
+            && Objects.equals(indicesRouting, that.indicesRouting)
+            && Objects.equals(uploadedCoordinationMetadata, that.uploadedCoordinationMetadata)
+            && Objects.equals(uploadedSettingsMetadata, that.uploadedSettingsMetadata)
+            && Objects.equals(uploadedTemplatesMetadata, that.uploadedTemplatesMetadata)
+            && Objects.equals(uploadedCustomMetadataMap, that.uploadedCustomMetadataMap)
+            && Objects.equals(metadataVersion, that.metadataVersion)
+            && Objects.equals(uploadedDiscoveryNodesMetadata, that.uploadedDiscoveryNodesMetadata)
+            && Objects.equals(uploadedClusterBlocksMetadata, that.uploadedClusterBlocksMetadata)
+            && Objects.equals(uploadedTransientSettingsMetadata, that.uploadedTransientSettingsMetadata)
+            && Objects.equals(uploadedHashesOfConsistentSettings, that.uploadedHashesOfConsistentSettings)
+            && Objects.equals(uploadedClusterStateCustomMap, that.uploadedClusterStateCustomMap)
+            && Objects.equals(diffManifest, that.diffManifest);
     }
 
     @Override

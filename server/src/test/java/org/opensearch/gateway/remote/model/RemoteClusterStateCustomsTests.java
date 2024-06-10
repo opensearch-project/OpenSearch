@@ -8,30 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.opensearch.Version.CURRENT;
-import static org.opensearch.cluster.SnapshotsInProgress.State.INIT;
-import static org.opensearch.cluster.SnapshotsInProgress.State.STARTED;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CUSTOM_DELIMITER;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_CURRENT_CODEC_VERSION;
-import static org.opensearch.gateway.remote.model.RemoteClusterStateCustoms.CLUSTER_STATE_CUSTOM;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.List;
-import org.junit.After;
-import org.junit.Before;
 import org.opensearch.cluster.ClusterState.Custom;
-import org.opensearch.cluster.RepositoryCleanupInProgress;
-import org.opensearch.cluster.RepositoryCleanupInProgress.Entry;
-import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.compress.DeflateCompressor;
@@ -51,6 +28,26 @@ import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static org.opensearch.Version.CURRENT;
+import static org.opensearch.cluster.SnapshotsInProgress.State.INIT;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CUSTOM_DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_CURRENT_CODEC_VERSION;
+import static org.opensearch.gateway.remote.model.RemoteClusterStateCustoms.CLUSTER_STATE_CUSTOM;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RemoteClusterStateCustomsTests extends OpenSearchTestCase {
     private static final String TEST_BLOB_NAME = "/test-path/test-blob-name";
@@ -241,19 +238,23 @@ public class RemoteClusterStateCustomsTests extends OpenSearchTestCase {
     }
 
     private Custom getClusterStateCustom() {
-        return SnapshotsInProgress.of(List.of(new SnapshotsInProgress.Entry(
-            new Snapshot("repo", new SnapshotId("test-snapshot", "test-snapshot-uuid")),
-            false,
-            false,
-            INIT,
-            emptyList(),
-            emptyList(),
-            0L,
-            0L,
-            emptyMap(),
-            emptyMap(),
-            CURRENT,
-            false
-        )));
+        return SnapshotsInProgress.of(
+            List.of(
+                new SnapshotsInProgress.Entry(
+                    new Snapshot("repo", new SnapshotId("test-snapshot", "test-snapshot-uuid")),
+                    false,
+                    false,
+                    INIT,
+                    emptyList(),
+                    emptyList(),
+                    0L,
+                    0L,
+                    emptyMap(),
+                    emptyMap(),
+                    CURRENT,
+                    false
+                )
+            )
+        );
     }
 }
