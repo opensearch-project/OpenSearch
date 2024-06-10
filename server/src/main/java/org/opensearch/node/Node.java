@@ -1196,7 +1196,8 @@ public class Node implements Closeable {
                 fsHealthService,
                 persistedStateRegistry,
                 remoteStoreNodeService,
-                clusterManagerMetrics
+                clusterManagerMetrics,
+                remoteClusterStateService
             );
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
                 clusterService,

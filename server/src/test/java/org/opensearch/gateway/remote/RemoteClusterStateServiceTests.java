@@ -43,6 +43,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
+import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.indices.IndicesModule;
@@ -182,8 +183,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testFailWriteFullMetadataNonClusterManagerNode() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().build();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, randomAlphaOfLength(10));
-        Assert.assertThat(manifest, nullValue());
+        final RemoteClusterStateManifestInfo manifestDetails = remoteClusterStateService.writeFullMetadata(
+            clusterState,
+            randomAlphaOfLength(10)
+        );
+        Assert.assertThat(manifestDetails, nullValue());
     }
 
     public void testFailInitializationWhenRemoteStateDisabled() {
@@ -218,7 +222,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
 
@@ -262,7 +267,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         }).when(container).asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
 
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
 
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
@@ -401,8 +407,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     public void testFailWriteIncrementalMetadataNonClusterManagerNode() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeIncrementalMetadata(clusterState, clusterState, null);
-        Assert.assertThat(manifest, nullValue());
+        final RemoteClusterStateManifestInfo manifestDetails = remoteClusterStateService.writeIncrementalMetadata(
+            clusterState,
+            clusterState,
+            null
+        );
+        Assert.assertThat(manifestDetails, nullValue());
         assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
     }
 
@@ -433,7 +443,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             previousClusterState,
             clusterState,
             previousManifest
-        );
+        ).getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         final List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
 
@@ -508,7 +518,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             previousClusterState,
             newClusterState,
             previousManifest
-        );
+        ).getClusterMetadataManifest();
 
         // global metadata is updated
         assertThat(manifestAfterUpdate.hasMetadataAttributesFiles(), is(true));
@@ -545,7 +555,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             previousClusterState,
             clusterState,
             previousManifest
-        );
+        ).getClusterMetadataManifest();
 
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
             .codecVersion(3)
@@ -736,7 +746,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // Initial cluster state with index.
         final ClusterState initialClusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_");
+        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_")
+            .getClusterMetadataManifest();
 
         ClusterState clusterState1 = ClusterState.builder(initialClusterState)
             .metadata(
@@ -751,7 +762,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             initialClusterState,
             clusterState1,
             initialManifest
-        );
+        ).getClusterMetadataManifest();
         // remove custom1 from the cluster state, update custom2, custom3 is at it is, added custom4
         ClusterState clusterState2 = ClusterState.builder(initialClusterState)
             .metadata(
@@ -761,7 +772,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     .putCustom("custom4", new CustomMetadata1("mock_custom_metadata4"))
             )
             .build();
-        ClusterMetadataManifest manifest2 = remoteClusterStateService.writeIncrementalMetadata(clusterState1, clusterState2, manifest1);
+        ClusterMetadataManifest manifest2 = remoteClusterStateService.writeIncrementalMetadata(clusterState1, clusterState2, manifest1)
+            .getClusterMetadataManifest();
         // custom1 is removed
         assertFalse(manifest2.getCustomMetadataMap().containsKey("custom1"));
         // custom2 is updated
@@ -811,7 +823,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // Initial cluster state with index.
         final ClusterState initialClusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_");
+        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_")
+            .getClusterMetadataManifest();
         String initialIndex = "test-index";
         Index index1 = new Index("test-index-1", "index-uuid-1");
         Index index2 = new Index("test-index-2", "index-uuid-2");
@@ -844,7 +857,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             initialClusterState,
             clusterState1,
             initialManifest
-        );
+        ).getClusterMetadataManifest();
         // verify that initial index is removed, and new index are added
         assertEquals(1, initialManifest.getIndices().size());
         assertEquals(2, manifest1.getIndices().size());
@@ -855,7 +868,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         ClusterState clusterState2 = ClusterState.builder(clusterState1)
             .metadata(Metadata.builder(clusterState1.getMetadata()).put(indexMetadata1, true).build())
             .build();
-        ClusterMetadataManifest manifest2 = remoteClusterStateService.writeIncrementalMetadata(clusterState1, clusterState2, manifest1);
+        ClusterMetadataManifest manifest2 = remoteClusterStateService.writeIncrementalMetadata(clusterState1, clusterState2, manifest1)
+            .getClusterMetadataManifest();
         // index1 is updated
         assertEquals(2, manifest2.getIndices().size());
         assertEquals(
@@ -888,7 +902,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // Initial cluster state with index.
         final ClusterState initialClusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_");
+        final ClusterMetadataManifest initialManifest = remoteClusterStateService.writeFullMetadata(initialClusterState, "_na_")
+            .getClusterMetadataManifest();
 
         ClusterState newClusterState = clusterStateUpdater.apply(initialClusterState);
 
@@ -899,9 +914,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 initialClusterState,
                 newClusterState,
                 initialManifest
-            );
+            ).getClusterMetadataManifest();
         } else {
-            manifestAfterMetadataUpdate = remoteClusterStateService.writeFullMetadata(newClusterState, initialClusterState.stateUUID());
+            manifestAfterMetadataUpdate = remoteClusterStateService.writeFullMetadata(newClusterState, initialClusterState.stateUUID())
+                .getClusterMetadataManifest();
         }
 
         assertions.accept(initialManifest, manifestAfterMetadataUpdate);
@@ -1182,7 +1198,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder().indices(indices).build();
 
-        final ClusterMetadataManifest manifest = remoteClusterStateService.markLastStateAsCommitted(clusterState, previousManifest);
+        final ClusterMetadataManifest manifest = remoteClusterStateService.markLastStateAsCommitted(clusterState, previousManifest)
+            .getClusterMetadataManifest();
 
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
             .indices(indices)
@@ -1287,7 +1304,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
 
         assertTrue(remoteClusterStateService.getStats() != null);
         assertEquals(1, remoteClusterStateService.getStats().getSuccessCount());
