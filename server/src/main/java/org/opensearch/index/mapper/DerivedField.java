@@ -30,7 +30,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
     private final String name;
     private final String type;
     private final Script script;
-    private String sourceIndexedField;
+    private String prefilterField;
     private Map<String, Object> properties;
     private Boolean ignoreMalformed;
     private String format;
@@ -49,7 +49,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
             if (in.readBoolean()) {
                 properties = in.readMap();
             }
-            sourceIndexedField = in.readOptionalString();
+            prefilterField = in.readOptionalString();
             format = in.readOptionalString();
             ignoreMalformed = in.readOptionalBoolean();
         }
@@ -67,7 +67,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
                 out.writeBoolean(true);
                 out.writeMap(properties);
             }
-            out.writeOptionalString(sourceIndexedField);
+            out.writeOptionalString(prefilterField);
             out.writeOptionalString(format);
             out.writeOptionalBoolean(ignoreMalformed);
         }
@@ -81,8 +81,8 @@ public class DerivedField implements Writeable, ToXContentFragment {
         if (properties != null) {
             builder.field("properties", properties);
         }
-        if (sourceIndexedField != null) {
-            builder.field("source_indexed_field", sourceIndexedField);
+        if (prefilterField != null) {
+            builder.field("prefilter_field", prefilterField);
         }
         if (format != null) {
             builder.field("format", format);
@@ -110,8 +110,15 @@ public class DerivedField implements Writeable, ToXContentFragment {
         return properties;
     }
 
-    public String getSourceIndexedField() {
-        return sourceIndexedField;
+    public String getNestedFieldType(String fieldName) {
+        if (properties == null || properties.isEmpty() || fieldName == null || fieldName.isEmpty()) {
+            return null;
+        }
+        return (String) properties.get(fieldName);
+    }
+
+    public String getPrefilterField() {
+        return prefilterField;
     }
 
     public String getFormat() {
@@ -126,8 +133,8 @@ public class DerivedField implements Writeable, ToXContentFragment {
         this.properties = properties;
     }
 
-    public void setSourceIndexedField(String sourceIndexedField) {
-        this.sourceIndexedField = sourceIndexedField;
+    public void setPrefilterField(String prefilterField) {
+        this.prefilterField = prefilterField;
     }
 
     public void setFormat(String format) {
@@ -140,7 +147,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, script, sourceIndexedField, properties, ignoreMalformed, format);
+        return Objects.hash(name, type, script, prefilterField, properties, ignoreMalformed, format);
     }
 
     @Override
@@ -155,7 +162,7 @@ public class DerivedField implements Writeable, ToXContentFragment {
         return Objects.equals(name, other.name)
             && Objects.equals(type, other.type)
             && Objects.equals(script, other.script)
-            && Objects.equals(sourceIndexedField, other.sourceIndexedField)
+            && Objects.equals(prefilterField, other.prefilterField)
             && Objects.equals(properties, other.properties)
             && Objects.equals(ignoreMalformed, other.ignoreMalformed)
             && Objects.equals(format, other.format);

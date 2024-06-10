@@ -37,6 +37,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
@@ -565,6 +566,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap())
             );
         }
+        indexService.getIndexSettings().isDerivedFieldAllowed();
         final ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,
@@ -581,12 +583,93 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             try (SearchContext context = service.createContext(reader, request, null, randomBoolean())) {
                 assertNotNull(context);
                 for (int i = 0; i < 5; i++) {
-                    DerivedFieldType derivedFieldType = (DerivedFieldType) context.getQueryShardContext().getDerivedFieldType("field" + i);
+                    DerivedFieldType derivedFieldType = (DerivedFieldType) context.getQueryShardContext()
+                        .resolveDerivedFieldType("field" + i);
                     assertEquals("field" + i, derivedFieldType.name());
                     assertEquals("date", derivedFieldType.getType());
                 }
-                assertNull(context.getQueryShardContext().getDerivedFieldType("field" + 5));
+                assertNull(context.getQueryShardContext().resolveDerivedFieldType("field" + 5));
             }
+        }
+    }
+
+    public void testDerivedFieldDisabled() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchRequest.source(searchSourceBuilder);
+
+        searchSourceBuilder.derivedField(
+            "field",
+            "date",
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap())
+        );
+        indexService.getIndexSettings().isDerivedFieldAllowed();
+        final ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
+            SearchContext context = service.createContext(reader, request, null, randomBoolean());
+
+            // nothing disabled, derived field resolved fine
+            assertNotNull(context.getQueryShardContext().resolveDerivedFieldType("field"));
+
+            // disabled using cluster setting, assert create context fails
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING.getKey(), false))
+                .get();
+            assertThrows(OpenSearchException.class, () -> service.createContext(reader, request, null, randomBoolean()));
+
+            // dynamically enabled using cluster setting, assert derived field resolved fine
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING.getKey(), true))
+                .get();
+            context = service.createContext(reader, request, null, randomBoolean());
+            assertNotNull(context.getQueryShardContext().resolveDerivedFieldType("field"));
+
+            // disabled using index setting, assert create context fails
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("index")
+                .setSettings(Settings.builder().put(IndexSettings.ALLOW_DERIVED_FIELDS.getKey(), false))
+                .get();
+
+            assertThrows(OpenSearchException.class, () -> service.createContext(reader, request, null, randomBoolean()));
+
+            // dynamically enabled using index setting, assert derived field resolved fine
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("index")
+                .setSettings(Settings.builder().put(IndexSettings.ALLOW_DERIVED_FIELDS.getKey(), true))
+                .get();
+
+            context = service.createContext(reader, request, null, randomBoolean());
+            assertNotNull(context.getQueryShardContext().resolveDerivedFieldType("field"));
+
+            // Cleanup
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING.getKey()))
+                .get();
         }
     }
 

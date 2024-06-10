@@ -152,6 +152,14 @@ public final class IndexSettings {
         true,
         Property.IndexScope
     );
+
+    public static final Setting<Boolean> ALLOW_DERIVED_FIELDS = Setting.boolSetting(
+        "index.query.derived_field.enabled",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING = Setting.timeSetting(
         "index.translog.sync_interval",
         TimeValue.timeValueSeconds(5),
@@ -763,6 +771,7 @@ public final class IndexSettings {
     private final boolean assignedOnRemoteNode;
     private final RemoteStorePathStrategy remoteStorePathStrategy;
     private final boolean isTranslogMetadataEnabled;
+    private volatile boolean allowDerivedField;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -856,6 +865,10 @@ public final class IndexSettings {
         this.defaultFields = defaultFields;
     }
 
+    private void setAllowDerivedField(boolean allowDerivedField) {
+        this.allowDerivedField = allowDerivedField;
+    }
+
     /**
      * Returns <code>true</code> if query string parsing should be lenient. The default is <code>false</code>
      */
@@ -882,6 +895,13 @@ public final class IndexSettings {
      */
     public boolean isDefaultAllowUnmappedFields() {
         return defaultAllowUnmappedFields;
+    }
+
+    /**
+     * Returns <code>true</code> if queries are allowed to define and use derived fields. The default is <code>true</code>
+     */
+    public boolean isDerivedFieldAllowed() {
+        return allowDerivedField;
     }
 
     /**
@@ -930,6 +950,7 @@ public final class IndexSettings {
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
+        this.allowDerivedField = scopedSettings.get(ALLOW_DERIVED_FIELDS);
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
@@ -1104,6 +1125,7 @@ public final class IndexSettings {
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
             this::setDocIdFuzzySetFalsePositiveProbability
         );
+        scopedSettings.addSettingsUpdateConsumer(ALLOW_DERIVED_FIELDS, this::setAllowDerivedField);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
