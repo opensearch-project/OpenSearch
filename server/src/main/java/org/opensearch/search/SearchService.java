@@ -290,7 +290,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     // value 0 can disable dynamic pruning optimization in cardinality aggregation
     public static final Setting<Integer> CARDINALITY_AGGREGATION_PRUNING_THRESHOLD = Setting.intSetting(
-        "search.dynamic_pruning.cardinality_aggregation_threshold",
+        "search.dynamic_pruning.cardinality_aggregation.max_allowed_cardinality",
         100,
         0,
         Property.Dynamic,

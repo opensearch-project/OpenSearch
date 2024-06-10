@@ -166,45 +166,53 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         if (parent == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
-            Terms terms = ctx.reader().terms(valuesSourceConfig.fieldContext().field());
-            if (terms == null) return collector;
-            if (terms.size() > context.cardinalityAggregationPruningThreshold()) {
-                logger.debug(
-                    "Cannot prune because terms size {} is greater than the threshold {}",
-                    terms.size(),
-                    context.cardinalityAggregationPruningThreshold()
-                );
+            try {
+                collector = tryWrapWithPruningCollector(ctx, collector);
+            } catch (Exception e) {
                 return collector;
             }
-            // Specify TOP_DOCS score mode to use competitive iterator from collector
-            Weight weight = context.searcher().createWeight(context.searcher().rewrite(context.query()), ScoreMode.TOP_DOCS, 1f);
-            Bits liveDocs = ctx.reader().getLiveDocs();
-            BulkScorer scorer = weight.bulkScorer(ctx);
-            if (scorer == null) {
-                return collector;
-            }
-            collector = new PruningCollector(collector, terms.iterator(), ctx, context, valuesSourceConfig.fieldContext().field());
-            scorer.score(collector, liveDocs);
-            collector.postCollect();
-            Releasables.close(collector);
-            logger.debug("Dynamic pruned segment {} of shard {}", ctx.ord, context.indexShard().shardId());
-            dynamicPruningSegments++;
-            // return a no-op collector to not breaking the backward compatibility with previous profile results
-            return new Collector() {
-                @Override
-                public void close() {}
-
-                @Override
-                public void postCollect() throws IOException {}
-
-                @Override
-                public void collect(int doc, long owningBucketOrd) throws IOException {
-                    throw new CollectionTerminatedException();
-                }
-            };
         }
 
         return collector;
+    }
+
+    private Collector tryWrapWithPruningCollector(LeafReaderContext ctx, Collector collector) throws IOException {
+        Terms terms = ctx.reader().terms(valuesSourceConfig.fieldContext().field());
+        if (terms == null) return collector;
+        if (terms.size() > context.cardinalityAggregationPruningThreshold()) {
+            logger.debug(
+                "Cannot prune because terms size {} is greater than the threshold {}",
+                terms.size(),
+                context.cardinalityAggregationPruningThreshold()
+            );
+            return collector;
+        }
+        // Specify TOP_DOCS score mode to use competitive iterator from collector
+        Weight weight = context.searcher().createWeight(context.searcher().rewrite(context.query()), ScoreMode.TOP_DOCS, 1f);
+        Bits liveDocs = ctx.reader().getLiveDocs();
+        BulkScorer scorer = weight.bulkScorer(ctx);
+        if (scorer == null) {
+            return collector;
+        }
+        collector = new PruningCollector(collector, terms.iterator(), ctx, context, valuesSourceConfig.fieldContext().field());
+        scorer.score(collector, liveDocs);
+        collector.postCollect();
+        Releasables.close(collector);
+        logger.debug("Dynamic pruned segment {} of shard {}", ctx.ord, context.indexShard().shardId());
+        dynamicPruningSegments++;
+        // return a no-op collector to not breaking the backward compatibility with previous profile results
+        return new Collector() {
+            @Override
+            public void close() {}
+
+            @Override
+            public void postCollect() throws IOException {}
+
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                throw new CollectionTerminatedException();
+            }
+        };
     }
 
     @Override
