@@ -131,7 +131,8 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
             null,
             new PersistedStateRegistry(),
             remoteStoreNodeService,
-            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+            null
         );
     }
 
