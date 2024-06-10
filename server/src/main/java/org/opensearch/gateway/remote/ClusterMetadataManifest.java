@@ -332,6 +332,11 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return uploadedCustomMetadataMap;
     }
 
+    // TODO https://github.com/opensearch-project/OpenSearch/pull/14089
+    public ClusterStateDiffManifest getDiffManifest() {
+        return new ClusterStateDiffManifest();
+    }
+
     public boolean hasMetadataAttributesFiles() {
         return uploadedCoordinationMetadata != null
             || uploadedSettingsMetadata != null

@@ -2556,7 +2556,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
                     persistedStateRegistry,
                     remoteStoreNodeService,
-                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+                    null
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 coordinator.start();

@@ -11,6 +11,7 @@ package org.opensearch.telemetry;
 import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.TaggedMeasurement;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
 import java.io.Closeable;
@@ -63,6 +64,11 @@ public class TestInMemoryMetricsRegistry implements MetricsRegistry {
         /**
          * ToDo: To be implemented when required.
          */
+        return null;
+    }
+
+    @Override
+    public Closeable createGauge(String name, String description, String unit, Supplier<TaggedMeasurement> value) {
         return null;
     }
 
