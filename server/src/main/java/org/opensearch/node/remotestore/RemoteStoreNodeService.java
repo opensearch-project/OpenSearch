@@ -17,7 +17,6 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryException;
@@ -31,8 +30,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
-
 /**
  * Contains all the method needed for a remote store backed node lifecycle.
  */
@@ -45,16 +42,7 @@ public class RemoteStoreNodeService {
         "remote_store.compatibility_mode",
         CompatibilityMode.STRICT.name(),
         CompatibilityMode::parseString,
-        value -> {
-            if (value == CompatibilityMode.MIXED
-                && FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING) == false) {
-                throw new IllegalArgumentException(
-                    " mixed mode is under an experimental feature and can be activated only by enabling "
-                        + REMOTE_STORE_MIGRATION_EXPERIMENTAL
-                        + " feature flag in the JVM options "
-                );
-            }
-        },
+        value -> {},
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -63,15 +51,7 @@ public class RemoteStoreNodeService {
         "migration.direction",
         Direction.NONE.name(),
         Direction::parseString,
-        value -> {
-            if (value != Direction.NONE && FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING) == false) {
-                throw new IllegalArgumentException(
-                    " migration.direction is under an experimental feature and can be activated only by enabling "
-                        + REMOTE_STORE_MIGRATION_EXPERIMENTAL
-                        + " feature flag in the JVM options "
-                );
-            }
-        },
+        value -> {},
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
