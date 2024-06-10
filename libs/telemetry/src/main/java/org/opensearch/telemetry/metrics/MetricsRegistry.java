@@ -63,4 +63,16 @@ public interface MetricsRegistry extends Closeable {
      */
     Closeable createGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags);
 
+    /**
+     * Creates the Observable Gauge type of Metric. Where the value provider will be called at a certain frequency
+     * to capture the value.
+     *
+     * @param name        name of the observable gauge.
+     * @param description any description about the metric.
+     * @param unit        unit of the metric.
+     * @param value       value provider.
+     * @return closeable to dispose/close the Gauge metric.
+     */
+    Closeable createGauge(String name, String description, String unit, Supplier<TaggedMeasurement> value);
+
 }

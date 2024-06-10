@@ -23,7 +23,7 @@ import java.util.List;
  */
 public class FeatureFlags {
     /**
-     * Gates the visibility of the remote store migration support from docrep .
+     * Gates the visibility of the remote store to docrep migration.
      */
     public static final String REMOTE_STORE_MIGRATION_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.migration.enabled";
 
