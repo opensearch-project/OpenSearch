@@ -43,6 +43,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.BigArrays;
@@ -412,6 +413,16 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public void setDerivedFieldResolver(DerivedFieldResolver derivedFieldResolver) {
         this.derivedFieldResolver = derivedFieldResolver;
+    }
+
+    @DeprecatedApi(since = "2.15.0")
+    public void setDerivedFieldTypes(Map<String, MappedFieldType> derivedFieldTypeMap) {
+        throw new UnsupportedOperationException("Use setDerivedFieldResolver() instead.");
+    }
+
+    @DeprecatedApi(since = "2.15.0")
+    public MappedFieldType getDerivedFieldType(String fieldName) {
+        throw new UnsupportedOperationException("Use resolveDerivedFieldType() instead.");
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
