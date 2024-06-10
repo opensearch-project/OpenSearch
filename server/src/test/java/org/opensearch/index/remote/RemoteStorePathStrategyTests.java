@@ -67,7 +67,7 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
         assertEquals(TRANSLOG, input.dataCategory());
     }
 
-    public void testVariablePath() {
+    public void testFixedSubPath() {
         RemoteStorePathStrategy.PathInput input = RemoteStorePathStrategy.PathInput.builder()
             .basePath(BASE_PATH)
             .indexUUID(INDEX_UUID)
@@ -81,7 +81,7 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
             .dataCategory(TRANSLOG)
             .dataType(DATA)
             .build();
-        assertEquals(BlobPath.cleanPath().add(INDEX_UUID).add(SHARD_ID).add(TRANSLOG.getName()).add(DATA.getName()), input.fixedSubPath());
+        assertEquals(BlobPath.cleanPath().add(INDEX_UUID).add(SHARD_ID).add(TRANSLOG.getName()).add(DATA.getName()), input2.fixedSubPath());
 
     }
 }
