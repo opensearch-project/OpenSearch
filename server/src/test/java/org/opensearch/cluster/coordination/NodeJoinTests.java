@@ -274,7 +274,8 @@ public class NodeJoinTests extends OpenSearchTestCase {
             nodeHealthService,
             persistedStateRegistry,
             Mockito.mock(RemoteStoreNodeService.class),
-            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+            null
         );
         transportService.start();
         transportService.acceptIncomingRequests();
