@@ -506,7 +506,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      * */
     class IndicesRequestCacheCleanupManager implements Closeable {
         private final Set<CleanupKey> keysToClean;
-        private final ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap;
+        private final ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap;
         private final AtomicInteger staleKeysCount;
         private volatile double stalenessThreshold;
         private final IndicesRequestCacheCleaner cacheCleaner;
@@ -567,7 +567,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
             // If the key doesn't exist, it's added with a value of 1.
             // If the key exists, its value is incremented by 1.
-            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> new HashMap<>()).merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
+            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentMap()).merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
         }
 
         /**
@@ -825,7 +825,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         }
 
         // for testing
-        ConcurrentMap<ShardId, HashMap<String, Integer>> getCleanupKeyToCountMap() {
+        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> getCleanupKeyToCountMap() {
             return cleanupKeyToCountMap;
         }
 

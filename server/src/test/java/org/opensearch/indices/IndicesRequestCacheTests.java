@@ -95,7 +95,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -488,7 +487,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             indexShard.hashCode()
         );
         // test the mapping
-        ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
         // shard id should exist
         assertTrue(cleanupKeyToCountMap.containsKey(shardId));
         // reader CacheKeyId should NOT exist
@@ -551,7 +550,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         );
 
         // test the mapping
-        ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
         // shard id should exist
         assertTrue(cleanupKeyToCountMap.containsKey(shardId));
         // reader CacheKeyId should NOT exist
@@ -719,7 +718,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
         assertEquals(1, cache.count());
         // test the mappings
-        ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
         assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(getReaderCacheKeyId(reader)));
 
         cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
