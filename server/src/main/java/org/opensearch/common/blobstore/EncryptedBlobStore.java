@@ -95,6 +95,11 @@ public class EncryptedBlobStore implements BlobStore {
         return blobStore.extendedStats();
     }
 
+    @Override
+    public boolean isBlobMetadataEnabled() {
+        return blobStore.isBlobMetadataEnabled();
+    }
+
     /**
      * Closes the EncryptedBlobStore by decrementing the reference count of the CryptoManager and closing the
      * underlying BlobStore. This ensures proper cleanup of resources.
