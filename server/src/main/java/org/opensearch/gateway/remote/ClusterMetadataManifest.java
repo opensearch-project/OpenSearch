@@ -745,32 +745,31 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return false;
         }
         final ClusterMetadataManifest that = (ClusterMetadataManifest) o;
-        boolean re = Objects.equals(indices, that.indices);
-        re = re && clusterTerm == that.clusterTerm;
-        re = re && stateVersion == that.stateVersion;
-        re = re && Objects.equals(clusterUUID, that.clusterUUID);
-        re = re && Objects.equals(stateUUID, that.stateUUID);
-        re = re && Objects.equals(opensearchVersion, that.opensearchVersion);
-        re = re && Objects.equals(nodeId, that.nodeId);
-        re = re && Objects.equals(committed, that.committed);
-        re = re && Objects.equals(previousClusterUUID, that.previousClusterUUID);
-        re = re && Objects.equals(clusterUUIDCommitted, that.clusterUUIDCommitted);
-        re = re && Objects.equals(globalMetadataFileName, that.globalMetadataFileName);
-        re = re && Objects.equals(codecVersion, that.codecVersion);
-        re = re && Objects.equals(routingTableVersion, that.routingTableVersion);
-        re = re && Objects.equals(indicesRouting, that.indicesRouting);
-        re = re && Objects.equals(uploadedCoordinationMetadata, that.uploadedCoordinationMetadata);
-        re = re && Objects.equals(uploadedSettingsMetadata, that.uploadedSettingsMetadata);
-        re = re && Objects.equals(uploadedTemplatesMetadata, that.uploadedTemplatesMetadata);
-        re = re && Objects.equals(uploadedCustomMetadataMap, that.uploadedCustomMetadataMap);
-        re = re && Objects.equals(metadataVersion, that.metadataVersion);
-        re = re && Objects.equals(uploadedDiscoveryNodesMetadata, that.uploadedDiscoveryNodesMetadata);
-        re = re && Objects.equals(uploadedClusterBlocksMetadata, that.uploadedClusterBlocksMetadata);
-        re = re && Objects.equals(uploadedTransientSettingsMetadata, that.uploadedTransientSettingsMetadata);
-        re = re && Objects.equals(uploadedHashesOfConsistentSettings, that.uploadedHashesOfConsistentSettings);
-        re = re && Objects.equals(uploadedClusterStateCustomMap, that.uploadedClusterStateCustomMap);
-        re = re && Objects.equals(diffManifest, that.diffManifest);
-        return re;
+        return Objects.equals(indices, that.indices)
+        && clusterTerm == that.clusterTerm
+        && stateVersion == that.stateVersion
+        && Objects.equals(clusterUUID, that.clusterUUID)
+        && Objects.equals(stateUUID, that.stateUUID)
+        && Objects.equals(opensearchVersion, that.opensearchVersion)
+        && Objects.equals(nodeId, that.nodeId)
+        && Objects.equals(committed, that.committed)
+        && Objects.equals(previousClusterUUID, that.previousClusterUUID)
+        && Objects.equals(clusterUUIDCommitted, that.clusterUUIDCommitted)
+        && Objects.equals(globalMetadataFileName, that.globalMetadataFileName)
+        && Objects.equals(codecVersion, that.codecVersion)
+        && Objects.equals(routingTableVersion, that.routingTableVersion)
+        && Objects.equals(indicesRouting, that.indicesRouting)
+        && Objects.equals(uploadedCoordinationMetadata, that.uploadedCoordinationMetadata)
+        && Objects.equals(uploadedSettingsMetadata, that.uploadedSettingsMetadata)
+        && Objects.equals(uploadedTemplatesMetadata, that.uploadedTemplatesMetadata)
+        && Objects.equals(uploadedCustomMetadataMap, that.uploadedCustomMetadataMap)
+        && Objects.equals(metadataVersion, that.metadataVersion)
+        && Objects.equals(uploadedDiscoveryNodesMetadata, that.uploadedDiscoveryNodesMetadata)
+        && Objects.equals(uploadedClusterBlocksMetadata, that.uploadedClusterBlocksMetadata)
+        && Objects.equals(uploadedTransientSettingsMetadata, that.uploadedTransientSettingsMetadata)
+        && Objects.equals(uploadedHashesOfConsistentSettings, that.uploadedHashesOfConsistentSettings)
+        && Objects.equals(uploadedClusterStateCustomMap, that.uploadedClusterStateCustomMap)
+        && Objects.equals(diffManifest, that.diffManifest);
     }
 
     @Override
