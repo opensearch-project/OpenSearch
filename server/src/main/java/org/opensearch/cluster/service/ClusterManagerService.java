@@ -12,6 +12,7 @@ import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 /**
@@ -21,6 +22,11 @@ import org.opensearch.threadpool.ThreadPool;
  */
 @PublicApi(since = "2.2.0")
 public class ClusterManagerService extends MasterService {
+
+    public ClusterManagerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        super(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
+    }
+
     public ClusterManagerService(
         Settings settings,
         ClusterSettings clusterSettings,
