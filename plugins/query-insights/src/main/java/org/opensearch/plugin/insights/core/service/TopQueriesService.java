@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_N_QUERIES_INDEX_PATTERN;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.DEFAULT_TOP_QUERIES_EXPORTER_TYPE;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPORTER_TYPE;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.EXPORT_INDEX;
@@ -218,10 +218,7 @@ public class TopQueriesService {
         if (settings.get(EXPORTER_TYPE) != null) {
             SinkType expectedType = SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE));
             if (exporter != null && expectedType == SinkType.getSinkTypeFromExporter(exporter)) {
-                queryInsightsExporterFactory.updateExporter(
-                    exporter,
-                    settings.get(EXPORT_INDEX, DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN)
-                );
+                queryInsightsExporterFactory.updateExporter(exporter, settings.get(EXPORT_INDEX, DEFAULT_TOP_N_QUERIES_INDEX_PATTERN));
             } else {
                 try {
                     queryInsightsExporterFactory.closeExporter(this.exporter);
@@ -230,7 +227,7 @@ public class TopQueriesService {
                 }
                 this.exporter = queryInsightsExporterFactory.createExporter(
                     SinkType.parse(settings.get(EXPORTER_TYPE, DEFAULT_TOP_QUERIES_EXPORTER_TYPE)),
-                    settings.get(EXPORT_INDEX, DEFAULT_TOP_N_LATENCY_QUERIES_INDEX_PATTERN)
+                    settings.get(EXPORT_INDEX, DEFAULT_TOP_N_QUERIES_INDEX_PATTERN)
                 );
             }
         } else {

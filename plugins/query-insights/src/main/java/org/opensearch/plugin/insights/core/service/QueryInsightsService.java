@@ -12,6 +12,8 @@ import org.opensearch.client.Client;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporterFactory;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
@@ -27,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS;
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.getExporterSettings;
 
 /**
  * Service responsible for gathering, analyzing, storing and exporting
@@ -86,11 +88,13 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
             enableCollect.put(metricType, false);
             topQueriesServices.put(metricType, new TopQueriesService(metricType, threadPool, queryInsightsExporterFactory));
         }
-        clusterSettings.addSettingsUpdateConsumer(
-            TOP_N_LATENCY_EXPORTER_SETTINGS,
-            (settings -> getTopQueriesService(MetricType.LATENCY).setExporter(settings)),
-            (settings -> getTopQueriesService(MetricType.LATENCY).validateExporterConfig(settings))
-        );
+        for (MetricType type : MetricType.allMetricTypes()) {
+            clusterSettings.addSettingsUpdateConsumer(
+                getExporterSettings(type),
+                (settings -> setExporter(type, settings)),
+                (settings -> validateExporterConfig(type, settings))
+            );
+        }
     }
 
     /**
@@ -175,6 +179,78 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
             }
         }
         return false;
+    }
+
+    /**
+     * Validate the window size config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param windowSize {@link TimeValue}
+     */
+    public void validateWindowSize(final MetricType type, final TimeValue windowSize) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).validateWindowSize(windowSize);
+        }
+    }
+
+    /**
+     * Set window size for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param windowSize {@link TimeValue}
+     */
+    public void setWindowSize(final MetricType type, final TimeValue windowSize) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).setWindowSize(windowSize);
+        }
+    }
+
+    /**
+     * Validate the top n size config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param topNSize top n size
+     */
+    public void validateTopNSize(final MetricType type, final int topNSize) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).validateTopNSize(topNSize);
+        }
+    }
+
+    /**
+     * Set the top n size config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param topNSize top n size
+     */
+    public void setTopNSize(final MetricType type, final int topNSize) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).setTopNSize(topNSize);
+        }
+    }
+
+    /**
+     * Set the exporter config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param settings exporter settings
+     */
+    public void setExporter(final MetricType type, final Settings settings) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).setExporter(settings);
+        }
+    }
+
+    /**
+     * Validate the exporter config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param settings exporter settings
+     */
+    public void validateExporterConfig(final MetricType type, final Settings settings) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).validateExporterConfig(settings);
+        }
     }
 
     @Override

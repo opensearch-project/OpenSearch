@@ -47,11 +47,7 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS);
-
+        QueryInsightsTestUtils.registerAllQueryInsightsSettings(clusterSettings);
         clusterService = ClusterServiceUtils.createClusterService(settings, clusterSettings, threadPool);
     }
 
@@ -61,7 +57,15 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
                 QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED,
                 QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE,
                 QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
-                QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS
+                QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS,
+                QueryInsightsSettings.TOP_N_CPU_QUERIES_ENABLED,
+                QueryInsightsSettings.TOP_N_CPU_QUERIES_SIZE,
+                QueryInsightsSettings.TOP_N_CPU_QUERIES_WINDOW_SIZE,
+                QueryInsightsSettings.TOP_N_CPU_EXPORTER_SETTINGS,
+                QueryInsightsSettings.TOP_N_MEMORY_QUERIES_ENABLED,
+                QueryInsightsSettings.TOP_N_MEMORY_QUERIES_SIZE,
+                QueryInsightsSettings.TOP_N_MEMORY_QUERIES_WINDOW_SIZE,
+                QueryInsightsSettings.TOP_N_MEMORY_EXPORTER_SETTINGS
             ),
             queryInsightsPlugin.getSettings()
         );

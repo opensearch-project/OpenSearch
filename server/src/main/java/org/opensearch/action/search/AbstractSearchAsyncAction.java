@@ -51,6 +51,7 @@ import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
@@ -469,6 +470,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
     }
 
+    private void onRequestFailure(SearchRequestContext searchRequestContext) {
+        this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(this, searchRequestContext);
+    }
+
     private void executePhase(SearchPhase phase) {
         Span phaseSpan = tracer.startSpan(SpanCreationContext.server().name("[phase/" + phase.getName() + "]"));
         try (final SpanScope scope = tracer.withSpanInScope(phaseSpan)) {
@@ -507,6 +512,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
+        setPhaseResourceUsages();
         onShardFailure(shardIndex, shard, e);
         SearchShardTarget nextShard = FailAwareWeightedRouting.getInstance()
             .findNext(shardIt, clusterState, e, () -> totalOps.incrementAndGet());
@@ -618,7 +624,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
+        this.setPhaseResourceUsages();
         results.consumeResult(result, () -> onShardResultConsumed(result, shardIt));
+    }
+
+    public void setPhaseResourceUsages() {
+        TaskResourceInfo taskResourceUsage = searchRequestContext.getTaskResourceUsageSupplier().get();
+        searchRequestContext.recordPhaseResourceUsage(taskResourceUsage);
     }
 
     private void onShardResultConsumed(Result result, SearchShardIterator shardIt) {
@@ -751,6 +763,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+        setPhaseResourceUsages();
         if (currentPhaseHasLifecycle) {
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this, cause);
         }
@@ -780,6 +793,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             });
         }
         Releasables.close(releasables);
+        onRequestFailure(searchRequestContext);
         listener.onFailure(exception);
     }
 
