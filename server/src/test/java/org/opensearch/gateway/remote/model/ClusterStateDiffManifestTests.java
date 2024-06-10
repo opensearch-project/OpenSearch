@@ -23,9 +23,7 @@ import org.opensearch.gateway.remote.ClusterStateDiffManifest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,14 +42,22 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
             .metadata(
                 Metadata.builder()
                     .put(
-                        IndexMetadata.builder("index-1").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                        IndexMetadata.builder("index-1")
+                            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                             .numberOfShards(1)
                             .numberOfReplicas(0)
                     )
-            ).build();
+            )
+            .build();
         verifyDiff(
             initialState,
-            singletonList(IndexMetadata.builder("index-2").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build()),
+            singletonList(
+                IndexMetadata.builder("index-2")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build()
+            ),
             singletonList("index-1"),
             Collections.emptyMap(),
             Collections.emptyList(),
@@ -105,33 +111,31 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
             );
         }
         if (updatePersistentSettings) {
-            metadataBuilder.persistentSettings(
-                Settings.builder().put("key", "value").build()
-            );
+            metadataBuilder.persistentSettings(Settings.builder().put("key", "value").build());
         }
         if (updateTemplates) {
-            metadataBuilder.templates(TemplatesMetadata.builder()
-                .put(
-                    IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
-                        .patterns(asList("bar-*", "foo-*"))
-                        .settings(
-                            Settings.builder()
-                                .put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5))
-                                .build()
-                        )
-                        .build()
-                ).build()
+            metadataBuilder.templates(
+                TemplatesMetadata.builder()
+                    .put(
+                        IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
+                            .patterns(asList("bar-*", "foo-*"))
+                            .settings(
+                                Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build()
+                            )
+                            .build()
+                    )
+                    .build()
             );
         }
         if (updateTransientSettings) {
-            metadataBuilder.transientSettings(
-                Settings.builder().put("key", "value").build()
-            );
+            metadataBuilder.transientSettings(Settings.builder().put("key", "value").build());
         }
         if (updateDiscoveryNodes) {
-            clusterStateBuilder.nodes(DiscoveryNodes.builder(initialState.nodes())
-                .add(new DiscoveryNode("new-cluster-manager", new TransportAddress(META_ADDRESS, 9200), CURRENT))
-                .clusterManagerNodeId("new-cluster-manager"));
+            clusterStateBuilder.nodes(
+                DiscoveryNodes.builder(initialState.nodes())
+                    .add(new DiscoveryNode("new-cluster-manager", new TransportAddress(META_ADDRESS, 9200), CURRENT))
+                    .clusterManagerNodeId("new-cluster-manager")
+            );
         }
         if (updateHashesOfConsistentSettings) {
             metadataBuilder.hashesOfConsistentSettings(Collections.singletonMap("key", "value"));

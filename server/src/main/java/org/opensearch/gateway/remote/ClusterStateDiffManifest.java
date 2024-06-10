@@ -23,10 +23,8 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer.getAbstractInstance;
 import static org.opensearch.cluster.DiffableUtils.getStringKeySerializer;
@@ -80,14 +78,22 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         settingsMetadataUpdated = !Metadata.isSettingsMetadataEqual(state.metadata(), previousState.metadata());
         transientSettingsMetadataUpdate = !Metadata.isTransientSettingsMetadataEqual(state.metadata(), previousState.metadata());
         templatesMetadataUpdated = !Metadata.isTemplatesMetadataEqual(state.metadata(), previousState.metadata());
-        DiffableUtils.MapDiff<String, IndexMetadata, Map<String, IndexMetadata>> indicesDiff =
-            DiffableUtils.diff(previousState.metadata().indices(), state.metadata().indices(), getStringKeySerializer());
+        DiffableUtils.MapDiff<String, IndexMetadata, Map<String, IndexMetadata>> indicesDiff = DiffableUtils.diff(
+            previousState.metadata().indices(),
+            state.metadata().indices(),
+            getStringKeySerializer()
+        );
         indicesDeleted = indicesDiff.getDeletes();
         indicesUpdated = new ArrayList<>(indicesDiff.getDiffs().keySet());
         indicesUpdated.addAll(indicesDiff.getUpserts().keySet());
         clusterBlocksUpdated = !state.blocks().equals(previousState.blocks());
         discoveryNodesUpdated = state.nodes().delta(previousState.nodes()).hasChanges();
-        DiffableUtils.MapDiff<String, Metadata.Custom, Map<String, Metadata.Custom>> customDiff = DiffableUtils.diff(previousState.metadata().customs(), state.metadata().customs(), getStringKeySerializer(), getAbstractInstance());
+        DiffableUtils.MapDiff<String, Metadata.Custom, Map<String, Metadata.Custom>> customDiff = DiffableUtils.diff(
+            previousState.metadata().customs(),
+            state.metadata().customs(),
+            getStringKeySerializer(),
+            getAbstractInstance()
+        );
         customMetadataUpdated = new ArrayList<>(customDiff.getDiffs().keySet());
         customMetadataUpdated.addAll(customDiff.getUpserts().keySet());
         customMetadataDeleted = customDiff.getDeletes();
@@ -102,7 +108,12 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         hashesOfConsistentSettingsUpdated = !state.metadata()
             .hashesOfConsistentSettings()
             .equals(previousState.metadata().hashesOfConsistentSettings());
-        DiffableUtils.MapDiff<String, ClusterState.Custom, Map<String, ClusterState.Custom>> clusterStateCustomDiff = DiffableUtils.diff(previousState.customs(), state.customs(), getStringKeySerializer(), getAbstractInstance());
+        DiffableUtils.MapDiff<String, ClusterState.Custom, Map<String, ClusterState.Custom>> clusterStateCustomDiff = DiffableUtils.diff(
+            previousState.customs(),
+            state.customs(),
+            getStringKeySerializer(),
+            getAbstractInstance()
+        );
         clusterStateCustomUpdated = new ArrayList<>(clusterStateCustomDiff.getDiffs().keySet());
         clusterStateCustomUpdated.addAll(clusterStateCustomDiff.getUpserts().keySet());
         clusterStateCustomDeleted = clusterStateCustomDiff.getDeletes();
