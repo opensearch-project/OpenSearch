@@ -473,30 +473,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Returns whether the node is a remote cluster state enabled node.
-     * @return true if the node contains remote cluster state node attribute, false otherwise
-     */
-    public boolean isRemoteClusterStateEnabled() {
-        return this.getAttributes()
-            .keySet()
-            .stream()
-            .anyMatch(key -> (key.equals(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)));
-    }
-
-    /**
-     * Returns whether remote routing table is enabled on the node
-     * @return true if the node contains remote routing table node attributes, false otherwise
-     */
-    public boolean isRemoteRoutingTableEnabled() {
-        return this.getAttributes().keySet().stream().anyMatch(key -> key.equals(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
-    }
-
-    /**
      * Returns whether remote cluster state publication is enabled on this node
      * @return true if the node contains remote cluster state node attribute and remote routing table node attribute
      */
     public boolean isRemoteStatePublicationEnabled() {
-        return isRemoteClusterStateEnabled() && isRemoteRoutingTableEnabled();
+        return this.getAttributes()
+            .keySet()
+            .stream()
+            .anyMatch(key -> (key.equals(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)))
+            && this.getAttributes().keySet().stream().anyMatch(key -> key.equals(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
     }
 
     /**

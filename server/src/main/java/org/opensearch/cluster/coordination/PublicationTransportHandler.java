@@ -469,6 +469,7 @@ public class PublicationTransportHandler {
             } else {
                 responseActionListener = listener;
             }
+            // TODO Decide to send remote state before starting publication by checking remote publication on all nodes
             if (sendRemoteState && destination.isRemoteStatePublicationEnabled()) {
                 logger.trace("sending remote cluster state version [{}] to [{}]", newState.version(), destination);
                 sendRemoteClusterState(destination, publishRequest.getAcceptedState(), responseActionListener);

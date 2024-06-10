@@ -140,7 +140,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         assertThat(e.getCause().getMessage(), containsString("Simulated failure of diff serialization"));
     }
 
-    public void testHandleRemoteIncomingPublishRequestWhenNoCurrentPublishRequest() {
+    public void testHandleIncomingRemotePublishRequestWhenNoCurrentPublishRequest() {
         RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
 
         PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
@@ -163,7 +163,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         Mockito.verifyNoInteractions(remoteClusterStateService);
     }
 
-    public void testHandleRemoteIncomingPublishRequestWhenTermMismatch() {
+    public void testHandleIncomingRemotePublishRequestWhenTermMismatch() {
         RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
 
         PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
@@ -188,7 +188,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         Mockito.verifyNoInteractions(remoteClusterStateService);
     }
 
-    public void testHandleRemoteIncomingPublishRequestWhenVersionMismatch() {
+    public void testHandleIncomingRemotePublishRequestWhenVersionMismatch() {
         RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
 
         PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
@@ -213,7 +213,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         Mockito.verifyNoInteractions(remoteClusterStateService);
     }
 
-    public void testHandleRemoteIncomingPublishRequestForLocalNode() throws IOException {
+    public void testHandleIncomingRemotePublishRequestForLocalNode() throws IOException {
         RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
 
         PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
@@ -235,7 +235,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         Mockito.verifyNoInteractions(remoteClusterStateService);
     }
 
-    public void testHandleRemoteIncomingPublishRequestWhenManifestNotFound() throws IOException {
+    public void testHandleIncomingRemotePublishRequestWhenManifestNotFound() throws IOException {
         RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
 
         PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
@@ -261,7 +261,7 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         Mockito.verify(remoteClusterStateService, times(1)).getClusterMetadataManifestByFileName(Mockito.any(), Mockito.any());
     }
 
-    public void testHandleRemoteIncomingPublishRequestWhenNoLastSeenState() throws IOException {
+    public void testHandleIncomingRemotePublishRequestWhenNoLastSeenState() throws IOException {
         RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
 
         PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
