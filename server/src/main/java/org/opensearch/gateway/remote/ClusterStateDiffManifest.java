@@ -23,9 +23,13 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer.getAbstractInstance;
+import static org.opensearch.cluster.DiffableUtils.getStringKeySerializer;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -69,30 +73,24 @@ public class ClusterStateDiffManifest implements ToXContentObject {
     private final List<String> clusterStateCustomUpdated;
     private final List<String> clusterStateCustomDeleted;
 
-    ClusterStateDiffManifest(ClusterState state, ClusterState previousState) {
+    public ClusterStateDiffManifest(ClusterState state, ClusterState previousState) {
         fromStateUUID = previousState.stateUUID();
         toStateUUID = state.stateUUID();
         coordinationMetadataUpdated = !Metadata.isCoordinationMetadataEqual(state.metadata(), previousState.metadata());
         settingsMetadataUpdated = !Metadata.isSettingsMetadataEqual(state.metadata(), previousState.metadata());
         transientSettingsMetadataUpdate = !Metadata.isTransientSettingsMetadataEqual(state.metadata(), previousState.metadata());
         templatesMetadataUpdated = !Metadata.isTemplatesMetadataEqual(state.metadata(), previousState.metadata());
-        indicesDeleted = findRemovedIndices(state.metadata().indices(), previousState.metadata().indices());
-        indicesUpdated = findUpdatedIndices(state.metadata().indices(), previousState.metadata().indices());
+        DiffableUtils.MapDiff<String, IndexMetadata, Map<String, IndexMetadata>> indicesDiff =
+            DiffableUtils.diff(previousState.metadata().indices(), state.metadata().indices(), getStringKeySerializer());
+        indicesDeleted = indicesDiff.getDeletes();
+        indicesUpdated = new ArrayList<>(indicesDiff.getDiffs().keySet());
+        indicesUpdated.addAll(indicesDiff.getUpserts().keySet());
         clusterBlocksUpdated = !state.blocks().equals(previousState.blocks());
         discoveryNodesUpdated = state.nodes().delta(previousState.nodes()).hasChanges();
-        customMetadataUpdated = new ArrayList<>();
-        for (String custom : state.metadata().customs().keySet()) {
-            if (!previousState.metadata().customs().containsKey(custom)
-                || !state.metadata().customs().get(custom).equals(previousState.metadata().customs().get(custom))) {
-                customMetadataUpdated.add(custom);
-            }
-        }
-        customMetadataDeleted = new ArrayList<>();
-        for (String custom : previousState.metadata().customs().keySet()) {
-            if (state.metadata().customs().get(custom) == null) {
-                customMetadataDeleted.add(custom);
-            }
-        }
+        DiffableUtils.MapDiff<String, Metadata.Custom, Map<String, Metadata.Custom>> customDiff = DiffableUtils.diff(previousState.metadata().customs(), state.metadata().customs(), getStringKeySerializer(), getAbstractInstance());
+        customMetadataUpdated = new ArrayList<>(customDiff.getDiffs().keySet());
+        customMetadataUpdated.addAll(customDiff.getUpserts().keySet());
+        customMetadataDeleted = customDiff.getDeletes();
 
         DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = RemoteRoutingTableService
             .getIndicesRoutingMapDiff(previousState.getRoutingTable(), state.getRoutingTable());
@@ -104,18 +102,10 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         hashesOfConsistentSettingsUpdated = !state.metadata()
             .hashesOfConsistentSettings()
             .equals(previousState.metadata().hashesOfConsistentSettings());
-        clusterStateCustomUpdated = new ArrayList<>();
-        clusterStateCustomDeleted = new ArrayList<>();
-        for (String custom : state.customs().keySet()) {
-            if (!previousState.customs().containsKey(custom) || !state.customs().get(custom).equals(previousState.customs().get(custom))) {
-                clusterStateCustomUpdated.add(custom);
-            }
-        }
-        for (String custom : previousState.customs().keySet()) {
-            if (state.customs().get(custom) == null) {
-                clusterStateCustomDeleted.add(custom);
-            }
-        }
+        DiffableUtils.MapDiff<String, ClusterState.Custom, Map<String, ClusterState.Custom>> clusterStateCustomDiff = DiffableUtils.diff(previousState.customs(), state.customs(), getStringKeySerializer(), getAbstractInstance());
+        clusterStateCustomUpdated = new ArrayList<>(clusterStateCustomDiff.getDiffs().keySet());
+        clusterStateCustomUpdated.addAll(clusterStateCustomDiff.getUpserts().keySet());
+        clusterStateCustomDeleted = clusterStateCustomDiff.getDeletes();
     }
 
     public ClusterStateDiffManifest(
@@ -365,35 +355,12 @@ public class ClusterStateDiffManifest implements ToXContentObject {
         return Strings.toString(MediaTypeRegistry.JSON, this);
     }
 
-    public List<String> findRemovedIndices(Map<String, IndexMetadata> indices, Map<String, IndexMetadata> previousIndices) {
-        List<String> removedIndices = new ArrayList<>();
-        for (String index : previousIndices.keySet()) {
-            // index present in previous state but not in current
-            if (!indices.containsKey(index)) {
-                removedIndices.add(index);
-            }
-        }
-        return removedIndices;
-    }
-
     private static List<String> convertListToString(List<Object> list) {
         List<String> convertedList = new ArrayList<>();
         for (Object o : list) {
             convertedList.add(o.toString());
         }
         return convertedList;
-    }
-
-    public List<String> findUpdatedIndices(Map<String, IndexMetadata> indices, Map<String, IndexMetadata> previousIndices) {
-        List<String> updatedIndices = new ArrayList<>();
-        for (String index : indices.keySet()) {
-            if (!previousIndices.containsKey(index)) {
-                updatedIndices.add(index);
-            } else if (previousIndices.get(index).getVersion() != indices.get(index).getVersion()) {
-                updatedIndices.add(index);
-            }
-        }
-        return updatedIndices;
     }
 
     public String getFromStateUUID() {

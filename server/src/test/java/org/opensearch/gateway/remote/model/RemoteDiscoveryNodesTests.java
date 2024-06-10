@@ -8,8 +8,12 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.mockito.Mock;
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
-import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.remote.BlobPathParameters;
@@ -25,17 +29,22 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.cluster.block.ClusterBlockTests.randomClusterBlock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_STATE_ATTRIBUTES_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_EPHEMERAL_PATH_TOKEN;
-import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
+import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodes.DISCOVERY_NODES;
 
-public class RemoteClusterBlocksTests extends OpenSearchTestCase {
+public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
     private static final String TEST_BLOB_NAME = "/test-path/test-blob-name";
     private static final String TEST_BLOB_PATH = "test-path";
     private static final String TEST_BLOB_FILE_NAME = "test-blob-name";
@@ -58,9 +67,9 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
     }
 
     public void testClusterUUID() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiscoveryNodes nodes = getDiscoveryNodes();
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
+            nodes,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -68,7 +77,7 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         );
         assertEquals(remoteObjectForUpload.clusterUUID(), clusterUUID);
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(
             TEST_BLOB_NAME,
             clusterUUID,
             compressor,
@@ -78,9 +87,9 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
     }
 
     public void testFullBlobName() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiscoveryNodes nodes = getDiscoveryNodes();
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
+            nodes,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -88,7 +97,7 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         );
         assertNull(remoteObjectForUpload.getFullBlobName());
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(
             TEST_BLOB_NAME,
             clusterUUID,
             compressor,
@@ -98,9 +107,9 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
     }
 
     public void testBlobFileName() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiscoveryNodes nodes = getDiscoveryNodes();
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
+            nodes,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -118,15 +127,20 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
     }
 
     public void testBlobPathTokens() {
-        String uploadedFile = "user/local/opensearch/cluster-blocks";
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(uploadedFile, clusterUUID, compressor, namedXContentRegistry);
-        assertArrayEquals(remoteObjectForDownload.getBlobPathTokens(), new String[] { "user", "local", "opensearch", "cluster-blocks" });
+        String uploadedFile = "user/local/opensearch/discovery-nodes";
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(
+            uploadedFile,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry
+        );
+        assertArrayEquals(remoteObjectForDownload.getBlobPathTokens(), new String[] { "user", "local", "opensearch", "discovery-nodes" });
     }
 
     public void testBlobPathParameters() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiscoveryNodes nodes = getDiscoveryNodes();
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
+            nodes,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -134,13 +148,13 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         );
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertEquals(params.getPathTokens(), List.of(CLUSTER_STATE_EPHEMERAL_PATH_TOKEN));
-        assertEquals(params.getFilePrefix(), CLUSTER_BLOCKS);
+        assertEquals(params.getFilePrefix(), DISCOVERY_NODES);
     }
 
     public void testGenerateBlobFileName() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiscoveryNodes nodes = getDiscoveryNodes();
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
+            nodes,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -148,17 +162,16 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         );
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
-        assertEquals(nameTokens[0], CLUSTER_BLOCKS);
+        assertEquals(nameTokens[0], DISCOVERY_NODES);
         assertEquals(RemoteStoreUtils.invertLong(nameTokens[1]), METADATA_VERSION);
         assertTrue(RemoteStoreUtils.invertLong(nameTokens[2]) <= System.currentTimeMillis());
         assertEquals(nameTokens[3], String.valueOf(CLUSTER_STATE_ATTRIBUTES_CURRENT_CODEC_VERSION));
-
     }
 
     public void testGetUploadedMetadata() throws IOException {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiscoveryNodes nodes = getDiscoveryNodes();
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
+            nodes,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -167,14 +180,14 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
         remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
         ClusterMetadataManifest.UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
-        assertEquals(uploadedMetadata.getComponent(), CLUSTER_BLOCKS);
+        assertEquals(uploadedMetadata.getComponent(), DISCOVERY_NODES);
         assertEquals(uploadedMetadata.getUploadedFilename(), remoteObjectForUpload.getFullBlobName());
     }
 
     public void testSerDe() throws IOException {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiscoveryNodes nodes = getDiscoveryNodes();
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
+            nodes,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -183,30 +196,76 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());
             assertTrue(inputStream.available() > 0);
-            ClusterBlocks readClusterBlocks = remoteObjectForUpload.deserialize(inputStream);
-            assertEquals(clusterBlocks.global(), readClusterBlocks.global());
-            assertEquals(clusterBlocks.indices().keySet(), readClusterBlocks.indices().keySet());
-            for (String index : clusterBlocks.indices().keySet()) {
-                assertEquals(clusterBlocks.indices().get(index), readClusterBlocks.indices().get(index));
-            }
-
+            DiscoveryNodes readDiscoveryNodes = remoteObjectForUpload.deserialize(inputStream);
+            assertEquals(nodes.getSize(), readDiscoveryNodes.getSize());
+            nodes.getNodes().forEach((nodeId, node) -> assertEquals(readDiscoveryNodes.get(nodeId), node));
+            assertEquals(nodes.getClusterManagerNodeId(), readDiscoveryNodes.getClusterManagerNodeId());
         }
     }
 
-    static ClusterBlocks randomClusterBlocks() {
-        ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        int randomGlobalBlocks = randomIntBetween(0, 10);
-        for (int i = 0; i < randomGlobalBlocks; i++) {
-            builder.addGlobalBlock(randomClusterBlock());
-        }
+    public void testExceptionDuringSerialization() throws IOException {
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
+            nodes,
+            METADATA_VERSION,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry
+        );
+        doThrow(new IOException("mock-exception")).when(nodes).writeTo(any());
+        IOException iea = assertThrows(IOException.class, remoteObjectForUpload::serialize);
+        assertEquals("Failed to serialize remote discovery nodes", iea.getMessage());
+    }
 
-        int randomIndices = randomIntBetween(0, 10);
-        for (int i = 0; i < randomIndices; i++) {
-            int randomIndexBlocks = randomIntBetween(0, 10);
-            for (int j = 0; j < randomIndexBlocks; j++) {
-                builder.addIndexBlock("index-" + i, randomClusterBlock());
-            }
-        }
-        return builder.build();
+    public void testExceptionDuringDeserialize() throws IOException {
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        InputStream in = mock(InputStream.class);
+        when(in.read(any(byte[].class))).thenThrow(new IOException("mock-exception"));
+        String uploadedFile = "user/local/opensearch/discovery-nodes";
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(
+            uploadedFile,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry
+        );
+        IOException ioe = assertThrows(IOException.class, () -> remoteObjectForDownload.deserialize(in));
+        assertEquals("Failed to deserialize remote discovery nodes", ioe.getMessage());
+    }
+
+    private DiscoveryNodes getDiscoveryNodes() {
+        return DiscoveryNodes.builder()
+            .add(
+                new DiscoveryNode(
+                    "name_" + 1,
+                    "node_" + 1,
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "name_" + 2,
+                    "node_" + 2,
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
+                    Version.CURRENT
+                )
+            )
+            .add(
+                new DiscoveryNode(
+                    "name_" + 3,
+                    "node_" + 3,
+                    buildNewFakeTransportAddress(),
+                    Collections.emptyMap(),
+                    new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
+                    Version.CURRENT
+                )
+            )
+            .localNodeId("name_1")
+            .clusterManagerNodeId("name_2")
+            .build();
     }
 }

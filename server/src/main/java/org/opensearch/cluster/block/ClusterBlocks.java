@@ -49,7 +49,6 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -324,21 +323,6 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     public static Diff<ClusterBlocks> readDiffFrom(StreamInput in) throws IOException {
         return AbstractDiffable.readDiffFrom(ClusterBlocks::readFrom, in);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ClusterBlocks that = (ClusterBlocks) o;
-        return Objects.equals(global, that.global)
-            && Objects.equals(indicesBlocks, that.indicesBlocks)
-            && Objects.equals(levelHolders, that.levelHolders);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(global, indicesBlocks, levelHolders);
     }
 
     /**

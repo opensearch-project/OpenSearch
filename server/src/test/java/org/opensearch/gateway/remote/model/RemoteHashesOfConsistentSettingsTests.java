@@ -9,7 +9,7 @@
 package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.ClusterModule;
-import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.remote.BlobPathParameters;
@@ -25,17 +25,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.cluster.block.ClusterBlockTests.randomClusterBlock;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_STATE_ATTRIBUTES_CURRENT_CODEC_VERSION;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_EPHEMERAL_PATH_TOKEN;
-import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_PATH_TOKEN;
+import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS;
 
-public class RemoteClusterBlocksTests extends OpenSearchTestCase {
+public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
     private static final String TEST_BLOB_NAME = "/test-path/test-blob-name";
     private static final String TEST_BLOB_PATH = "test-path";
     private static final String TEST_BLOB_FILE_NAME = "test-blob-name";
@@ -58,9 +59,9 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
     }
 
     public void testClusterUUID() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiffableStringMap hashesOfConsistentSettings = getHashesOfConsistentSettings();
+        RemoteHashesOfConsistentSettings remoteObjectForUpload = new RemoteHashesOfConsistentSettings(
+            hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -68,7 +69,7 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         );
         assertEquals(remoteObjectForUpload.clusterUUID(), clusterUUID);
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(
+        RemoteHashesOfConsistentSettings remoteObjectForDownload = new RemoteHashesOfConsistentSettings(
             TEST_BLOB_NAME,
             clusterUUID,
             compressor,
@@ -78,9 +79,9 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
     }
 
     public void testFullBlobName() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiffableStringMap hashesOfConsistentSettings = getHashesOfConsistentSettings();
+        RemoteHashesOfConsistentSettings remoteObjectForUpload = new RemoteHashesOfConsistentSettings(
+            hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -88,7 +89,7 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         );
         assertNull(remoteObjectForUpload.getFullBlobName());
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(
+        RemoteHashesOfConsistentSettings remoteObjectForDownload = new RemoteHashesOfConsistentSettings(
             TEST_BLOB_NAME,
             clusterUUID,
             compressor,
@@ -98,9 +99,9 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
     }
 
     public void testBlobFileName() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiffableStringMap hashesOfConsistentSettings = getHashesOfConsistentSettings();
+        RemoteHashesOfConsistentSettings remoteObjectForUpload = new RemoteHashesOfConsistentSettings(
+            hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -108,7 +109,7 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         );
         assertNull(remoteObjectForUpload.getBlobFileName());
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(
+        RemoteHashesOfConsistentSettings remoteObjectForDownload = new RemoteHashesOfConsistentSettings(
             TEST_BLOB_NAME,
             clusterUUID,
             compressor,
@@ -118,29 +119,37 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
     }
 
     public void testBlobPathTokens() {
-        String uploadedFile = "user/local/opensearch/cluster-blocks";
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(uploadedFile, clusterUUID, compressor, namedXContentRegistry);
-        assertArrayEquals(remoteObjectForDownload.getBlobPathTokens(), new String[] { "user", "local", "opensearch", "cluster-blocks" });
+        String uploadedFile = "user/local/opensearch/hashes-of-consistent-settings";
+        RemoteHashesOfConsistentSettings remoteObjectForDownload = new RemoteHashesOfConsistentSettings(
+            uploadedFile,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry
+        );
+        assertArrayEquals(
+            remoteObjectForDownload.getBlobPathTokens(),
+            new String[] { "user", "local", "opensearch", "hashes-of-consistent-settings" }
+        );
     }
 
     public void testBlobPathParameters() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiffableStringMap hashesOfConsistentSettings = getHashesOfConsistentSettings();
+        RemoteHashesOfConsistentSettings remoteObjectForUpload = new RemoteHashesOfConsistentSettings(
+            hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
             compressor,
             namedXContentRegistry
         );
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
-        assertEquals(params.getPathTokens(), List.of(CLUSTER_STATE_EPHEMERAL_PATH_TOKEN));
-        assertEquals(params.getFilePrefix(), CLUSTER_BLOCKS);
+        assertEquals(params.getPathTokens(), List.of(GLOBAL_METADATA_PATH_TOKEN));
+        assertEquals(params.getFilePrefix(), HASHES_OF_CONSISTENT_SETTINGS);
     }
 
     public void testGenerateBlobFileName() {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiffableStringMap hashesOfConsistentSettings = getHashesOfConsistentSettings();
+        RemoteHashesOfConsistentSettings remoteObjectForUpload = new RemoteHashesOfConsistentSettings(
+            hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -148,17 +157,16 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         );
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
-        assertEquals(nameTokens[0], CLUSTER_BLOCKS);
+        assertEquals(nameTokens[0], HASHES_OF_CONSISTENT_SETTINGS);
         assertEquals(RemoteStoreUtils.invertLong(nameTokens[1]), METADATA_VERSION);
         assertTrue(RemoteStoreUtils.invertLong(nameTokens[2]) <= System.currentTimeMillis());
         assertEquals(nameTokens[3], String.valueOf(CLUSTER_STATE_ATTRIBUTES_CURRENT_CODEC_VERSION));
-
     }
 
     public void testGetUploadedMetadata() throws IOException {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiffableStringMap hashesOfConsistentSettings = getHashesOfConsistentSettings();
+        RemoteHashesOfConsistentSettings remoteObjectForUpload = new RemoteHashesOfConsistentSettings(
+            hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -167,14 +175,14 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
         remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
         ClusterMetadataManifest.UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
-        assertEquals(uploadedMetadata.getComponent(), CLUSTER_BLOCKS);
+        assertEquals(uploadedMetadata.getComponent(), HASHES_OF_CONSISTENT_SETTINGS);
         assertEquals(uploadedMetadata.getUploadedFilename(), remoteObjectForUpload.getFullBlobName());
     }
 
     public void testSerDe() throws IOException {
-        ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
+        DiffableStringMap hashesOfConsistentSettings = getHashesOfConsistentSettings();
+        RemoteHashesOfConsistentSettings remoteObjectForUpload = new RemoteHashesOfConsistentSettings(
+            hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
             compressor,
@@ -183,30 +191,14 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());
             assertTrue(inputStream.available() > 0);
-            ClusterBlocks readClusterBlocks = remoteObjectForUpload.deserialize(inputStream);
-            assertEquals(clusterBlocks.global(), readClusterBlocks.global());
-            assertEquals(clusterBlocks.indices().keySet(), readClusterBlocks.indices().keySet());
-            for (String index : clusterBlocks.indices().keySet()) {
-                assertEquals(clusterBlocks.indices().get(index), readClusterBlocks.indices().get(index));
-            }
-
+            DiffableStringMap readHashesOfConsistentSettings = remoteObjectForUpload.deserialize(inputStream);
+            assertEquals(hashesOfConsistentSettings.entrySet(), readHashesOfConsistentSettings.entrySet());
         }
     }
 
-    static ClusterBlocks randomClusterBlocks() {
-        ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        int randomGlobalBlocks = randomIntBetween(0, 10);
-        for (int i = 0; i < randomGlobalBlocks; i++) {
-            builder.addGlobalBlock(randomClusterBlock());
-        }
-
-        int randomIndices = randomIntBetween(0, 10);
-        for (int i = 0; i < randomIndices; i++) {
-            int randomIndexBlocks = randomIntBetween(0, 10);
-            for (int j = 0; j < randomIndexBlocks; j++) {
-                builder.addIndexBlock("index-" + i, randomClusterBlock());
-            }
-        }
-        return builder.build();
+    private DiffableStringMap getHashesOfConsistentSettings() {
+        Map<String, String> hashesOfConsistentSettings = new HashMap<>();
+        hashesOfConsistentSettings.put("secure-setting-key", "secure-setting-value");
+        return new DiffableStringMap(hashesOfConsistentSettings);
     }
 }
