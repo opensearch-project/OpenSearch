@@ -288,7 +288,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-    // value 0 means dynamic pruning optimization in aggregations will be disabled
+    // value 0 can disable dynamic pruning optimization in cardinality aggregation
     public static final Setting<Integer> CARDINALITY_AGGREGATION_PRUNING_THRESHOLD = Setting.intSetting(
         "search.dynamic_pruning.cardinality_aggregation_threshold",
         100,

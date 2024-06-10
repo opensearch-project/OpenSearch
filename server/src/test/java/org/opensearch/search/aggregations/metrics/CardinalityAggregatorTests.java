@@ -55,6 +55,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -62,16 +64,23 @@ import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.mockito.Mockito.when;
 
 public class CardinalityAggregatorTests extends AggregatorTestCase {
 
@@ -105,13 +114,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
-    public void testDynamicPruningOrdinalCollector() throws IOException {
+    public void testDynamicPruningFixedValues() throws IOException {
         final String fieldName = "testField";
         final String filterFieldName = "filterField";
 
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
-        testCase2(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
+        testDynamicPruning(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
             iw.addDocument(
                 asList(
                     new KeywordField(fieldName, "1", Field.Store.NO),
@@ -166,7 +175,38 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(3.0, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, fieldType);
+        }, fieldType, 100, (collectCount) -> assertEquals(0, (int) collectCount));
+    }
+
+    public void testDynamicPruningRandomValues() throws IOException {
+        final String fieldName = "testField";
+        final String filterFieldName = "filterField";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+
+        int randomCardinality = randomIntBetween(1, 100);
+        AtomicInteger counter = new AtomicInteger();
+
+        testDynamicPruning(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
+            for (int i = 0; i < randomCardinality; i++) {
+                String filterValue = "foo";
+                if (randomBoolean()) {
+                    filterValue = "bar";
+                    counter.getAndIncrement();
+                }
+                iw.addDocument(
+                    asList(
+                        new KeywordField(filterFieldName, filterValue, Field.Store.NO),
+                        new KeywordField(fieldName, String.valueOf(i), Field.Store.NO),
+                        new SortedSetDocValuesField(fieldName, new BytesRef(String.valueOf(i)))
+                    )
+                );
+            }
+        }, card -> {
+            logger.info("expected {}, cardinality: {}", randomCardinality - counter.get(), card.getValue());
+            assertEquals(randomCardinality - counter.get(), card.getValue(), 0);
+        }, fieldType, 100, (collectCount) -> assertEquals(0, (int) collectCount));
     }
 
     public void testNoMatchingField() throws IOException {
@@ -279,24 +319,78 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    protected void testCase2(
+    private void testDynamicPruning(
         AggregationBuilder aggregationBuilder,
         Query query,
         CheckedConsumer<IndexWriter, IOException> buildIndex,
         Consumer<InternalCardinality> verify,
-        MappedFieldType... fieldTypes
+        MappedFieldType fieldType,
+        int pruningThreshold,
+        Consumer<Integer> verifyCollectCount
     ) throws IOException {
         try (Directory directory = newDirectory()) {
-            IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()));
-            buildIndex.accept(indexWriter);
-            indexWriter.close();
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()))) {
+                buildIndex.accept(indexWriter);
+            }
 
-            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalCardinality agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
-                verify.accept(agg);
+                CountingAggregator aggregator = createCountingAggregator(
+                    query,
+                    aggregationBuilder,
+                    indexSearcher,
+                    fieldType,
+                    pruningThreshold
+                );
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+
+                MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                    Integer.MAX_VALUE,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                );
+                InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                    aggregator.context().bigArrays(),
+                    getMockScriptService(),
+                    reduceBucketConsumer,
+                    PipelineAggregator.PipelineTree.EMPTY
+                );
+                InternalCardinality topLevel = (InternalCardinality) aggregator.buildTopLevel();
+                InternalCardinality card = (InternalCardinality) topLevel.reduce(Collections.singletonList(topLevel), context);
+                doAssertReducedMultiBucketConsumer(card, reduceBucketConsumer);
+
+                verify.accept(card);
+
+                verifyCollectCount.accept(aggregator.getCollectCount().get());
             }
         }
+    }
+
+    protected CountingAggregator createCountingAggregator(
+        Query query,
+        AggregationBuilder builder,
+        IndexSearcher searcher,
+        MappedFieldType fieldType,
+        int pruningThreshold
+    ) throws IOException {
+        return new CountingAggregator(
+            new AtomicInteger(),
+            createAggregatorWithCustomizableSearchContext(
+                query,
+                builder,
+                searcher,
+                createIndexSettings(),
+                new MultiBucketConsumerService.MultiBucketConsumer(
+                    DEFAULT_MAX_BUCKETS,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                ),
+                (searchContext) -> {
+                    when(searchContext.cardinalityAggregationPruningThreshold()).thenReturn(pruningThreshold);
+                },
+                fieldType
+            )
+        );
     }
 }

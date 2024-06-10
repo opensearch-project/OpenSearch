@@ -170,7 +170,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             if (terms == null) return collector;
             if (terms.size() > context.cardinalityAggregationPruningThreshold()) {
                 logger.debug(
-                    "Cannot prune because {} is greater than the threshold {}",
+                    "Cannot prune because terms size {} is greater than the threshold {}",
                     terms.size(),
                     context.cardinalityAggregationPruningThreshold()
                 );
@@ -180,13 +180,16 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             Weight weight = context.searcher().createWeight(context.searcher().rewrite(context.query()), ScoreMode.TOP_DOCS, 1f);
             Bits liveDocs = ctx.reader().getLiveDocs();
             BulkScorer scorer = weight.bulkScorer(ctx);
+            if (scorer == null) {
+                return collector;
+            }
             collector = new PruningCollector(collector, terms.iterator(), ctx, context, valuesSourceConfig.fieldContext().field());
             scorer.score(collector, liveDocs);
             collector.postCollect();
             Releasables.close(collector);
             logger.debug("Dynamic pruned segment {} of shard {}", ctx.ord, context.indexShard().shardId());
             dynamicPruningSegments++;
-            // return a no-op collector to not breaking profile results
+            // return a no-op collector to not breaking the backward compatibility with previous profile results
             return new Collector() {
                 @Override
                 public void close() {}
