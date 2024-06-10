@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
+import org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -366,6 +367,13 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
     public void testClusterMetadataManifestXContentV3() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
+        UploadedIndexMetadata uploadedIndexRoutingMetadata = new UploadedIndexMetadata(
+            "test-index",
+            "test-uuid",
+            "routing-path",
+            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+        );
+
         ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
             1L,
             1L,
@@ -400,7 +408,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 )
             ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity())),
             1L,
-            Collections.singletonList(uploadedIndexMetadata)
+            Collections.singletonList(uploadedIndexRoutingMetadata)
         );
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
