@@ -10,6 +10,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.search.lookup.SourceLookup;
@@ -28,10 +29,19 @@ import java.util.function.Function;
 public class DerivedFieldValueFetcher implements ValueFetcher {
     private DerivedFieldScript derivedFieldScript;
     private final DerivedFieldScript.LeafFactory derivedFieldScriptFactory;
-
     private final Function<Object, Object> valueForDisplay;
 
     public DerivedFieldValueFetcher(DerivedFieldScript.LeafFactory derivedFieldScriptFactory, Function<Object, Object> valueForDisplay) {
+        this.derivedFieldScriptFactory = derivedFieldScriptFactory;
+        this.valueForDisplay = valueForDisplay;
+    }
+
+    @DeprecatedApi(since = "2.15.0")
+    public DerivedFieldValueFetcher(
+        DerivedFieldScript.LeafFactory derivedFieldScriptFactory,
+        Function<Object, Object> valueForDisplay,
+        Function<Object, IndexableField> indexableFieldFunction
+    ) {
         this.derivedFieldScriptFactory = derivedFieldScriptFactory;
         this.valueForDisplay = valueForDisplay;
     }
@@ -64,6 +74,14 @@ public class DerivedFieldValueFetcher implements ValueFetcher {
             }
         }
         return indexableFields;
+    }
+
+    /**
+     * Use {@link #getIndexableField(SourceLookup, Function)} instead
+     */
+    @DeprecatedApi(since = "2.15.0")
+    public List<IndexableField> getIndexableField(SourceLookup sourceLookup) {
+        throw new UnsupportedOperationException("Use getIndexableField(SourceLookup, Function) instead.");
     }
 
     @Override
