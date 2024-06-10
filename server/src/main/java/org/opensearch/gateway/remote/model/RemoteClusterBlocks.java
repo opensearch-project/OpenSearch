@@ -16,13 +16,16 @@ import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 
 import static org.opensearch.core.common.bytes.BytesReference.toBytes;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_STATE_ATTRIBUTES_CURRENT_CODEC_VERSION;
@@ -35,6 +38,10 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 public class RemoteClusterBlocks extends AbstractRemoteWritableBlobEntity<ClusterBlocks> {
 
     public static final String CLUSTER_BLOCKS = "blocks";
+    public static final ChecksumWritableBlobStoreFormat<ClusterBlocks> CLUSTER_BLOCKS_FORMAT = new ChecksumWritableBlobStoreFormat<>(
+        "blocks",
+        ClusterBlocks::readFrom
+    );
 
     private ClusterBlocks clusterBlocks;
     private long stateVersion;
@@ -77,20 +84,11 @@ public class RemoteClusterBlocks extends AbstractRemoteWritableBlobEntity<Cluste
 
     @Override
     public InputStream serialize() throws IOException {
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-            clusterBlocks.writeTo(bytesStreamOutput);
-            return bytesStreamOutput.bytes().streamInput();
-        } catch (IOException e) {
-            throw new IOException("Failed to serialize remote cluster blocks", e);
-        }
+        return CLUSTER_BLOCKS_FORMAT.serialize(clusterBlocks, generateBlobFileName(), getCompressor()).streamInput();
     }
 
     @Override
     public ClusterBlocks deserialize(final InputStream inputStream) throws IOException {
-        try (StreamInput in = new BytesStreamInput(toBytes(Streams.readFully(inputStream)))) {
-            return ClusterBlocks.readFrom(in);
-        } catch (IOException e) {
-            throw new IOException("Failed to deserialize remote cluster blocks", e);
-        }
+        return CLUSTER_BLOCKS_FORMAT.deserialize(blobName, Streams.readFully(inputStream));
     }
 }
