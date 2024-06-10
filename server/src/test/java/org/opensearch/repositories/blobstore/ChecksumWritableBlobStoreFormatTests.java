@@ -36,7 +36,7 @@ public class ChecksumWritableBlobStoreFormatTests extends OpenSearchTestCase {
     public void testSerDe() throws IOException {
         IndexMetadata indexMetadata = getIndexMetadata();
         BytesReference bytesReference = clusterBlocksFormat.serialize(indexMetadata, TEST_BLOB_FILE_NAME, CompressorRegistry.none());
-        IndexMetadata readIndexMetadata = clusterBlocksFormat.deserialize(TEST_BLOB_FILE_NAME, IndexMetadata::readFrom, bytesReference);
+        IndexMetadata readIndexMetadata = clusterBlocksFormat.deserialize(TEST_BLOB_FILE_NAME, bytesReference);
         assertThat(readIndexMetadata, is(indexMetadata));
     }
 
@@ -47,7 +47,7 @@ public class ChecksumWritableBlobStoreFormatTests extends OpenSearchTestCase {
             TEST_BLOB_FILE_NAME,
             CompressorRegistry.getCompressor(DeflateCompressor.NAME)
         );
-        IndexMetadata readIndexMetadata = clusterBlocksFormat.deserialize(TEST_BLOB_FILE_NAME, IndexMetadata::readFrom, bytesReference);
+        IndexMetadata readIndexMetadata = clusterBlocksFormat.deserialize(TEST_BLOB_FILE_NAME, bytesReference);
         assertThat(readIndexMetadata, is(indexMetadata));
     }
 

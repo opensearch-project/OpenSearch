@@ -84,7 +84,7 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
         }
     }
 
-    public T deserialize(String blobName, CheckedFunction<StreamInput, T, IOException> reader, BytesReference bytes) throws IOException {
+    public T deserialize(String blobName, BytesReference bytes) throws IOException {
         final String resourceDesc = "ChecksumBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
         try {
             final IndexInput indexInput = bytes.length() > 0
