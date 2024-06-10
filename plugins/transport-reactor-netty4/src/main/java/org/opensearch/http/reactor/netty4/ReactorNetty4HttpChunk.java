@@ -23,13 +23,9 @@ class ReactorNetty4HttpChunk implements HttpChunk {
     private final boolean last;
 
     ReactorNetty4HttpChunk(ByteBuf content, boolean last) {
-        this(new AtomicBoolean(false), true, content, last);
-    }
-
-    private ReactorNetty4HttpChunk(AtomicBoolean released, boolean pooled, ByteBuf content, boolean last) {
         this.content = content;
-        this.pooled = pooled;
-        this.released = released;
+        this.pooled = true;
+        this.released = new AtomicBoolean(false);
         this.last = last;
     }
 

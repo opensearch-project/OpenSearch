@@ -8,7 +8,7 @@
 
 package org.opensearch.http;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 
 import java.util.List;
@@ -19,9 +19,9 @@ import org.reactivestreams.Publisher;
 /**
  * Represents an HTTP communication channel with streaming capabilities.
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
-@PublicApi(since = "2.15.0")
+@ExperimentalApi
 public interface StreamingHttpChannel extends HttpChannel, Publisher<HttpChunk> {
     /**
      * Sends the next {@link HttpChunk} to the response stream

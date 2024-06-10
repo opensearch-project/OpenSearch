@@ -8,7 +8,7 @@
 
 package org.opensearch.rest;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.http.HttpChunk;
 
@@ -20,9 +20,9 @@ import org.reactivestreams.Publisher;
 /**
  * A streaming channel used to prepare response and sending the response in chunks.
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
-@PublicApi(since = "2.15.0")
+@ExperimentalApi
 public interface StreamingRestChannel extends RestChannel, Publisher<HttpChunk> {
     /**
      * Sends the next {@link HttpChunk} to the response stream

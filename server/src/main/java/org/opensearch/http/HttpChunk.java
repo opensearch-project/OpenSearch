@@ -8,14 +8,16 @@
 
 package org.opensearch.http;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.common.bytes.BytesReference;
 
 /**
  * Represents a chunk of the HTTP request / response stream
+ *
+ * @opensearch.experimental
  */
-@PublicApi(since = "2.15.0")
+@ExperimentalApi
 public interface HttpChunk extends Releasable {
     /**
      * Signals this is the last chunk of the stream.

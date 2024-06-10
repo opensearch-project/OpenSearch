@@ -40,6 +40,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -204,10 +205,10 @@ public abstract class BaseRestHandler implements RestHandler {
      * Streaming REST requests are handled by preparing a streaming channel consumer that represents the execution of
      * the request against a channel.
      *
-     * @opensearch.api
+     * @opensearch.experimental
      */
     @FunctionalInterface
-    @PublicApi(since = "2.15.0")
+    @ExperimentalApi
     protected interface StreamingRestChannelConsumer extends CheckedConsumer<StreamingRestChannel, Exception> {}
 
     /**
