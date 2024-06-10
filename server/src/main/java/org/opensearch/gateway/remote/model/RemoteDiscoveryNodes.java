@@ -16,7 +16,6 @@ import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -44,21 +43,15 @@ public class RemoteDiscoveryNodes extends AbstractRemoteWritableBlobEntity<Disco
         final DiscoveryNodes discoveryNodes,
         final long stateVersion,
         final String clusterUUID,
-        final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
+        final Compressor compressor
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, null);
         this.discoveryNodes = discoveryNodes;
         this.stateVersion = stateVersion;
     }
 
-    public RemoteDiscoveryNodes(
-        final String blobName,
-        final String clusterUUID,
-        final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
-    ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+    public RemoteDiscoveryNodes(final String blobName, final String clusterUUID, final Compressor compressor) {
+        super(clusterUUID, compressor, null);
         this.blobName = blobName;
     }
 

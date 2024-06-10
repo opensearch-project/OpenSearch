@@ -33,4 +33,13 @@ public class RemoteStateTransferException extends RuntimeException {
         super(errorDesc, cause);
         this.entity = entity;
     }
+
+    @Override
+    public String toString() {
+        String message = super.toString();
+        if (entity != null) {
+            message += ", failed entity:" + entity;
+        }
+        return message;
+    }
 }

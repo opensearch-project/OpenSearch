@@ -59,79 +59,40 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
 
     public void testClusterUUID() {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(clusterBlocks, METADATA_VERSION, clusterUUID, compressor);
         assertEquals(remoteObjectForUpload.clusterUUID(), clusterUUID);
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(
-            TEST_BLOB_NAME,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(TEST_BLOB_NAME, clusterUUID, compressor);
         assertEquals(remoteObjectForDownload.clusterUUID(), clusterUUID);
     }
 
     public void testFullBlobName() {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(clusterBlocks, METADATA_VERSION, clusterUUID, compressor);
         assertNull(remoteObjectForUpload.getFullBlobName());
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(
-            TEST_BLOB_NAME,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(TEST_BLOB_NAME, clusterUUID, compressor);
         assertEquals(remoteObjectForDownload.getFullBlobName(), TEST_BLOB_NAME);
     }
 
     public void testBlobFileName() {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(clusterBlocks, METADATA_VERSION, clusterUUID, compressor);
         assertNull(remoteObjectForUpload.getBlobFileName());
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(
-            TEST_BLOB_NAME,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(TEST_BLOB_NAME, clusterUUID, compressor);
         assertEquals(remoteObjectForDownload.getBlobFileName(), TEST_BLOB_FILE_NAME);
     }
 
     public void testBlobPathTokens() {
         String uploadedFile = "user/local/opensearch/cluster-blocks";
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(uploadedFile, clusterUUID, compressor, namedXContentRegistry);
+        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(uploadedFile, clusterUUID, compressor);
         assertArrayEquals(remoteObjectForDownload.getBlobPathTokens(), new String[] { "user", "local", "opensearch", "cluster-blocks" });
     }
 
     public void testBlobPathParameters() {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(clusterBlocks, METADATA_VERSION, clusterUUID, compressor);
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertEquals(params.getPathTokens(), List.of(CLUSTER_STATE_EPHEMERAL_PATH_TOKEN));
         assertEquals(params.getFilePrefix(), CLUSTER_BLOCKS);
@@ -139,13 +100,7 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
 
     public void testGenerateBlobFileName() {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(clusterBlocks, METADATA_VERSION, clusterUUID, compressor);
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
         assertEquals(nameTokens[0], CLUSTER_BLOCKS);
@@ -157,13 +112,7 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
 
     public void testGetUploadedMetadata() throws IOException {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(clusterBlocks, METADATA_VERSION, clusterUUID, compressor);
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
         remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
         ClusterMetadataManifest.UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
@@ -173,13 +122,7 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
 
     public void testSerDe() throws IOException {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(
-            clusterBlocks,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForUpload = new RemoteClusterBlocks(clusterBlocks, METADATA_VERSION, clusterUUID, compressor);
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());
             assertTrue(inputStream.available() > 0);

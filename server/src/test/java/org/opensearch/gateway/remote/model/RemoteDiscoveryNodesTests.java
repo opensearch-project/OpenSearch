@@ -67,84 +67,40 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
 
     public void testClusterUUID() {
         DiscoveryNodes nodes = getDiscoveryNodes();
-        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
-            nodes,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         assertEquals(remoteObjectForUpload.clusterUUID(), clusterUUID);
 
-        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(
-            TEST_BLOB_NAME,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(TEST_BLOB_NAME, clusterUUID, compressor);
         assertEquals(remoteObjectForDownload.clusterUUID(), clusterUUID);
     }
 
     public void testFullBlobName() {
         DiscoveryNodes nodes = getDiscoveryNodes();
-        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
-            nodes,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         assertNull(remoteObjectForUpload.getFullBlobName());
 
-        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(
-            TEST_BLOB_NAME,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(TEST_BLOB_NAME, clusterUUID, compressor);
         assertEquals(remoteObjectForDownload.getFullBlobName(), TEST_BLOB_NAME);
     }
 
     public void testBlobFileName() {
         DiscoveryNodes nodes = getDiscoveryNodes();
-        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
-            nodes,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         assertNull(remoteObjectForUpload.getBlobFileName());
 
-        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(
-            TEST_BLOB_NAME,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteClusterBlocks remoteObjectForDownload = new RemoteClusterBlocks(TEST_BLOB_NAME, clusterUUID, compressor);
         assertEquals(remoteObjectForDownload.getBlobFileName(), TEST_BLOB_FILE_NAME);
     }
 
     public void testBlobPathTokens() {
         String uploadedFile = "user/local/opensearch/discovery-nodes";
-        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(
-            uploadedFile,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(uploadedFile, clusterUUID, compressor);
         assertArrayEquals(remoteObjectForDownload.getBlobPathTokens(), new String[] { "user", "local", "opensearch", "discovery-nodes" });
     }
 
     public void testBlobPathParameters() {
         DiscoveryNodes nodes = getDiscoveryNodes();
-        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
-            nodes,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertEquals(params.getPathTokens(), List.of(CLUSTER_STATE_EPHEMERAL_PATH_TOKEN));
         assertEquals(params.getFilePrefix(), DISCOVERY_NODES);
@@ -152,13 +108,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
 
     public void testGenerateBlobFileName() {
         DiscoveryNodes nodes = getDiscoveryNodes();
-        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
-            nodes,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
         assertEquals(nameTokens[0], DISCOVERY_NODES);
@@ -169,13 +119,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
 
     public void testGetUploadedMetadata() throws IOException {
         DiscoveryNodes nodes = getDiscoveryNodes();
-        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
-            nodes,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
         remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
         ClusterMetadataManifest.UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
@@ -185,13 +129,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
 
     public void testSerDe() throws IOException {
         DiscoveryNodes nodes = getDiscoveryNodes();
-        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
-            nodes,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());
             assertTrue(inputStream.available() > 0);
@@ -204,13 +142,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
 
     public void testExceptionDuringSerialization() throws IOException {
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(
-            nodes,
-            METADATA_VERSION,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         doThrow(new IOException("mock-exception")).when(nodes).writeTo(any());
         IOException iea = assertThrows(IOException.class, remoteObjectForUpload::serialize);
         assertEquals("Failed to serialize remote discovery nodes", iea.getMessage());
@@ -221,12 +153,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         InputStream in = mock(InputStream.class);
         when(in.read(any(byte[].class))).thenThrow(new IOException("mock-exception"));
         String uploadedFile = "user/local/opensearch/discovery-nodes";
-        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(
-            uploadedFile,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
+        RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(uploadedFile, clusterUUID, compressor);
         IOException ioe = assertThrows(IOException.class, () -> remoteObjectForDownload.deserialize(in));
         assertEquals("Failed to deserialize remote discovery nodes", ioe.getMessage());
     }

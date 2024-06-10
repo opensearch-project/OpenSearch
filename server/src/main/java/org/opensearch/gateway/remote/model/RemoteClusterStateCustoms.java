@@ -18,7 +18,6 @@ import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.compress.Compressor;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.index.remote.RemoteStoreUtils;
 
@@ -50,10 +49,9 @@ public class RemoteClusterStateCustoms extends AbstractRemoteWritableBlobEntity<
         final long stateVersion,
         final String clusterUUID,
         final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry,
         final NamedWriteableRegistry namedWriteableRegistry
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, null);
         this.stateVersion = stateVersion;
         this.customType = customType;
         this.custom = custom;
@@ -65,10 +63,9 @@ public class RemoteClusterStateCustoms extends AbstractRemoteWritableBlobEntity<
         final String customType,
         final String clusterUUID,
         final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry,
         final NamedWriteableRegistry namedWriteableRegistry
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, null);
         this.blobName = blobName;
         this.customType = customType;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -76,7 +73,8 @@ public class RemoteClusterStateCustoms extends AbstractRemoteWritableBlobEntity<
 
     @Override
     public BlobPathParameters getBlobPathParameters() {
-        return new BlobPathParameters(List.of(CLUSTER_STATE_EPHEMERAL_PATH_TOKEN), CLUSTER_STATE_CUSTOM);
+        String prefix = String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, customType);
+        return new BlobPathParameters(List.of(CLUSTER_STATE_EPHEMERAL_PATH_TOKEN), prefix);
     }
 
     @Override

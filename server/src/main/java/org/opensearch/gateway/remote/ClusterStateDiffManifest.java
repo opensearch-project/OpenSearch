@@ -19,7 +19,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
@@ -39,7 +39,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  *
  * @opensearch.internal
  */
-public class ClusterStateDiffManifest implements ToXContentObject, Writeable {
+public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
     private static final String FROM_STATE_UUID_FIELD = "from_state_uuid";
     private static final String TO_STATE_UUID_FIELD = "to_state_uuid";
     private static final String METADATA_DIFF_FIELD = "metadata_diff";
@@ -183,71 +183,68 @@ public class ClusterStateDiffManifest implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(FROM_STATE_UUID_FIELD, fromStateUUID);
+        builder.field(TO_STATE_UUID_FIELD, toStateUUID);
+        builder.startObject(METADATA_DIFF_FIELD);
         {
-            builder.field(FROM_STATE_UUID_FIELD, fromStateUUID);
-            builder.field(TO_STATE_UUID_FIELD, toStateUUID);
-            builder.startObject(METADATA_DIFF_FIELD);
-            {
-                builder.field(COORDINATION_METADATA_UPDATED_FIELD, coordinationMetadataUpdated);
-                builder.field(SETTINGS_METADATA_UPDATED_FIELD, settingsMetadataUpdated);
-                builder.field(TRANSIENT_SETTINGS_METADATA_UPDATED_FIELD, transientSettingsMetadataUpdated);
-                builder.field(TEMPLATES_METADATA_UPDATED_FIELD, templatesMetadataUpdated);
-                builder.startObject(INDICES_DIFF_FIELD);
-                builder.startArray(UPSERTS_FIELD);
-                for (String index : indicesUpdated) {
-                    builder.value(index);
-                }
-                builder.endArray();
-                builder.startArray(DELETES_FIELD);
-                for (String index : indicesDeleted) {
-                    builder.value(index);
-                }
-                builder.endArray();
-                builder.endObject();
-                builder.startObject(METADATA_CUSTOM_DIFF_FIELD);
-                builder.startArray(UPSERTS_FIELD);
-                for (String custom : customMetadataUpdated) {
-                    builder.value(custom);
-                }
-                builder.endArray();
-                builder.startArray(DELETES_FIELD);
-                for (String custom : customMetadataDeleted) {
-                    builder.value(custom);
-                }
-                builder.endArray();
-                builder.endObject();
-                builder.field(HASHES_OF_CONSISTENT_SETTINGS_UPDATED_FIELD, hashesOfConsistentSettingsUpdated);
-            }
-            builder.endObject();
-            builder.field(CLUSTER_BLOCKS_UPDATED_FIELD, clusterBlocksUpdated);
-            builder.field(DISCOVERY_NODES_UPDATED_FIELD, discoveryNodesUpdated);
-
-            builder.startObject(ROUTING_TABLE_DIFF);
+            builder.field(COORDINATION_METADATA_UPDATED_FIELD, coordinationMetadataUpdated);
+            builder.field(SETTINGS_METADATA_UPDATED_FIELD, settingsMetadataUpdated);
+            builder.field(TRANSIENT_SETTINGS_METADATA_UPDATED_FIELD, transientSettingsMetadataUpdated);
+            builder.field(TEMPLATES_METADATA_UPDATED_FIELD, templatesMetadataUpdated);
+            builder.startObject(INDICES_DIFF_FIELD);
             builder.startArray(UPSERTS_FIELD);
-            for (String index : indicesRoutingUpdated) {
+            for (String index : indicesUpdated) {
                 builder.value(index);
             }
             builder.endArray();
             builder.startArray(DELETES_FIELD);
-            for (String index : indicesRoutingDeleted) {
+            for (String index : indicesDeleted) {
                 builder.value(index);
             }
             builder.endArray();
             builder.endObject();
-            builder.startObject(CLUSTER_STATE_CUSTOM_DIFF_FIELD);
+            builder.startObject(METADATA_CUSTOM_DIFF_FIELD);
             builder.startArray(UPSERTS_FIELD);
-            for (String custom : clusterStateCustomUpdated) {
+            for (String custom : customMetadataUpdated) {
                 builder.value(custom);
             }
             builder.endArray();
             builder.startArray(DELETES_FIELD);
-            for (String custom : clusterStateCustomDeleted) {
+            for (String custom : customMetadataDeleted) {
                 builder.value(custom);
             }
             builder.endArray();
             builder.endObject();
-
+            builder.field(HASHES_OF_CONSISTENT_SETTINGS_UPDATED_FIELD, hashesOfConsistentSettingsUpdated);
         }
+        builder.endObject();
+        builder.field(CLUSTER_BLOCKS_UPDATED_FIELD, clusterBlocksUpdated);
+        builder.field(DISCOVERY_NODES_UPDATED_FIELD, discoveryNodesUpdated);
+
+        builder.startObject(ROUTING_TABLE_DIFF);
+        builder.startArray(UPSERTS_FIELD);
+        for (String index : indicesRoutingUpdated) {
+            builder.value(index);
+        }
+        builder.endArray();
+        builder.startArray(DELETES_FIELD);
+        for (String index : indicesRoutingDeleted) {
+            builder.value(index);
+        }
+        builder.endArray();
+        builder.endObject();
+        builder.startObject(CLUSTER_STATE_CUSTOM_DIFF_FIELD);
+        builder.startArray(UPSERTS_FIELD);
+        for (String custom : clusterStateCustomUpdated) {
+            builder.value(custom);
+        }
+        builder.endArray();
+        builder.startArray(DELETES_FIELD);
+        for (String custom : clusterStateCustomDeleted) {
+            builder.value(custom);
+        }
+        builder.endArray();
+        builder.endObject();
         return builder;
     }
 

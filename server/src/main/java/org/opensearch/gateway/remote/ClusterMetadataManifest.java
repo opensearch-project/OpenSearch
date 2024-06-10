@@ -424,10 +424,6 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         return diffManifest;
     }
 
-    public UploadedMetadataAttribute getDiscoverNodeMetadata() {
-        return uploadedDiscoveryNodesMetadata;
-    }
-
     public Map<String, UploadedMetadataAttribute> getClusterStateCustomMap() {
         return uploadedClusterStateCustomMap;
     }

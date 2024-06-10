@@ -16,7 +16,6 @@ import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.index.remote.RemoteStoreUtils;
 
@@ -42,21 +41,15 @@ public class RemoteHashesOfConsistentSettings extends AbstractRemoteWritableBlob
         final DiffableStringMap hashesOfConsistentSettings,
         final long metadataVersion,
         final String clusterUUID,
-        final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
+        final Compressor compressor
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, null);
         this.metadataVersion = metadataVersion;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
     }
 
-    public RemoteHashesOfConsistentSettings(
-        final String blobName,
-        final String clusterUUID,
-        final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
-    ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+    public RemoteHashesOfConsistentSettings(final String blobName, final String clusterUUID, final Compressor compressor) {
+        super(clusterUUID, compressor, null);
         this.blobName = blobName;
     }
 

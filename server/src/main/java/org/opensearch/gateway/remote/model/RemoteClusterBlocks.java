@@ -16,7 +16,6 @@ import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -40,25 +39,14 @@ public class RemoteClusterBlocks extends AbstractRemoteWritableBlobEntity<Cluste
     private ClusterBlocks clusterBlocks;
     private long stateVersion;
 
-    public RemoteClusterBlocks(
-        final ClusterBlocks clusterBlocks,
-        long stateVersion,
-        String clusterUUID,
-        final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
-    ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+    public RemoteClusterBlocks(final ClusterBlocks clusterBlocks, long stateVersion, String clusterUUID, final Compressor compressor) {
+        super(clusterUUID, compressor, null);
         this.clusterBlocks = clusterBlocks;
         this.stateVersion = stateVersion;
     }
 
-    public RemoteClusterBlocks(
-        final String blobName,
-        final String clusterUUID,
-        final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
-    ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+    public RemoteClusterBlocks(final String blobName, final String clusterUUID, final Compressor compressor) {
+        super(clusterUUID, compressor, null);
         this.blobName = blobName;
     }
 
