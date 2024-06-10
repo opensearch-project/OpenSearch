@@ -459,8 +459,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         }
     }
 
-    private boolean isLowPriorityUpload() {
-        return isLocalOrSnapshotRecovery();
+    boolean isLowPriorityUpload() {
+        return isLocalOrSnapshotRecoveryOrSeeding();
     }
 
     /**
@@ -550,7 +550,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * @return true iff the shard is a started with primary mode true or it is local or snapshot recovery.
      */
     private boolean isReadyForUpload() {
-        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecovery() || indexShard.shouldSeedRemoteStore();
+        boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecoveryOrSeeding();
 
         if (isReady == false) {
             StringBuilder sb = new StringBuilder("Skipped syncing segments with");
@@ -572,14 +572,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return isReady;
     }
 
-    private boolean isLocalOrSnapshotRecovery() {
+    boolean isLocalOrSnapshotRecoveryOrSeeding() {
         // In this case when the primary mode is false, we need to upload segments to Remote Store
-        // This is required in case of snapshots/shrink/ split/clone where we need to durable persist
+        // This is required in case of remote migration seeding/snapshots/shrink/ split/clone where we need to durable persist
         // all segments to remote before completing the recovery to ensure durability.
         return (indexShard.state() == IndexShardState.RECOVERING && indexShard.shardRouting.primary())
             && indexShard.recoveryState() != null
             && (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT);
+                || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                || indexShard.shouldSeedRemoteStore());
     }
 
     /**

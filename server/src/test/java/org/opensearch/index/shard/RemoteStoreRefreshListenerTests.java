@@ -16,6 +16,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
@@ -37,6 +38,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
@@ -123,6 +125,52 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
 
         closeShards(indexShard);
         super.tearDown();
+    }
+
+    public void testIsLowPriorityUpload() throws IOException {
+        setup(true, 3);
+
+        // Mocking the IndexShard methods and dependent classes.
+        IndexShard shard = mock(IndexShard.class);
+        Store store = mock(Store.class);
+        ShardId shardId = new ShardId("index1", "_na_", 1);
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        shard.shardRouting = shardRouting;
+        when(shard.shouldSeedRemoteStore()).thenReturn(true);
+        when(shard.state()).thenReturn(IndexShardState.RECOVERING);
+        when(shardRouting.primary()).thenReturn(true);
+        when(shard.shardId()).thenReturn(shardId);
+        when(shard.store()).thenReturn(store);
+        when(shard.routingEntry()).thenReturn(shardRouting);
+        when(shard.getThreadPool()).thenReturn(mock(ThreadPool.class));
+        RecoveryState recoveryState = mock(RecoveryState.class);
+        when(recoveryState.getRecoverySource()).thenReturn(RecoverySource.PeerRecoverySource.INSTANCE);
+        when(shard.recoveryState()).thenReturn(recoveryState);
+
+        // Mock the Store, Directory and RemoteSegmentStoreDirectory classes
+        Store remoteStore = mock(Store.class);
+        when(shard.remoteStore()).thenReturn(remoteStore);
+        RemoteDirectory remoteMetadataDirectory = mock(RemoteDirectory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            mock(RemoteDirectory.class),
+            remoteMetadataDirectory,
+            mock(RemoteStoreLockManager.class),
+            mock(ThreadPool.class),
+            shardId
+        );
+        FilterDirectory remoteStoreFilterDirectory = new RemoteStoreRefreshListenerTests.TestFilterDirectory(
+            new RemoteStoreRefreshListenerTests.TestFilterDirectory(remoteSegmentStoreDirectory)
+        );
+        when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
+
+        RemoteStoreRefreshListener remoteStoreRefreshListener = new RemoteStoreRefreshListener(
+            shard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            mock(RemoteSegmentTransferTracker.class),
+            DefaultRemoteStoreSettings.INSTANCE
+        );
+        assertTrue(remoteStoreRefreshListener.isLocalOrSnapshotRecoveryOrSeeding());
+        assertTrue(remoteStoreRefreshListener.isLowPriorityUpload());
     }
 
     public void testRemoteDirectoryInitThrowsException() throws IOException {
