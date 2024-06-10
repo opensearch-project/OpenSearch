@@ -8,6 +8,8 @@
 
 package org.opensearch.common.remote;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -17,6 +19,7 @@ import java.io.InputStream;
  *
  * @param <T> The object type which can be uploaded to or downloaded from remote storage.
  */
+@ExperimentalApi
 public interface RemoteWriteableEntity<T> {
     /**
      * @return An InputStream created by serializing the entity T
