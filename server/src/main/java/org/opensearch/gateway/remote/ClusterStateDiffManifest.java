@@ -471,12 +471,46 @@ public class ClusterStateDiffManifest implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterStateDiffManifest that = (ClusterStateDiffManifest) o;
-        return coordinationMetadataUpdated == that.coordinationMetadataUpdated && settingsMetadataUpdated == that.settingsMetadataUpdated && transientSettingsMetadataUpdated == that.transientSettingsMetadataUpdated && templatesMetadataUpdated == that.templatesMetadataUpdated && clusterBlocksUpdated == that.clusterBlocksUpdated && discoveryNodesUpdated == that.discoveryNodesUpdated && hashesOfConsistentSettingsUpdated == that.hashesOfConsistentSettingsUpdated && Objects.equals(fromStateUUID, that.fromStateUUID) && Objects.equals(toStateUUID, that.toStateUUID) && Objects.equals(customMetadataUpdated, that.customMetadataUpdated) && Objects.equals(customMetadataDeleted, that.customMetadataDeleted) && Objects.equals(indicesUpdated, that.indicesUpdated) && Objects.equals(indicesDeleted, that.indicesDeleted) && Objects.equals(indicesRoutingUpdated, that.indicesRoutingUpdated) && Objects.equals(indicesRoutingDeleted, that.indicesRoutingDeleted) && Objects.equals(clusterStateCustomUpdated, that.clusterStateCustomUpdated) && Objects.equals(clusterStateCustomDeleted, that.clusterStateCustomDeleted);
+        return coordinationMetadataUpdated == that.coordinationMetadataUpdated
+            && settingsMetadataUpdated == that.settingsMetadataUpdated
+            && transientSettingsMetadataUpdated == that.transientSettingsMetadataUpdated
+            && templatesMetadataUpdated == that.templatesMetadataUpdated
+            && clusterBlocksUpdated == that.clusterBlocksUpdated
+            && discoveryNodesUpdated == that.discoveryNodesUpdated
+            && hashesOfConsistentSettingsUpdated == that.hashesOfConsistentSettingsUpdated
+            && Objects.equals(fromStateUUID, that.fromStateUUID)
+            && Objects.equals(toStateUUID, that.toStateUUID)
+            && Objects.equals(customMetadataUpdated, that.customMetadataUpdated)
+            && Objects.equals(customMetadataDeleted, that.customMetadataDeleted)
+            && Objects.equals(indicesUpdated, that.indicesUpdated)
+            && Objects.equals(indicesDeleted, that.indicesDeleted)
+            && Objects.equals(indicesRoutingUpdated, that.indicesRoutingUpdated)
+            && Objects.equals(indicesRoutingDeleted, that.indicesRoutingDeleted)
+            && Objects.equals(clusterStateCustomUpdated, that.clusterStateCustomUpdated)
+            && Objects.equals(clusterStateCustomDeleted, that.clusterStateCustomDeleted);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fromStateUUID, toStateUUID, coordinationMetadataUpdated, settingsMetadataUpdated, transientSettingsMetadataUpdated, templatesMetadataUpdated, customMetadataUpdated, customMetadataDeleted, indicesUpdated, indicesDeleted, clusterBlocksUpdated, discoveryNodesUpdated, indicesRoutingUpdated, indicesRoutingDeleted, hashesOfConsistentSettingsUpdated, clusterStateCustomUpdated, clusterStateCustomDeleted);
+        return Objects.hash(
+            fromStateUUID,
+            toStateUUID,
+            coordinationMetadataUpdated,
+            settingsMetadataUpdated,
+            transientSettingsMetadataUpdated,
+            templatesMetadataUpdated,
+            customMetadataUpdated,
+            customMetadataDeleted,
+            indicesUpdated,
+            indicesDeleted,
+            clusterBlocksUpdated,
+            discoveryNodesUpdated,
+            indicesRoutingUpdated,
+            indicesRoutingDeleted,
+            hashesOfConsistentSettingsUpdated,
+            clusterStateCustomUpdated,
+            clusterStateCustomDeleted
+        );
     }
 
     public static Builder builder() {

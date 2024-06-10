@@ -11,7 +11,6 @@ package org.opensearch.gateway.remote;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.remote.RemoteWriteableEntity;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 

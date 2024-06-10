@@ -32,9 +32,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CUSTOM_DELIMITER;
-import static org.opensearch.gateway.remote.model.RemoteClusterStateCustoms.CLUSTER_STATE_CUSTOM;
-
 /**
  * A Manager which provides APIs to upload and download attributes of ClusterState to the {@link RemoteClusterStateBlobStore}
  *
@@ -77,10 +74,7 @@ public class RemoteClusterStateAttributesManager {
         RemoteClusterStateBlobStore remoteEntityStore,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
-        return () -> remoteEntityStore.writeAsync(
-            blobEntity,
-            getActionListener(component, blobEntity, latchedActionListener)
-        );
+        return () -> remoteEntityStore.writeAsync(blobEntity, getActionListener(component, blobEntity, latchedActionListener));
     }
 
     private ActionListener<Void> getActionListener(

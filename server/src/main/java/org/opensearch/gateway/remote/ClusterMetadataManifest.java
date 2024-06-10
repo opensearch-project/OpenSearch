@@ -762,7 +762,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         re = re && Objects.equals(globalMetadataFileName, that.globalMetadataFileName);
         re = re && Objects.equals(codecVersion, that.codecVersion);
         re = re && Objects.equals(routingTableVersion, that.routingTableVersion);
-        re= re && Objects.equals(indicesRouting, that.indicesRouting);
+        re = re && Objects.equals(indicesRouting, that.indicesRouting);
         re = re && Objects.equals(uploadedCoordinationMetadata, that.uploadedCoordinationMetadata);
         re = re && Objects.equals(uploadedSettingsMetadata, that.uploadedSettingsMetadata);
         re = re && Objects.equals(uploadedTemplatesMetadata, that.uploadedTemplatesMetadata);
