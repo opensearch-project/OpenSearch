@@ -223,7 +223,7 @@ public class RemoteClusterStateService implements Closeable {
     private final String CLUSTER_STATE_UPLOAD_TIME_LOG_STRING = "writing cluster state for version [{}] took [{}ms]";
     private final String METADATA_UPDATE_LOG_STRING = "wrote metadata for [{}] indices and skipped [{}] unchanged "
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
-        + "updated : [{}], custom metadata updated : [{}]";
+        + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
     public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V3;
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 2;
@@ -459,7 +459,8 @@ public class RemoteClusterStateService implements Closeable {
             updateCoordinationMetadata,
             updateSettingsMetadata,
             updateTemplatesMetadata,
-            customsToUpload.size()
+            customsToUpload.size(),
+            indicesRoutingToUpload.size()
         );
         if (durationMillis >= slowWriteLoggingThreshold.getMillis()) {
             logger.warn(
