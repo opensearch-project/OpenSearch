@@ -71,6 +71,8 @@ import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.plugins.ClusterPlugin;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.test.gateway.TestShardBatchGatewayAllocator;
 
@@ -91,7 +93,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadContext = new ThreadContext(Settings.EMPTY);
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
@@ -166,7 +168,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                     return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));
                 }
-            }), clusterInfoService, null, threadContext)
+            }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE))
         );
         assertEquals(e.getMessage(), "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
     }
@@ -177,7 +179,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonList(new FakeAllocationDecider());
             }
-        }), clusterInfoService, null, threadContext);
+        }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
 
@@ -187,7 +189,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonMap(name, supplier);
             }
-        }), clusterInfoService, null, threadContext);
+        }), clusterInfoService, null, threadContext, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
     }
 
     public void testRegisterShardsAllocator() {
@@ -208,7 +210,15 @@ public class ClusterModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new ClusterModule(settings, clusterService, Collections.emptyList(), clusterInfoService, null, threadContext)
+            () -> new ClusterModule(
+                settings,
+                clusterService,
+                Collections.emptyList(),
+                clusterInfoService,
+                null,
+                threadContext,
+                new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+            )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
     }
@@ -292,7 +302,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             Collections.singletonList(existingShardsAllocatorPlugin(GatewayAllocator.ALLOCATOR_NAME)),
             clusterInfoService,
             null,
-            threadContext
+            threadContext,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -307,7 +318,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             Arrays.asList(existingShardsAllocatorPlugin("duplicate"), existingShardsAllocatorPlugin("duplicate")),
             clusterInfoService,
             null,
-            threadContext
+            threadContext,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
         expectThrows(
             IllegalArgumentException.class,
