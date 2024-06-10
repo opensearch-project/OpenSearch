@@ -75,7 +75,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -567,7 +566,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
             // If the key doesn't exist, it's added with a value of 1.
             // If the key exists, its value is incremented by 1.
-            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentMap()).merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
+            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentMap())
+                .merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
         }
 
         /**
