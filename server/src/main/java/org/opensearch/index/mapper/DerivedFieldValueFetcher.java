@@ -25,21 +25,15 @@ import java.util.function.Function;
  * {@link #setNextReader(LeafReaderContext)} whenever a segment is switched.
  */
 @PublicApi(since = "2.14.0")
-public final class DerivedFieldValueFetcher implements ValueFetcher {
+public class DerivedFieldValueFetcher implements ValueFetcher {
     private DerivedFieldScript derivedFieldScript;
     private final DerivedFieldScript.LeafFactory derivedFieldScriptFactory;
 
     private final Function<Object, Object> valueForDisplay;
-    private final Function<Object, IndexableField> indexableFieldFunction;
 
-    public DerivedFieldValueFetcher(
-        DerivedFieldScript.LeafFactory derivedFieldScriptFactory,
-        Function<Object, Object> valueForDisplay,
-        Function<Object, IndexableField> indexableFieldFunction
-    ) {
+    public DerivedFieldValueFetcher(DerivedFieldScript.LeafFactory derivedFieldScriptFactory, Function<Object, Object> valueForDisplay) {
         this.derivedFieldScriptFactory = derivedFieldScriptFactory;
         this.valueForDisplay = valueForDisplay;
-        this.indexableFieldFunction = indexableFieldFunction;
     }
 
     @Override
@@ -55,17 +49,19 @@ public final class DerivedFieldValueFetcher implements ValueFetcher {
         return result;
     }
 
-    private List<Object> fetchValuesInternal(SourceLookup lookup) {
+    public List<Object> fetchValuesInternal(SourceLookup lookup) {
         derivedFieldScript.setDocument(lookup.docId());
         derivedFieldScript.execute();
         return derivedFieldScript.getEmittedValues();
     }
 
-    public List<IndexableField> getIndexableField(SourceLookup lookup) {
+    public List<IndexableField> getIndexableField(SourceLookup lookup, Function<Object, IndexableField> indexableFieldFunction) {
         List<Object> values = fetchValuesInternal(lookup);
         List<IndexableField> indexableFields = new ArrayList<>();
         for (Object v : values) {
-            indexableFields.add(indexableFieldFunction.apply(v));
+            if (v != null) {
+                indexableFields.add(indexableFieldFunction.apply(v));
+            }
         }
         return indexableFields;
     }
