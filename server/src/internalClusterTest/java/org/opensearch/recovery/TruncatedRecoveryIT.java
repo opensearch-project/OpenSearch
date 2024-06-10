@@ -76,6 +76,11 @@ public class TruncatedRecoveryIT extends ParameterizedStaticSettingsOpenSearchIn
         return replicationSettings;
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(MockTransportService.TestPlugin.class);
+    }
+
     /**
      * This test tries to truncate some of larger files in the index to trigger leftovers on the recovery
      * target. This happens during recovery when the last chunk of the file is transferred to the replica
