@@ -51,6 +51,12 @@ setup:
         body:
           my_field: "AbCd"
   - do:
+      index:
+        index: test
+        id: 6
+        body:
+          other_field: "test"
+  - do:
       indices.refresh: {}
 
 ---
@@ -198,3 +204,26 @@ setup:
               my_field:
                 value: ".*06-08.*Cluster-Manager Node.*"
   - match: { hits.total.value: 0 }
+
+---
+"wildcard match-all works":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              my_field:
+                value: "*"
+  - match: { hits.total.value: 5 }
+---
+"regexp match-all works":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              my_field:
+                value: ".*"
+  - match: { hits.total.value: 5 }

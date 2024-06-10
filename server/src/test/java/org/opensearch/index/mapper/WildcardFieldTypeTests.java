@@ -149,4 +149,28 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abcdjk"));
         assertTrue(actualMatchingQuery.getSecondPhaseMatcher().test("abefqwertyhi"));
     }
+
+    public void testWildcardMatchAll() {
+        String pattern = "???";
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        Query actual = ft.wildcardQuery(pattern, null, null);
+        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", ft.existsQuery(null), "???"), actual);
+
+        pattern = "*";
+        actual = ft.wildcardQuery(pattern, null, null);
+        assertEquals(ft.existsQuery(null), actual);
+    }
+
+    public void testRegexpMatchAll() {
+        // The following matches any string of length exactly 3. We do need to evaluate the predicate.
+        String pattern = "...";
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+        Query actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
+        assertEquals(new WildcardFieldMapper.WildcardMatchingQuery("field", ft.existsQuery(null), "/.../"), actual);
+
+        // The following pattern has a predicate that matches everything. We can just return the field exists query.
+        pattern = ".*";
+        actual = ft.regexpQuery(pattern, 0, 0, 1000, null, null);
+        assertEquals(ft.existsQuery(null), actual);
+    }
 }

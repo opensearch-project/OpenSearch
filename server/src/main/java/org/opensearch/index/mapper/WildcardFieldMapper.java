@@ -23,6 +23,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -448,14 +449,20 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 };
             }
 
-            return new WildcardMatchingQuery(
-                name(),
-                matchAllTermsQuery(name(), getRequiredNGrams(finalValue)),
-                matchPredicate,
-                value,
-                context,
-                this
-            );
+            Set<String> requiredNGrams = getRequiredNGrams(finalValue);
+            Query approximation;
+            if (requiredNGrams.isEmpty()) {
+                // This only happens when all characters are wildcard characters (* or ?),
+                // or it's the empty string.
+                if (value.length() == 0 || value.contains("?")) {
+                    approximation = this.existsQuery(context);
+                } else {
+                    return existsQuery(context);
+                }
+            } else {
+                approximation = matchAllTermsQuery(name(), requiredNGrams);
+            }
+            return new WildcardMatchingQuery(name(), approximation, matchPredicate, value, context, this);
         }
 
         // Package-private for testing
@@ -540,10 +547,23 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Automaton automaton = regExp.toAutomaton(maxDeterminizedStates);
             CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
 
-            return new WildcardMatchingQuery(name(), regexpToQuery(name(), regExp), s -> {
-                BytesRef valueBytes = BytesRefs.toBytesRef(s);
-                return compiledAutomaton.runAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length);
-            }, "/" + value + "/", context, this);
+            Predicate<String> regexpPredicate;
+            if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.ALL) {
+                return existsQuery(context);
+            } else if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.NONE) {
+                return new MatchNoDocsQuery("Regular expression matches nothing");
+            } else {
+                regexpPredicate = s -> {
+                    BytesRef valueBytes = BytesRefs.toBytesRef(s);
+                    return compiledAutomaton.runAutomaton.run(valueBytes.bytes, valueBytes.offset, valueBytes.length);
+                };
+            }
+
+            Query approximation = regexpToQuery(name(), regExp);
+            if (approximation instanceof MatchAllDocsQuery) {
+                approximation = existsQuery(context);
+            }
+            return new WildcardMatchingQuery(name(), approximation, regexpPredicate, "/" + value + "/", context, this);
         }
 
         /**
@@ -602,6 +622,8 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 }
             if (query.clauses().size() == 1) {
                 return query.iterator().next().getQuery();
+            } else if (query.clauses().size() == 0) {
+                return new MatchAllDocsQuery();
             }
             return query;
         }
@@ -704,7 +726,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public String toString(String s) {
-            return "WildcardMatchingQuery(" + fieldName + "\"" + patternString + "\")";
+            return "WildcardMatchingQuery(" + fieldName + ":\"" + patternString + "\")";
         }
 
         @Override
