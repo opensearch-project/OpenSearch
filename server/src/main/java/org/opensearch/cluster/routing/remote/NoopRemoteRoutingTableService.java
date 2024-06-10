@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Noop impl for RemoteRoutingTableService.
+ */
 public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent implements RemoteRoutingTableService {
 
     @Override

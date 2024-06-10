@@ -185,16 +185,6 @@ public class RemoteStorePathStrategy {
             return super.fixedSubPath().add(shardId).add(dataCategory.getName()).add(dataType.getName());
         }
 
-        @Override
-        public void assertIsValid() {
-            super.assertIsValid();
-            assert dataCategory.isSupportedDataType(dataType) : "category:"
-                + dataCategory
-                + " type:"
-                + dataType
-                + " are not supported together";
-        }
-
         /**
          * Returns a new builder for {@link ShardDataPathInput}.
          */
