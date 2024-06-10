@@ -1440,7 +1440,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         final UploadedIndexMetadata uploadedIndiceRoutingMetadata = new UploadedIndexMetadata(
             "test-index",
@@ -1489,7 +1490,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when((blobStoreRepository.basePath())).thenReturn(BlobPath.cleanPath().add("base-path"));
 
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid");
+        final ClusterMetadataManifest manifest = remoteClusterStateService.writeFullMetadata(clusterState, "prev-cluster-uuid")
+            .getClusterMetadataManifest();
 
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         final UploadedIndexMetadata uploadedIndiceRoutingMetadata = new UploadedIndexMetadata(
@@ -1545,7 +1547,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             previousClusterState,
             clusterState,
             previousManifest
-        );
+        ).getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
         final UploadedIndexMetadata uploadedIndiceRoutingMetadata = new UploadedIndexMetadata(
             "test-index",
