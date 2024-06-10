@@ -996,11 +996,4 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
                 + '}';
         }
     }
-
-    // TODO https://github.com/opensearch-project/OpenSearch/pull/14089
-    public static class ClusterStateDiffManifest {
-        public String getFromStateUUID() {
-            return null;
-        }
-    }
 }

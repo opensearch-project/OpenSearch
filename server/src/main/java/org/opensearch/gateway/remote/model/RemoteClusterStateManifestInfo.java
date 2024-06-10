@@ -10,6 +10,9 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
+/**
+ * A class encapsulating the cluster state manifest and its remote uploaded path
+ */
 public class RemoteClusterStateManifestInfo {
 
     private final ClusterMetadataManifest clusterMetadataManifest;
