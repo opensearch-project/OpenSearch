@@ -52,6 +52,7 @@ import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
@@ -498,7 +499,7 @@ public final class FastFilterRewriteHelper {
         }
 
         @Override
-        public Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) {
+        public Ranges buildRanges(SearchContext context, MappedFieldType fieldType) {
             assert fieldType instanceof PointFieldType;
             PointFieldType pointFieldType = (PointFieldType) fieldType;
             byte[][] lowers = new byte[ranges.length][];
@@ -587,8 +588,7 @@ public final class FastFilterRewriteHelper {
                 long lower = i == 0 ? low : fieldType.convertRoundedMillisToNanos(roundedLow);
                 roundedLow = preparedRounding.round(roundedLow + interval);
 
-                // Subtract -1 if the minimum is roundedLow as roundedLow itself
-                // is included in the next bucket
+                // plus one on high value because upper bound is exclusive, but high value exists
                 long upper = i + 1 == bucketCount ? high + 1 : fieldType.convertRoundedMillisToNanos(roundedLow);
 
                 ranges[i][0] = lower;
@@ -600,10 +600,8 @@ public final class FastFilterRewriteHelper {
         byte[][] lowers = new byte[ranges.length][];
         byte[][] uppers = new byte[ranges.length][];
         for (int i = 0; i < ranges.length; i++) {
-            byte[] lower = new byte[8];
-            byte[] max = new byte[8];
-            LongPoint.encodeDimension(ranges[i][0], lower, 0);
-            LongPoint.encodeDimension(ranges[i][1], max, 0);
+            byte[] lower = LONG.encodePoint(ranges[i][0]);
+            byte[] max = LONG.encodePoint(ranges[i][1]);
             lowers[i] = lower;
             uppers[i] = max;
         }
