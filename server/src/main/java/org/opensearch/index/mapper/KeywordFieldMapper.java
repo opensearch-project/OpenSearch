@@ -703,7 +703,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
+    static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
