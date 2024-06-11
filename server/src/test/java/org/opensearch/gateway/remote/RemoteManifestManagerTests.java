@@ -16,6 +16,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
@@ -35,7 +36,6 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
-import static org.opensearch.threadpool.ThreadPool.Names.REMOTE_STATE_READ;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -45,7 +45,6 @@ public class RemoteManifestManagerTests extends OpenSearchTestCase {
     private RemoteManifestManager remoteManifestManager;
     private ClusterSettings clusterSettings;
     private BlobStoreRepository blobStoreRepository;
-    private RemoteClusterStateBlobStore<ClusterMetadataManifest, RemoteClusterMetadataManifest> remoteWritableEntityStore;
     private BlobStore blobStore;
     private BlobStoreTransferService blobStoreTransferService;
     private ThreadPool threadPool;
@@ -65,20 +64,16 @@ public class RemoteManifestManagerTests extends OpenSearchTestCase {
         blobStore = mock(BlobStore.class);
         when(blobStoreRepository.blobStore()).thenReturn(blobStore);
         threadPool = new TestThreadPool("test");
-        remoteWritableEntityStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            "test-cluster-name",
-            threadPool,
-            REMOTE_STATE_READ
-        );
+        Compressor compressor = new NoneCompressor();
+        when(blobStoreRepository.getCompressor()).thenReturn(compressor);
+        when(blobStoreRepository.getNamedXContentRegistry()).thenReturn(xContentRegistry);
         remoteManifestManager = new RemoteManifestManager(
-            remoteWritableEntityStore,
             clusterSettings,
+            "test-cluster-name",
             "test-node-id",
-            new NoneCompressor(),
-            xContentRegistry,
-            blobStoreRepository
+            blobStoreRepository,
+            blobStoreTransferService,
+            threadPool
         );
     }
 

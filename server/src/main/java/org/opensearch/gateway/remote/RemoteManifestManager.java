@@ -26,7 +26,9 @@ import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -67,19 +69,25 @@ public class RemoteManifestManager {
     private final BlobStoreRepository blobStoreRepository;
 
     RemoteManifestManager(
-        RemoteClusterStateBlobStore<ClusterMetadataManifest, RemoteClusterMetadataManifest> manifestBlobStore,
         ClusterSettings clusterSettings,
+        String clusterName,
         String nodeId,
-        Compressor compressor,
-        NamedXContentRegistry namedXContentRegistry,
-        BlobStoreRepository blobStoreRepository
+        BlobStoreRepository blobStoreRepository,
+        BlobStoreTransferService blobStoreTransferService,
+        ThreadPool threadpool
     ) {
         this.metadataManifestUploadTimeout = clusterSettings.get(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING);
         this.nodeId = nodeId;
-        this.manifestBlobStore = manifestBlobStore;
+        this.manifestBlobStore = new RemoteClusterStateBlobStore<>(
+                blobStoreTransferService,
+                blobStoreRepository,
+                clusterName,
+                threadpool,
+                ThreadPool.Names.REMOTE_STATE_READ
+            );;
         clusterSettings.addSettingsUpdateConsumer(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING, this::setMetadataManifestUploadTimeout);
-        this.compressor = compressor;
-        this.namedXContentRegistry = namedXContentRegistry;
+        this.compressor = blobStoreRepository.getCompressor();
+        this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
         this.blobStoreRepository = blobStoreRepository;
     }
 

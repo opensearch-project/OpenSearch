@@ -18,7 +18,11 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
+import org.opensearch.index.translog.transfer.BlobStoreTransferService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -50,14 +54,21 @@ public class RemoteIndexMetadataManager {
     private volatile TimeValue indexMetadataUploadTimeout;
 
     public RemoteIndexMetadataManager(
-        RemoteWritableEntityStore<IndexMetadata, RemoteIndexMetadata> indexMetadataBlobStore,
         ClusterSettings clusterSettings,
-        Compressor compressor,
-        NamedXContentRegistry namedXContentRegistry
+        String clusterName,
+        BlobStoreRepository blobStoreRepository,
+        BlobStoreTransferService blobStoreTransferService,
+        ThreadPool threadpool
     ) {
-        this.indexMetadataBlobStore = indexMetadataBlobStore;
-        this.compressor = compressor;
-        this.namedXContentRegistry = namedXContentRegistry;
+        this.indexMetadataBlobStore = new RemoteClusterStateBlobStore<>(
+            blobStoreTransferService,
+            blobStoreRepository,
+            clusterName,
+            threadpool,
+            ThreadPool.Names.REMOTE_STATE_READ
+        );;
+        this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
+        this.compressor = blobStoreRepository.getCompressor();
         this.indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING, this::setIndexMetadataUploadTimeout);
     }

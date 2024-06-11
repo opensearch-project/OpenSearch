@@ -15,11 +15,8 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
-import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.Metadata.Custom;
-import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
@@ -29,7 +26,6 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.remote.RemoteWritableEntityStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -40,13 +36,9 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
-import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.gateway.remote.model.RemoteCoordinationMetadata;
 import org.opensearch.gateway.remote.model.RemoteCustomMetadata;
-import org.opensearch.gateway.remote.model.RemoteGlobalMetadata;
-import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
 import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
 import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -123,11 +115,6 @@ public class RemoteClusterStateService implements Closeable {
     private RemoteIndexMetadataManager remoteIndexMetadataManager;
     private RemoteGlobalMetadataManager remoteGlobalMetadataManager;
     private RemoteManifestManager remoteManifestManager;
-    private RemoteWritableEntityStore<Metadata, RemoteGlobalMetadata> globalMetadataBlobStore;
-    private RemoteClusterStateBlobStore<CoordinationMetadata, RemoteCoordinationMetadata> coordinationMetadataBlobStore;
-    private RemoteClusterStateBlobStore<Settings, RemotePersistentSettingsMetadata> persistentSettingsBlobStore;
-    private RemoteClusterStateBlobStore<TemplatesMetadata, RemoteTemplatesMetadata> templatesMetadataBlobStore;
-    private RemoteClusterStateBlobStore<Custom, RemoteCustomMetadata> customMetadataBlobStore;
     private ClusterSettings clusterSettings;
     private final String CLUSTER_STATE_UPLOAD_TIME_LOG_STRING = "writing cluster state for version [{}] took [{}ms]";
     private final String METADATA_UPDATE_LOG_STRING = "wrote metadata for [{}] indices and skipped [{}] unchanged "
@@ -421,7 +408,7 @@ public class RemoteClusterStateService implements Closeable {
                         blobStoreRepository.getCompressor(),
                         blobStoreRepository.getNamedXContentRegistry()
                     ),
-                    persistentSettingsBlobStore,
+                    remoteGlobalMetadataManager.getPersistentSettingsBlobStore(),
                     listener
                 )
             );
@@ -437,7 +424,7 @@ public class RemoteClusterStateService implements Closeable {
                         blobStoreRepository.getCompressor(),
                         blobStoreRepository.getNamedXContentRegistry()
                     ),
-                    coordinationMetadataBlobStore,
+                    remoteGlobalMetadataManager.getCoordinationMetadataBlobStore(),
                     listener
                 )
             );
@@ -453,7 +440,7 @@ public class RemoteClusterStateService implements Closeable {
                         blobStoreRepository.getCompressor(),
                         blobStoreRepository.getNamedXContentRegistry()
                     ),
-                    templatesMetadataBlobStore,
+                    remoteGlobalMetadataManager.getTemplatesMetadataBlobStore(),
                     listener
                 )
             );
@@ -471,7 +458,7 @@ public class RemoteClusterStateService implements Closeable {
                         blobStoreRepository.getCompressor(),
                         blobStoreRepository.getNamedXContentRegistry()
                     ),
-                    customMetadataBlobStore,
+                    remoteGlobalMetadataManager.getCustomMetadataBlobStore(),
                     listener
                 )
             );
@@ -703,79 +690,26 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteRoutingTableService.start();
         blobStoreTransferService = new BlobStoreTransferService(getBlobStore(), threadpool);
         String clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
-        globalMetadataBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
-        );
-        coordinationMetadataBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
-        );
-        persistentSettingsBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
-        );
-        templatesMetadataBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
-        );
-        customMetadataBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
-        );
+
         remoteGlobalMetadataManager = new RemoteGlobalMetadataManager(
             clusterSettings,
-            globalMetadataBlobStore,
-            coordinationMetadataBlobStore,
-            persistentSettingsBlobStore,
-            templatesMetadataBlobStore,
-            customMetadataBlobStore,
-            blobStoreRepository.getCompressor(),
-            blobStoreRepository.getNamedXContentRegistry()
-        );
-        RemoteClusterStateBlobStore<IndexMetadata, RemoteIndexMetadata> indexMetadataBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
             clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
+            blobStoreRepository, blobStoreTransferService, threadpool
         );
         remoteIndexMetadataManager = new RemoteIndexMetadataManager(
-            indexMetadataBlobStore,
             clusterSettings,
-            blobStoreRepository.getCompressor(),
-            blobStoreRepository.getNamedXContentRegistry()
+            clusterName,
+            blobStoreRepository,
+            blobStoreTransferService,
+            threadpool
         );
-        RemoteClusterStateBlobStore<ClusterMetadataManifest, RemoteClusterMetadataManifest> manifestBlobStore =
-            new RemoteClusterStateBlobStore<>(
-                blobStoreTransferService,
-                blobStoreRepository,
-                clusterName,
-                threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
-            );
         remoteManifestManager = new RemoteManifestManager(
-            manifestBlobStore,
             clusterSettings,
+            clusterName,
             nodeId,
-            blobStoreRepository.getCompressor(),
-            blobStoreRepository.getNamedXContentRegistry(),
-            blobStoreRepository
+            blobStoreRepository,
+            blobStoreTransferService,
+            threadpool
         );
     }
 
