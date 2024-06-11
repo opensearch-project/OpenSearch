@@ -593,7 +593,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         }
     }
 
-    private List<UploadedIndexMetadata> randomUploadedIndexMetadataList() {
+    public static List<UploadedIndexMetadata> randomUploadedIndexMetadataList() {
         final int size = randomIntBetween(1, 10);
         final List<UploadedIndexMetadata> uploadedIndexMetadataList = new ArrayList<>(size);
         while (uploadedIndexMetadataList.size() < size) {
@@ -602,7 +602,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         return uploadedIndexMetadataList;
     }
 
-    private UploadedIndexMetadata randomUploadedIndexMetadata() {
+    private static UploadedIndexMetadata randomUploadedIndexMetadata() {
         return new UploadedIndexMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 

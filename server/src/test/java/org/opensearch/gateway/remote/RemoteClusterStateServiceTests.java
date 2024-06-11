@@ -55,7 +55,7 @@ import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
+import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.TestCustomMetadata;
@@ -95,7 +95,6 @@ import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIM
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.FORMAT_PARAMS;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_PLAIN_FORMAT;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.getFormattedIndexFileName;
 import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
@@ -182,7 +181,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings))
+            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+            writableRegistry()
         );
     }
 
@@ -214,7 +214,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 clusterService,
                 () -> 0L,
                 threadPool,
-                List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings))
+                List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+                writableRegistry()
             )
         );
     }
@@ -309,8 +310,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
         assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
 
-        assertEquals(7, actionListenerArgumentCaptor.getAllValues().size());
-        assertEquals(7, writeContextArgumentCaptor.getAllValues().size());
+        assertEquals(11, actionListenerArgumentCaptor.getAllValues().size());
+        assertEquals(11, writeContextArgumentCaptor.getAllValues().size());
 
         byte[] writtenBytes = capturedWriteContext.get("metadata")
             .getStreamProvider(Integer.MAX_VALUE)
@@ -597,6 +598,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Function<ClusterState, ClusterState> updater = (initialClusterState) -> ClusterState.builder(initialClusterState)
             .metadata(
                 Metadata.builder(initialClusterState.metadata())
+                    .version(initialClusterState.metadata().version() + 1)
                     .coordinationMetadata(
                         CoordinationMetadata.builder(initialClusterState.coordinationMetadata())
                             .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("excludedNodeId", "excludedNodeName"))
@@ -989,10 +991,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         remoteClusterStateService.start();
         assertEquals(
-            remoteClusterStateService.getLatestClusterState(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID())
-                .getMetadata()
-                .getIndices()
-                .size(),
+            remoteClusterStateService.getLatestClusterState(
+                clusterState.getClusterName().value(),
+                clusterState.metadata().clusterUUID(),
+                false
+            ).getMetadata().getIndices().size(),
             0
         );
     }
@@ -1018,13 +1021,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         remoteClusterStateService.start();
         Exception e = assertThrows(
-            IllegalStateException.class,
+            RemoteStateTransferException.class,
             () -> remoteClusterStateService.getLatestClusterState(
                 clusterState.getClusterName().value(),
-                clusterState.metadata().clusterUUID()
+                clusterState.metadata().clusterUUID(),
+                false
             ).getMetadata().getIndices()
         );
-        assertEquals(e.getMessage(), "Error while downloading IndexMetadata - " + uploadedIndexMetadata.getUploadedFilename());
+        assertEquals("Exception during reading cluster state from remote", e.getMessage());
     }
 
     public void testReadLatestMetadataManifestSuccess() throws IOException {
@@ -1091,7 +1095,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         ClusterState newClusterState = remoteClusterStateService.getLatestClusterState(
             clusterState.getClusterName().value(),
-            clusterState.metadata().clusterUUID()
+            clusterState.metadata().clusterUUID(),
+            false
         );
 
         assertTrue(Metadata.isGlobalStateEquals(newClusterState.getMetadata(), expectedMetadata));
@@ -1134,7 +1139,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             IllegalStateException.class,
             () -> remoteClusterStateService.getLatestClusterState(
                 clusterState.getClusterName().value(),
-                clusterState.metadata().clusterUUID()
+                clusterState.metadata().clusterUUID(),
+                false
             )
         );
         assertEquals(e.getMessage(), "Error while downloading Global Metadata - " + globalIndexMetadataName);
@@ -1173,7 +1179,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestClusterState(
             clusterState.getClusterName().value(),
-            clusterState.metadata().clusterUUID()
+            clusterState.metadata().clusterUUID(),
+            false
         ).getMetadata().getIndices();
 
         assertEquals(indexMetadataMap.size(), 1);
@@ -1327,7 +1334,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings))
+            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings)),
+            writableRegistry()
         );
         assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
     }
@@ -1425,8 +1433,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getIndicesRouting().get(0).getIndexUUID(), is(uploadedIndiceRoutingMetadata.getIndexUUID()));
         assertThat(manifest.getIndicesRouting().get(0).getUploadedFilename(), notNullValue());
 
-        assertEquals(8, actionListenerArgumentCaptor.getAllValues().size());
-        assertEquals(8, writeContextArgumentCaptor.getAllValues().size());
+        assertEquals(12, actionListenerArgumentCaptor.getAllValues().size());
+        assertEquals(12, writeContextArgumentCaptor.getAllValues().size());
     }
 
     public void testWriteIncrementalMetadataSuccessWithRoutingTable() throws IOException {
@@ -1493,7 +1501,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterService,
             () -> 0L,
             threadPool,
-            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings))
+            List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings)),
+            writableRegistry()
         );
     }
 
@@ -1852,20 +1861,21 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> getFileNameFromPath(entry.getValue().getUploadedFilename())));
 
-            ChecksumBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumBlobStoreFormat<>(
-                "custom",
-                METADATA_NAME_PLAIN_FORMAT,
-                null
-            );
+            // ChecksumBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumBlobStoreFormat<>(
+            // "custom",
+            // METADATA_NAME_PLAIN_FORMAT,
+            // null
+            // );
+
+            ChecksumWritableBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumWritableBlobStoreFormat<>("custom", null);
             for (Map.Entry<String, String> entry : customFileMap.entrySet()) {
                 String custom = entry.getKey();
                 String fileName = entry.getValue();
-                when(blobContainer.readBlob(customMetadataFormat.blobName(fileName))).thenAnswer((invocation) -> {
+                when(blobContainer.readBlob(fileName)).thenAnswer((invocation) -> {
                     BytesReference bytesReference = customMetadataFormat.serialize(
                         metadata.custom(custom),
                         fileName,
-                        blobStoreRepository.getCompressor(),
-                        FORMAT_PARAMS
+                        blobStoreRepository.getCompressor()
                     );
                     return new ByteArrayInputStream(bytesReference.streamInput().readAllBytes());
                 });
