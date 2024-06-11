@@ -150,4 +150,9 @@ public interface SearchPhaseContext extends Executor {
      * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
      */
     void addReleasable(Releasable releasable);
+
+    /**
+     * Set the resource usage info for this phase
+     */
+    void setPhaseResourceUsages();
 }

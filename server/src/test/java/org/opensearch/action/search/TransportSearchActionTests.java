@@ -487,7 +487,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                 new SearchRequestContext(
                     new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                    searchRequest
+                    searchRequest,
+                    () -> null
                 )
             );
             if (localIndices == null) {
@@ -549,7 +550,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {
@@ -590,7 +592,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {
@@ -652,7 +655,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {
@@ -696,7 +700,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {
@@ -751,7 +756,8 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     new SearchRequestContext(
                         new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                        searchRequest
+                        searchRequest,
+                        () -> null
                     )
                 );
                 if (localIndices == null) {

@@ -33,6 +33,7 @@ package org.opensearch.cluster.coordination;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
@@ -47,6 +48,9 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.core.transport.TransportResponse.Empty;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
+import org.opensearch.telemetry.TestInMemoryMetricsRegistry;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.EqualsHashCodeTestUtils.CopyFunction;
@@ -131,6 +135,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
+
         final FollowersChecker followersChecker = new FollowersChecker(
             settings,
             clusterSettings,
@@ -139,7 +145,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             (node, reason) -> {
                 assert false : node;
             },
-            () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info")
+            () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"),
+            new ClusterManagerMetrics(metricsRegistry)
         );
 
         followersChecker.setCurrentNodes(discoveryNodesHolder[0]);
@@ -193,35 +200,43 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         followersChecker.clearCurrentNodes();
         deterministicTaskQueue.runAllTasks();
         assertThat(checkedNodes, empty());
+        assertEquals(Integer.valueOf(0), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
     }
 
     public void testFailsNodeThatDoesNotRespond() {
         final Settings settings = randomSettings();
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
         testBehaviourOfFailingNode(
             settings,
             () -> null,
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis()
                 + FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) * FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings).millis(),
-            () -> new StatusInfo(HEALTHY, "healthy-info")
+            () -> new StatusInfo(HEALTHY, "healthy-info"),
+            metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
     }
 
     public void testFailsNodeThatRejectsCheck() {
         final Settings settings = randomSettings();
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
         testBehaviourOfFailingNode(
             settings,
             () -> { throw new OpenSearchException("simulated exception"); },
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(),
-            () -> new StatusInfo(HEALTHY, "healthy-info")
+            () -> new StatusInfo(HEALTHY, "healthy-info"),
+            metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
     }
 
     public void testFailureCounterResetsOnSuccess() {
         final Settings settings = randomSettings();
         final int retryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
         final int maxRecoveries = randomIntBetween(3, 10);
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
 
         // passes just enough checks to keep it alive, up to maxRecoveries, and then fails completely
         testBehaviourOfFailingNode(settings, new Supplier<Empty>() {
@@ -241,18 +256,23 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) * (maxRecoveries + 1) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings)
                 .millis(),
-            () -> new StatusInfo(HEALTHY, "healthy-info")
+            () -> new StatusInfo(HEALTHY, "healthy-info"),
+            metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
     }
 
     public void testFailsNodeThatIsDisconnected() {
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
         testBehaviourOfFailingNode(
             Settings.EMPTY,
             () -> { throw new ConnectTransportException(null, "simulated exception"); },
             "disconnected",
             0,
-            () -> new StatusInfo(HEALTHY, "healthy-info")
+            () -> new StatusInfo(HEALTHY, "healthy-info"),
+            metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
     }
 
     public void testFailsNodeThatDisconnects() {
@@ -297,6 +317,7 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean nodeFailed = new AtomicBoolean();
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
 
         final FollowersChecker followersChecker = new FollowersChecker(
             settings,
@@ -307,7 +328,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 assertTrue(nodeFailed.compareAndSet(false, true));
                 assertThat(reason, equalTo("disconnected"));
             },
-            () -> new StatusInfo(HEALTHY, "healthy-info")
+            () -> new StatusInfo(HEALTHY, "healthy-info"),
+            new ClusterManagerMetrics(metricsRegistry)
         );
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
@@ -318,16 +340,20 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(nodeFailed.get());
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
+        assertEquals(Integer.valueOf(1), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
     }
 
     public void testFailsNodeThatIsUnhealthy() {
+        TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
         testBehaviourOfFailingNode(
             randomSettings(),
             () -> { throw new NodeHealthCheckFailureException("non writable exception"); },
             "health check failed",
             0,
-            () -> new StatusInfo(HEALTHY, "healthy-info")
+            () -> new StatusInfo(HEALTHY, "healthy-info"),
+            metricsRegistry
         );
+        assertEquals(Integer.valueOf(2), metricsRegistry.getCounterStore().get("followers.checker.failure.count").getCounterValue());
     }
 
     private void testBehaviourOfFailingNode(
@@ -335,7 +361,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         Supplier<TransportResponse.Empty> responder,
         String failureReason,
         long expectedFailureTime,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        MetricsRegistry metricsRegistry
     ) {
         final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -386,7 +413,6 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean nodeFailed = new AtomicBoolean();
-
         final FollowersChecker followersChecker = new FollowersChecker(
             settings,
             clusterSettings,
@@ -396,7 +422,8 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
                 assertTrue(nodeFailed.compareAndSet(false, true));
                 assertThat(reason, equalTo(failureReason));
             },
-            nodeHealthService
+            nodeHealthService,
+            new ClusterManagerMetrics(metricsRegistry)
         );
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
@@ -501,7 +528,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             if (exception != null) {
                 throw exception;
             }
-        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(UNHEALTHY, "unhealthy-info"));
+        },
+            (node, reason) -> { assert false : node; },
+            () -> new StatusInfo(UNHEALTHY, "unhealthy-info"),
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+        );
 
         final long leaderTerm = randomLongBetween(2, Long.MAX_VALUE);
         final long followerTerm = randomLongBetween(1, leaderTerm - 1);
@@ -574,7 +605,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             if (exception != null) {
                 throw exception;
             }
-        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"));
+        },
+            (node, reason) -> { assert false : node; },
+            () -> new StatusInfo(HEALTHY, "healthy-info"),
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+        );
 
         {
             // Does not call into the coordinator in the normal case
@@ -721,7 +756,11 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
         );
         final FollowersChecker followersChecker = new FollowersChecker(Settings.EMPTY, clusterSettings, transportService, fcr -> {
             assert false : fcr;
-        }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"));
+        },
+            (node, reason) -> { assert false : node; },
+            () -> new StatusInfo(HEALTHY, "healthy-info"),
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+        );
         followersChecker.setCurrentNodes(discoveryNodes);
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
             .map(cr -> cr.node)

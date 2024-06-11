@@ -70,7 +70,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
     private BlobStoreTransferService blobStoreTransferService;
     private TimeValue staleFileCleanupInterval;
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
-    private AsyncStaleFileDeletion staleFileDeletionTask;
+    private volatile AsyncStaleFileDeletion staleFileDeletionTask;
     private long lastCleanupAttemptStateVersion;
     private final ThreadPool threadpool;
     private final ClusterApplierService clusterApplierService;
@@ -403,6 +403,11 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         @Override
         protected void runInternal() {
             remoteClusterStateCleanupManager.cleanUpStaleFiles();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.REMOTE_PURGE;
         }
     }
 }

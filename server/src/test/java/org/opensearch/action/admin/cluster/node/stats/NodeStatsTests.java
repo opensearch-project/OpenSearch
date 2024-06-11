@@ -682,24 +682,22 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 );
             }
             JvmStats.Classes classes = new JvmStats.Classes(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-            jvmStats = frequently()
-                ? new JvmStats(
+            jvmStats = new JvmStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new JvmStats.Mem(
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    new JvmStats.Mem(
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        memoryPools
-                    ),
-                    threads,
-                    garbageCollectors,
-                    randomBoolean() ? Collections.emptyList() : bufferPoolList,
-                    classes
-                )
-                : null;
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    memoryPools
+                ),
+                threads,
+                garbageCollectors,
+                randomBoolean() ? Collections.emptyList() : bufferPoolList,
+                classes
+            );
         }
         ThreadPoolStats threadPoolStats = null;
         if (frequently()) {
