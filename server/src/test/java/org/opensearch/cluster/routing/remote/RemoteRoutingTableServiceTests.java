@@ -51,6 +51,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -58,6 +59,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import static org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService.INDEX_ROUTING_FILE_PREFIX;
 import static org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService.INDEX_ROUTING_PATH_TOKEN;
@@ -71,6 +73,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -756,4 +759,28 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64
         );
     }
+
+    public void testDeleteStaleIndexRoutingPaths() throws IOException {
+        doNothing().when(blobContainer).deleteBlobsIgnoringIfNotExists(any());
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        List<String> stalePaths = Arrays.asList("path1", "path2");
+        remoteRoutingTableService.doStart();
+        remoteRoutingTableService.deleteStaleIndexRoutingPaths(stalePaths);
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
+    }
+
+    public void testDeleteStaleIndexRoutingPathsThrowsIOException() throws IOException {
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        List<String> stalePaths = Arrays.asList("path1", "path2");
+        // Simulate an IOException
+        doThrow(new IOException("test exception")).when(blobContainer).deleteBlobsIgnoringIfNotExists(Mockito.anyList());
+
+        remoteRoutingTableService.doStart();
+        IOException thrown = assertThrows(IOException.class, () -> {
+            remoteRoutingTableService.deleteStaleIndexRoutingPaths(stalePaths);
+        });
+        assertEquals("test exception", thrown.getMessage());
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
+    }
+
 }

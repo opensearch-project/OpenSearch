@@ -367,4 +367,15 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     @Override
     protected void doStop() {}
 
+    @Override
+    public void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException {
+        try {
+            logger.debug(() -> "Deleting stale index routing files from remote - " + stalePaths);
+            blobStoreRepository.blobStore().blobContainer(BlobPath.cleanPath()).deleteBlobsIgnoringIfNotExists(stalePaths);
+        } catch (IOException e) {
+            logger.error(() -> new ParameterizedMessage("Failed to delete some stale index routing paths from {}", stalePaths), e);
+            throw e;
+        }
+    }
+
 }

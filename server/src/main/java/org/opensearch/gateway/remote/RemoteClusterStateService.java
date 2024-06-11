@@ -193,7 +193,6 @@ public class RemoteClusterStateService implements Closeable {
         clusterSettings.addSettingsUpdateConsumer(REMOTE_STATE_READ_TIMEOUT_SETTING, this::setRemoteStateReadTimeout);
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(this, clusterService);
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
         this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
             repositoriesService,
@@ -201,6 +200,7 @@ public class RemoteClusterStateService implements Closeable {
             clusterSettings,
             threadPool
         );
+        this.remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(this, clusterService, remoteRoutingTableService);
     }
 
     /**
