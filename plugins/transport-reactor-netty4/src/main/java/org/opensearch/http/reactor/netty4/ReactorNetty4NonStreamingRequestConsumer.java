@@ -25,7 +25,7 @@ import reactor.core.publisher.FluxSink;
 import reactor.netty.http.server.HttpServerRequest;
 import reactor.netty.http.server.HttpServerResponse;
 
-class NonStreamingRequestConsumer<T extends HttpContent> implements Consumer<T>, Publisher<HttpContent>, Disposable {
+class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements Consumer<T>, Publisher<HttpContent>, Disposable {
     private final HttpServerRequest request;
     private final HttpServerResponse response;
     private final CompositeByteBuf content;
@@ -34,7 +34,7 @@ class NonStreamingRequestConsumer<T extends HttpContent> implements Consumer<T>,
     private final AtomicBoolean disposed = new AtomicBoolean(false);
     private volatile FluxSink<HttpContent> emitter;
 
-    NonStreamingRequestConsumer(
+    ReactorNetty4NonStreamingRequestConsumer(
         AbstractHttpServerTransport transport,
         HttpServerRequest request,
         HttpServerResponse response,
@@ -64,12 +64,12 @@ class NonStreamingRequestConsumer<T extends HttpContent> implements Consumer<T>,
         }
     }
 
-    public void process(HttpContent in, FluxSink<HttpContent> emitter) {
+    void process(HttpContent in, FluxSink<HttpContent> emitter) {
         // Consume request body in full before dispatching it
         content.addComponent(true, in.content().retain());
 
         if (in instanceof LastHttpContent) {
-            final NonStreamingHttpChannel channel = new NonStreamingHttpChannel(request, response, emitter);
+            final ReactorNetty4NonStreamingHttpChannel channel = new ReactorNetty4NonStreamingHttpChannel(request, response, emitter);
             final HttpRequest r = createRequest(request, content);
 
             try {
