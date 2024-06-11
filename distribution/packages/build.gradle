@@ -160,9 +160,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
       }
       from(rootProject.projectDir) {
         include 'README.md'
-        filePermissions {
-          unix 0644
-        }
+        fileMode 0644
       }
       into('lib') {
         with libFiles()
@@ -185,9 +183,9 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
             directory('/' + segments[0..i].join('/'), 0755)
           }
           if (segments[-2] == 'bin' || segments[-1] == 'jspawnhelper') {
-            fcp.permissions(perm -> perm.unix(0755))
+            fcp.mode = 0755
           } else {
-            fcp.permissions(perm -> perm.unix(0644))
+            fcp.mode = 0644
           }
         }
       }
@@ -197,9 +195,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     if (type == 'deb') {
       into("/usr/share/doc/${packageName}") {
         from "${packagingFiles}/copyright"
-        filePermissions {
-          unix 0644
-        }
+        fileMode 0644
       }
     } else {
       assert type == 'rpm'
@@ -208,9 +204,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
           include 'APACHE-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
         }
-        filePermissions {
-          unix 0644
-        }
+        fileMode 0644
       }
     }
 
@@ -219,9 +213,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     configurationFile '/etc/opensearch/jvm.options'
     configurationFile '/etc/opensearch/log4j2.properties'
     from("${packagingFiles}") {
-      dirPermissions {
-        unix 0750
-      }
+      dirMode 0750
       into('/etc')
       permissionGroup 'opensearch'
       includeEmptyDirs true
@@ -231,12 +223,8 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     }
     from("${packagingFiles}/etc/opensearch") {
       into('/etc/opensearch')
-      dirPermissions {
-        unix 0750
-      }
-      filePermissions{
-        unix 0660
-      }
+      dirMode 0750
+      fileMode 0660
       permissionGroup 'opensearch'
       includeEmptyDirs true
       createDirectoryEntry true
@@ -247,46 +235,34 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
       permissionGroup 'opensearch'
-      filePermissions {
-        unix 0660
-      }
+      fileMode 0660
       from "${packagingFiles}/env/opensearch"
     }
 
     // ========= systemd =========
     into('/usr/lib/tmpfiles.d') {
       from "${packagingFiles}/systemd/opensearch.conf"
-      filePermissions {
-        unix 0644
-      }
+      fileMode 0644
     }
     into('/usr/lib/systemd/system') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/opensearch.service"
-      filePermissions {
-        unix 0644
-      }
+      fileMode 0644
     }
     into('/usr/lib/sysctl.d') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/sysctl/opensearch.conf"
-      filePermissions {
-        unix 0644
-      }
+      fileMode 0644
     }
     into('/usr/share/opensearch/bin') {
       from "${packagingFiles}/systemd/systemd-entrypoint"
-      filePermissions {
-        unix 0755
-      }
+      fileMode 0755
     }
 
     // ========= sysV init =========
     configurationFile '/etc/init.d/opensearch'
     into('/etc/init.d') {
-      filePermissions {
-        unix 0750
-      }
+      fileMode 0750
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/init.d/opensearch"
     }
@@ -302,9 +278,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
         createDirectoryEntry true
         user u
         permissionGroup g
-        dirPermissions {
-          unix mode
-        }
+        dirMode mode
       }
     }
     copyEmptyDir('/var/log/opensearch', 'opensearch', 'opensearch', 0750)
@@ -367,9 +341,7 @@ Closure commonDebConfig(boolean jdk, String architecture) {
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/opensearch')
-      filePermissions {
-        unix 0644
-      }
+      fileMode 0644
     }
   }
 }

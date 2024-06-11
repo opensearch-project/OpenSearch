@@ -37,8 +37,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ProjectDependency;
-import org.gradle.api.internal.artifacts.ivyservice.LenientConfigurationInternal;
-import org.gradle.api.internal.artifacts.ivyservice.ResolvedFilesCollectingVisitor;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -55,13 +53,9 @@ public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
             Configuration runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
-
-            final ResolvedFilesCollectingVisitor visitor = new ResolvedFilesCollectingVisitor();
-            final LenientConfigurationInternal configuration = (LenientConfigurationInternal) runtimeClasspath.getResolvedConfiguration()
-                .getLenientConfiguration();
-            configuration.select(dependency -> dependency instanceof ProjectDependency == false).visitArtifacts(visitor, false);
-
-            t.setDependencies(project.files(visitor.getFiles()).minus(compileOnly));
+            t.setDependencies(
+                runtimeClasspath.fileCollection(dependency -> dependency instanceof ProjectDependency == false).minus(compileOnly)
+            );
         });
 
         // we also create the updateShas helper task that is associated with dependencyLicenses

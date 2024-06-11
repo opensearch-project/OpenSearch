@@ -39,17 +39,11 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         with libFiles()
       }
       into('config') {
-        dirPermissions {
-          unix 0750
-        }
-        filePermissions {
-          unix 0660
-        }
+        dirMode 0750
+        fileMode 0660
         with configFiles(distributionType, java)
         from {
-          dirPermissions {
-            unix 0750
-          }
+          dirMode 0750
           jvmOptionsDir.getParent()
         }
       }
@@ -67,17 +61,13 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       }
       into('') {
         from {
-          dirPermissions {
-            unix 0755
-          }
+          dirMode 0755
           logsDir.getParent()
         }
       }
       into('') {
         from {
-          dirPermissions {
-            unix 0755
-          }
+          dirMode 0755
           pluginsDir.getParent()
         }
       }
