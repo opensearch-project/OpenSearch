@@ -75,6 +75,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static org.opensearch.gateway.PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD;
+import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -171,12 +172,6 @@ public class RemoteClusterStateService implements Closeable {
     /**
      * Manifest format compatible with codec v2, where global metadata file is replaced with multiple metadata attribute files
      */
-    public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT_V2 =
-        new ChecksumBlobStoreFormat<>("cluster-metadata-manifest", METADATA_MANIFEST_NAME_FORMAT, ClusterMetadataManifest::fromXContentV2);
-
-    /**
-     * Manifest format compatible with codec v3, where global metadata file is replaced with multiple metadata attribute files
-     */
     public static final ChecksumBlobStoreFormat<ClusterMetadataManifest> CLUSTER_METADATA_MANIFEST_FORMAT = new ChecksumBlobStoreFormat<>(
         "cluster-metadata-manifest",
         METADATA_MANIFEST_NAME_FORMAT,
@@ -226,7 +221,6 @@ public class RemoteClusterStateService implements Closeable {
         + "indices, coordination metadata updated : [{}], settings metadata updated : [{}], templates metadata "
         + "updated : [{}], custom metadata updated : [{}], indices routing updated : [{}]";
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
-    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V3;
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 2;
 
     // ToXContent Params with gateway mode.
@@ -836,26 +830,25 @@ public class RemoteClusterStateService implements Closeable {
                 committed,
                 MANIFEST_CURRENT_CODEC_VERSION
             );
-            final ClusterMetadataManifest manifest = new ClusterMetadataManifest(
-                clusterState.term(),
-                clusterState.getVersion(),
-                clusterState.metadata().clusterUUID(),
-                clusterState.stateUUID(),
-                Version.CURRENT,
-                nodeId,
-                committed,
-                MANIFEST_CURRENT_CODEC_VERSION,
-                null,
-                uploadedIndexMetadata,
-                previousClusterUUID,
-                clusterState.metadata().clusterUUIDCommitted(),
-                uploadedCoordinationMetadata,
-                uploadedSettingsMetadata,
-                uploadedTemplatesMetadata,
-                uploadedCustomMetadataMap,
-                clusterState.routingTable().version(),
-                uploadedIndicesRouting
-            );
+            final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+                .clusterTerm(clusterState.term())
+                .stateVersion(clusterState.getVersion())
+                .clusterUUID(clusterState.metadata().clusterUUID())
+                .stateUUID(clusterState.stateUUID())
+                .opensearchVersion(Version.CURRENT)
+                .nodeId(nodeId)
+                .committed(committed)
+                .codecVersion(MANIFEST_CURRENT_CODEC_VERSION)
+                .indices(uploadedIndexMetadata)
+                .previousClusterUUID(previousClusterUUID)
+                .clusterUUIDCommitted(clusterState.metadata().clusterUUIDCommitted())
+                .coordinationMetadata(uploadedCoordinationMetadata)
+                .settingMetadata(uploadedSettingsMetadata)
+                .templatesMetadata(uploadedTemplatesMetadata)
+                .customMetadataMap(uploadedCustomMetadataMap)
+                .routingTableVersion(clusterState.routingTable().version())
+                .indicesRouting(uploadedIndicesRouting)
+                .build();
             writeMetadataManifest(clusterState.getClusterName().value(), clusterState.metadata().clusterUUID(), manifest, manifestFileName);
             return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
         }
@@ -1540,8 +1533,6 @@ public class RemoteClusterStateService implements Closeable {
         long codecVersion = getManifestCodecVersion(fileName);
         if (codecVersion == MANIFEST_CURRENT_CODEC_VERSION) {
             return CLUSTER_METADATA_MANIFEST_FORMAT;
-        } else if (codecVersion == ClusterMetadataManifest.CODEC_V2) {
-            return CLUSTER_METADATA_MANIFEST_FORMAT_V2;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V1) {
             return CLUSTER_METADATA_MANIFEST_FORMAT_V1;
         } else if (codecVersion == ClusterMetadataManifest.CODEC_V0) {
