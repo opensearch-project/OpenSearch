@@ -15,6 +15,7 @@ import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -33,6 +34,10 @@ import java.util.function.Predicate;
 
 import static org.apache.lucene.search.PointRangeQuery.checkArgs;
 
+/**
+ * An approximate-able version of {@link PointRangeQuery}. It creates an instance of {@link PointRangeQuery} but short-circuits the intersect logic
+ * after {@code size} is hit
+ */
 public abstract class ApproximatePointRangeQuery extends Query {
     final String field;
     final int numDims;
