@@ -219,7 +219,7 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
         BlobContainer container = mock(BlobContainer.class);
         when(blobStore.blobContainer(any())).thenReturn(container);
         doNothing().when(container).deleteBlobsIgnoringIfNotExists(any());
-
+        remoteClusterStateCleanupManager.start();
         remoteClusterStateCleanupManager.deleteClusterMetadata(clusterName, clusterUUID, activeBlobs, inactiveBlobs);
         verify(container).deleteBlobsIgnoringIfNotExists(
             List.of(

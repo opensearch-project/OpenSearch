@@ -71,7 +71,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
     private long lastCleanupAttemptStateVersion;
     private final ThreadPool threadpool;
     private final ClusterApplierService clusterApplierService;
-    private final RemoteManifestManager remoteManifestManager;
+    private RemoteManifestManager remoteManifestManager;
 
     public RemoteClusterStateCleanupManager(RemoteClusterStateService remoteClusterStateService, ClusterService clusterService) {
         this.remoteClusterStateService = remoteClusterStateService;
@@ -83,11 +83,11 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         // initialize with 0, a cleanup will be done when this node is elected master node and version is incremented more than threshold
         this.lastCleanupAttemptStateVersion = 0;
         clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING, this::updateCleanupInterval);
-        remoteManifestManager = remoteClusterStateService.getRemoteManifestManager();
     }
 
     void start() {
         staleFileDeletionTask = new AsyncStaleFileDeletion(this);
+        remoteManifestManager = remoteClusterStateService.getRemoteManifestManager();
     }
 
     @Override

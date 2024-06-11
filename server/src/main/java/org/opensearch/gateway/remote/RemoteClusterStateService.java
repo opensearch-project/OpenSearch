@@ -682,7 +682,6 @@ public class RemoteClusterStateService implements Closeable {
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         blobStoreRepository = (BlobStoreRepository) repository;
-        remoteClusterStateCleanupManager.start();
         this.remoteRoutingTableService.start();
         blobStoreTransferService = new BlobStoreTransferService(getBlobStore(), threadpool);
         String clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
@@ -709,6 +708,7 @@ public class RemoteClusterStateService implements Closeable {
             blobStoreTransferService,
             threadpool
         );
+        remoteClusterStateCleanupManager.start();
     }
 
     private void setSlowWriteLoggingThreshold(TimeValue slowWriteLoggingThreshold) {

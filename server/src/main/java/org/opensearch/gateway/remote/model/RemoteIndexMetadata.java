@@ -31,7 +31,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAM
  */
 public class RemoteIndexMetadata extends AbstractRemoteWritableBlobEntity<IndexMetadata> {
 
-    public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
+    public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 2;
 
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
