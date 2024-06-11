@@ -328,6 +328,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
+    /**
+     * This collector enhance the delegate collector with pruning ability on term field
+     * The iterators of term field values are wrapped into a priority queue, and able to
+     * pop/prune the values after being collected
+     */
     private static class PruningCollector extends Collector {
 
         private final Collector delegate;
@@ -348,8 +353,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             }
 
             this.queue = new DisiPriorityQueue(postingMap.size());
-            for (Map.Entry<BytesRef, Scorer> entry : postingMap.entrySet()) {
-                queue.add(new DisiWrapper(entry.getValue()));
+            for (Scorer scorer : postingMap.values()) {
+                queue.add(new DisiWrapper(scorer));
             }
 
             competitiveIterator = new DisjunctionDISI(queue);
