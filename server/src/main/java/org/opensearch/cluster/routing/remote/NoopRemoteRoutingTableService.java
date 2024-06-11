@@ -16,6 +16,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.IOException;
@@ -57,6 +58,26 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         List<ClusterMetadataManifest.UploadedIndexMetadata> indicesRoutingUploaded,
         List<String> indicesRoutingToDelete
     ) {
+        // noop
+        return List.of();
+    }
+
+    @Override
+    public CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+        String uploadedFilename,
+        Index index,
+        LatchedActionListener<IndexRoutingTable> latchedActionListener
+    ) {
+        // noop
+        return () -> {};
+    }
+
+    @Override
+    public List<ClusterMetadataManifest.UploadedIndexMetadata> getUpdatedIndexRoutingTableMetadata(
+        List<String> updatedIndicesRouting,
+        List<ClusterMetadataManifest.UploadedIndexMetadata> allIndicesRouting
+    ) {
+        // noop
         return List.of();
     }
 
@@ -72,6 +93,11 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
 
     @Override
     protected void doClose() throws IOException {
+        // noop
+    }
+
+    @Override
+    public void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException {
         // noop
     }
 }

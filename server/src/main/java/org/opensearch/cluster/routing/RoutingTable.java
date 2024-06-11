@@ -79,7 +79,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     // index to IndexRoutingTable map
     private final Map<String, IndexRoutingTable> indicesRouting;
 
-    private RoutingTable(long version, final Map<String, IndexRoutingTable> indicesRouting) {
+    public RoutingTable(long version, final Map<String, IndexRoutingTable> indicesRouting) {
         this.version = version;
         this.indicesRouting = Collections.unmodifiableMap(indicesRouting);
     }

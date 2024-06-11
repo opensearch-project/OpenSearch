@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Move Remote Store Migration from DocRep to GA and modify remote migration settings name ([#14100](https://github.com/opensearch-project/OpenSearch/pull/14100))
 - Derived field object type support ([#13720](https://github.com/opensearch-project/OpenSearch/pull/13720))
 - [Query Insights] Add cpu and memory metrics to top n queries ([#13739](https://github.com/opensearch-project/OpenSearch/pull/13739))
+- Support Dynamic Pruning in Cardinality Aggregation ([#13821](https://github.com/opensearch-project/OpenSearch/pull/13821))
 - Apply the date histogram rewrite optimization to range aggregation ([#13865](https://github.com/opensearch-project/OpenSearch/pull/13865))
 
 ### Dependencies
@@ -74,6 +75,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Pass parent filter to inner hit query ([#13903](https://github.com/opensearch-project/OpenSearch/pull/13903))
 - Fix NPE on restore searchable snapshot ([#13911](https://github.com/opensearch-project/OpenSearch/pull/13911))
 - Fix double invocation of postCollection when MultiBucketCollector is present ([#14015](https://github.com/opensearch-project/OpenSearch/pull/14015))
+- Java high-level REST client bulk() is not respecting the bulkRequest.requireAlias(true) method call ([#14146](https://github.com/opensearch-project/OpenSearch/pull/14146))
 
 ### Security
 
