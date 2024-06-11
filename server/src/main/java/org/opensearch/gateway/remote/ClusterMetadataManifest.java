@@ -1158,8 +1158,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         }
 
         public String getUploadedFilename() {
-            String[] splitPath = uploadedFilename.split("/");
-            return splitPath[splitPath.length - 1];
+            return uploadedFilename;
         }
 
         public String getIndexName() {

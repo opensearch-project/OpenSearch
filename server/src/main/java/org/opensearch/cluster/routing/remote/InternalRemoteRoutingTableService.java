@@ -33,7 +33,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
-import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -52,6 +52,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
 
 /**
@@ -87,7 +88,6 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
     public static final String INDEX_ROUTING_PATH_TOKEN = "index-routing";
     public static final String INDEX_ROUTING_FILE_PREFIX = "index_routing";
-    public static final String DELIMITER = "__";
     public static final String INDEX_ROUTING_METADATA_PREFIX = "indexRouting--";
 
     private static final Logger logger = LogManager.getLogger(InternalRemoteRoutingTableService.class);
@@ -175,10 +175,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
                 )
             ),
             ex -> latchedActionListener.onFailure(
-                new RemoteClusterStateService.RemoteStateTransferException(
-                    "Exception in writing index to remote store: " + indexRouting.getIndex().toString(),
-                    ex
-                )
+                new RemoteStateTransferException("Exception in writing index to remote store: " + indexRouting.getIndex().toString(), ex)
             )
         );
 
