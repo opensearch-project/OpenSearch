@@ -257,7 +257,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                 throw new ExecutionException(ex);
             }
             if (value == null) {
-                NullPointerException npe = new NullPointerException("loader returned a null value");
+                NullPointerException npe = new NullPointerException("Loader returned a null value");
                 future.completeExceptionally(npe);
                 throw new ExecutionException(npe);
             } else {
@@ -271,7 +271,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         try {
             value = completableValue.get();
             if (future.isCompletedExceptionally()) {
-                future.get(); // call get to force the exception to be thrown for other concurrent callers
+                future.get(); // call get to force the same exception to be thrown for other concurrent callers
                 throw new IllegalStateException("Future completed exceptionally but no error thrown");
             }
         } catch (InterruptedException ex) {
