@@ -23,10 +23,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.metrics.data.DoublePointData;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
@@ -147,6 +150,36 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
 
     }
 
+    public void testGaugeWithValueAndTagSupplier() throws Exception {
+        String metricName = "test-gauge";
+        MetricsRegistry metricsRegistry = internalCluster().getInstance(MetricsRegistry.class);
+        InMemorySingletonMetricsExporter.INSTANCE.reset();
+        Tags tags = Tags.create().addTag("test", "integ-test");
+        final AtomicInteger testValue = new AtomicInteger(0);
+        Supplier<TaggedMeasurement> valueProvider = () -> {
+            return TaggedMeasurement.create(Double.valueOf(testValue.incrementAndGet()), tags);
+        };
+        Closeable gaugeCloseable = metricsRegistry.createGauge(metricName, "test", "ms", valueProvider);
+        // Sleep for about 2.2s to wait for metrics to be published.
+        Thread.sleep(2200);
+
+        InMemorySingletonMetricsExporter exporter = InMemorySingletonMetricsExporter.INSTANCE;
+
+        assertTrue(getMaxObservableGaugeValue(exporter, metricName) >= 2.0);
+
+        gaugeCloseable.close();
+        double observableGaugeValueAfterStop = getMaxObservableGaugeValue(exporter, metricName);
+
+        Map<AttributeKey<?>, Object> attributes = getMetricAttributes(exporter, metricName);
+
+        assertEquals("integ-test", attributes.get(AttributeKey.stringKey("test")));
+
+        // Sleep for about 1.2s to wait for metrics to see that closed observableGauge shouldn't execute the callable.
+        Thread.sleep(1200);
+        assertEquals(observableGaugeValueAfterStop, getMaxObservableGaugeValue(exporter, metricName), 0.0);
+
+    }
+
     private static double getMaxObservableGaugeValue(InMemorySingletonMetricsExporter exporter, String metricName) {
         List<MetricData> dataPoints = exporter.getFinishedMetricItems()
             .stream()
@@ -157,6 +190,15 @@ public class TelemetryMetricsEnabledSanityIT extends OpenSearchIntegTestCase {
             totalValue = Math.max(totalValue, ((DoublePointData) metricData.getDoubleGaugeData().getPoints().toArray()[0]).getValue());
         }
         return totalValue;
+    }
+
+    private static Map<AttributeKey<?>, Object> getMetricAttributes(InMemorySingletonMetricsExporter exporter, String metricName) {
+        List<MetricData> dataPoints = exporter.getFinishedMetricItems()
+            .stream()
+            .filter(a -> a.getName().contains(metricName))
+            .collect(Collectors.toList());
+        Attributes attributes = dataPoints.get(0).getDoubleGaugeData().getPoints().stream().findAny().get().getAttributes();
+        return attributes.asMap();
     }
 
     @After

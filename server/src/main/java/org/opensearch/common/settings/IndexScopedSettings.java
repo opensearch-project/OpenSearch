@@ -237,7 +237,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
                 // Settings for concurrent segment search
                 IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING,
-
+                IndexSettings.ALLOW_DERIVED_FIELDS,
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();

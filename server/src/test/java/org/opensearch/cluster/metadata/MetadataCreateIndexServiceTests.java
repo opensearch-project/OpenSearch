@@ -1594,7 +1594,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test-index", "test-index");
 
         Settings indexSettings = aggregateIndexSettings(
             clusterState,
@@ -1675,7 +1675,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 finalClusterSettings
             );
         });
-
+        assertEquals(error.getMessage(), "failed to create index [test-index]");
         assertThat(
             error.getCause().getMessage(),
             containsString("Cluster is migrating to remote store but no remote node found, failing index creation")

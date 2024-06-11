@@ -55,7 +55,6 @@ plugins {
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.25.0" apply false
-  id "org.gradle.test-retry" version "1.5.9" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -70,6 +69,13 @@ apply from: 'gradle/fips.gradle'
 apply from: 'gradle/run.gradle'
 apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
+
+// Disable unconditional publishing of build scans
+develocity {
+  buildScan {
+    publishing.onlyIf { false }
+  }
+}
 
 // common maven publishing configuration
 allprojects {
@@ -462,9 +468,8 @@ gradle.projectsEvaluated {
 
 // test retry configuration
 subprojects {
-  apply plugin: "org.gradle.test-retry"
   tasks.withType(Test).configureEach {
-    retry {
+    develocity.testRetry {
       if (BuildParams.isCi()) {
         maxRetries = 3
         maxFailures = 10

@@ -72,6 +72,7 @@ public class LessThanAssertion extends Assertion {
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is less than [{}] (field: [{}])", actualValue, expectedValue, getField());
+        actualValue = convertActualValue(actualValue, expectedValue);
         assertThat(
             "value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",
             actualValue,

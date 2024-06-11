@@ -10,6 +10,7 @@ package org.opensearch.plugin.insights;
 
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.util.Maps;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -17,6 +18,7 @@ import org.opensearch.plugin.insights.rules.action.top_queries.TopQueries;
 import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
+import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -36,7 +38,6 @@ import static org.opensearch.test.OpenSearchTestCase.buildNewFakeTransportAddres
 import static org.opensearch.test.OpenSearchTestCase.random;
 import static org.opensearch.test.OpenSearchTestCase.randomAlphaOfLengthBetween;
 import static org.opensearch.test.OpenSearchTestCase.randomArray;
-import static org.opensearch.test.OpenSearchTestCase.randomDouble;
 import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
 import static org.opensearch.test.OpenSearchTestCase.randomLong;
 import static org.opensearch.test.OpenSearchTestCase.randomLongBetween;
@@ -63,9 +64,9 @@ final public class QueryInsightsTestUtils {
                 MetricType.LATENCY,
                 randomLongBetween(1000, 10000),
                 MetricType.CPU,
-                randomDouble(),
-                MetricType.JVM,
-                randomDouble()
+                randomLongBetween(1000, 10000),
+                MetricType.MEMORY,
+                randomLongBetween(1000, 10000)
             );
 
             Map<String, Long> phaseLatencyMap = new HashMap<>();
@@ -185,5 +186,20 @@ final public class QueryInsightsTestUtils {
             }
         }
         return true;
+    }
+
+    public static void registerAllQueryInsightsSettings(ClusterSettings clusterSettings) {
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_CPU_QUERIES_ENABLED);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_CPU_QUERIES_SIZE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_CPU_QUERIES_WINDOW_SIZE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_CPU_EXPORTER_SETTINGS);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_MEMORY_QUERIES_ENABLED);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_MEMORY_QUERIES_SIZE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_MEMORY_QUERIES_WINDOW_SIZE);
+        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_MEMORY_EXPORTER_SETTINGS);
     }
 }

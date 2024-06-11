@@ -44,6 +44,10 @@ class ReactorNetty4HttpRequest implements HttpRequest {
     private final Exception inboundException;
     private final boolean pooled;
 
+    ReactorNetty4HttpRequest(HttpServerRequest request) {
+        this(request, new HttpHeadersMap(request.requestHeaders()), new AtomicBoolean(false), false, Unpooled.EMPTY_BUFFER);
+    }
+
     ReactorNetty4HttpRequest(HttpServerRequest request, ByteBuf content) {
         this(request, new HttpHeadersMap(request.requestHeaders()), new AtomicBoolean(false), true, content);
     }

@@ -13,3 +13,50 @@
   - match: { error.root_cause.0.position.offset: 13 }
   - match: { error.root_cause.0.position.start: 0 }
   - match: { error.root_cause.0.position.end: 38 }
+
+---
+"Test modifying params map from script leads to exception":
+  - skip:
+      features: "node_selector"
+
+  - do:
+      put_script:
+        id: "except"
+        body: {"script": {"lang": "painless", "source": "params.that = 3"}}
+
+  - do:
+      indices.create:
+        index: "test"
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              this:
+                type: "integer"
+              that:
+                type: "integer"
+
+  - do:
+      index:
+        index: "test"
+        id: 1
+        body: {"this": 1, "that": 2}
+
+  - do:
+      catch: /unsupported_operation_exception/
+      node_selector:
+        version: "2.15.0 - "
+      update:
+        index: "test"
+        id: 1
+        body:
+          script:
+            id: "except"
+            params: {"this": 2}
+
+  - match: { error.caused_by.position.offset: 6 }
+  - match: { error.caused_by.position.start: 0 }
+  - match: { error.caused_by.position.end: 15 }

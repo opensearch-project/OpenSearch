@@ -14,16 +14,22 @@
 package org.opensearch.http.reactor.netty4;
 
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -36,6 +42,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http2.HttpConversionUtil;
@@ -121,6 +128,11 @@ public class ReactorHttpClient implements Closeable {
         return responses.get(0);
     }
 
+    public final FullHttpResponse stream(InetSocketAddress remoteAddress, HttpRequest httpRequest, Stream<ToXContent> stream)
+        throws InterruptedException {
+        return sendRequestStream(remoteAddress, httpRequest, stream);
+    }
+
     public final FullHttpResponse send(InetSocketAddress remoteAddress, FullHttpRequest httpRequest, HttpContent content)
         throws InterruptedException {
         final List<FullHttpResponse> responses = sendRequests(
@@ -202,6 +214,46 @@ public class ReactorHttpClient implements Closeable {
             } else {
                 return Flux.concat(monos).flatMapSequential(r -> Mono.just(r)).collectList().block();
             }
+        } finally {
+            eventLoopGroup.shutdownGracefully().awaitUninterruptibly();
+        }
+    }
+
+    private FullHttpResponse sendRequestStream(
+        final InetSocketAddress remoteAddress,
+        final HttpRequest request,
+        final Stream<ToXContent> stream
+    ) {
+        final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
+        try {
+            final HttpClient client = createClient(remoteAddress, eventLoopGroup);
+
+            return client.headers(h -> h.add(request.headers()))
+                .baseUrl(request.getUri())
+                .request(request.method())
+                .send(Flux.fromStream(stream).map(s -> {
+                    try (XContentBuilder builder = XContentType.JSON.contentBuilder()) {
+                        return Unpooled.wrappedBuffer(
+                            s.toXContent(builder, ToXContent.EMPTY_PARAMS).toString().getBytes(StandardCharsets.UTF_8)
+                        );
+                    } catch (final IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
+                }))
+                .response(
+                    (r, c) -> c.aggregate()
+                        .map(
+                            b -> new DefaultFullHttpResponse(
+                                r.version(),
+                                r.status(),
+                                b.retain(),
+                                r.responseHeaders(),
+                                EmptyHttpHeaders.INSTANCE
+                            )
+                        )
+                )
+                .blockLast();
+
         } finally {
             eventLoopGroup.shutdownGracefully().awaitUninterruptibly();
         }

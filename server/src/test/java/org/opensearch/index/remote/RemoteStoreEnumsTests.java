@@ -13,7 +13,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.remote.RemoteStoreEnums.DataCategory;
 import org.opensearch.index.remote.RemoteStoreEnums.DataType;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
-import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
+import org.opensearch.index.remote.RemoteStorePathStrategy.ShardDataPathInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -70,7 +70,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         String basePath = getPath(pathList) + indexUUID + SEPARATOR + shardId + SEPARATOR;
         // Translog Data
-        PathInput pathInput = PathInput.builder()
+        ShardDataPathInput pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -82,7 +82,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Translog Metadata
         dataType = METADATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -92,21 +92,10 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         result = FIXED.path(pathInput, null);
         assertEquals(basePath + dataCategory.getName() + SEPARATOR + dataType.getName() + SEPARATOR, result.buildAsString());
 
-        // Translog Lock files - This is a negative case where the assertion will trip.
-        dataType = LOCK_FILES;
-        PathInput finalPathInput = PathInput.builder()
-            .basePath(blobPath)
-            .indexUUID(indexUUID)
-            .shardId(shardId)
-            .dataCategory(dataCategory)
-            .dataType(dataType)
-            .build();
-        assertThrows(AssertionError.class, () -> FIXED.path(finalPathInput, null));
-
         // Segment Data
         dataCategory = SEGMENTS;
         dataType = DATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -118,7 +107,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Segment Metadata
         dataType = METADATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -130,7 +119,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Segment Metadata
         dataType = LOCK_FILES;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -155,7 +144,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         String basePath = getPath(pathList) + indexUUID + SEPARATOR + shardId;
         // Translog Data
-        PathInput pathInput = PathInput.builder()
+        ShardDataPathInput pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -172,7 +161,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         BlobPath fixedBlobPath = BlobPath.cleanPath().add("xjsdhj").add("ddjsha").add("yudy7sd").add("32hdhua7").add("89jdij");
         String fixedIndexUUID = "k2ijhe877d7yuhx7";
         String fixedShardId = "10";
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -184,7 +173,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Translog Metadata
         dataType = METADATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -198,7 +187,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         );
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -208,31 +197,10 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         result = HASHED_PREFIX.path(pathInput, FNV_1A_BASE64);
         assertEquals("oKU5SjILiy4/xjsdhj/ddjsha/yudy7sd/32hdhua7/89jdij/k2ijhe877d7yuhx7/10/translog/metadata/", result.buildAsString());
 
-        // Translog Lock files - This is a negative case where the assertion will trip.
-        dataType = LOCK_FILES;
-        PathInput finalPathInput = PathInput.builder()
-            .basePath(blobPath)
-            .indexUUID(indexUUID)
-            .shardId(shardId)
-            .dataCategory(dataCategory)
-            .dataType(dataType)
-            .build();
-        assertThrows(AssertionError.class, () -> HASHED_PREFIX.path(finalPathInput, null));
-
-        // assert with exact value for known base path
-        pathInput = PathInput.builder()
-            .basePath(fixedBlobPath)
-            .indexUUID(fixedIndexUUID)
-            .shardId(fixedShardId)
-            .dataCategory(dataCategory)
-            .dataType(dataType)
-            .build();
-        assertThrows(AssertionError.class, () -> HASHED_PREFIX.path(finalPathInput, null));
-
         // Segment Data
         dataCategory = SEGMENTS;
         dataType = DATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -246,7 +214,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         );
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -258,7 +226,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Segment Metadata
         dataType = METADATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -272,7 +240,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         );
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -284,7 +252,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Segment Lockfiles
         dataType = LOCK_FILES;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -298,7 +266,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         );
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -323,7 +291,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         String basePath = getPath(pathList) + indexUUID + SEPARATOR + shardId;
         // Translog Data
-        PathInput pathInput = PathInput.builder()
+        ShardDataPathInput pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -342,7 +310,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         BlobPath fixedBlobPath = BlobPath.cleanPath().add("xjsdhj").add("ddjsha").add("yudy7sd").add("32hdhua7").add("89jdij");
         String fixedIndexUUID = "k2ijhe877d7yuhx7";
         String fixedShardId = "10";
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -354,7 +322,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Translog Metadata
         dataType = METADATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -370,7 +338,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         );
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -383,31 +351,10 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
             result.buildAsString()
         );
 
-        // Translog Lock files - This is a negative case where the assertion will trip.
-        dataType = LOCK_FILES;
-        PathInput finalPathInput = PathInput.builder()
-            .basePath(blobPath)
-            .indexUUID(indexUUID)
-            .shardId(shardId)
-            .dataCategory(dataCategory)
-            .dataType(dataType)
-            .build();
-        assertThrows(AssertionError.class, () -> HASHED_PREFIX.path(finalPathInput, null));
-
-        // assert with exact value for known base path
-        pathInput = PathInput.builder()
-            .basePath(fixedBlobPath)
-            .indexUUID(fixedIndexUUID)
-            .shardId(fixedShardId)
-            .dataCategory(dataCategory)
-            .dataType(dataType)
-            .build();
-        assertThrows(AssertionError.class, () -> HASHED_PREFIX.path(finalPathInput, null));
-
         // Segment Data
         dataCategory = SEGMENTS;
         dataType = DATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -423,7 +370,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         );
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -435,7 +382,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Segment Metadata
         dataType = METADATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -451,7 +398,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         );
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -466,7 +413,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Segment Lockfiles
         dataType = LOCK_FILES;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -482,7 +429,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         );
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -509,9 +456,9 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         DataType dataType = DATA;
 
         String basePath = getPath(pathList);
-        basePath = basePath.length() == 0 ? basePath : basePath.substring(0, basePath.length() - 1);
+        basePath = basePath.isEmpty() ? basePath : basePath.substring(0, basePath.length() - 1);
         // Translog Data
-        PathInput pathInput = PathInput.builder()
+        ShardDataPathInput pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -527,7 +474,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         BlobPath fixedBlobPath = BlobPath.cleanPath().add("xjsdhj").add("ddjsha").add("yudy7sd").add("32hdhua7").add("89jdij");
         String fixedIndexUUID = "k2ijhe877d7yuhx7";
         String fixedShardId = "10";
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -541,7 +488,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Translog Metadata
         dataType = METADATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -555,7 +502,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -567,31 +514,10 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         actual = result.buildAsString();
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
 
-        // Translog Lock files - This is a negative case where the assertion will trip.
-        dataType = LOCK_FILES;
-        PathInput finalPathInput = PathInput.builder()
-            .basePath(blobPath)
-            .indexUUID(indexUUID)
-            .shardId(shardId)
-            .dataCategory(dataCategory)
-            .dataType(dataType)
-            .build();
-        assertThrows(AssertionError.class, () -> HASHED_INFIX.path(finalPathInput, null));
-
-        // assert with exact value for known base path
-        pathInput = PathInput.builder()
-            .basePath(fixedBlobPath)
-            .indexUUID(fixedIndexUUID)
-            .shardId(fixedShardId)
-            .dataCategory(dataCategory)
-            .dataType(dataType)
-            .build();
-        assertThrows(AssertionError.class, () -> HASHED_INFIX.path(finalPathInput, null));
-
         // Segment Data
         dataCategory = SEGMENTS;
         dataType = DATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -604,7 +530,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -618,7 +544,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Segment Metadata
         dataType = METADATA;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -631,7 +557,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -645,7 +571,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
 
         // Segment Lockfiles
         dataType = LOCK_FILES;
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(blobPath)
             .indexUUID(indexUUID)
             .shardId(shardId)
@@ -658,7 +584,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
 
         // assert with exact value for known base path
-        pathInput = PathInput.builder()
+        pathInput = ShardDataPathInput.builder()
             .basePath(fixedBlobPath)
             .indexUUID(fixedIndexUUID)
             .shardId(fixedShardId)
@@ -671,7 +597,7 @@ public class RemoteStoreEnumsTests extends OpenSearchTestCase {
         assertTrue(new ParameterizedMessage("expected={} actual={}", expected, actual).getFormattedMessage(), actual.startsWith(expected));
     }
 
-    private String derivePath(String basePath, PathInput pathInput) {
+    private String derivePath(String basePath, ShardDataPathInput pathInput) {
         return "".equals(basePath)
             ? String.join(
                 SEPARATOR,

@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.telemetry.metrics.Counter;
 import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.metrics.tags.Tags;
@@ -23,12 +24,16 @@ import java.util.Optional;
 public final class ClusterManagerMetrics {
 
     private static final String LATENCY_METRIC_UNIT_MS = "ms";
+    private static final String COUNTER_METRICS_UNIT = "1";
 
     public final Histogram clusterStateAppliersHistogram;
     public final Histogram clusterStateListenersHistogram;
     public final Histogram rerouteHistogram;
     public final Histogram clusterStateComputeHistogram;
     public final Histogram clusterStatePublishHistogram;
+
+    public final Counter leaderCheckFailureCounter;
+    public final Counter followerChecksFailureCounter;
 
     public ClusterManagerMetrics(MetricsRegistry metricsRegistry) {
         clusterStateAppliersHistogram = metricsRegistry.createHistogram(
@@ -56,6 +61,16 @@ public final class ClusterManagerMetrics {
             "Histogram for recording time taken to publish a new cluster state",
             LATENCY_METRIC_UNIT_MS
         );
+        followerChecksFailureCounter = metricsRegistry.createCounter(
+            "followers.checker.failure.count",
+            "Counter for number of failed follower checks",
+            COUNTER_METRICS_UNIT
+        );
+        leaderCheckFailureCounter = metricsRegistry.createCounter(
+            "leader.checker.failure.count",
+            "Counter for number of failed leader checks",
+            COUNTER_METRICS_UNIT
+        );
     }
 
     public void recordLatency(Histogram histogram, Double value) {
@@ -68,5 +83,17 @@ public final class ClusterManagerMetrics {
             return;
         }
         histogram.record(value, tags.get());
+    }
+
+    public void incrementCounter(Counter counter, Double value) {
+        incrementCounter(counter, value, Optional.empty());
+    }
+
+    public void incrementCounter(Counter counter, Double value, Optional<Tags> tags) {
+        if (Objects.isNull(tags) || tags.isEmpty()) {
+            counter.add(value);
+            return;
+        }
+        counter.add(value, tags.get());
     }
 }

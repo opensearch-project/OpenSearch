@@ -145,6 +145,9 @@ public final class QueryParserHelper {
 
             MappedFieldType fieldType = context.getMapperService().fieldType(fieldName);
             if (fieldType == null) {
+                fieldType = context.resolveDerivedFieldType(fieldName);
+            }
+            if (fieldType == null) {
                 continue;
             }
 

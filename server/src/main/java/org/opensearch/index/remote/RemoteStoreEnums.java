@@ -95,11 +95,7 @@ public class RemoteStoreEnums {
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.isNull(hashAlgorithm) : "hashAlgorithm is expected to be null with fixed remote store path type";
                 // Hash algorithm is not used in FIXED path type
-                return pathInput.basePath()
-                    .add(pathInput.indexUUID())
-                    .add(pathInput.shardId())
-                    .add(pathInput.dataCategory().getName())
-                    .add(pathInput.dataType().getName());
+                return pathInput.basePath().add(pathInput.fixedSubPath());
             }
 
             @Override
@@ -111,13 +107,7 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                return BlobPath.cleanPath()
-                    .add(hashAlgorithm.hash(pathInput))
-                    .add(pathInput.basePath())
-                    .add(pathInput.indexUUID())
-                    .add(pathInput.shardId())
-                    .add(pathInput.dataCategory().getName())
-                    .add(pathInput.dataType().getName());
+                return BlobPath.cleanPath().add(hashAlgorithm.hash(pathInput)).add(pathInput.basePath()).add(pathInput.fixedSubPath());
             }
 
             @Override
@@ -129,12 +119,7 @@ public class RemoteStoreEnums {
             @Override
             public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
-                return pathInput.basePath()
-                    .add(hashAlgorithm.hash(pathInput))
-                    .add(pathInput.indexUUID())
-                    .add(pathInput.shardId())
-                    .add(pathInput.dataCategory().getName())
-                    .add(pathInput.dataType().getName());
+                return pathInput.basePath().add(hashAlgorithm.hash(pathInput)).add(pathInput.fixedSubPath());
             }
 
             @Override
@@ -186,13 +171,7 @@ public class RemoteStoreEnums {
          * @return the blob path for the path input.
          */
         public BlobPath path(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
-            DataCategory dataCategory = pathInput.dataCategory();
-            DataType dataType = pathInput.dataType();
-            assert dataCategory.isSupportedDataType(dataType) : "category:"
-                + dataCategory
-                + " type:"
-                + dataType
-                + " are not supported together";
+            pathInput.assertIsValid();
             return generatePath(pathInput, hashAlgorithm);
         }
 
@@ -227,9 +206,11 @@ public class RemoteStoreEnums {
         FNV_1A_BASE64(0) {
             @Override
             String hash(PathInput pathInput) {
-                String input = pathInput.indexUUID() + pathInput.shardId() + pathInput.dataCategory().getName() + pathInput.dataType()
-                    .getName();
-                long hash = FNV1a.hash64(input);
+                StringBuilder input = new StringBuilder();
+                for (String path : pathInput.fixedSubPath().toArray()) {
+                    input.append(path);
+                }
+                long hash = FNV1a.hash64(input.toString());
                 return longToUrlBase64(hash);
             }
         },
@@ -240,9 +221,11 @@ public class RemoteStoreEnums {
         FNV_1A_COMPOSITE_1(1) {
             @Override
             String hash(PathInput pathInput) {
-                String input = pathInput.indexUUID() + pathInput.shardId() + pathInput.dataCategory().getName() + pathInput.dataType()
-                    .getName();
-                long hash = FNV1a.hash64(input);
+                StringBuilder input = new StringBuilder();
+                for (String path : pathInput.fixedSubPath().toArray()) {
+                    input.append(path);
+                }
+                long hash = FNV1a.hash64(input.toString());
                 return longToCompositeBase64AndBinaryEncoding(hash, 20);
             }
         };

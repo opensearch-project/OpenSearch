@@ -21,7 +21,6 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
@@ -35,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_FAILRATE_SETTING;
@@ -78,16 +78,12 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(extraSettings)
                 .put(remoteStoreClusterSettings(REPOSITORY_NAME, segmentRepoPath, REPOSITORY_2_NAME, translogRepoPath))
+                .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
                 .build();
         } else {
             logger.info("Adding docrep node");
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).build();
+            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true).build();
         }
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
     }
 
     protected void setFailRate(String repoName, int value) throws ExecutionException, InterruptedException {
@@ -184,10 +180,11 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                     indexSingleDoc(indexName);
                     long currentDocCount = indexedDocs.incrementAndGet();
                     if (currentDocCount > 0 && currentDocCount % refreshFrequency == 0) {
-                        logger.info("--> [iteration {}] flushing index", currentDocCount);
                         if (rarely()) {
+                            logger.info("--> [iteration {}] flushing index", currentDocCount);
                             client().admin().indices().prepareFlush(indexName).get();
                         } else {
+                            logger.info("--> [iteration {}] refreshing index", currentDocCount);
                             client().admin().indices().prepareRefresh(indexName).get();
                         }
                     }

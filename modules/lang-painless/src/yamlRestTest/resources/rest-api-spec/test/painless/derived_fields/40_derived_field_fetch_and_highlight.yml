@@ -1,0 +1,279 @@
+setup:
+  - skip:
+      version: " - 2.14.99"
+      reason: "derived_field feature was added in 2.15"
+
+---
+"Test basic field retrieval":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+              long:
+                type: long
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              geo:
+                type: geo_point
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+              array_of_long:
+                type: long
+              json_field:
+                type: text
+            derived:
+              derived_text:
+                type: text
+                script: "emit(params._source[\"text\"])"
+              derived_text_prefilter_field:
+                type: text
+                script: "emit(params._source[\"text\"])"
+                prefilter_field: "text"
+              derived_keyword:
+                type: keyword
+                script: "emit(params._source[\"keyword\"])"
+              derived_long:
+                type: long
+                script: "emit(params._source[\"long\"])"
+              derived_float:
+                type: float
+                script: "emit(params._source[\"float\"])"
+              derived_double:
+                type: double
+                script: "emit(params._source[\"double\"])"
+              derived_date:
+                type: date
+                script: "emit(ZonedDateTime.parse(params._source[\"date\"]).toInstant().toEpochMilli())"
+              derived_geo:
+                type: geo_point
+                script: "emit(params._source[\"geo\"][0], params._source[\"geo\"][1])"
+              derived_ip:
+                type: ip
+                script: "emit(params._source[\"ip\"])"
+              derived_boolean:
+                type: boolean
+                script: "emit(params._source[\"boolean\"])"
+              derived_array_of_long:
+                type: long
+                script: "emit(params._source[\"array_of_long\"][0]);emit(params._source[\"array_of_long\"][1]);"
+              derived_object:
+                type: object
+                properties:
+                  keyword: keyword
+                script: "emit(params._source[\"json_field\"])"
+                prefilter_field: "json_field"
+                format: "yyyy-MM-dd"
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          text: "peter piper",
+          keyword: "foo",
+          long: 1,
+          float: 1.0,
+          double: 1.0,
+          date: "2017-01-01T00:00:00Z",
+          geo: [0.0, 20.0],
+          ip: "192.168.0.1",
+          boolean: true,
+          array_of_long: [1, 2],
+          json_field: "{\"keyword\":\"json_keyword1\",\"long\":10,\"float\":10.0,\"double\":10.0,\"date\":\"2021-01-01T00:00:00Z\",\"ip\":\"10.0.0.1\",\"boolean\":true, \"array_of_long\": [1, 2]}}"
+        }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          text: "piper picked a peck",
+          keyword: "bar",
+          long: 2,
+          float: 2.0,
+          double: 2.0,
+          date: "2017-01-02T00:00:00Z",
+          geo: [10.0, 30.0],
+          ip: "192.168.0.2",
+          boolean: false,
+          array_of_long: [2, 3],
+          json_field: "{\"keyword\":\"json_keyword2\",\"long\":20,\"float\":20.0,\"double\":20.0,\"date\":\"2021-02-01T00:00:00Z\",\"ip\":\"10.0.0.2\",\"boolean\":false, \"array_of_long\": [2, 3]}}"
+        }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [derived_text, derived_keyword, derived_long, derived_float, derived_double, derived_date, derived_geo, derived_ip, derived_boolean, derived_array_of_long,
+                   derived_object, derived_object.keyword, derived_object.long, derived_object.float, derived_object.double, derived_object.date, derived_object.ip, derived_object.boolean, derived_object.array_of_long]
+
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._source
+
+  - match: { hits.hits.0.fields.derived_text.0: "peter piper" }
+  - match: { hits.hits.0.fields.derived_keyword.0: foo }
+  - match: { hits.hits.0.fields.derived_long.0: 1 }
+  - match: { hits.hits.0.fields.derived_float.0: 1.0 }
+  - match: { hits.hits.0.fields.derived_double.0: 1 }
+  - match: { hits.hits.0.fields.derived_date.0: 2017-01-01T00:00:00.000Z }
+  - match: { hits.hits.0.fields.derived_geo.0.lat: 0.0 }
+  - match: { hits.hits.0.fields.derived_geo.0.lon: 20.0 }
+  - match: { hits.hits.0.fields.derived_ip.0: 192.168.0.1 }
+  - match: { hits.hits.0.fields.derived_array_of_long.0: 1 }
+  - match: { hits.hits.0.fields.derived_array_of_long.1: 2 }
+  - match: { hits.hits.0.fields.derived_object.0: "{\"keyword\":\"json_keyword1\",\"long\":10,\"float\":10.0,\"double\":10.0,\"date\":\"2021-01-01T00:00:00Z\",\"ip\":\"10.0.0.1\",\"boolean\":true, \"array_of_long\": [1, 2]}}" }
+  - match: { hits.hits.0.fields.derived_object\.keyword.0: json_keyword1 }
+  - match: { hits.hits.0.fields.derived_object\.long.0: 10 }
+  - match: { hits.hits.0.fields.derived_object\.float.0: 10.0 }
+  - match: { hits.hits.0.fields.derived_object\.double.0: 10.0 }
+  - match: { hits.hits.0.fields.derived_object\.date.0: 2021-01-01 }
+  - match: { hits.hits.0.fields.derived_object\.ip.0: 10.0.0.1 }
+  - match: { hits.hits.0.fields.derived_object\.boolean.0: true }
+  - match: { hits.hits.0.fields.derived_object\.array_of_long.0: 1 }
+  - match: { hits.hits.0.fields.derived_object\.array_of_long.1: 2 }
+
+  - match: { hits.hits.1.fields.derived_text.0: "piper picked a peck" }
+  - match: { hits.hits.1.fields.derived_keyword.0: bar }
+  - match: { hits.hits.1.fields.derived_long.0: 2 }
+  - match: { hits.hits.1.fields.derived_float.0: 2.0 }
+  - match: { hits.hits.1.fields.derived_double.0: 2 }
+  - match: { hits.hits.1.fields.derived_date.0: 2017-01-02T00:00:00.000Z }
+  - match: { hits.hits.1.fields.derived_geo.0.lat: 10.0 }
+  - match: { hits.hits.1.fields.derived_geo.0.lon: 30.0 }
+  - match: { hits.hits.1.fields.derived_ip.0: 192.168.0.2 }
+  - match: { hits.hits.1.fields.derived_array_of_long.0: 2 }
+  - match: { hits.hits.1.fields.derived_array_of_long.1: 3 }
+  - match: { hits.hits.1.fields.derived_object.0: "{\"keyword\":\"json_keyword2\",\"long\":20,\"float\":20.0,\"double\":20.0,\"date\":\"2021-02-01T00:00:00Z\",\"ip\":\"10.0.0.2\",\"boolean\":false, \"array_of_long\": [2, 3]}}" }
+  - match: { hits.hits.1.fields.derived_object\.keyword.0: json_keyword2 }
+  - match: { hits.hits.1.fields.derived_object\.long.0: 20 }
+  - match: { hits.hits.1.fields.derived_object\.float.0: 20.0 }
+  - match: { hits.hits.1.fields.derived_object\.double.0: 20.0 }
+  - match: { hits.hits.1.fields.derived_object\.date.0: 2021-02-01 }
+  - match: { hits.hits.1.fields.derived_object\.ip.0: 10.0.0.2 }
+  - match: { hits.hits.1.fields.derived_object\.boolean.0: false }
+  - match: { hits.hits.1.fields.derived_object\.array_of_long.0: 2 }
+  - match: { hits.hits.1.fields.derived_object\.array_of_long.1: 3 }
+
+
+---
+"Test highlight":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              array_of_text:
+                type: text
+              json_field:
+                type: text
+            derived:
+              derived_text:
+                type: text
+                script: "emit(params._source[\"text\"])"
+              derived_keyword:
+                type: keyword
+                script: "emit(params._source[\"keyword\"])"
+              derived_array_of_text:
+                type: text
+                script: "emit(params._source[\"array_of_text\"][0]);emit(params._source[\"array_of_text\"][1]);"
+              derived_object:
+                type: object
+                properties:
+                  array_of_text: text
+                script: "emit(params._source[\"json_field\"])"
+                prefilter_field: "json_field"
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          text: "peter piper",
+          keyword: "foo",
+          long: 1,
+          float: 1.0,
+          double: 1.0,
+          date: "2017-01-01T00:00:00Z",
+          geo: [0.0, 20.0],
+          ip: "192.168.0.1",
+          boolean: true,
+          array_of_text: ["The quick brown fox is brown", "The quick brown fox is black"],
+          json_field: "{\"keyword\":\"json_keyword1\",\"long\":10,\"float\":10.0,\"double\":10.0,\"date\":\"2021-01-01T00:00:00Z\",\"ip\":\"10.0.0.1\",\"boolean\":true, \"array_of_text\": [\"The quick brown fox is brown\", \"The quick brown fox is black\"]}}"
+        }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          text: "piper picked a peck",
+          keyword: "bar",
+          long: 2,
+          float: 2.0,
+          double: 2.0,
+          date: "2017-01-02T00:00:00Z",
+          geo: [10.0, 30.0],
+          ip: "192.168.0.2",
+          boolean: false,
+          array_of_text: ["The quick brown fox is brown", "The quick brown fox is black"],
+          json_field: "{\"keyword\":\"json_keyword2\",\"long\":20,\"float\":20.0,\"double\":20.0,\"date\":\"2021-02-01T00:00:00Z\",\"ip\":\"10.0.0.2\",\"boolean\":false, \"array_of_text\": [\"The quick brown fox is brown\", \"The quick brown fox is black\"]}}"
+        }
+
+  - do:
+      indices.refresh:
+        index: [test]
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "query" : {"multi_match" : { "query" : "piper", "fields" : [ "derived_text"] } },
+                "fields": [derived_text],
+                "highlight" : { "type" : "unified", "fields" : { "derived_text" : {} } }
+        }
+
+  - match: {hits.hits.0.highlight.derived_text.0: "peter <em>piper</em>"}
+
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "query" : {"multi_match" : { "query" : "quick brown", "fields" : [ "derived_array_of_text"] } },
+                "fields": [derived_array_of_text],
+                "highlight" : { "type" : "unified", "fields" : { "derived_array_of_text" : {} } }
+        }
+
+  - match: {hits.hits.0.highlight.derived_array_of_text.0: "The <em>quick</em> <em>brown</em> fox is <em>brown</em>"}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase:
+              derived_object.array_of_text:
+                query: "quick brown"
+          highlight:
+            type: unified
+            fields:
+              derived_object.array_of_text: {}
+
+  - match: {hits.hits.0.highlight.derived_object\.array_of_text.0: "The <em>quick</em> <em>brown</em> fox is <em>brown</em>"}

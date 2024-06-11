@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
@@ -22,12 +23,23 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
+import org.opensearch.core.tasks.resourcetracker.ResourceUsageInfo;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
+import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,6 +63,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         Setting.Property.NodeScope
     );
     public static final String TASK_ID = "TASK_ID";
+    public static final String TASK_RESOURCE_USAGE = "TASK_RESOURCE_USAGE";
 
     private static final ThreadMXBean threadMXBean = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
@@ -259,6 +272,86 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true, Collections.singletonList(TASK_ID));
         threadContext.putTransient(TASK_ID, task.getId());
         return storedContext;
+    }
+
+    /**
+     * Get the current task level resource usage.
+     *
+     * @param task {@link SearchShardTask}
+     * @param nodeId the local nodeId
+     */
+    public void writeTaskResourceUsage(SearchShardTask task, String nodeId) {
+        try {
+            // Get resource usages from when the task started
+            ThreadResourceInfo threadResourceInfo = task.getActiveThreadResourceInfo(
+                Thread.currentThread().getId(),
+                ResourceStatsType.WORKER_STATS
+            );
+            if (threadResourceInfo == null) {
+                return;
+            }
+            Map<ResourceStats, ResourceUsageInfo.ResourceStatsInfo> startValues = threadResourceInfo.getResourceUsageInfo().getStatsInfo();
+            if (!(startValues.containsKey(ResourceStats.CPU) && startValues.containsKey(ResourceStats.MEMORY))) {
+                return;
+            }
+            // Get current resource usages
+            ResourceUsageMetric[] endValues = getResourceUsageMetricsForThread(Thread.currentThread().getId());
+            long cpu = -1, mem = -1;
+            for (ResourceUsageMetric endValue : endValues) {
+                if (endValue.getStats() == ResourceStats.MEMORY) {
+                    mem = endValue.getValue();
+                } else if (endValue.getStats() == ResourceStats.CPU) {
+                    cpu = endValue.getValue();
+                }
+            }
+            if (cpu == -1 || mem == -1) {
+                logger.debug("Invalid resource usage value, cpu [{}], memory [{}]: ", cpu, mem);
+                return;
+            }
+
+            // Build task resource usage info
+            TaskResourceInfo taskResourceInfo = new TaskResourceInfo.Builder().setAction(task.getAction())
+                .setTaskId(task.getId())
+                .setParentTaskId(task.getParentTaskId().getId())
+                .setNodeId(nodeId)
+                .setTaskResourceUsage(
+                    new TaskResourceUsage(
+                        cpu - startValues.get(ResourceStats.CPU).getStartValue(),
+                        mem - startValues.get(ResourceStats.MEMORY).getStartValue()
+                    )
+                )
+                .build();
+            // Remove the existing TASK_RESOURCE_USAGE header since it would have come from an earlier phase in the same request.
+            threadPool.getThreadContext().updateResponseHeader(TASK_RESOURCE_USAGE, taskResourceInfo.toString());
+        } catch (Exception e) {
+            logger.debug("Error during writing task resource usage: ", e);
+        }
+    }
+
+    /**
+     * Get the task resource usages from {@link ThreadContext}
+     *
+     * @return {@link TaskResourceInfo}
+     */
+    public TaskResourceInfo getTaskResourceUsageFromThreadContext() {
+        List<String> taskResourceUsages = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE);
+        if (taskResourceUsages != null && taskResourceUsages.size() > 0) {
+            String usage = taskResourceUsages.get(0);
+            try {
+                if (usage != null && !usage.isEmpty()) {
+                    XContentParser parser = XContentHelper.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        new BytesArray(usage),
+                        MediaTypeRegistry.JSON
+                    );
+                    return TaskResourceInfo.PARSER.apply(parser, null);
+                }
+            } catch (IOException e) {
+                logger.debug("fail to parse phase resource usages: ", e);
+            }
+        }
+        return null;
     }
 
     /**

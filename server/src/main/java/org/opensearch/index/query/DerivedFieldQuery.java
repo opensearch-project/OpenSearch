@@ -29,6 +29,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * DerivedFieldQuery used for querying derived fields. It contains the logic to execute an input lucene query against
@@ -39,6 +40,9 @@ public final class DerivedFieldQuery extends Query {
     private final DerivedFieldValueFetcher valueFetcher;
     private final SearchLookup searchLookup;
     private final Analyzer indexAnalyzer;
+    private final boolean ignoreMalformed;
+
+    private final Function<Object, IndexableField> indexableFieldGenerator;
 
     /**
      * @param query lucene query to be executed against the derived field
@@ -46,11 +50,20 @@ public final class DerivedFieldQuery extends Query {
      *                     using LeafSearchLookup
      * @param searchLookup SearchLookup to get the LeafSearchLookup look used by valueFetcher to fetch the _source
      */
-    public DerivedFieldQuery(Query query, DerivedFieldValueFetcher valueFetcher, SearchLookup searchLookup, Analyzer indexAnalyzer) {
+    public DerivedFieldQuery(
+        Query query,
+        DerivedFieldValueFetcher valueFetcher,
+        SearchLookup searchLookup,
+        Analyzer indexAnalyzer,
+        Function<Object, IndexableField> indexableFieldGenerator,
+        boolean ignoreMalformed
+    ) {
         this.query = query;
         this.valueFetcher = valueFetcher;
         this.searchLookup = searchLookup;
         this.indexAnalyzer = indexAnalyzer;
+        this.indexableFieldGenerator = indexableFieldGenerator;
+        this.ignoreMalformed = ignoreMalformed;
     }
 
     @Override
@@ -60,11 +73,11 @@ public final class DerivedFieldQuery extends Query {
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        Query rewritten = indexSearcher.rewrite(query);
+        Query rewritten = query.rewrite(indexSearcher);
         if (rewritten == query) {
             return this;
         }
-        return new DerivedFieldQuery(rewritten, valueFetcher, searchLookup, indexAnalyzer);
+        return new DerivedFieldQuery(rewritten, valueFetcher, searchLookup, indexAnalyzer, indexableFieldGenerator, ignoreMalformed);
     }
 
     @Override
@@ -73,16 +86,23 @@ public final class DerivedFieldQuery extends Query {
         return new ConstantScoreWeight(this, boost) {
             @Override
             public Scorer scorer(LeafReaderContext context) {
-                DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
+                DocIdSetIterator approximation;
+                approximation = DocIdSetIterator.all(context.reader().maxDoc());
                 valueFetcher.setNextReader(context);
                 LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(context);
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() {
                         leafSearchLookup.source().setSegmentAndDocument(context, approximation.docID());
-                        List<IndexableField> indexableFields = valueFetcher.getIndexableField(leafSearchLookup.source());
-                        // TODO: in case of errors from script, should it be ignored and treated as missing field
-                        // by using a configurable setting?
+                        List<IndexableField> indexableFields;
+                        try {
+                            indexableFields = valueFetcher.getIndexableField(leafSearchLookup.source(), indexableFieldGenerator);
+                        } catch (Exception e) {
+                            if (ignoreMalformed) {
+                                return false;
+                            }
+                            throw e;
+                        }
                         MemoryIndex memoryIndex = new MemoryIndex();
                         for (IndexableField indexableField : indexableFields) {
                             memoryIndex.addField(indexableField, indexAnalyzer);

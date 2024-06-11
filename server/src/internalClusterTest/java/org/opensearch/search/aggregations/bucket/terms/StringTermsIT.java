@@ -42,10 +42,12 @@ import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
+import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
+import org.opensearch.search.aggregations.bucket.filter.InternalFilters;
 import org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.ExtendedStats;
@@ -997,6 +999,72 @@ public class StringTermsIT extends BaseStringTermsTestCase {
 
     public void testOtherDocCount() {
         testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
+    }
+
+    public void testDeferredSubAggs() {
+        // Tests subAgg doc count is the same with different collection modes and additional top level aggs
+        SearchResponse r1 = client().prepareSearch("idx")
+            .setSize(0)
+            .addAggregation(
+                terms("terms1").collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                    .field("s_value")
+                    .size(2)
+                    .subAggregation(AggregationBuilders.filters("filter", QueryBuilders.boolQuery()))
+            )
+            .addAggregation(AggregationBuilders.min("min").field("constant"))
+            .get();
+
+        SearchResponse r2 = client().prepareSearch("idx")
+            .setSize(0)
+            .addAggregation(
+                terms("terms1").collectMode(SubAggCollectionMode.DEPTH_FIRST)
+                    .field("s_value")
+                    .size(2)
+                    .subAggregation(AggregationBuilders.filters("filter", QueryBuilders.boolQuery()))
+            )
+            .addAggregation(AggregationBuilders.min("min").field("constant"))
+            .get();
+
+        SearchResponse r3 = client().prepareSearch("idx")
+            .setSize(0)
+            .addAggregation(
+                terms("terms1").collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                    .field("s_value")
+                    .size(2)
+                    .subAggregation(AggregationBuilders.filters("filter", QueryBuilders.boolQuery()))
+            )
+            .get();
+
+        SearchResponse r4 = client().prepareSearch("idx")
+            .setSize(0)
+            .addAggregation(
+                terms("terms1").collectMode(SubAggCollectionMode.DEPTH_FIRST)
+                    .field("s_value")
+                    .size(2)
+                    .subAggregation(AggregationBuilders.filters("filter", QueryBuilders.boolQuery()))
+            )
+            .get();
+
+        assertNotNull(r1.getAggregations().get("terms1"));
+        assertNotNull(r2.getAggregations().get("terms1"));
+        assertNotNull(r3.getAggregations().get("terms1"));
+        assertNotNull(r4.getAggregations().get("terms1"));
+
+        Terms terms = r1.getAggregations().get("terms1");
+        Bucket b1 = terms.getBucketByKey("val0");
+        InternalFilters f1 = b1.getAggregations().get("filter");
+        long docCount1 = f1.getBuckets().get(0).getDocCount();
+        Bucket b2 = terms.getBucketByKey("val1");
+        InternalFilters f2 = b2.getAggregations().get("filter");
+        long docCount2 = f1.getBuckets().get(0).getDocCount();
+
+        for (SearchResponse response : new SearchResponse[] { r2, r3, r4 }) {
+            terms = response.getAggregations().get("terms1");
+            f1 = terms.getBucketByKey(b1.getKeyAsString()).getAggregations().get("filter");
+            f2 = terms.getBucketByKey(b2.getKeyAsString()).getAggregations().get("filter");
+            assertEquals(docCount1, f1.getBuckets().get(0).getDocCount());
+            assertEquals(docCount2, f2.getBuckets().get(0).getDocCount());
+        }
     }
 
     /**

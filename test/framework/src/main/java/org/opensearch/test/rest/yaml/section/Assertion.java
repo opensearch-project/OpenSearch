@@ -37,6 +37,8 @@ import org.opensearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.junit.Assert.fail;
+
 /**
  * Base class for executable sections that hold assertions
  */
@@ -77,6 +79,41 @@ public abstract class Assertion implements ExecutableSection {
             return executionContext.stash().getValue(field);
         }
         return executionContext.response(field);
+    }
+
+    static Object convertActualValue(Object actualValue, Object expectedValue) {
+        if (actualValue == null || expectedValue.getClass().isAssignableFrom(actualValue.getClass())) {
+            return actualValue;
+        }
+        if (actualValue instanceof Number && expectedValue instanceof Number) {
+            if (expectedValue instanceof Float) {
+                return Float.parseFloat(actualValue.toString());
+            } else if (expectedValue instanceof Double) {
+                return Double.parseDouble(actualValue.toString());
+            } else if (expectedValue instanceof Integer) {
+                return Integer.parseInt(actualValue.toString());
+            } else if (expectedValue instanceof Long) {
+                return Long.parseLong(actualValue.toString());
+            }
+        }
+        // Force a class cast exception here, so developers can flesh out the above logic as needed.
+        try {
+            expectedValue.getClass().cast(actualValue);
+        } catch (ClassCastException e) {
+            fail(
+                "Type mismatch: Expected value ("
+                    + expectedValue
+                    + ") has type "
+                    + expectedValue.getClass()
+                    + ". "
+                    + "Actual value ("
+                    + actualValue
+                    + ") has type "
+                    + actualValue.getClass()
+                    + "."
+            );
+        }
+        return actualValue;
     }
 
     @Override

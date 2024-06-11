@@ -852,7 +852,9 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(
-            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "100")
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "100")
+                .put(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "0ms")
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
@@ -883,5 +885,27 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
                 assertEquals(totalFiles, 1L);
             }
         }, 30, TimeUnit.SECONDS);
+
+        // Disabling max translog readers
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "-1"))
+                .get()
+        );
+
+        // Indexing 500 more docs
+        for (int i = 0; i < 500; i++) {
+            indexBulk(INDEX_NAME, 1);
+        }
+
+        // No flush is triggered since max_translog_readers is set to -1
+        // Total tlog files would be incremented by 500
+        try (Stream<Path> files = Files.list(translogLocation)) {
+            long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+            assertEquals(totalFiles, 501L);
+        }
     }
 }

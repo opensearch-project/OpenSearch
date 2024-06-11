@@ -240,7 +240,8 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
-                searchRequest
+                searchRequest,
+                () -> null
             ),
             NoopTracer.INSTANCE
         ) {

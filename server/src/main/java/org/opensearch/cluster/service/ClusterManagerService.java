@@ -21,6 +21,11 @@ import org.opensearch.threadpool.ThreadPool;
  */
 @PublicApi(since = "2.2.0")
 public class ClusterManagerService extends MasterService {
+
+    public ClusterManagerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        super(settings, clusterSettings, threadPool);
+    }
+
     public ClusterManagerService(
         Settings settings,
         ClusterSettings clusterSettings,

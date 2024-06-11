@@ -178,7 +178,8 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         for (int i = 0; i < numRequests; i++) {
             SearchRequestContext searchRequestContext = new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(searchListenersList, logger),
-                searchRequest
+                searchRequest,
+                () -> null
             );
             searchRequestContext.setAbsoluteStartNanos((i < numRequestsLogged) ? 0 : System.nanoTime());
             searchRequestContexts.add(searchRequestContext);
@@ -209,7 +210,8 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
         SearchRequestContext searchRequestContext = new SearchRequestContext(
             new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-            searchRequest
+            searchRequest,
+            () -> null
         );
         SearchRequestSlowLog.SearchRequestSlowLogMessage p = new SearchRequestSlowLog.SearchRequestSlowLogMessage(
             searchPhaseContext,
@@ -233,7 +235,8 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
         SearchRequestContext searchRequestContext = new SearchRequestContext(
             new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-            searchRequest
+            searchRequest,
+            () -> null
         );
         searchRequestContext.updatePhaseTookMap(SearchPhaseName.FETCH.getName(), 10L);
         searchRequestContext.updatePhaseTookMap(SearchPhaseName.QUERY.getName(), 50L);
@@ -262,7 +265,8 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
         SearchRequestContext searchRequestContext = new SearchRequestContext(
             new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-            searchRequest
+            searchRequest,
+            () -> null
         );
         searchRequestContext.updatePhaseTookMap(SearchPhaseName.FETCH.getName(), 10L);
         searchRequestContext.updatePhaseTookMap(SearchPhaseName.QUERY.getName(), 50L);
@@ -291,7 +295,8 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
         SearchRequestContext searchRequestContext = new SearchRequestContext(
             new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-            searchRequest
+            searchRequest,
+            () -> null
         );
         searchRequestContext.updatePhaseTookMap(SearchPhaseName.FETCH.getName(), 10L);
         searchRequestContext.updatePhaseTookMap(SearchPhaseName.QUERY.getName(), 50L);

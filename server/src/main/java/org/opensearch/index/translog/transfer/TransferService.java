@@ -66,6 +66,23 @@ public interface TransferService {
      */
     void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath, WritePriority writePriority) throws IOException;
 
+    /**
+     * Reads the input stream and uploads as a blob
+     * @param inputStream the stream to read from
+     * @param remotePath the remote path where upload should be made
+     * @param blobName the name of blob file
+     * @param writePriority Priority by which content needs to be written.
+     * @param listener the callback to be invoked once uploads complete successfully/fail
+     * @throws IOException the exception thrown while uploading
+     */
+    void uploadBlob(
+        InputStream inputStream,
+        Iterable<String> remotePath,
+        String blobName,
+        WritePriority writePriority,
+        ActionListener<Void> listener
+    ) throws IOException;
+
     void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 
     /**

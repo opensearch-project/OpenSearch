@@ -1,0 +1,105 @@
+---
+"Test default index analyzer simple is applied on derived fields":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.analysis.analyzer.default.type: simple
+          mappings:
+            properties:
+              text:
+                type: text
+              json_field:
+                type: text
+            derived:
+              derived_text:
+                type: text
+                script: "emit(params._source[\"text\"])"
+              derived_object:
+                type: object
+                properties:
+                  array_of_text: text
+                script: "emit(params._source[\"json_field\"])"
+                prefilter_field: "json_field"
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          text: "Email: example@example.com, Visit https://example.com for more info.",
+          json_field: "{\"array_of_text\": [\"Email: example@example.com, Visit https://example.com for more info.\", \"Email: example@example.com, Visit https://example.com for more info.\"]}}"
+        }
+
+  - do:
+      indices.refresh:
+        index: [test]
+  - do:
+      search:
+        index: test
+        q: "derived_text:example.com"
+        analyzer: standard
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test
+        q: "derived_text:example.com"
+        analyzer: simple
+
+  - match: { hits.total.value: 1 }
+
+---
+"Test default index analyzer standard is applied on derived fields":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.analysis.analyzer.default.type: standard
+          mappings:
+            properties:
+              text:
+                type: text
+              json_field:
+                type: text
+            derived:
+              derived_text:
+                type: text
+                script: "emit(params._source[\"text\"])"
+              derived_object:
+                type: object
+                properties:
+                  array_of_text: text
+                script: "emit(params._source[\"json_field\"])"
+                prefilter_field: "json_field"
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          text: "Email: example@example.com, Visit https://example.com for more info.",
+          json_field: "{\"array_of_text\": [\"Email: example@example.com, Visit https://example.com for more info.\", \"Email: example@example.com, Visit https://example.com for more info.\"]}}"
+        }
+
+  - do:
+      indices.refresh:
+        index: [test]
+  - do:
+      search:
+        index: test
+        q: "derived_object.array_of_text:example.com"
+        analyzer: standard
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        q: "derived_object.array_of_text:example.com"
+        analyzer: simple
+
+  - match: { hits.total.value: 1 }

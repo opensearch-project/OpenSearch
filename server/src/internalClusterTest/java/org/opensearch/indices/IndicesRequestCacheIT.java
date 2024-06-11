@@ -631,6 +631,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertCacheState(client, index, 2, 2);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/11374")
     public void testProfileDisableCache() throws Exception {
         Client client = client();
         String index = "index";
@@ -673,6 +674,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/12308")
     public void testCacheWithInvalidation() throws Exception {
         Client client = client();
         String index = "index";
@@ -758,6 +760,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is lower than staleness, it should clean the stale keys from cache
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13540")
     public void testStaleKeysCleanupWithLowThreshold() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
@@ -804,6 +807,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is equal to staleness, it should clean the stale keys from cache
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13503")
     public void testCacheCleanupOnEqualStalenessAndThreshold() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
@@ -982,6 +986,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when cache cleaner interval setting is not set, cache cleaner is configured appropriately with the fall-back setting
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13711")
     public void testCacheCleanupWithDefaultSettings() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
@@ -1022,6 +1027,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // staleness threshold updates flows through to the cache cleaner
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13949")
     public void testDynamicStalenessThresholdUpdate() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
@@ -1169,6 +1175,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is lower than staleness, it should clean the cache from all indices having stale keys
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13437")
     public void testStaleKeysCleanupWithMultipleIndices() throws Exception {
         int cacheCleanIntervalInMillis = 10;
         String node = internalCluster().startNode(
@@ -1223,6 +1230,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13600")
     public void testDeleteAndCreateSameIndexShardOnSameNode() throws Exception {
         String node_1 = internalCluster().startNode(Settings.builder().build());
         Client client = client(node_1);
@@ -1280,8 +1288,8 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         final Index index = state.metadata().index(indexName).getIndex();
 
         assertBusy(() -> {
-            assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(false));
-            assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
+            assertFalse(Arrays.stream(shardDirectory(node_1, index, 0)).anyMatch(Files::exists));
+            assertEquals(1, Arrays.stream(shardDirectory(node_2, index, 0)).filter(Files::exists).count());
         });
 
         logger.info("Moving the shard: {} again from node:{} to node:{}", indexName + "#0", node_2, node_1);
@@ -1294,11 +1302,10 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             .setWaitForNoInitializingShards(true)
             .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
 
         assertBusy(() -> {
-            assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
-            assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(false));
+            assertEquals(1, Arrays.stream(shardDirectory(node_1, index, 0)).filter(Files::exists).count());
+            assertFalse(Arrays.stream(shardDirectory(node_2, index, 0)).anyMatch(Files::exists));
         });
 
         logger.info("Clearing the cache for index:{}. And verify the request stats doesn't go negative", indexName);
@@ -1311,11 +1318,12 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertTrue(stats.getMemorySizeInBytes() == 0);
     }
 
-    private Path shardDirectory(String server, Index index, int shard) {
+    private Path[] shardDirectory(String server, Index index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
         final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
-        assert paths.length == 1;
-        return paths[0];
+        // the available paths of the shard may be bigger than the 1,
+        // it depends on `InternalTestCluster.numDataPaths`.
+        return paths;
     }
 
     private void setupIndex(Client client, String index) throws Exception {
