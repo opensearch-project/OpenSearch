@@ -76,7 +76,6 @@ public class RemoteStorePathStrategy {
         return type.path(pathInput, hashAlgorithm);
     }
 
-
     /**
      * Wrapper class for the path input required to generate path for remote store uploads. This input is composed of
      * basePath and indexUUID.
@@ -89,7 +88,7 @@ public class RemoteStorePathStrategy {
         private final BlobPath basePath;
         private final String indexUUID;
 
-        //Adding for BWC
+        // Adding for BWC
         public BasePathInput(BlobPath basePath, String indexUUID) {
             this.basePath = basePath;
             this.indexUUID = indexUUID;
@@ -167,7 +166,7 @@ public class RemoteStorePathStrategy {
         private final DataCategory dataCategory;
         private final DataType dataType;
 
-        //Adding for BWC
+        // Adding for BWC
         public PathInput(BlobPath basePath, String indexUUID, String shardId, DataCategory dataCategory, DataType dataType) {
             super(basePath, indexUUID);
             this.shardId = shardId;
