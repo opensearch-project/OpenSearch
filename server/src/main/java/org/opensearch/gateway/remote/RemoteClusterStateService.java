@@ -20,6 +20,7 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.Metadata.XContentContext;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
@@ -998,7 +999,8 @@ public class RemoteClusterStateService implements Closeable {
         boolean readClusterBlocks,
         List<UploadedIndexMetadata> indicesRoutingToRead,
         boolean readHashesOfConsistentSettings,
-        Map<String, UploadedMetadataAttribute> clusterStateCustomToRead
+        Map<String, UploadedMetadataAttribute> clusterStateCustomToRead,
+        boolean includeEphemeral
     ) throws IOException {
         int totalReadTasks = indicesToRead.size() + customToRead.size() + (readCoordinationMetadata ? 1 : 0) + (readSettingsMetadata
             ? 1
@@ -1223,7 +1225,10 @@ public class RemoteClusterStateService implements Closeable {
                     indexMetadataMap.put(indexMetadata.getIndex().getName(), indexMetadata);
                     break;
                 case CUSTOM_METADATA:
-                    metadataBuilder.putCustom(remoteReadResult.getComponentName(), (Metadata.Custom) remoteReadResult.getObj());
+                    Metadata.Custom metadataCustom = (Metadata.Custom) remoteReadResult.getObj();
+                    if (includeEphemeral || (!includeEphemeral && metadataCustom.context().contains(XContentContext.GATEWAY))) {
+                        metadataBuilder.putCustom(remoteReadResult.getComponentName(), (Metadata.Custom) remoteReadResult.getObj());
+                    }
                     break;
                 case COORDINATION_METADATA:
                     metadataBuilder.coordinationMetadata((CoordinationMetadata) remoteReadResult.getObj());
@@ -1293,7 +1298,8 @@ public class RemoteClusterStateService implements Closeable {
                 includeEphemeral && manifest.getClusterBlocksMetadata() != null,
                 includeEphemeral ? manifest.getIndicesRouting() : emptyList(),
                 includeEphemeral && manifest.getHashesOfConsistentSettings() != null,
-                includeEphemeral ? manifest.getClusterStateCustomMap() : emptyMap()
+                includeEphemeral ? manifest.getClusterStateCustomMap() : emptyMap(),
+                includeEphemeral
             );
         } else {
             ClusterState clusterState = readClusterStateInParallel(
@@ -1312,7 +1318,8 @@ public class RemoteClusterStateService implements Closeable {
                 false,
                 emptyList(),
                 false,
-                emptyMap()
+                emptyMap(),
+                false
             );
             Metadata.Builder mb = Metadata.builder(remoteGlobalMetadataManager.getGlobalMetadata(manifest.getClusterUUID(), manifest));
             mb.indices(clusterState.metadata().indices());
@@ -1371,7 +1378,8 @@ public class RemoteClusterStateService implements Closeable {
             diff.isClusterBlocksUpdated(),
             updatedIndexRouting,
             diff.isHashesOfConsistentSettingsUpdated(),
-            updatedClusterStateCustom
+            updatedClusterStateCustom,
+            true
         );
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(updatedClusterState);
         Metadata.Builder metadataBuilder = Metadata.builder(updatedClusterState.metadata());

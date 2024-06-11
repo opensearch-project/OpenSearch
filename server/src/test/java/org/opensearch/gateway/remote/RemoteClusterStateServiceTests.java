@@ -598,6 +598,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         Function<ClusterState, ClusterState> updater = (initialClusterState) -> ClusterState.builder(initialClusterState)
             .metadata(
                 Metadata.builder(initialClusterState.metadata())
+                    .version(initialClusterState.metadata().version() + 1)
                     .coordinationMetadata(
                         CoordinationMetadata.builder(initialClusterState.coordinationMetadata())
                             .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("excludedNodeId", "excludedNodeName"))
