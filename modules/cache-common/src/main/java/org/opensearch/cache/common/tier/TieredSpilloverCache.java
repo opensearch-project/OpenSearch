@@ -90,6 +90,10 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
     private final Map<ICache<K, V>, TierInfo> caches;
     private final List<Predicate<V>> policies;
 
+    /**
+     * This map is used to handle concurrent requests for same key in computeIfAbsent() to ensure we load the value
+     * only once.
+     */
     Map<ICacheKey<K>, CompletableFuture<Tuple<ICacheKey<K>, V>>> completableFutureMap = new ConcurrentHashMap<>();
 
     TieredSpilloverCache(Builder<K, V> builder) {
