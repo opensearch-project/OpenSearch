@@ -682,7 +682,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
     public void testGetAsyncIndexMetadataReadActionFailureInBlobRepo() throws Exception {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        String uploadedFileName = String.format(Locale.ROOT,"index-routing/" + indexName);
+        String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
         Index index = new Index(indexName, "uuid-01");
 
         LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
