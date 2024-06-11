@@ -1,0 +1,25 @@
+splunk:
+  conf:
+    - key: web
+      value:
+        directory: /opt/splunk/etc/system/local
+        content:
+          settings:
+            enablesSplunkWebSSL: true
+            privKeyPath: /opt/splunk/etc/auth/custom/splunk.key
+            serverCert: /opt/splunk/etc/auth/custom/splunk.pem
+    - key: server
+      value:
+        directory: /opt/splunk/etc/system/local
+        content:
+          general:
+            serverName: splunk
+            pass4SymmKey: dadqaBZA2fzxHOvfdlSQpKjIooupehTnmjysUx7j+bP1/NucBL+rch/Kw==
+          sslConfig:
+            serverCert: /opt/splunk/etc/auth/custom/splunkhec.pem
+  hec:
+    enable: True
+    ssl: True
+    port: 8088
+    # hec.token is used only for ingestion (receiving Splunk events)
+    token: abcd1234

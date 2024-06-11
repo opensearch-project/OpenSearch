@@ -1,0 +1,296 @@
+{
+  "visualizations": {
+    "viz_oAPKLE0R": {
+      "type": "splunk.column",
+      "options": {
+        "xAxisTitleText": "timestamp",
+        "yAxisTitleText": "Count",
+        "stackMode": "stacked"
+      },
+      "dataSources": {
+        "primary": "ds_TdanKF0I"
+      },
+      "showProgressBar": false,
+      "showLastUpdated": false,
+      "title": "Alerts evolution - Top 5 agents",
+      "description": ""
+    },
+    "viz_Y07WmZ1b": {
+      "type": "splunk.table",
+      "dataSources": {
+        "primary": "ds_ut2DiVW9"
+      },
+      "title": "Security alerts",
+      "description": ""
+    },
+    "viz_DI7fpctI": {
+      "type": "splunk.pie",
+      "dataSources": {
+        "primary": "ds_EmDJmxMO"
+      },
+      "showProgressBar": false,
+      "showLastUpdated": false,
+      "title": "Top Mitre ATT&K tactics"
+    },
+    "viz_qYCIuSjF": {
+      "type": "splunk.singlevalueradial",
+      "options": {
+        "majorColor": "#0258a1",
+        "trendColor": "#000000"
+      },
+      "dataSources": {
+        "primary": "ds_d9cN1Qn9"
+      },
+      "title": "Total"
+    },
+    "viz_aTlMnG7A": {
+      "type": "splunk.singlevalueradial",
+      "options": {
+        "majorColor": "#db566f"
+      },
+      "dataSources": {
+        "primary": "ds_ZPT4uVoe"
+      },
+      "title": "Level 12 or above alerts"
+    },
+    "viz_R8LMR6U6": {
+      "type": "splunk.singlevalueradial",
+      "options": {
+        "majorColor": "#bf0561"
+      },
+      "dataSources": {
+        "primary": "ds_d8m0U7Ph"
+      },
+      "title": "Authentication failure"
+    },
+    "viz_nDMI4ZGW": {
+      "type": "splunk.singlevalueradial",
+      "options": {
+        "majorColor": "#007d73"
+      },
+      "dataSources": {
+        "primary": "ds_7FDRhb5m"
+      },
+      "title": "Authentication success"
+    }
+  },
+  "dataSources": {
+    "ds_TdanKF0I": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" | timechart count by agent.name\n\n",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_1"
+    },
+    "ds_ut2DiVW9": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"rule.mitre.id{}\"=\"*\" | table _time, agent.name, rule.mitre.id{}, rule.mitre.tactic{}, rule.description, rule.level, rule.id\n",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_2"
+    },
+    "ds_EmDJmxMO": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" | top limit=5 agent.name | chart count by agent.name\n",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_3"
+    },
+    "ds_5QIbKzqF": {
+      "type": "ds.search",
+      "options": {
+        "query": "wazuh-alerts-4.x-sample | chart count by rule.groups",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_4"
+    },
+    "ds_d9cN1Qn9": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" | stats count",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_5"
+    },
+    "ds_ZPT4uVoe": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" rule.level>=12 | stats count",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_6"
+    },
+    "ds_d8m0U7Ph": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"rule.groups{}\"=\"authentication_failed\" OR \"rule.groups{}\"=\"win_authentication_failed\" OR \"rule.groups{}\"=\"authentication_failures\" | stats count",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_7"
+    },
+    "ds_7FDRhb5m": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"rule.groups{}\"=authentication_success | stats count",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_8"
+    },
+    "ds_UIfFJptm": {
+      "type": "ds.search",
+      "options": {
+        "query": "wazuh-alerts-4.x-sample | stats count",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_9"
+    },
+    "ds_z3i8WcOf": {
+      "type": "ds.search",
+      "options": {
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        },
+        "query": "wazuh-alerts-4.x-sample rule.groups=\"authentication_failures\" | stats count by rule.groups"
+      },
+      "name": "Search_10"
+    }
+  },
+  "defaults": {
+    "dataSources": {
+      "ds.search": {
+        "options": {
+          "queryParameters": {
+            "latest": "$global_time.latest$",
+            "earliest": "$global_time.earliest$"
+          }
+        }
+      }
+    }
+  },
+  "inputs": {
+    "input_global_trp": {
+      "type": "input.timerange",
+      "options": {
+        "token": "global_time",
+        "defaultValue": "-60m@m,now",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "title": "Global Time Range"
+    }
+  },
+  "layout": {
+    "type": "grid",
+    "options": {},
+    "structure": [
+      {
+        "item": "viz_qYCIuSjF",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 291,
+          "h": 137
+        }
+      },
+      {
+        "item": "viz_oAPKLE0R",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 137,
+          "w": 731,
+          "h": 326
+        }
+      },
+      {
+        "item": "viz_Y07WmZ1b",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 463,
+          "w": 1200,
+          "h": 400
+        }
+      },
+      {
+        "item": "viz_aTlMnG7A",
+        "type": "block",
+        "position": {
+          "x": 291,
+          "y": 0,
+          "w": 286,
+          "h": 137
+        }
+      },
+      {
+        "item": "viz_R8LMR6U6",
+        "type": "block",
+        "position": {
+          "x": 577,
+          "y": 0,
+          "w": 301,
+          "h": 137
+        }
+      },
+      {
+        "item": "viz_DI7fpctI",
+        "type": "block",
+        "position": {
+          "x": 731,
+          "y": 137,
+          "w": 469,
+          "h": 326
+        }
+      },
+      {
+        "item": "viz_nDMI4ZGW",
+        "type": "block",
+        "position": {
+          "x": 878,
+          "y": 0,
+          "w": 322,
+          "h": 137
+        }
+      }
+    ],
+    "globalInputs": [
+      "input_global_trp"
+    ]
+  },
+  "description": "",
+  "title": "wazuh-security-events-v1.0"
+}

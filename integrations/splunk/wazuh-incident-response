@@ -1,0 +1,135 @@
+{
+  "visualizations": {
+    "viz_bRMOrrNo": {
+      "type": "splunk.pie",
+      "options": {
+        "showDonutHole": true
+      },
+      "dataSources": {
+        "primary": "ds_T5OG9qjO"
+      },
+      "title": "Alert groups"
+    },
+    "viz_iOvmhhgU": {
+      "type": "splunk.table",
+      "options": {},
+      "dataSources": {
+        "primary": "ds_tnYl87gQ"
+      }
+    },
+    "viz_P0bNNVfw": {
+      "type": "splunk.column",
+      "options": {
+        "stackMode": "stacked",
+        "xAxisTitleText": "timestamp",
+        "yAxisTitleText": "count"
+      },
+      "dataSources": {
+        "primary": "ds_GccX6Lrj"
+      },
+      "title": "Events"
+    }
+  },
+  "dataSources": {
+    "ds_T5OG9qjO": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"rule.groups{}\"=\"*\" | top limit=5 \"rule.groups{}\" | chart count by \"rule.groups{}\" useother=false usenull=false",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_1"
+    },
+    "ds_tnYl87gQ": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"agent.name\"=\"*\", \"rule.groups{}\"=\"*\", \"rule.description\"=\"*\", \"rule.level\"=\"*\", \"rule.id\"=\"*\" | table _time, agent.name, rule.groups{}, rule.description, rule.level, rule.id",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_2"
+    },
+    "ds_GccX6Lrj": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"rule.groups{}\"=\"audit\" | timechart count by \"rule.groups{}\"",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_3"
+    }
+  },
+  "defaults": {
+    "dataSources": {
+      "ds.search": {
+        "options": {
+          "queryParameters": {
+            "latest": "$global_time.latest$",
+            "earliest": "$global_time.earliest$"
+          }
+        }
+      }
+    }
+  },
+  "inputs": {
+    "input_global_trp": {
+      "type": "input.timerange",
+      "options": {
+        "token": "global_time",
+        "defaultValue": "-60m@m,now",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "title": "Global Time Range"
+    }
+  },
+  "layout": {
+    "type": "grid",
+    "options": {},
+    "structure": [
+      {
+        "item": "viz_bRMOrrNo",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 388,
+          "h": 292
+        }
+      },
+      {
+        "item": "viz_iOvmhhgU",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 292,
+          "w": 1200,
+          "h": 399
+        }
+      },
+      {
+        "item": "viz_P0bNNVfw",
+        "type": "block",
+        "position": {
+          "x": 388,
+          "y": 0,
+          "w": 812,
+          "h": 292
+        }
+      }
+    ],
+    "globalInputs": [
+      "input_global_trp"
+    ]
+  },
+  "description": "",
+  "title": "wazuh-incident-response-v1.0"
+}

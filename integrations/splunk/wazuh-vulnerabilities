@@ -1,0 +1,261 @@
+{
+  "visualizations": {
+    "viz_XlLyYDmC": {
+      "type": "splunk.area",
+      "dataSources": {
+        "primary": "ds_DljIxEDR"
+      },
+      "options": {
+        "stackMode": "stacked",
+        "xAxisTitleText": "timestamp",
+        "yAxisTitleText": "count"
+      },
+      "title": "Alert severity"
+    },
+    "viz_qzFw5Wx7": {
+      "type": "splunk.table",
+      "options": {},
+      "dataSources": {
+        "primary": "ds_Irx4cEkl"
+      }
+    },
+    "viz_3V3AvVY4": {
+      "type": "splunk.singlevalueradial",
+      "dataSources": {
+        "primary": "ds_oyvgAG73"
+      },
+      "title": "Critical Severity Alerts",
+      "options": {
+        "majorColor": "#db566f"
+      }
+    },
+    "viz_cmEIbZ9q": {
+      "type": "splunk.singlevalueradial",
+      "dataSources": {
+        "primary": "ds_TVyYlSRA"
+      },
+      "title": "Hight Severity Alerts",
+      "options": {
+        "majorColor": "#0258a1"
+      }
+    },
+    "viz_4QSVuglC": {
+      "type": "splunk.singlevalueradial",
+      "dataSources": {
+        "primary": "ds_D0hAYmXA"
+      },
+      "title": "Medium Severity Alerts",
+      "options": {
+        "majorColor": "#007d73"
+      }
+    },
+    "viz_VI9ZdnSO": {
+      "type": "splunk.singlevalueradial",
+      "dataSources": {
+        "primary": "ds_1KrtDz29"
+      },
+      "title": "Low Severity Alerts",
+      "options": {
+        "majorColor": "#232323"
+      }
+    }
+  },
+  "dataSources": {
+    "ds_DljIxEDR": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" | timechart count by data.vulnerability.severity useother=false usenull=false",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_1"
+    },
+    "ds_31leL1fM": {
+      "type": "ds.search",
+      "options": {
+        "query": "wazuh-alerts-4.x-sample | timechart count by data.vulnerability.severity",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_2"
+    },
+    "ds_jymjmvtF": {
+      "type": "ds.search",
+      "options": {
+        "query": "wazuh-alerts-4.x-sample | timechart count by data.vulnerability.severity",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_3"
+    },
+    "ds_jEwqnxee": {
+      "type": "ds.search",
+      "options": {
+        "query": "wazuh-alerts-4.x-sample | timechart count by data.vulnerability.severity",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_4"
+    },
+    "ds_Irx4cEkl": {
+      "type": "ds.search",
+      "options": {
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        },
+        "query": "index=\"wazuh-alerts\" \"agent.name\"=\"*\", \"data.vulnerability.cve\"=\"*\", \"data.vulnerability.package.name\"=\"*\", \"data.vulnerability.package.version\"=\"*\", \"data.vulnerability.severity\"=\"*\", \"rule.id\"=\"*\" | table _time, agent.name, data.vulnerability.cve, data.vulnerability.package.name, data.vulnerability.package.version, data.vulnerability.severity, rule.id\n\n"
+      },
+      "name": "Search_5"
+    },
+    "ds_oyvgAG73": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"data.vulnerability.severity\"=\"Critical\" | stats count by \"data.vulnerability.severity\"",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_6"
+    },
+    "ds_TVyYlSRA": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"data.vulnerability.severity\"=\"High\" | stats count by \"data.vulnerability.severity\"",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_7"
+    },
+    "ds_D0hAYmXA": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"data.vulnerability.severity\"=\"Medium\" | stats count by \"data.vulnerability.severity\"",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_8"
+    },
+    "ds_1KrtDz29": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"data.vulnerability.severity\"=\"Low\" | stats count by \"data.vulnerability.severity\"",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "name": "Search_9"
+    }
+  },
+  "defaults": {
+    "dataSources": {
+      "ds.search": {
+        "options": {
+          "queryParameters": {
+            "latest": "$global_time.latest$",
+            "earliest": "$global_time.earliest$"
+          }
+        }
+      }
+    }
+  },
+  "inputs": {
+    "input_global_trp": {
+      "type": "input.timerange",
+      "options": {
+        "token": "global_time",
+        "defaultValue": "-60m@m,now",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "title": "Global Time Range"
+    }
+  },
+  "layout": {
+    "type": "grid",
+    "options": {},
+    "structure": [
+      {
+        "item": "viz_3V3AvVY4",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 279,
+          "h": 131
+        }
+      },
+      {
+        "item": "viz_XlLyYDmC",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 131,
+          "w": 1200,
+          "h": 284
+        }
+      },
+      {
+        "item": "viz_qzFw5Wx7",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 415,
+          "w": 1200,
+          "h": 251
+        }
+      },
+      {
+        "item": "viz_cmEIbZ9q",
+        "type": "block",
+        "position": {
+          "x": 279,
+          "y": 0,
+          "w": 293,
+          "h": 131
+        }
+      },
+      {
+        "item": "viz_4QSVuglC",
+        "type": "block",
+        "position": {
+          "x": 572,
+          "y": 0,
+          "w": 309,
+          "h": 131
+        }
+      },
+      {
+        "item": "viz_VI9ZdnSO",
+        "type": "block",
+        "position": {
+          "x": 881,
+          "y": 0,
+          "w": 319,
+          "h": 131
+        }
+      }
+    ],
+    "globalInputs": [
+      "input_global_trp"
+    ]
+  },
+  "description": "",
+  "title": "wazuh-vulnerabilities-v1.0"
+}

@@ -1,0 +1,130 @@
+{
+  "visualizations": {
+    "viz_OcJb59wC": {
+      "type": "splunk.pie",
+      "options": {
+        "showDonutHole": true
+      },
+      "dataSources": {
+        "primary": "ds_5TEzCbIf"
+      },
+      "title": "Top 5 events"
+    },
+    "viz_bQPbbrvw": {
+      "type": "splunk.column",
+      "title": "Events by source over time",
+      "dataSources": {
+        "primary": "ds_l6nQN96B"
+      },
+      "options": {
+        "xAxisTitleText": "timestamp",
+        "yAxisTitleText": "count"
+      }
+    },
+    "viz_7GGKwL33": {
+      "type": "splunk.table",
+      "dataSources": {
+        "primary": "ds_gW45zmr5"
+      },
+      "title": "Events"
+    }
+  },
+  "dataSources": {
+    "ds_5TEzCbIf": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" | top limit=5 data.docker.Action | chart count by data.docker.Action",
+        "queryParameters": {
+          "earliest": "$global_time.earliest$",
+          "latest": "$global_time.latest$"
+        }
+      },
+      "name": "Search_1"
+    },
+    "ds_l6nQN96B": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" | timechart count by data.docker.Type useother=false usenull=false\n",
+        "queryParameters": {
+          "earliest": "$global_time.earliest$",
+          "latest": "$global_time.latest$"
+        }
+      },
+      "name": "Search_2"
+    },
+    "ds_gW45zmr5": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=\"wazuh-alerts\" \"agent.name\"=\"*\", \"data.docker.Type\"=\"*\", \"data.docker.Actor.ID\"=\"*\", \"data.docker.Action\"=\"*\", \"rule.description\"=\"*\", \"rule.level\"=\"*\", \"rule.id\"=\"*\" | table _time, agent.name, data.docker.Type, data.docker.Actor.ID, data.docker.Action, rule.description, rule.level, rule.id",
+        "queryParameters": {
+          "earliest": "$global_time.earliest$",
+          "latest": "$global_time.latest$"
+        }
+      },
+      "name": "Search_3"
+    }
+  },
+  "defaults": {
+    "dataSources": {
+      "ds.search": {
+        "options": {
+          "queryParameters": {
+            "latest": "$global_time.latest$",
+            "earliest": "$global_time.earliest$"
+          }
+        }
+      }
+    }
+  },
+  "inputs": {
+    "input_global_trp": {
+      "type": "input.timerange",
+      "options": {
+        "token": "global_time",
+        "defaultValue": "-24h@h,now"
+      },
+      "title": "Global Time Range"
+    }
+  },
+  "layout": {
+    "type": "grid",
+    "options": {},
+    "structure": [
+      {
+        "item": "viz_OcJb59wC",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 415,
+          "h": 316
+        }
+      },
+      {
+        "item": "viz_7GGKwL33",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 316,
+          "w": 1200,
+          "h": 378
+        }
+      },
+      {
+        "item": "viz_bQPbbrvw",
+        "type": "block",
+        "position": {
+          "x": 415,
+          "y": 0,
+          "w": 785,
+          "h": 316
+        }
+      }
+    ],
+    "globalInputs": [
+      "input_global_trp"
+    ]
+  },
+  "description": "",
+  "title": "wazuh-docker-listener-v1.0"
+}

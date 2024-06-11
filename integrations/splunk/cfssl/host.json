@@ -1,0 +1,19 @@
+{
+  "CN": "splunk",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+  {
+    "C": "US",
+    "L": "California",
+    "O": "Wazuh",
+    "OU": "Wazuh"
+  }
+  ],
+  "hosts": [
+    "splunk",
+    "localhost"
+  ]
+}

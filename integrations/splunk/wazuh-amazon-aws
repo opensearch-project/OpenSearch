@@ -1,0 +1,136 @@
+{
+  "visualizations": {
+    "viz_lTJLU7ar": {
+      "type": "splunk.area",
+      "options": {
+        "stackMode": "stacked",
+        "xAxisTitleText": "timestamp",
+        "yAxisTitleText": "count",
+        "legendDisplay": "left"
+      },
+      "dataSources": {
+        "primary": "ds_BHh1kZmb"
+      },
+      "title": "Events by source over time"
+    },
+    "viz_l5qazB46": {
+      "type": "splunk.pie",
+      "options": {
+        "showDonutHole": true
+      },
+      "dataSources": {
+        "primary": "ds_Y2J0psR4"
+      },
+      "title": "Sources"
+    },
+    "viz_1JzeNwnq": {
+      "type": "splunk.table",
+      "title": "Events",
+      "dataSources": {
+        "primary": "ds_K2y81pak"
+      }
+    }
+  },
+  "dataSources": {
+    "ds_BHh1kZmb": {
+      "type": "ds.search",
+      "options": {
+        "queryParameters": {
+          "earliest": "$global_time.earliest$",
+          "latest": "$global_time.latest$"
+        },
+        "query": "index=\"wazuh-alerts\" \"data.aws.source\"=\"*\" | timechart count by \"data.aws.source\""
+      },
+      "name": "Search_1"
+    },
+    "ds_Y2J0psR4": {
+      "type": "ds.search",
+      "options": {
+        "queryParameters": {
+          "earliest": "$global_time.earliest$",
+          "latest": "$global_time.latest$"
+        },
+        "query": "index=\"wazuh-alerts\" \"data.aws.source\"=\"*\" | chart count by \"data.aws.source\""
+      },
+      "name": "Search_2"
+    },
+    "ds_K2y81pak": {
+      "type": "ds.search",
+      "options": {
+        "queryParameters": {
+          "earliest": "$global_time.earliest$",
+          "latest": "$global_time.latest$"
+        },
+        "query": "index=\"wazuh-alerts\" \"agent.name\"=\"*\", \"data.aws.source\"=\"*\", \"rule.description\"=\"*\", \"rule.level\"=\"*\", \"rule.id\"=\"*\" | table _time, agent.name, data.aws.source, rule.description, rule.level, rule.id"
+      },
+      "name": "Search_3"
+    }
+  },
+  "defaults": {
+    "dataSources": {
+      "ds.search": {
+        "options": {
+          "queryParameters": {
+            "latest": "$global_time.latest$",
+            "earliest": "$global_time.earliest$"
+          }
+        }
+      }
+    }
+  },
+  "inputs": {
+    "input_global_trp": {
+      "type": "input.timerange",
+      "options": {
+        "token": "global_time",
+        "defaultValue": "-60m@m,now",
+        "queryParameters": {
+          "latest": "$global_time.latest$",
+          "earliest": "$global_time.earliest$"
+        }
+      },
+      "title": "Global Time Range"
+    }
+  },
+  "layout": {
+    "type": "grid",
+    "options": {},
+    "structure": [
+      {
+        "item": "viz_lTJLU7ar",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 795,
+          "h": 334
+        }
+      },
+      {
+        "item": "viz_1JzeNwnq",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 334,
+          "w": 1200,
+          "h": 358
+        }
+      },
+      {
+        "item": "viz_l5qazB46",
+        "type": "block",
+        "position": {
+          "x": 795,
+          "y": 0,
+          "w": 405,
+          "h": 334
+        }
+      }
+    ],
+    "globalInputs": [
+      "input_global_trp"
+    ]
+  },
+  "description": "",
+  "title": "wazuh-amazon-aws-v1.0"
+}

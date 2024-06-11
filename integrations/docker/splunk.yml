@@ -1,0 +1,143 @@
+name: "splunk-integration"
+
+services:
+  events-generator:
+    image: wazuh/indexer-events-generator
+    build:
+      context: ../tools/events-generator
+    depends_on:
+      wazuh.indexer:
+        condition: service_healthy
+    command: bash -c "python run.py -a wazuh.indexer"
+
+  wazuh.indexer:
+    image: opensearchproject/opensearch:2.12.0
+    depends_on:
+      wazuh-certs-generator:
+        condition: service_completed_successfully
+    hostname: wazuh.indexer
+    ports:
+      - 9200:9200
+    environment:
+      - node.name=wazuh.indexer
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "DISABLE_INSTALL_DEMO_CONFIG=true"
+      - plugins.security.ssl.http.enabled=true
+      - plugins.security.allow_default_init_securityindex=true
+      - plugins.security.ssl.http.pemcert_filepath=/usr/share/opensearch/config/wazuh.indexer.pem
+      - plugins.security.ssl.transport.pemcert_filepath=/usr/share/opensearch/config/wazuh.indexer.pem
+      - plugins.security.ssl.http.pemkey_filepath=/usr/share/opensearch/config/wazuh.indexer-key.pem
+      - plugins.security.ssl.transport.pemkey_filepath=/usr/share/opensearch/config/wazuh.indexer-key.pem
+      - plugins.security.ssl.http.pemtrustedcas_filepath=/usr/share/opensearch/config/root-ca.pem
+      - plugins.security.ssl.transport.pemtrustedcas_filepath=/usr/share/opensearch/config/root-ca.pem
+      - plugins.security.authcz.admin_dn="CN=wazuh.indexer,OU=Wazuh,O=Wazuh,L=California, C=US"
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: curl -sku admin:admin https://localhost:9200/_cat/health | grep -q docker-cluster
+      start_period: 10s
+      start_interval: 3s
+    volumes:
+      - data:/usr/share/opensearch/data
+      - ./certs/wazuh.indexer.pem:/usr/share/opensearch/config/wazuh.indexer.pem
+      - ./certs/wazuh.indexer-key.pem:/usr/share/opensearch/config/wazuh.indexer-key.pem
+      - ./certs/root-ca.pem:/usr/share/opensearch/config/root-ca.pem
+
+  wazuh.dashboard:
+    image: opensearchproject/opensearch-dashboards:2.12.0
+    depends_on:
+      - wazuh.indexer
+    hostname: wazuh.dashboard
+    ports:
+      - 5601:5601 # Map host port 5601 to container port 5601
+    expose:
+      - "5601" # Expose port 5601 for web access to OpenSearch Dashboards
+    environment:
+      OPENSEARCH_HOSTS: '["https://wazuh.indexer:9200"]' # Define the OpenSearch nodes that OpenSearch Dashboards will query
+
+  wazuh-certs-generator:
+    image: wazuh/wazuh-certs-generator:0.0.1
+    hostname: wazuh-certs-generator
+    entrypoint: sh -c "/entrypoint.sh; chown -R 1000:999 /certificates; chmod 740 /certificates; chmod 440 /certificates/*"
+    volumes:
+      - ./certs/:/certificates/
+      - ./config/certs.yml:/config/certs.yml
+
+
+  # =================================
+  # Splunk and Logstash
+  # =================================
+
+  generator:
+    image: cfssl/cfssl
+    depends_on:
+      wazuh-certs-generator:
+        condition: service_completed_successfully
+    volumes:
+      - ./certs/:/certs/
+      - ../splunk/cfssl/:/conf/
+    entrypoint: /bin/bash
+    command: >
+      -c '
+        cd /certs
+      	cat /conf/host.json | \
+      	cfssl gencert \
+      		-ca root-ca.pem \
+      		-ca-key root-ca.key \
+      		-config /conf/cfssl.json \
+      		-profile=server - | \
+      	cfssljson -bare splunk
+      	openssl pkcs8 -topk8 -inform pem -in splunk-key.pem -outform pem -nocrypt -out splunk.key
+        rm splunk.csr
+        cat splunk.pem splunk-key.pem root-ca.pem > splunkhec.pem
+        chown -R 1000:1000 /certs/splunk*
+      '
+
+  splunk:
+    image: splunk/splunk:9.0.4
+    volumes:
+      - ./certs/splunk.key:/opt/splunk/etc/auth/custom/splunk.key
+      - ./certs/splunk.pem:/opt/splunk/etc/auth/custom/splunk.pem
+      - ./certs/splunkhec.pem:/opt/splunk/etc/auth/custom/splunkhec.pem
+      - ../splunk/config/indexes.conf:/opt/splunk/etc/system/local/indexes.conf
+      - ../splunk/config/default.yml:/tmp/defaults/default.yml
+    depends_on:
+      wazuh-certs-generator:
+        condition: service_completed_successfully
+      generator:
+        condition: service_completed_successfully
+    ports:
+      - '8000:8000'
+      - '8088:8088'
+    environment:
+      SPLUNK_HEC_TOKEN: "abcd1234"
+      SPLUNK_HOSTNAME: splunk
+      SPLUNK_HTTP_ENABLESSL: 'true'
+      SPLUNK_PASSWORD: Password.1234
+      SPLUNK_STANDALONE_URL: https://splunk:8080
+      SPLUNK_START_ARGS: --accept-license
+
+  logstash:
+    depends_on:
+      splunk:
+        condition: service_healthy
+    image: logstash-oss:8.6.2
+    build:
+      context: ../splunk
+    environment:
+      LOG_LEVEL: info
+      MONITORING_ENABLED: false
+    volumes:
+      - ../splunk/logstash/pipeline:/usr/share/logstash/pipeline
+      - ./certs/root-ca.pem:/usr/share/logstash/root-ca.pem
+    command: logstash -f /usr/share/logstash/pipeline/indexer-to-splunk.conf
+
+volumes:
+  data:
