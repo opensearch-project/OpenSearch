@@ -52,6 +52,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -634,7 +635,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
     public void testGetAsyncIndexMetadataReadAction() throws Exception {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
-        String uploadedFileName = String.format("index-routing/" + indexName);
+        String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
         Index index = new Index(indexName, "uuid-01");
 
         LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
@@ -658,7 +659,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
     public void testGetAsyncIndexMetadataReadActionFailureForIncorrectIndex() throws Exception {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
-        String uploadedFileName = String.format("index-routing/" + indexName);
+        String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
         Index index = new Index("incorrect-index", "uuid-01");
 
         LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
@@ -681,8 +682,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
     public void testGetAsyncIndexMetadataReadActionFailureInBlobRepo() throws Exception {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        ClusterState clusterState = createClusterState(indexName);
-        String uploadedFileName = String.format("index-routing/" + indexName);
+        String uploadedFileName = String.format(Locale.ROOT,"index-routing/" + indexName);
         Index index = new Index(indexName, "uuid-01");
 
         LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
