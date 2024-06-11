@@ -590,6 +590,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
@@ -606,6 +607,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
+            // if we have only doc_values enabled we do not look at the BKD so we return an INTERSECTS by default
+            if (isSearchable() == false && hasDocValues()) {
+                return Relation.INTERSECTS;
+            }
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
