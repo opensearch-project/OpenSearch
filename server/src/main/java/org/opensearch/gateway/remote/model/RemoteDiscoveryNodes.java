@@ -61,6 +61,11 @@ public class RemoteDiscoveryNodes extends AbstractRemoteWritableBlobEntity<Disco
     }
 
     @Override
+    public String getType() {
+        return DISCOVERY_NODES;
+    }
+
+    @Override
     public String generateBlobFileName() {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/ephemeral/<componentPrefix>__<inverted_state_version>__<inverted__timestamp>__<codec_version>
         String blobFileName = String.join(

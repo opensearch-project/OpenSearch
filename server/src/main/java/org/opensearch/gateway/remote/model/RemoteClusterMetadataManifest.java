@@ -87,6 +87,11 @@ public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEnt
     }
 
     @Override
+    public String getType() {
+        return MANIFEST;
+    }
+
+    @Override
     public String generateBlobFileName() {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/manifest/manifest__<inverted_term>__<inverted_version>__C/P__<inverted__timestamp>__
         // <codec_version>
@@ -150,4 +155,5 @@ public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEnt
         }
         throw new IllegalArgumentException("Cluster metadata manifest file is corrupted, don't have valid codec version");
     }
+
 }

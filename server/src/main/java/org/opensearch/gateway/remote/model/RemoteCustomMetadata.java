@@ -86,6 +86,11 @@ public class RemoteCustomMetadata extends AbstractRemoteWritableBlobEntity<Custo
     }
 
     @Override
+    public String getType() {
+        return CUSTOM_METADATA;
+    }
+
+    @Override
     public String generateBlobFileName() {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/global-metadata/<componentPrefix>__<inverted_metadata_version>__<inverted__timestamp>__
         // <codec_version>

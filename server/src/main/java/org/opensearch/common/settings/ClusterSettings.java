@@ -182,6 +182,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.opensearch.gateway.remote.RemoteGlobalMetadataManager.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING;
+import static org.opensearch.gateway.remote.RemoteIndexMetadataManager.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING;
+import static org.opensearch.gateway.remote.RemoteManifestManager.METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING;
+
 /**
  * Encapsulates all valid cluster level settings.
  *
@@ -719,9 +723,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Remote cluster state settings
                 RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING,
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
-                RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
-                RemoteClusterStateService.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
-                RemoteClusterStateService.METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
+                INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
+                GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,
+                METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING,
                 RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING,
                 RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
 

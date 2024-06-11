@@ -78,6 +78,11 @@ public class RemoteClusterStateCustoms extends AbstractRemoteWritableBlobEntity<
     }
 
     @Override
+    public String getType() {
+        return CLUSTER_STATE_CUSTOM;
+    }
+
+    @Override
     public String generateBlobFileName() {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/ephemeral/<componentPrefix>__<inverted_state_version>__<inverted__timestamp>__<codec_version>
         String blobFileName = String.join(

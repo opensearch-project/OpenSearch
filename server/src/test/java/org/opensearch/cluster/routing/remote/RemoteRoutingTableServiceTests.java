@@ -33,7 +33,7 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
-import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -57,7 +57,7 @@ import org.mockito.ArgumentCaptor;
 import static org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService.INDEX_ROUTING_FILE_PREFIX;
 import static org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService.INDEX_ROUTING_PATH_TOKEN;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
-import static org.opensearch.gateway.remote.RemoteClusterStateService.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -352,7 +352,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             RemoteStoreUtils.invertLong(clusterState.version())
         );
         verify(blobContainer, times(1)).writeBlob(startsWith(expectedFilePrefix), any(StreamInput.class), anyLong(), eq(true));
-        verify(listener, times(1)).onFailure(any(RemoteClusterStateService.RemoteStateTransferException.class));
+        verify(listener, times(1)).onFailure(any(RemoteStateTransferException.class));
     }
 
     public void testGetIndexRoutingAsyncActionAsyncRepo() throws IOException {
@@ -419,7 +419,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         );
         assertNotNull(runnable);
         runnable.run();
-        verify(listener, times(1)).onFailure(any(RemoteClusterStateService.RemoteStateTransferException.class));
+        verify(listener, times(1)).onFailure(any(RemoteStateTransferException.class));
     }
 
     public void testGetAllUploadedIndicesRouting() {

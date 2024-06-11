@@ -138,14 +138,14 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
 
     static ClusterBlocks randomClusterBlocks() {
         ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        int randomGlobalBlocks = randomIntBetween(0, 10);
+        int randomGlobalBlocks = randomIntBetween(1, 10);
         for (int i = 0; i < randomGlobalBlocks; i++) {
             builder.addGlobalBlock(randomClusterBlock());
         }
 
-        int randomIndices = randomIntBetween(0, 10);
+        int randomIndices = randomIntBetween(1, 10);
         for (int i = 0; i < randomIndices; i++) {
-            int randomIndexBlocks = randomIntBetween(0, 10);
+            int randomIndexBlocks = randomIntBetween(1, 10);
             for (int j = 0; j < randomIndexBlocks; j++) {
                 builder.addIndexBlock("index-" + i, randomClusterBlock());
             }

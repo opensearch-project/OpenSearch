@@ -42,6 +42,8 @@ public abstract class AbstractRemoteWritableBlobEntity<T> implements RemoteWrite
 
     public abstract BlobPathParameters getBlobPathParameters();
 
+    public abstract String getType();
+
     public String getFullBlobName() {
         return blobName;
     }

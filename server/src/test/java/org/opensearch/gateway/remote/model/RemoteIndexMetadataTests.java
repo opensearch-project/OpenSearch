@@ -40,8 +40,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.gateway.remote.model.RemoteIndexMetadata.INDEX;
 import static org.opensearch.gateway.remote.model.RemoteIndexMetadata.INDEX_METADATA_CURRENT_CODEC_VERSION;
-import static org.opensearch.gateway.remote.model.RemoteIndexMetadata.INDEX_PATH_TOKEN;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -137,7 +137,7 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = getIndexMetadata();
         RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
-        assertThat(params.getPathTokens(), is(List.of(INDEX_PATH_TOKEN, indexMetadata.getIndexUUID())));
+        assertThat(params.getPathTokens(), is(List.of(INDEX, indexMetadata.getIndexUUID())));
         assertThat(params.getFilePrefix(), is("metadata"));
     }
 
@@ -156,12 +156,9 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = getIndexMetadata();
         RemoteIndexMetadata remoteObjectForUpload = new RemoteIndexMetadata(indexMetadata, clusterUUID, compressor, namedXContentRegistry);
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
-
-        try (InputStream inputStream = remoteObjectForUpload.serialize()) {
-            remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
-            UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
-            assertThat(uploadedMetadata.getUploadedFilename(), is(remoteObjectForUpload.getBlobFileName()));
-        }
+        remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
+        UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
+        assertEquals(uploadedMetadata.getUploadedFilename(), remoteObjectForUpload.getFullBlobName());
     }
 
     public void testSerDe() throws IOException {
