@@ -16,6 +16,7 @@ import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.util.function.Supplier;
 
@@ -26,6 +27,12 @@ public class RemoteRoutingTableServiceFactoryTests extends OpenSearchTestCase {
 
     Supplier<RepositoriesService> repositoriesService;
     private ThreadPool threadPool = new TestThreadPool(getClass().getName());
+
+    @After
+    public void teardown() throws Exception {
+        super.tearDown();
+        threadPool.shutdown();
+    }
 
     public void testGetServiceWhenRemoteRoutingDisabled() {
         Settings settings = Settings.builder().build();
@@ -53,4 +60,5 @@ public class RemoteRoutingTableServiceFactoryTests extends OpenSearchTestCase {
         );
         assertTrue(service instanceof InternalRemoteRoutingTableService);
     }
+
 }
