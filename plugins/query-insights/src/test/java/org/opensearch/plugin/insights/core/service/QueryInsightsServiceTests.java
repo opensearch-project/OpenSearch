@@ -34,11 +34,11 @@ public class QueryInsightsServiceTests extends OpenSearchTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS);
+        QueryInsightsTestUtils.registerAllQueryInsightsSettings(clusterSettings);
         queryInsightsService = new QueryInsightsService(clusterSettings, threadPool, client);
         queryInsightsService.enableCollection(MetricType.LATENCY, true);
         queryInsightsService.enableCollection(MetricType.CPU, true);
-        queryInsightsService.enableCollection(MetricType.JVM, true);
+        queryInsightsService.enableCollection(MetricType.MEMORY, true);
     }
 
     public void testAddRecordToLimitAndDrain() {

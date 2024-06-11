@@ -13,7 +13,6 @@ import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
-import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -32,6 +31,7 @@ import java.util.Objects;
 
 import static org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer.getAbstractInstance;
 import static org.opensearch.cluster.DiffableUtils.getStringKeySerializer;
+import static org.opensearch.cluster.routing.remote.RemoteRoutingTableService.CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
@@ -102,8 +102,12 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         customMetadataUpdated.addAll(customDiff.getUpserts().keySet());
         customMetadataDeleted = customDiff.getDeletes();
 
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = RemoteRoutingTableService
-            .getIndicesRoutingMapDiff(previousState.getRoutingTable(), state.getRoutingTable());
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = DiffableUtils.diff(
+            previousState.getRoutingTable().getIndicesRouting(),
+            state.getRoutingTable().getIndicesRouting(),
+            DiffableUtils.getStringKeySerializer(),
+            CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER
+        );
 
         indicesRoutingUpdated = new ArrayList<>();
         routingTableDiff.getUpserts().forEach((k, v) -> indicesRoutingUpdated.add(k));
@@ -526,8 +530,6 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         out.writeStringCollection(indicesDeleted);
         out.writeStringCollection(customMetadataUpdated);
         out.writeStringCollection(customMetadataDeleted);
-        out.writeStringCollection(indicesRoutingUpdated);
-        out.writeStringCollection(indicesRoutingDeleted);
         out.writeBoolean(clusterBlocksUpdated);
         out.writeBoolean(discoveryNodesUpdated);
         out.writeStringCollection(indicesRoutingUpdated);

@@ -480,7 +480,7 @@ public final class ThreadContext implements Writeable {
      * @param value       the header value
      */
     public void addResponseHeader(final String key, final String value) {
-        updateResponseHeader(key, value, v -> v, false);
+        addResponseHeader(key, value, v -> v);
     }
 
     /**
@@ -490,7 +490,19 @@ public final class ThreadContext implements Writeable {
      * @param value       the header value
      */
     public void updateResponseHeader(final String key, final String value) {
-        updateResponseHeader(key, value, v -> v, true);
+        updateResponseHeader(key, value, v -> v);
+    }
+
+    /**
+     * Add the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
+     * {@code value} after applying {@code uniqueValue} is ignored.
+     *
+     * @param key         the header name
+     * @param value       the header value
+     * @param uniqueValue the function that produces de-duplication values
+     */
+    public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize, false));
     }
 
     /**
@@ -500,17 +512,9 @@ public final class ThreadContext implements Writeable {
      * @param key         the header name
      * @param value       the header value
      * @param uniqueValue the function that produces de-duplication values
-     * @param replaceExistingKey whether to replace the existing header if it already exists
      */
-    public void updateResponseHeader(
-        final String key,
-        final String value,
-        final Function<String, String> uniqueValue,
-        final boolean replaceExistingKey
-    ) {
-        threadLocal.set(
-            threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize, replaceExistingKey)
-        );
+    public void updateResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize, true));
     }
 
     /**

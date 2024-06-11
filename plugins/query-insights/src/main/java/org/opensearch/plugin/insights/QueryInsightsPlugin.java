@@ -111,7 +111,15 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
             QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED,
             QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE,
             QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
-            QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS
+            QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS,
+            QueryInsightsSettings.TOP_N_CPU_QUERIES_ENABLED,
+            QueryInsightsSettings.TOP_N_CPU_QUERIES_SIZE,
+            QueryInsightsSettings.TOP_N_CPU_QUERIES_WINDOW_SIZE,
+            QueryInsightsSettings.TOP_N_CPU_EXPORTER_SETTINGS,
+            QueryInsightsSettings.TOP_N_MEMORY_QUERIES_ENABLED,
+            QueryInsightsSettings.TOP_N_MEMORY_QUERIES_SIZE,
+            QueryInsightsSettings.TOP_N_MEMORY_QUERIES_WINDOW_SIZE,
+            QueryInsightsSettings.TOP_N_MEMORY_EXPORTER_SETTINGS
         );
     }
 }
