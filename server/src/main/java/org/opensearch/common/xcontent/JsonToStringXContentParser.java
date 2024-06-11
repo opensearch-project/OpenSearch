@@ -31,6 +31,10 @@ import java.util.ArrayList;
  * @opensearch.internal
  */
 public class JsonToStringXContentParser extends AbstractXContentParser {
+    public static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
+    public static final String VALUE_SUFFIX = "._value";
+    public static final String DOT_SYMBOL = ".";
+    public static final String EQUAL_SYMBOL = "=";
     private final String fieldTypeName;
     private XContentParser parser;
 
@@ -43,11 +47,6 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     private NamedXContentRegistry xContentRegistry;
 
     private DeprecationHandler deprecationHandler;
-
-    private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
-    private static final String VALUE_SUFFIX = "._value";
-    private static final String DOT_SYMBOL = ".";
-    private static final String EQUAL_SYMBOL = "=";
 
     public JsonToStringXContentParser(
         NamedXContentRegistry xContentRegistry,
