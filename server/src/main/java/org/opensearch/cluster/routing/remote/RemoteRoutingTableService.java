@@ -28,7 +28,7 @@ import java.util.Map;
  * Interface for RemoteRoutingTableService. Exposes methods to orchestrate upload and download of routing table from remote store.
  */
 public interface RemoteRoutingTableService extends LifecycleComponent {
-    static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
+    public static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
         new DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable>() {
             @Override
             public void write(IndexRoutingTable value, StreamOutput out) throws IOException {
