@@ -978,6 +978,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return metadata1.templates.equals(metadata2.templates);
     }
 
+    public static boolean isHashesOfConsistentSettingsEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings);
+    }
+
     public static boolean isCustomMetadataEqual(Metadata metadata1, Metadata metadata2) {
         int customCount1 = 0;
         for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
