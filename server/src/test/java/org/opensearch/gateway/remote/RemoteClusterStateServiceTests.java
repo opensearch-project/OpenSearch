@@ -55,7 +55,7 @@ import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
+import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.TestCustomMetadata;
@@ -95,7 +95,6 @@ import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIM
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.FORMAT_PARAMS;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_PLAIN_FORMAT;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.getFormattedIndexFileName;
 import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
@@ -311,8 +310,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
         assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
 
-        assertEquals(7, actionListenerArgumentCaptor.getAllValues().size());
-        assertEquals(7, writeContextArgumentCaptor.getAllValues().size());
+        assertEquals(11, actionListenerArgumentCaptor.getAllValues().size());
+        assertEquals(11, writeContextArgumentCaptor.getAllValues().size());
 
         byte[] writtenBytes = capturedWriteContext.get("metadata")
             .getStreamProvider(Integer.MAX_VALUE)
@@ -1021,14 +1020,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         remoteClusterStateService.start();
         Exception e = assertThrows(
-            IllegalStateException.class,
+            RemoteStateTransferException.class,
             () -> remoteClusterStateService.getLatestClusterState(
                 clusterState.getClusterName().value(),
                 clusterState.metadata().clusterUUID(),
                 false
             ).getMetadata().getIndices()
         );
-        assertEquals(e.getMessage(), "Error while downloading IndexMetadata - " + uploadedIndexMetadata.getUploadedFilename());
+        assertEquals("Exception during reading cluster state from remote", e.getMessage());
     }
 
     public void testReadLatestMetadataManifestSuccess() throws IOException {
@@ -1433,8 +1432,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getIndicesRouting().get(0).getIndexUUID(), is(uploadedIndiceRoutingMetadata.getIndexUUID()));
         assertThat(manifest.getIndicesRouting().get(0).getUploadedFilename(), notNullValue());
 
-        assertEquals(8, actionListenerArgumentCaptor.getAllValues().size());
-        assertEquals(8, writeContextArgumentCaptor.getAllValues().size());
+        assertEquals(12, actionListenerArgumentCaptor.getAllValues().size());
+        assertEquals(12, writeContextArgumentCaptor.getAllValues().size());
     }
 
     public void testWriteIncrementalMetadataSuccessWithRoutingTable() throws IOException {
@@ -1861,20 +1860,21 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> getFileNameFromPath(entry.getValue().getUploadedFilename())));
 
-            ChecksumBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumBlobStoreFormat<>(
-                "custom",
-                METADATA_NAME_PLAIN_FORMAT,
-                null
-            );
+            // ChecksumBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumBlobStoreFormat<>(
+            // "custom",
+            // METADATA_NAME_PLAIN_FORMAT,
+            // null
+            // );
+
+            ChecksumWritableBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumWritableBlobStoreFormat<>("custom", null);
             for (Map.Entry<String, String> entry : customFileMap.entrySet()) {
                 String custom = entry.getKey();
                 String fileName = entry.getValue();
-                when(blobContainer.readBlob(customMetadataFormat.blobName(fileName))).thenAnswer((invocation) -> {
+                when(blobContainer.readBlob(fileName)).thenAnswer((invocation) -> {
                     BytesReference bytesReference = customMetadataFormat.serialize(
                         metadata.custom(custom),
                         fileName,
-                        blobStoreRepository.getCompressor(),
-                        FORMAT_PARAMS
+                        blobStoreRepository.getCompressor()
                     );
                     return new ByteArrayInputStream(bytesReference.streamInput().readAllBytes());
                 });

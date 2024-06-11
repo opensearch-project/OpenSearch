@@ -182,7 +182,9 @@ public class RemoteGlobalMetadataManager {
     ) {
         return ActionListener.wrap(
             resp -> latchedActionListener.onResponse(remoteBlobStoreObject.getUploadedMetadata()),
-            ex -> latchedActionListener.onFailure(new RemoteStateTransferException("Upload failed", ex))
+            ex -> latchedActionListener.onFailure(
+                new RemoteStateTransferException("Upload failed for " + remoteBlobStoreObject.getType(), ex)
+            )
         );
     }
 
