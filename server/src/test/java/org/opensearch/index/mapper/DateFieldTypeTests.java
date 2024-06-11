@@ -66,9 +66,9 @@ import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
-import org.joda.time.DateTimeZone;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateableQuery;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -213,16 +213,21 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             new ApproximateableQuery(
-                new PointRangeQuery("field", pack(new long[]{instant}).bytes, pack(new long[]{instant + 999}).bytes, new long[]{instant}.length) {
+                new PointRangeQuery(
+                    "field",
+                    pack(new long[] { instant }).bytes,
+                    pack(new long[] { instant + 999 }).bytes,
+                    new long[] { instant }.length
+                ) {
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
                 },
                 new ApproximatePointRangeQuery(
                     "field",
-                    pack(new long[]{instant}).bytes,
-                    pack(new long[]{instant + 999}).bytes,
-                    new long[]{instant}.length
+                    pack(new long[] { instant }).bytes,
+                    pack(new long[] { instant + 999 }).bytes,
+                    new long[] { instant }.length
                 ) {
                     @Override
                     protected String toString(int dimension, byte[] value) {
@@ -280,16 +285,21 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
         Query expected = new IndexOrDocValuesQuery(
             new ApproximateableQuery(
-                new PointRangeQuery("field", pack(new long[]{instant1}).bytes, pack(new long[]{instant2}).bytes, new long[]{instant1}.length) {
+                new PointRangeQuery(
+                    "field",
+                    pack(new long[] { instant1 }).bytes,
+                    pack(new long[] { instant2 }).bytes,
+                    new long[] { instant1 }.length
+                ) {
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
                 },
                 new ApproximatePointRangeQuery(
                     "field",
-                    pack(new long[]{instant1}).bytes,
-                    pack(new long[]{instant2}).bytes,
-                    new long[]{instant1}.length
+                    pack(new long[] { instant1 }).bytes,
+                    pack(new long[] { instant2 }).bytes,
+                    new long[] { instant1 }.length
                 ) {
                     @Override
                     protected String toString(int dimension, byte[] value) {
@@ -309,16 +319,21 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         expected = new DateRangeIncludingNowQuery(
             new IndexOrDocValuesQuery(
                 new ApproximateableQuery(
-                    new PointRangeQuery("field", pack(new long[]{instant1}).bytes, pack(new long[]{instant2}).bytes, new long[]{instant1}.length) {
+                    new PointRangeQuery(
+                        "field",
+                        pack(new long[] { instant1 }).bytes,
+                        pack(new long[] { instant2 }).bytes,
+                        new long[] { instant1 }.length
+                    ) {
                         protected String toString(int dimension, byte[] value) {
                             return Long.toString(LongPoint.decodeDimension(value, 0));
                         }
                     },
                     new ApproximatePointRangeQuery(
                         "field",
-                        pack(new long[]{instant1}).bytes,
-                        pack(new long[]{instant2}).bytes,
-                        new long[]{instant1}.length
+                        pack(new long[] { instant1 }).bytes,
+                        pack(new long[] { instant2 }).bytes,
+                        new long[] { instant1 }.length
                     ) {
                         @Override
                         protected String toString(int dimension, byte[] value) {
@@ -386,16 +401,21 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
 
         Query pointQuery = new ApproximateableQuery(
-            new PointRangeQuery("field", pack(new long[]{instant1}).bytes, pack(new long[]{instant2}).bytes, new long[]{instant1}.length) {
+            new PointRangeQuery(
+                "field",
+                pack(new long[] { instant1 }).bytes,
+                pack(new long[] { instant2 }).bytes,
+                new long[] { instant1 }.length
+            ) {
                 protected String toString(int dimension, byte[] value) {
                     return Long.toString(LongPoint.decodeDimension(value, 0));
                 }
             },
             new ApproximatePointRangeQuery(
                 "field",
-                pack(new long[]{instant1}).bytes,
-                pack(new long[]{instant2}).bytes,
-                new long[]{instant1}.length
+                pack(new long[] { instant1 }).bytes,
+                pack(new long[] { instant2 }).bytes,
+                new long[] { instant1 }.length
             ) {
                 @Override
                 protected String toString(int dimension, byte[] value) {

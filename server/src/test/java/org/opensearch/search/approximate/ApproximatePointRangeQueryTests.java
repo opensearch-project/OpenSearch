@@ -95,12 +95,24 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     try {
                         long lower = 0;
                         long upper = 100;
-                        Query approximateQuerySmall = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims, 10) {
+                        Query approximateQuerySmall = new ApproximatePointRangeQuery(
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            10
+                        ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
-                        Query approximateQueryBig = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims, 100) {
+                        Query approximateQueryBig = new ApproximatePointRangeQuery(
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            100
+                        ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }

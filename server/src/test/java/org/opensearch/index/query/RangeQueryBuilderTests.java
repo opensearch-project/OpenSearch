@@ -66,11 +66,11 @@ import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.apache.lucene.document.LongPoint.pack;
 import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.apache.lucene.document.LongPoint.pack;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
     @Override
@@ -188,7 +188,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             } else if (expectedFieldName.equals(DATE_FIELD_NAME)) {
                 assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
                 query = ((IndexOrDocValuesQuery) query).getIndexQuery();
-            assertThat(query, instanceOf(ApproximateableQuery.class));
+                assertThat(query, instanceOf(ApproximateableQuery.class));
                 MapperService mapperService = context.getMapperService();
                 MappedFieldType mappedFieldType = mapperService.fieldType(expectedFieldName);
                 final Long fromInMillis;
@@ -237,27 +237,32 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                         maxLong--;
                     }
                 }
-            assertEquals(
-                new ApproximateableQuery(
-                    new PointRangeQuery(DATE_FIELD_NAME, pack(new long[]{minLong}).bytes, pack(new long[]{maxLong}).bytes, new long[]{minLong}.length) {
-                        protected String toString(int dimension, byte[] value) {
-                            return Long.toString(LongPoint.decodeDimension(value, 0));
+                assertEquals(
+                    new ApproximateableQuery(
+                        new PointRangeQuery(
+                            DATE_FIELD_NAME,
+                            pack(new long[] { minLong }).bytes,
+                            pack(new long[] { maxLong }).bytes,
+                            new long[] { minLong }.length
+                        ) {
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
+                        },
+                        new ApproximatePointRangeQuery(
+                            DATE_FIELD_NAME,
+                            pack(new long[] { minLong }).bytes,
+                            pack(new long[] { maxLong }).bytes,
+                            new long[] { minLong }.length
+                        ) {
+                            @Override
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
                         }
-                    },
-                    new ApproximatePointRangeQuery(
-                        DATE_FIELD_NAME,
-                        pack(new long[]{minLong}).bytes,
-                        pack(new long[]{maxLong}).bytes,
-                        new long[]{minLong}.length
-                    ) {
-                        @Override
-                        protected String toString(int dimension, byte[] value) {
-                            return Long.toString(LongPoint.decodeDimension(value, 0));
-                        }
-                    }
-                ).toString(),
-                query.toString()
-            );
+                    ).toString(),
+                    query.toString()
+                );
             } else if (expectedFieldName.equals(INT_FIELD_NAME)) {
                 assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
                 query = ((IndexOrDocValuesQuery) query).getIndexQuery();
@@ -330,16 +335,21 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         long upper = DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1;
         assertEquals(
             new ApproximateableQuery(
-                new PointRangeQuery(DATE_FIELD_NAME, pack(new long[]{lower}).bytes, pack(new long[]{upper}).bytes, new long[]{lower}.length) {
+                new PointRangeQuery(
+                    DATE_FIELD_NAME,
+                    pack(new long[] { lower }).bytes,
+                    pack(new long[] { upper }).bytes,
+                    new long[] { lower }.length
+                ) {
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
                 },
                 new ApproximatePointRangeQuery(
                     DATE_FIELD_NAME,
-                    pack(new long[]{lower}).bytes,
-                    pack(new long[]{upper}).bytes,
-                    new long[]{lower}.length
+                    pack(new long[] { lower }).bytes,
+                    pack(new long[] { upper }).bytes,
+                    new long[] { lower }.length
                 ) {
                     @Override
                     protected String toString(int dimension, byte[] value) {
@@ -381,20 +391,25 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
         assertThat(parsedQuery, instanceOf(ApproximateableQuery.class));
 
-        long lower =                 DateTime.parse("2014-11-01T00:00:00.000+00").getMillis();
-        long upper =                 DateTime.parse("2014-12-08T23:59:59.999+00").getMillis();
+        long lower = DateTime.parse("2014-11-01T00:00:00.000+00").getMillis();
+        long upper = DateTime.parse("2014-12-08T23:59:59.999+00").getMillis();
         assertEquals(
             new ApproximateableQuery(
-                new PointRangeQuery(DATE_FIELD_NAME, pack(new long[]{lower}).bytes, pack(new long[]{upper}).bytes, new long[]{lower}.length) {
+                new PointRangeQuery(
+                    DATE_FIELD_NAME,
+                    pack(new long[] { lower }).bytes,
+                    pack(new long[] { upper }).bytes,
+                    new long[] { lower }.length
+                ) {
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
                 },
                 new ApproximatePointRangeQuery(
                     DATE_FIELD_NAME,
-                    pack(new long[]{lower}).bytes,
-                    pack(new long[]{upper}).bytes,
-                    new long[]{lower}.length
+                    pack(new long[] { lower }).bytes,
+                    pack(new long[] { upper }).bytes,
+                    new long[] { lower }.length
                 ) {
                     @Override
                     protected String toString(int dimension, byte[] value) {
@@ -419,20 +434,25 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
         assertThat(parsedQuery, instanceOf(ApproximateableQuery.class));
-        lower =                DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1;
-        upper =                 DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1;
+        lower = DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1;
+        upper = DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1;
         assertEquals(
             new ApproximateableQuery(
-                new PointRangeQuery(DATE_FIELD_NAME, pack(new long[]{lower}).bytes, pack(new long[]{upper}).bytes, new long[]{lower}.length) {
+                new PointRangeQuery(
+                    DATE_FIELD_NAME,
+                    pack(new long[] { lower }).bytes,
+                    pack(new long[] { upper }).bytes,
+                    new long[] { lower }.length
+                ) {
                     protected String toString(int dimension, byte[] value) {
                         return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
                 },
                 new ApproximatePointRangeQuery(
                     DATE_FIELD_NAME,
-                    pack(new long[]{lower}).bytes,
-                    pack(new long[]{upper}).bytes,
-                    new long[]{lower}.length
+                    pack(new long[] { lower }).bytes,
+                    pack(new long[] { upper }).bytes,
+                    new long[] { lower }.length
                 ) {
                     @Override
                     protected String toString(int dimension, byte[] value) {
