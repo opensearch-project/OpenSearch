@@ -44,6 +44,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
@@ -66,10 +67,14 @@ import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateableQuery;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Collections;
+
+import static org.apache.lucene.document.LongPoint.pack;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
@@ -207,10 +212,27 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
-            LongPoint.newRangeQuery("field", instant, instant + 999),
+            new ApproximateableQuery(
+                new PointRangeQuery("field", pack(new long[]{instant}).bytes, pack(new long[]{instant + 999}).bytes, new long[]{instant}.length) {
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                },
+                new ApproximatePointRangeQuery(
+                    "field",
+                    pack(new long[]{instant}).bytes,
+                    pack(new long[]{instant + 999}).bytes,
+                    new long[]{instant}.length
+                ) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                }
+            ),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999)
         );
-        assertEquals(expected, ft.termQuery(date, context));
+        assertEquals(expected.toString(), ft.termQuery(date, context).toString());
 
         MappedFieldType unsearchable = new DateFieldType(
             "field",
@@ -257,23 +279,57 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
         Query expected = new IndexOrDocValuesQuery(
-            LongPoint.newRangeQuery("field", instant1, instant2),
+            new ApproximateableQuery(
+                new PointRangeQuery("field", pack(new long[]{instant1}).bytes, pack(new long[]{instant2}).bytes, new long[]{instant1}.length) {
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                },
+                new ApproximatePointRangeQuery(
+                    "field",
+                    pack(new long[]{instant1}).bytes,
+                    pack(new long[]{instant2}).bytes,
+                    new long[]{instant1}.length
+                ) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                }
+            ),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
         );
         assertEquals(
-            expected,
-            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
+            expected.toString(),
+            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader())).toString()
         );
 
         instant1 = nowInMillis;
         instant2 = instant1 + 100;
         expected = new DateRangeIncludingNowQuery(
             new IndexOrDocValuesQuery(
-                LongPoint.newRangeQuery("field", instant1, instant2),
+                new ApproximateableQuery(
+                    new PointRangeQuery("field", pack(new long[]{instant1}).bytes, pack(new long[]{instant2}).bytes, new long[]{instant1}.length) {
+                        protected String toString(int dimension, byte[] value) {
+                            return Long.toString(LongPoint.decodeDimension(value, 0));
+                        }
+                    },
+                    new ApproximatePointRangeQuery(
+                        "field",
+                        pack(new long[]{instant1}).bytes,
+                        pack(new long[]{instant2}).bytes,
+                        new long[]{instant1}.length
+                    ) {
+                        @Override
+                        protected String toString(int dimension, byte[] value) {
+                            return Long.toString(LongPoint.decodeDimension(value, 0));
+                        }
+                    }
+                ),
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
             )
         );
-        assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
+        assertEquals(expected.toString(), ft.rangeQuery("now", instant2, true, true, null, null, null, context).toString());
 
         MappedFieldType unsearchable = new DateFieldType(
             "field",
@@ -329,7 +385,24 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
 
-        Query pointQuery = LongPoint.newRangeQuery("field", instant1, instant2);
+        Query pointQuery = new ApproximateableQuery(
+            new PointRangeQuery("field", pack(new long[]{instant1}).bytes, pack(new long[]{instant2}).bytes, new long[]{instant1}.length) {
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                }
+            },
+            new ApproximatePointRangeQuery(
+                "field",
+                pack(new long[]{instant1}).bytes,
+                pack(new long[]{instant2}).bytes,
+                new long[]{instant1}.length
+            ) {
+                @Override
+                protected String toString(int dimension, byte[] value) {
+                    return Long.toString(LongPoint.decodeDimension(value, 0));
+                }
+            }
+        );
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
         Query expected = new IndexSortSortedNumericDocValuesRangeQuery(
             "field",
@@ -337,7 +410,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             instant2,
             new IndexOrDocValuesQuery(pointQuery, dvQuery)
         );
-        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
+        assertEquals(expected.toString(), ft.rangeQuery(date1, date2, true, true, null, null, null, context).toString());
     }
 
     public void testDateNanoDocValues() throws IOException {

@@ -80,36 +80,40 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 int dims = 1;
 
                 long[] scratch = new long[dims];
-                for (int i = 0; i < 100; i++) {
-                    int numPoints = RandomNumbers.randomIntBetween(random(), 1, 10);
+                int numPoints = 1000;
+                for (int i = 0; i < numPoints; i++) {
                     Document doc = new Document();
-                    for (int j = 0; j < numPoints; j++) {
-                        for (int v = 0; v < dims; v++) {
-                            scratch[v] = RandomNumbers.randomLongBetween(random(), 0, 100);
-                        }
-                        doc.add(new LongPoint("point", scratch));
+                    for (int v = 0; v < dims; v++) {
+                        scratch[v] = i;
                     }
+                    doc.add(new LongPoint("point", scratch));
                     iw.addDocument(doc);
+                    if (i % 15 == 0) iw.flush();
                 }
                 iw.flush();
                 try (IndexReader reader = iw.getReader()) {
                     try {
-                        long lower = RandomNumbers.randomLongBetween(random(), -100, 200);
-                        long upper = lower + RandomNumbers.randomLongBetween(random(), 0, 100);
-                        Query approximateQuery = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims, 100) {
+                        long lower = 0;
+                        long upper = 100;
+                        Query approximateQuerySmall = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims, 10) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
-                        Query query = new PointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims) {
+                        Query approximateQueryBig = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims, 100) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
                         IndexSearcher searcher = new IndexSearcher(reader);
-                        TopDocs topDocs = searcher.search(approximateQuery, 10);
-                        TopDocs topDocs1 = searcher.search(query, 10);
-                        assertEquals(topDocs.totalHits, topDocs1.totalHits);
+                        TopDocs topDocs = searcher.search(approximateQuerySmall, 10);
+                        TopDocs topDocs1 = searcher.search(approximateQueryBig, 10);
+
+                        // the first query with size 10 will produce smaller hits compared to the bigger query
+                        assertNotEquals(topDocs.totalHits, topDocs1.totalHits);
+                        assertEquals(topDocs.totalHits, new TotalHits(11, TotalHits.Relation.EQUAL_TO));
+                        assertEquals(topDocs1.totalHits, new TotalHits(101, TotalHits.Relation.EQUAL_TO));
+
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
