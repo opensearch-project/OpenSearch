@@ -177,9 +177,11 @@ public class RecoverySettings {
     );
 
     // choose 512KB-16B to ensure that the resulting byte[] is not a humongous allocation in G1.
+    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
+
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "indices.recovery.chunk_size",
-        new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES),
+        DEFAULT_CHUNK_SIZE,
         new ByteSizeValue(1, ByteSizeUnit.BYTES),
         new ByteSizeValue(100, ByteSizeUnit.MB),
         Property.Dynamic,
