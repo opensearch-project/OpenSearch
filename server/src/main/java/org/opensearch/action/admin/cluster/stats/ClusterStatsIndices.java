@@ -34,6 +34,9 @@ package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.cache.query.QueryCacheStats;
@@ -55,7 +58,6 @@ import java.util.Map;
  */
 @PublicApi(since = "1.0.0")
 public class ClusterStatsIndices implements ToXContentFragment {
-
     private int indexCount;
     private ShardStats shards;
     private DocsStats docs;
@@ -78,26 +80,42 @@ public class ClusterStatsIndices implements ToXContentFragment {
         this.segments = new SegmentsStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
-            for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
-                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
-                if (indexShardStats == null) {
-                    indexShardStats = new ShardStats();
-                    countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
+            if (r.getNodeIndexShardStats() != null) {
+                r.getNodeIndexShardStats().indexStatsMap.forEach(
+                    (index, indexCountStats) -> countsPerIndex.merge(index, indexCountStats, (v1, v2) -> {
+                        v1.addStatsFrom(v2);
+                        return v1;
+                    })
+                );
+
+                docs.add(r.getNodeIndexShardStats().docs);
+                store.add(r.getNodeIndexShardStats().store);
+                fieldData.add(r.getNodeIndexShardStats().fieldData);
+                queryCache.add(r.getNodeIndexShardStats().queryCache);
+                completion.add(r.getNodeIndexShardStats().completion);
+                segments.add(r.getNodeIndexShardStats().segments);
+            } else {
+                for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
+                    ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
+                    if (indexShardStats == null) {
+                        indexShardStats = new ShardStats();
+                        countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
+                    }
+
+                    indexShardStats.total++;
+
+                    CommonStats shardCommonStats = shardStats.getStats();
+
+                    if (shardStats.getShardRouting().primary()) {
+                        indexShardStats.primaries++;
+                        docs.add(shardCommonStats.docs);
+                    }
+                    store.add(shardCommonStats.store);
+                    fieldData.add(shardCommonStats.fieldData);
+                    queryCache.add(shardCommonStats.queryCache);
+                    completion.add(shardCommonStats.completion);
+                    segments.add(shardCommonStats.segments);
                 }
-
-                indexShardStats.total++;
-
-                CommonStats shardCommonStats = shardStats.getStats();
-
-                if (shardStats.getShardRouting().primary()) {
-                    indexShardStats.primaries++;
-                    docs.add(shardCommonStats.docs);
-                }
-                store.add(shardCommonStats.store);
-                fieldData.add(shardCommonStats.fieldData);
-                queryCache.add(shardCommonStats.queryCache);
-                completion.add(shardCommonStats.completion);
-                segments.add(shardCommonStats.segments);
             }
         }
 
@@ -185,7 +203,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static class ShardStats implements ToXContentFragment {
+    public static class ShardStats implements ToXContentFragment, Writeable {
 
         int indices;
         int total;
@@ -201,6 +219,12 @@ public class ClusterStatsIndices implements ToXContentFragment {
         double maxIndexReplication = -1;
 
         public ShardStats() {}
+
+        public ShardStats(StreamInput in) throws IOException {
+            indices = in.readVInt();
+            total = in.readVInt();
+            primaries = in.readVInt();
+        }
 
         /**
          * number of indices in the cluster
@@ -327,6 +351,19 @@ public class ClusterStatsIndices implements ToXContentFragment {
                 maxIndexPrimaryShards = Math.max(maxIndexPrimaryShards, indexShardCount.primaries);
                 maxIndexReplication = Math.max(maxIndexReplication, indexShardCount.getReplication());
             }
+        }
+
+        public void addStatsFrom(ShardStats incomingStats) {
+            this.total += incomingStats.getTotal();
+            this.indices += incomingStats.getIndices();
+            this.primaries += incomingStats.getPrimaries();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(indices);
+            out.writeVInt(total);
+            out.writeVInt(primaries);
         }
 
         /**

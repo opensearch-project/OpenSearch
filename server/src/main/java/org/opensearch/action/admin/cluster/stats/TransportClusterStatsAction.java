@@ -46,6 +46,7 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterStateHealth;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.IndexService;
@@ -86,6 +87,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
+    public static final String OPTIMIZED_CLUSTER_STATS = "opensearch.experimental.optimization.cluster_stats.enabled";
+
+    public static final Setting<Boolean> OPTIMIZED_CLUSTER_STATS_SETTING = Setting.boolSetting(
+        OPTIMIZED_CLUSTER_STATS,
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public volatile boolean optimizedClusterStatsEnabled;
 
     @Inject
     public TransportClusterStatsAction(
@@ -110,6 +120,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
+        this.optimizedClusterStatsEnabled = OPTIMIZED_CLUSTER_STATS_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(OPTIMIZED_CLUSTER_STATS_SETTING, this::setOptimizedClusterStats);
     }
 
     @Override
@@ -211,8 +223,18 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
-        return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[0]));
+        return new ClusterStatsNodeResponse(
+            nodeInfo.getNode(),
+            clusterStatus,
+            nodeInfo,
+            nodeStats,
+            shardsStats.toArray(new ShardStats[0]),
+            optimizedClusterStatsEnabled
+        );
+    }
 
+    private void setOptimizedClusterStats(boolean optimizedClusterStatsEnabled) {
+        this.optimizedClusterStatsEnabled = optimizedClusterStatsEnabled;
     }
 
     /**

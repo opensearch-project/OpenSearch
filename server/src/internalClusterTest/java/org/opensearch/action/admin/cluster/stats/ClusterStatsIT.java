@@ -114,6 +114,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                     NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
                     roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())
                 )
+                .put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean())
                 .build();
             internalCluster().startNode(settings);
             total++;
@@ -146,6 +147,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         int total = 1;
         Settings settings = Settings.builder()
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), Collections.singletonList(DiscoveryNodeRole.MASTER_ROLE.roleName()))
+            .put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean())
             .build();
         internalCluster().startNode(settings);
         waitForNodes(total);
@@ -177,7 +179,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testIndicesShardStats() throws ExecutionException, InterruptedException {
-        internalCluster().startNode();
+        Settings settings = Settings.builder().put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean()).build();
+        internalCluster().startNode(settings);
         ensureGreen();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
@@ -222,7 +225,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testValuesSmokeScreen() throws IOException, ExecutionException, InterruptedException {
-        internalCluster().startNodes(randomIntBetween(1, 3));
+        Settings settings = Settings.builder().put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean()).build();
+        internalCluster().startNodes(randomIntBetween(1, 3), settings);
         index("test1", "type", "1", "f", "f");
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
@@ -262,7 +266,12 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         // start one node with 7 processors.
-        internalCluster().startNode(Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 7).build());
+        internalCluster().startNode(
+            Settings.builder()
+                .put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 7)
+                .put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean())
+                .build()
+        );
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
@@ -270,7 +279,12 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testClusterStatusWhenStateNotRecovered() throws Exception {
-        internalCluster().startClusterManagerOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder()
+                .put("gateway.recover_after_nodes", 2)
+                .put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean())
+                .build()
+        );
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
@@ -286,7 +300,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testFieldTypes() {
-        internalCluster().startNode();
+        Settings settings = Settings.builder().put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean()).build();
+        internalCluster().startNode(settings);
         ensureGreen();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
@@ -321,6 +336,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .put("node.master", true)
             .put("node.data", false)
             .put("node.ingest", false)
+            .put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean())
             .build();
 
         internalCluster().startNodes(legacyMasterSettings);
@@ -351,6 +367,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                     DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
                 )
             )
+            .put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean())
             .build();
 
         internalCluster().startNodes(clusterManagerNodeRoleSettings);
@@ -375,6 +392,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .put("node.master", true)
             .put("node.data", true)
             .put("node.ingest", false)
+            .put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean())
             .build();
 
         internalCluster().startNodes(legacySeedDataNodeSettings);
@@ -400,6 +418,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
             .put("node.master", false)
             .put("node.data", true)
             .put("node.ingest", false)
+            .put(TransportClusterStatsAction.OPTIMIZED_CLUSTER_STATS, randomBoolean())
             .build();
 
         // can't start data-only node without assigning cluster-manager
