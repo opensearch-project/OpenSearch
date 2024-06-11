@@ -62,11 +62,7 @@ public class RemoteGlobalMetadataManager {
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 1;
 
     private volatile TimeValue globalMetadataUploadTimeout;
-    private final RemoteWritableEntityStore<Metadata, RemoteGlobalMetadata> globalMetadataBlobStore;
-    private final RemoteClusterStateBlobStore<CoordinationMetadata, RemoteCoordinationMetadata> coordinationMetadataBlobStore;
-    private final RemoteClusterStateBlobStore<Settings, RemotePersistentSettingsMetadata> persistentSettingsBlobStore;
-    private final RemoteClusterStateBlobStore<TemplatesMetadata, RemoteTemplatesMetadata> templatesMetadataBlobStore;
-    private final RemoteClusterStateBlobStore<Custom, RemoteCustomMetadata> customMetadataBlobStore;
+    private Map<String, RemoteWritableEntityStore> remoteWritableEntityStores;
     private final Compressor compressor;
     private final NamedXContentRegistry namedXContentRegistry;
 
@@ -80,40 +76,56 @@ public class RemoteGlobalMetadataManager {
         this.globalMetadataUploadTimeout = clusterSettings.get(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING);
         this.compressor = blobStoreRepository.getCompressor();
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
-        globalMetadataBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
+        this.remoteWritableEntityStores = new HashMap<>();
+        this.remoteWritableEntityStores.put(
+            RemoteGlobalMetadata.GLOBAL_METADATA,
+            new RemoteClusterStateBlobStore<>(
+                blobStoreTransferService,
+                blobStoreRepository,
+                clusterName,
+                threadpool,
+                ThreadPool.Names.REMOTE_STATE_READ
+            )
         );
-        coordinationMetadataBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
+        this.remoteWritableEntityStores.put(
+            RemoteCoordinationMetadata.COORDINATION_METADATA,
+            new RemoteClusterStateBlobStore<>(
+                blobStoreTransferService,
+                blobStoreRepository,
+                clusterName,
+                threadpool,
+                ThreadPool.Names.REMOTE_STATE_READ
+            )
         );
-        persistentSettingsBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
+        this.remoteWritableEntityStores.put(
+            RemotePersistentSettingsMetadata.SETTING_METADATA,
+            new RemoteClusterStateBlobStore<>(
+                blobStoreTransferService,
+                blobStoreRepository,
+                clusterName,
+                threadpool,
+                ThreadPool.Names.REMOTE_STATE_READ
+            )
         );
-        templatesMetadataBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
+        this.remoteWritableEntityStores.put(
+            RemoteTemplatesMetadata.TEMPLATES_METADATA,
+            new RemoteClusterStateBlobStore<>(
+                blobStoreTransferService,
+                blobStoreRepository,
+                clusterName,
+                threadpool,
+                ThreadPool.Names.REMOTE_STATE_READ
+            )
         );
-        customMetadataBlobStore = new RemoteClusterStateBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ
+        this.remoteWritableEntityStores.put(
+            RemoteCustomMetadata.CUSTOM_METADATA,
+            new RemoteClusterStateBlobStore<>(
+                blobStoreTransferService,
+                blobStoreRepository,
+                clusterName,
+                threadpool,
+                ThreadPool.Names.REMOTE_STATE_READ
+            )
         );
         clusterSettings.addSettingsUpdateConsumer(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING, this::setGlobalMetadataUploadTimeout);
     }
@@ -123,10 +135,20 @@ public class RemoteGlobalMetadataManager {
      */
     CheckedRunnable<IOException> getAsyncMetadataWriteAction(
         AbstractRemoteWritableBlobEntity writeEntity,
-        RemoteWritableEntityStore remoteStore,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
-        return () -> remoteStore.writeAsync(writeEntity, getActionListener(writeEntity, latchedActionListener));
+        return (() -> getRemoteWriteableEntityStoreForObject(writeEntity).writeAsync(
+            writeEntity,
+            getActionListener(writeEntity, latchedActionListener)
+        ));
+    }
+
+    private RemoteWritableEntityStore getRemoteWriteableEntityStoreForObject(AbstractRemoteWritableBlobEntity entity) {
+        RemoteWritableEntityStore remoteStore = remoteWritableEntityStores.get(entity.getType());
+        if (remoteStore == null) {
+            throw new IllegalArgumentException("Unknown entity type [" + entity.getType() + "]");
+        }
+        return remoteStore;
     }
 
     private ActionListener<Void> getActionListener(
@@ -150,7 +172,7 @@ public class RemoteGlobalMetadataManager {
                     compressor,
                     namedXContentRegistry
                 );
-                return globalMetadataBlobStore.read(remoteGlobalMetadata);
+                return (Metadata) getRemoteWriteableEntityStoreForObject(remoteGlobalMetadata).read(remoteGlobalMetadata);
             } else if (clusterMetadataManifest.hasMetadataAttributesFiles()) {
                 // from CODEC_V2, we have started uploading all the metadata in granular files instead of a single entity
                 Metadata.Builder builder = new Metadata.Builder();
@@ -161,7 +183,11 @@ public class RemoteGlobalMetadataManager {
                         compressor,
                         namedXContentRegistry
                     );
-                    builder.coordinationMetadata(coordinationMetadataBlobStore.read(remoteCoordinationMetadata));
+                    builder.coordinationMetadata(
+                        (CoordinationMetadata) getRemoteWriteableEntityStoreForObject(remoteCoordinationMetadata).read(
+                            remoteCoordinationMetadata
+                        )
+                    );
                 }
                 if (clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename() != null) {
                     RemoteTemplatesMetadata remoteTemplatesMetadata = new RemoteTemplatesMetadata(
@@ -170,7 +196,9 @@ public class RemoteGlobalMetadataManager {
                         compressor,
                         namedXContentRegistry
                     );
-                    builder.templates(templatesMetadataBlobStore.read(remoteTemplatesMetadata));
+                    builder.templates(
+                        (TemplatesMetadata) getRemoteWriteableEntityStoreForObject(remoteTemplatesMetadata).read(remoteTemplatesMetadata)
+                    );
                 }
                 if (clusterMetadataManifest.getSettingsMetadata().getUploadedFilename() != null) {
                     RemotePersistentSettingsMetadata remotePersistentSettingsMetadata = new RemotePersistentSettingsMetadata(
@@ -179,17 +207,26 @@ public class RemoteGlobalMetadataManager {
                         compressor,
                         namedXContentRegistry
                     );
-                    builder.persistentSettings(persistentSettingsBlobStore.read(remotePersistentSettingsMetadata));
+                    builder.persistentSettings(
+                        (Settings) getRemoteWriteableEntityStoreForObject(remotePersistentSettingsMetadata).read(
+                            remotePersistentSettingsMetadata
+                        )
+                    );
                 }
                 builder.clusterUUID(clusterMetadataManifest.getClusterUUID());
                 builder.clusterUUIDCommitted(clusterMetadataManifest.isClusterUUIDCommitted());
                 clusterMetadataManifest.getCustomMetadataMap().forEach((key, value) -> {
                     try {
+                        RemoteCustomMetadata remoteCustomMetadata = new RemoteCustomMetadata(
+                            value.getUploadedFilename(),
+                            key,
+                            clusterUUID,
+                            compressor,
+                            namedXContentRegistry
+                        );
                         builder.putCustom(
                             key,
-                            customMetadataBlobStore.read(
-                                new RemoteCustomMetadata(value.getUploadedFilename(), key, clusterUUID, compressor, namedXContentRegistry)
-                            )
+                            (Custom) getRemoteWriteableEntityStoreForObject(remoteCustomMetadata).read(remoteCustomMetadata)
                         );
                     } catch (IOException e) {
                         throw new IllegalStateException(
@@ -247,21 +284,5 @@ public class RemoteGlobalMetadataManager {
 
     public TimeValue getGlobalMetadataUploadTimeout() {
         return this.globalMetadataUploadTimeout;
-    }
-
-    public RemoteClusterStateBlobStore<CoordinationMetadata, RemoteCoordinationMetadata> getCoordinationMetadataBlobStore() {
-        return coordinationMetadataBlobStore;
-    }
-
-    public RemoteClusterStateBlobStore<Settings, RemotePersistentSettingsMetadata> getPersistentSettingsBlobStore() {
-        return persistentSettingsBlobStore;
-    }
-
-    public RemoteClusterStateBlobStore<TemplatesMetadata, RemoteTemplatesMetadata> getTemplatesMetadataBlobStore() {
-        return templatesMetadataBlobStore;
-    }
-
-    public RemoteClusterStateBlobStore<Custom, RemoteCustomMetadata> getCustomMetadataBlobStore() {
-        return customMetadataBlobStore;
     }
 }

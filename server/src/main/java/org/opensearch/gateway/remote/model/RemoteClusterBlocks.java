@@ -56,6 +56,11 @@ public class RemoteClusterBlocks extends AbstractRemoteWritableBlobEntity<Cluste
     }
 
     @Override
+    public String getType() {
+        return CLUSTER_BLOCKS;
+    }
+
+    @Override
     public String generateBlobFileName() {
         // 123456789012_test-cluster/cluster-state/dsgYj10Nkso7/transient/<componentPrefix>__<inverted_state_version>__<inverted__timestamp>__<codec_version>
         String blobFileName = String.join(

@@ -38,7 +38,7 @@ public class RemoteIndexMetadata extends AbstractRemoteWritableBlobEntity<IndexM
         METADATA_NAME_PLAIN_FORMAT,
         IndexMetadata::fromXContent
     );
-    public static final String INDEX_PATH_TOKEN = "index";
+    public static final String INDEX = "index";
 
     private IndexMetadata indexMetadata;
 
@@ -64,7 +64,12 @@ public class RemoteIndexMetadata extends AbstractRemoteWritableBlobEntity<IndexM
 
     @Override
     public BlobPathParameters getBlobPathParameters() {
-        return new BlobPathParameters(List.of(INDEX_PATH_TOKEN, indexMetadata.getIndexUUID()), "metadata");
+        return new BlobPathParameters(List.of(INDEX, indexMetadata.getIndexUUID()), "metadata");
+    }
+
+    @Override
+    public String getType() {
+        return INDEX;
     }
 
     @Override

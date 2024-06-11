@@ -59,6 +59,11 @@ public class RemoteHashesOfConsistentSettings extends AbstractRemoteWritableBlob
     }
 
     @Override
+    public String getType() {
+        return HASHES_OF_CONSISTENT_SETTINGS;
+    }
+
+    @Override
     public String generateBlobFileName() {
         String blobFileName = String.join(
             DELIMITER,

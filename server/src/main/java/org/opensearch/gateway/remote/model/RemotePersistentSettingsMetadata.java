@@ -72,6 +72,11 @@ public class RemotePersistentSettingsMetadata extends AbstractRemoteWritableBlob
     }
 
     @Override
+    public String getType() {
+        return SETTING_METADATA;
+    }
+
+    @Override
     public String generateBlobFileName() {
         String blobFileName = String.join(
             DELIMITER,
