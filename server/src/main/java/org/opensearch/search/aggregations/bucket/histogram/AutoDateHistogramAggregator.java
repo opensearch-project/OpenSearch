@@ -158,8 +158,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
-        fastFilterContext.setAggregationType(
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
+            context,
             new AutoHistogramAggregationType(
                 valuesSourceConfig.fieldType(),
                 valuesSourceConfig.missing() != null,

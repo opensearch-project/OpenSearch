@@ -202,6 +202,11 @@ public final class FastFilterRewriteHelper {
             this.context = context;
         }
 
+        public FastFilterContext(SearchContext context, AggregationType aggregationType) {
+            this.context = context;
+            this.aggregationType = aggregationType;
+        }
+
         public AggregationType getAggregationType() {
             return aggregationType;
         }

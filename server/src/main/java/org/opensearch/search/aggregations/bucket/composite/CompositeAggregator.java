@@ -167,7 +167,9 @@ public final class CompositeAggregator extends BucketsAggregator {
         this.rawAfterKey = rawAfterKey;
 
         fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
-        if (!FastFilterRewriteHelper.isCompositeAggRewriteable(sourceConfigs)) return;
+        if (!FastFilterRewriteHelper.isCompositeAggRewriteable(sourceConfigs)) {
+            return;
+        }
         fastFilterContext.setAggregationType(new CompositeAggregationType());
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
             // bucketOrds is used for saving date histogram results

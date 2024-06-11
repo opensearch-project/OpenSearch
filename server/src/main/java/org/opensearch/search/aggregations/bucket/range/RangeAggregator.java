@@ -273,16 +273,18 @@ public class RangeAggregator extends BucketsAggregator {
         this.rangeFactory = rangeFactory;
         this.ranges = ranges; // already sorted by the range.from and range.to
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
-        fastFilterContext.setAggregationType(new FastFilterRewriteHelper.RangeAggregationType(config, ranges));
-        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildRanges(Objects.requireNonNull(config.fieldType()));
-        }
-
         maxTo = new double[this.ranges.length];
         maxTo[0] = this.ranges[0].to;
         for (int i = 1; i < this.ranges.length; ++i) {
             maxTo[i] = Math.max(this.ranges[i].to, maxTo[i - 1]);
+        }
+
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
+            context,
+            new FastFilterRewriteHelper.RangeAggregationType(config, ranges)
+        );
+        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            fastFilterContext.buildRanges(Objects.requireNonNull(config.fieldType()));
         }
     }
 

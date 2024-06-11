@@ -117,8 +117,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
-        fastFilterContext.setAggregationType(
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
+            context,
             new DateHistogramAggregationType(
                 valuesSourceConfig.fieldType(),
                 valuesSourceConfig.missing() != null,
