@@ -98,7 +98,12 @@ public class RemoteIndexMetadataManager {
         String uploadedFilename,
         LatchedActionListener<RemoteReadResult> latchedActionListener
     ) {
-        RemoteIndexMetadata remoteIndexMetadata = new RemoteIndexMetadata(uploadedFilename, clusterUUID, compressor, namedXContentRegistry);
+        RemoteIndexMetadata remoteIndexMetadata = new RemoteIndexMetadata(
+            RemoteClusterStateUtils.getFormattedIndexFileName(uploadedFilename),
+            clusterUUID,
+            compressor,
+            namedXContentRegistry
+        );
         ActionListener<IndexMetadata> actionListener = ActionListener.wrap(
             response -> latchedActionListener.onResponse(
                 new RemoteReadResult(response, RemoteIndexMetadata.INDEX, response.getIndex().getName())
