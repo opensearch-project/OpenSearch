@@ -53,6 +53,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.lease.Releasable;
@@ -62,6 +63,7 @@ import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.BitMixer;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.ObjectArray;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -75,6 +77,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
+
+import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 
 /**
  * An aggregator that computes approximate counts of unique values.
@@ -101,7 +105,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private int ordinalsCollectorsUsed;
     private int ordinalsCollectorsOverheadTooHigh;
     private int stringHashingCollectorsUsed;
-    private int dynamicPruningSegments;
+    private int dynamicPrunedSegments;
 
     public CardinalityAggregator(
         String name,
@@ -165,42 +169,79 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             collector = new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
         }
 
-        if (parent == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null) {
-            try {
-                collector = tryWrapWithPruningCollector(ctx, collector);
-            } catch (Exception e) {
+        if (canPrune(parent, subAggregators, valuesSourceConfig)) {
+            Terms terms = ctx.reader().terms(valuesSourceConfig.fieldContext().field());
+            if (terms == null) return collector;
+            if (exceedMaxThreshold(terms)) {
                 return collector;
             }
+
+            Collector pruningCollector = tryWrapWithPruningCollector(collector, terms, ctx);
+            if (pruningCollector == null) {
+                return collector;
+            }
+
+            if (!tryScoreWithPruningCollector(ctx, pruningCollector)) {
+                return collector;
+            }
+            logger.debug("Dynamic pruned segment {} of shard {}", ctx.ord, context.indexShard().shardId());
+            dynamicPrunedSegments++;
+
+            return getNoOpCollector();
         }
 
         return collector;
     }
 
-    private Collector tryWrapWithPruningCollector(LeafReaderContext ctx, Collector collector) throws IOException {
-        Terms terms = ctx.reader().terms(valuesSourceConfig.fieldContext().field());
-        if (terms == null) return collector;
+    private boolean canPrune(Aggregator parent, Aggregator[] subAggregators, ValuesSourceConfig valuesSourceConfig) {
+        return parent == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null;
+    }
+
+    private boolean exceedMaxThreshold(Terms terms) throws IOException {
         if (terms.size() > context.cardinalityAggregationPruningThreshold()) {
             logger.debug(
                 "Cannot prune because terms size {} is greater than the threshold {}",
                 terms.size(),
                 context.cardinalityAggregationPruningThreshold()
             );
-            return collector;
+            return true;
         }
-        // Specify TOP_DOCS score mode to use competitive iterator from collector
-        Weight weight = context.searcher().createWeight(context.searcher().rewrite(context.query()), ScoreMode.TOP_DOCS, 1f);
-        Bits liveDocs = ctx.reader().getLiveDocs();
-        BulkScorer scorer = weight.bulkScorer(ctx);
-        if (scorer == null) {
-            return collector;
+        return false;
+    }
+
+    private Collector tryWrapWithPruningCollector(Collector collector, Terms terms, LeafReaderContext ctx) {
+        try {
+            return new PruningCollector(collector, terms.iterator(), ctx, context, valuesSourceConfig.fieldContext().field());
+        } catch (Exception e) {
+            logger.warn("Failed to build collector for dynamic pruning.", e);
+            return null;
         }
-        collector = new PruningCollector(collector, terms.iterator(), ctx, context, valuesSourceConfig.fieldContext().field());
-        scorer.score(collector, liveDocs);
-        collector.postCollect();
-        Releasables.close(collector);
-        logger.debug("Dynamic pruned segment {} of shard {}", ctx.ord, context.indexShard().shardId());
-        dynamicPruningSegments++;
-        // return a no-op collector to not breaking the backward compatibility with previous profile results
+    }
+
+    private boolean tryScoreWithPruningCollector(LeafReaderContext ctx, Collector pruningCollector) throws IOException {
+        try {
+            Weight weight = context.query().rewrite(context.searcher()).createWeight(context.searcher(), ScoreMode.TOP_DOCS, 1f);
+            BulkScorer scorer = weight.bulkScorer(ctx);
+            if (scorer == null) {
+                return false;
+            }
+            Bits liveDocs = ctx.reader().getLiveDocs();
+            scorer.score(pruningCollector, liveDocs);
+            pruningCollector.postCollect();
+            Releasables.close(pruningCollector);
+        } catch (Exception e) {
+            throw new OpenSearchStatusException(
+                "Failed when performing dynamic pruning in cardinality aggregation. You can set cluster setting ["
+                    + CARDINALITY_AGGREGATION_PRUNING_THRESHOLD.getKey()
+                    + "] to 0 to disable.",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e
+            );
+        }
+        return true;
+    }
+
+    private Collector getNoOpCollector() {
         return new Collector() {
             @Override
             public void close() {}
@@ -273,7 +314,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
-        add.accept("dynamic_pruning_segments", dynamicPruningSegments);
+        add.accept("dynamic_pruned_segments", dynamicPrunedSegments);
     }
 
     /**
@@ -301,7 +342,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             while (terms.next() != null) {
                 BytesRef term = terms.term();
                 TermQuery termQuery = new TermQuery(new Term(field, term));
-                Weight subWeight = context.searcher().createWeight(termQuery, ScoreMode.COMPLETE_NO_SCORES, 1f);
+                Weight subWeight = termQuery.createWeight(context.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Scorer scorer = subWeight.scorer(ctx);
                 postingMap.put(term, scorer);
             }

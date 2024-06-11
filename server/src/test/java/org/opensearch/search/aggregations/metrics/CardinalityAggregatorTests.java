@@ -114,101 +114,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
-    public void testDynamicPruningFixedValues() throws IOException {
-        final String fieldName = "testField";
-        final String filterFieldName = "filterField";
-
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
-        testDynamicPruning(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
-            iw.addDocument(
-                asList(
-                    new KeywordField(fieldName, "1", Field.Store.NO),
-                    new KeywordField(fieldName, "2", Field.Store.NO),
-                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                    new SortedSetDocValuesField(fieldName, new BytesRef("1")),
-                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
-                )
-            );
-            iw.addDocument(
-                asList(
-                    new KeywordField(fieldName, "2", Field.Store.NO),
-                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
-                )
-            );
-            iw.addDocument(
-                asList(
-                    new KeywordField(fieldName, "1", Field.Store.NO),
-                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                    new SortedSetDocValuesField(fieldName, new BytesRef("1"))
-                )
-            );
-            iw.addDocument(
-                asList(
-                    new KeywordField(fieldName, "2", Field.Store.NO),
-                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
-                )
-            );
-            iw.addDocument(
-                asList(
-                    new KeywordField(fieldName, "3", Field.Store.NO),
-                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
-                    new SortedSetDocValuesField(fieldName, new BytesRef("3"))
-                )
-            );
-            iw.addDocument(
-                asList(
-                    new KeywordField(fieldName, "4", Field.Store.NO),
-                    new KeywordField(filterFieldName, "bar", Field.Store.NO),
-                    new SortedSetDocValuesField(fieldName, new BytesRef("4"))
-                )
-            );
-            iw.addDocument(
-                asList(
-                    new KeywordField(fieldName, "5", Field.Store.NO),
-                    new KeywordField(filterFieldName, "bar", Field.Store.NO),
-                    new SortedSetDocValuesField(fieldName, new BytesRef("5"))
-                )
-            );
-        }, card -> {
-            assertEquals(3.0, card.getValue(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, fieldType, 100, (collectCount) -> assertEquals(0, (int) collectCount));
-    }
-
-    public void testDynamicPruningRandomValues() throws IOException {
-        final String fieldName = "testField";
-        final String filterFieldName = "filterField";
-
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
-
-        int randomCardinality = randomIntBetween(1, 100);
-        AtomicInteger counter = new AtomicInteger();
-
-        testDynamicPruning(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
-            for (int i = 0; i < randomCardinality; i++) {
-                String filterValue = "foo";
-                if (randomBoolean()) {
-                    filterValue = "bar";
-                    counter.getAndIncrement();
-                }
-                iw.addDocument(
-                    asList(
-                        new KeywordField(filterFieldName, filterValue, Field.Store.NO),
-                        new KeywordField(fieldName, String.valueOf(i), Field.Store.NO),
-                        new SortedSetDocValuesField(fieldName, new BytesRef(String.valueOf(i)))
-                    )
-                );
-            }
-        }, card -> {
-            logger.info("expected {}, cardinality: {}", randomCardinality - counter.get(), card.getValue());
-            assertEquals(randomCardinality - counter.get(), card.getValue(), 0);
-        }, fieldType, 100, (collectCount) -> assertEquals(0, (int) collectCount));
-    }
-
     public void testNoMatchingField() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
@@ -317,6 +222,149 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType
     ) throws IOException {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    }
+
+    public void testDynamicPruningFixedValues() throws IOException {
+        final String fieldName = "testField";
+        final String filterFieldName = "filterField";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+        testDynamicPruning(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "1", Field.Store.NO),
+                    new KeywordField(fieldName, "2", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("1")),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "2", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "1", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("1"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "2", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "3", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("3"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "4", Field.Store.NO),
+                    new KeywordField(filterFieldName, "bar", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("4"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "5", Field.Store.NO),
+                    new KeywordField(filterFieldName, "bar", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("5"))
+                )
+            );
+        }, card -> {
+            assertEquals(3.0, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, fieldType, 100, (collectCount) -> assertEquals(0, (int) collectCount));
+    }
+
+    public void testDynamicPruningRandomValues() throws IOException {
+        final String fieldName = "testField";
+        final String filterFieldName = "filterField";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+
+        int randomCardinality = randomIntBetween(1, 100);
+        AtomicInteger counter = new AtomicInteger();
+
+        testDynamicPruning(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
+            for (int i = 0; i < randomCardinality; i++) {
+                String filterValue = "foo";
+                if (randomBoolean()) {
+                    filterValue = "bar";
+                    counter.getAndIncrement();
+                }
+                iw.addDocument(
+                    asList(
+                        new KeywordField(filterFieldName, filterValue, Field.Store.NO),
+                        new KeywordField(fieldName, String.valueOf(i), Field.Store.NO),
+                        new SortedSetDocValuesField(fieldName, new BytesRef(String.valueOf(i)))
+                    )
+                );
+            }
+        }, card -> {
+            logger.info("expected {}, cardinality: {}", randomCardinality - counter.get(), card.getValue());
+            assertEquals(randomCardinality - counter.get(), card.getValue(), 0);
+        }, fieldType, 100, (collectCount) -> assertEquals(0, (int) collectCount));
+    }
+
+    public void testDynamicPruningRandomDelete() throws IOException {
+        final String fieldName = "testField";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+
+        int randomCardinality = randomIntBetween(1, 100);
+        AtomicInteger counter = new AtomicInteger();
+
+        testDynamicPruning(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < randomCardinality; i++) {
+                iw.addDocument(
+                    asList(
+                        new KeywordField(fieldName, String.valueOf(i), Field.Store.NO),
+                        new SortedSetDocValuesField(fieldName, new BytesRef(String.valueOf(i)))
+                    )
+                );
+                if (randomBoolean()) {
+                    iw.deleteDocuments(new Term(fieldName, String.valueOf(i)));
+                    counter.getAndIncrement();
+                }
+            }
+        },
+            card -> { assertEquals(randomCardinality - counter.get(), card.getValue(), 0); },
+            fieldType,
+            100,
+            (collectCount) -> assertEquals(0, (int) collectCount)
+        );
+    }
+
+    public void testDynamicPruningFieldMissingInSegment() throws IOException {
+        final String fieldName = "testField";
+        final String fieldName2 = "testField2";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+
+        testDynamicPruning(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(asList(new KeywordField(fieldName, "1", Field.Store.NO), new KeywordField(fieldName, "2", Field.Store.NO)));
+            iw.addDocument(asList(new KeywordField(fieldName, "1", Field.Store.NO), new KeywordField(fieldName, "3", Field.Store.NO)));
+            iw.addDocument(asList(new KeywordField(fieldName, "2", Field.Store.NO), new KeywordField(fieldName, "3", Field.Store.NO)));
+            iw.commit();
+            iw.addDocument(asList(new KeywordField(fieldName2, "100", Field.Store.NO)));
+            iw.addDocument(asList(new KeywordField(fieldName2, "101", Field.Store.NO)));
+            iw.addDocument(asList(new KeywordField(fieldName2, "102", Field.Store.NO)));
+        }, card -> { assertEquals(3, card.getValue(), 0); }, fieldType, 100, (collectCount) -> assertEquals(3, (int) collectCount));
     }
 
     private void testDynamicPruning(
