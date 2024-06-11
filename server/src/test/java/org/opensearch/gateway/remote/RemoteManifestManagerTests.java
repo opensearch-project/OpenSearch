@@ -34,8 +34,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.gateway.remote.RemoteClusterStateServiceTests.generateClusterStateWithOneIndex;
-import static org.opensearch.gateway.remote.RemoteClusterStateServiceTests.nodesWithLocalNodeClusterManager;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.threadpool.ThreadPool.Names.REMOTE_STATE_READ;
 import static org.mockito.ArgumentMatchers.any;
@@ -108,7 +106,8 @@ public class RemoteManifestManagerTests extends OpenSearchTestCase {
 
     public void testReadLatestMetadataManifestFailedIOException() throws IOException {
         final ClusterState clusterState = RemoteClusterStateServiceTests.generateClusterStateWithOneIndex()
-            .nodes(RemoteClusterStateServiceTests.nodesWithLocalNodeClusterManager()).build();
+            .nodes(RemoteClusterStateServiceTests.nodesWithLocalNodeClusterManager())
+            .build();
 
         BlobContainer blobContainer = mockBlobStoreObjects();
         when(blobContainer.listBlobsByPrefixInSortedOrder("manifest" + DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC))

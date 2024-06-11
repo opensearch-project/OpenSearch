@@ -96,7 +96,7 @@ import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.FORMAT_PARAMS;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_PLAIN_FORMAT;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.getFormattedFileName;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.getFormattedIndexFileName;
 import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA_FORMAT;
@@ -456,7 +456,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             clusterState,
             previousManifest
         ).getClusterMetadataManifest();
-        final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
+        final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename__2");
         final List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
 
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
@@ -999,7 +999,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
     public void testReadLatestMetadataManifestSuccessButIndexMetadataFetchIOException() throws IOException {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
-        final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename");
+        final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename__2");
         final List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
             .indices(indices)
@@ -1014,7 +1014,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         BlobContainer blobContainer = mockBlobStoreObjects();
         mockBlobContainer(blobContainer, expectedManifest, Map.of());
-        when(blobContainer.readBlob(uploadedIndexMetadata.getUploadedFilename() + ".dat")).thenThrow(FileNotFoundException.class);
+        when(blobContainer.readBlob(uploadedIndexMetadata.getUploadedFilename())).thenThrow(FileNotFoundException.class);
 
         remoteClusterStateService.start();
         Exception e = assertThrows(
@@ -1116,7 +1116,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .stateUUID("state-uuid")
             .clusterUUID("cluster-uuid")
             .codecVersion(CODEC_V1)
-            .globalMetadataFileName(getFormattedFileName(globalIndexMetadataName, CODEC_V1))
+            .globalMetadataFileName(globalIndexMetadataName)
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
@@ -1137,10 +1137,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 clusterState.metadata().clusterUUID()
             )
         );
-        assertEquals(
-            e.getMessage(),
-            "Error while downloading Global Metadata - " + getFormattedFileName(globalIndexMetadataName, CODEC_V1)
-        );
+        assertEquals(e.getMessage(), "Error while downloading Global Metadata - " + globalIndexMetadataName);
     }
 
     public void testReadLatestIndexMetadataSuccess() throws IOException {
@@ -1148,7 +1145,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.start();
 
         final Index index = new Index("test-index", "index-uuid");
-        String fileName = "metadata-" + index.getUUID();
+        String fileName = "metadata-" + index.getUUID() + "__1";
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata(index.getName(), index.getUUID(), fileName);
         final Settings idxSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -1530,8 +1527,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         mockBlobContainerForClusterUUIDs(uuidBlobContainer, clusterUUIDsPointers.keySet());
         List<UploadedIndexMetadata> uploadedIndexMetadataList1 = List.of(
-            new UploadedIndexMetadata("index1", "index-uuid1", "key1"),
-            new UploadedIndexMetadata("index2", "index-uuid2", "key2")
+            new UploadedIndexMetadata("index1", "index-uuid1", "key1__2"),
+            new UploadedIndexMetadata("index2", "index-uuid2", "key2__2")
         );
         Map<String, UploadedMetadataAttribute> customMetadataMap = new HashMap<>();
         final ClusterMetadataManifest clusterManifest1 = generateClusterMetadataManifest(
@@ -1564,8 +1561,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         mockBlobContainer(blobContainer1, clusterManifest1, indexMetadataMap1, MANIFEST_CURRENT_CODEC_VERSION);
 
         List<UploadedIndexMetadata> uploadedIndexMetadataList2 = List.of(
-            new UploadedIndexMetadata("index1", "index-uuid1", "key1"),
-            new UploadedIndexMetadata("index2", "index-uuid2", "key2")
+            new UploadedIndexMetadata("index1", "index-uuid1", "key1__2"),
+            new UploadedIndexMetadata("index2", "index-uuid2", "key2__2")
         );
         final ClusterMetadataManifest clusterManifest2 = generateClusterMetadataManifest(
             "cluster-uuid2",
@@ -1603,7 +1600,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         // IndexMetadata and Metadata when deciding if the remote state b/w two different cluster uuids is same.
         List<UploadedIndexMetadata> uploadedIndexMetadataList3 = differGlobalMetadata
             ? new ArrayList<>(uploadedIndexMetadataList1)
-            : List.of(new UploadedIndexMetadata("index1", "index-uuid1", "key1"));
+            : List.of(new UploadedIndexMetadata("index1", "index-uuid1", "key1__2"));
         IndexMetadata indexMetadata5 = IndexMetadata.builder("index1")
             .settings(indexSettings)
             .numberOfShards(1)
@@ -1761,17 +1758,15 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     return;
                 }
                 String fileName = uploadedIndexMetadata.getUploadedFilename();
-                when(blobContainer.readBlob(getFormattedFileName(fileName, MANIFEST_CURRENT_CODEC_VERSION))).thenAnswer(
-                    (invocationOnMock) -> {
-                        BytesReference bytesIndexMetadata = RemoteIndexMetadata.INDEX_METADATA_FORMAT.serialize(
-                            indexMetadata,
-                            fileName,
-                            blobStoreRepository.getCompressor(),
-                            FORMAT_PARAMS
-                        );
-                        return new ByteArrayInputStream(bytesIndexMetadata.streamInput().readAllBytes());
-                    }
-                );
+                when(blobContainer.readBlob(getFormattedIndexFileName(fileName))).thenAnswer((invocationOnMock) -> {
+                    BytesReference bytesIndexMetadata = RemoteIndexMetadata.INDEX_METADATA_FORMAT.serialize(
+                        indexMetadata,
+                        fileName,
+                        blobStoreRepository.getCompressor(),
+                        FORMAT_PARAMS
+                    );
+                    return new ByteArrayInputStream(bytesIndexMetadata.streamInput().readAllBytes());
+                });
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

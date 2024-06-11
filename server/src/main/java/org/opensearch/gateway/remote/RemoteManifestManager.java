@@ -106,7 +106,8 @@ public class RemoteManifestManager {
                 .settingMetadata(uploadedMetadataResult.uploadedSettingsMetadata)
                 .templatesMetadata(uploadedMetadataResult.uploadedTemplatesMetadata)
                 .customMetadataMap(uploadedMetadataResult.uploadedCustomMetadataMap)
-                .routingTableVersion(clusterState.getRoutingTable().version());
+                .routingTableVersion(clusterState.getRoutingTable().version())
+                .indicesRouting(uploadedMetadataResult.uploadedIndicesRoutingMetadata);
             final ClusterMetadataManifest manifest = manifestBuilder.build();
             String manifestFileName = writeMetadataManifest(clusterState.metadata().clusterUUID(), manifest);
             return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
@@ -168,24 +169,6 @@ public class RemoteManifestManager {
     public Optional<ClusterMetadataManifest> getLatestClusterMetadataManifest(String clusterName, String clusterUUID) {
         Optional<String> latestManifestFileName = getLatestManifestFileName(clusterName, clusterUUID);
         return latestManifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
-    }
-
-    /**
-     * Fetch the cluster metadata manifest using term and version
-     * @param clusterName uuid of cluster state to refer to in remote
-     * @param clusterUUID name of the cluster
-     * @param term election term of the cluster
-     * @param version cluster state version number
-     * @return ClusterMetadataManifest
-     */
-    public Optional<ClusterMetadataManifest> getClusterMetadataManifestByTermVersion(
-        String clusterName,
-        String clusterUUID,
-        long term,
-        long version
-    ) {
-        Optional<String> manifestFileName = getManifestFileNameByTermVersion(clusterName, clusterUUID, term, version);
-        return manifestFileName.map(s -> fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, s));
     }
 
     public ClusterMetadataManifest getRemoteClusterMetadataManifestByFileName(String clusterUUID, String filename)
@@ -314,23 +297,6 @@ public class RemoteManifestManager {
             return Optional.of(manifestFilesMetadata.get(0).name());
         }
         logger.info("No manifest file present in remote store for cluster name: {}, cluster UUID: {}", clusterName, clusterUUID);
-        return Optional.empty();
-    }
-
-    private Optional<String> getManifestFileNameByTermVersion(String clusterName, String clusterUUID, long term, long version)
-        throws IllegalStateException {
-        final String filePrefix = getManifestFilePrefixForTermVersion(term, version);
-        List<BlobMetadata> manifestFilesMetadata = getManifestFileNames(clusterName, clusterUUID, filePrefix, 1);
-        if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
-            return Optional.of(manifestFilesMetadata.get(0).name());
-        }
-        logger.info(
-            "No manifest file present in remote store for cluster name: {}, cluster UUID: {}, term: {}, version: {}",
-            clusterName,
-            clusterUUID,
-            term,
-            version
-        );
         return Optional.empty();
     }
 }

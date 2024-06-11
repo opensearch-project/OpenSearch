@@ -38,6 +38,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_FORMAT;
+
 /**
  * A Manager which provides APIs to write and read Global Metadata attributes to remote store
  *
@@ -113,7 +115,7 @@ public class RemoteGlobalMetadataManager {
             // Fetch Global metadata
             if (globalMetadataFileName != null) {
                 RemoteGlobalMetadata remoteGlobalMetadata = new RemoteGlobalMetadata(
-                    globalMetadataFileName,
+                    String.format(Locale.ROOT, METADATA_NAME_FORMAT, globalMetadataFileName),
                     clusterUUID,
                     compressor,
                     namedXContentRegistry

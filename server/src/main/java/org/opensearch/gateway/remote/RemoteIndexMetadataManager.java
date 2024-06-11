@@ -39,7 +39,8 @@ public class RemoteIndexMetadataManager {
         "cluster.remote_store.state.index_metadata.upload_timeout",
         INDEX_METADATA_UPLOAD_TIMEOUT_DEFAULT,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
 
     private final RemoteWritableEntityStore<IndexMetadata, RemoteIndexMetadata> indexMetadataBlobStore;
@@ -86,13 +87,9 @@ public class RemoteIndexMetadataManager {
      * @param uploadedIndexMetadata {@link ClusterMetadataManifest.UploadedIndexMetadata} contains details about remote location of index metadata
      * @return {@link IndexMetadata}
      */
-    IndexMetadata getIndexMetadata(
-        ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata,
-        String clusterUUID,
-        int manifestCodecVersion
-    ) {
+    IndexMetadata getIndexMetadata(ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata, String clusterUUID) {
         RemoteIndexMetadata remoteIndexMetadata = new RemoteIndexMetadata(
-            RemoteClusterStateUtils.getFormattedFileName(uploadedIndexMetadata.getUploadedFilename(), manifestCodecVersion),
+            RemoteClusterStateUtils.getFormattedIndexFileName(uploadedIndexMetadata.getUploadedFilename()),
             clusterUUID,
             compressor,
             namedXContentRegistry
@@ -119,7 +116,7 @@ public class RemoteIndexMetadataManager {
             : "Corrupt ClusterMetadataManifest found. Cluster UUID mismatch.";
         Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
         for (ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata : clusterMetadataManifest.getIndices()) {
-            IndexMetadata indexMetadata = getIndexMetadata(uploadedIndexMetadata, clusterUUID, clusterMetadataManifest.getCodecVersion());
+            IndexMetadata indexMetadata = getIndexMetadata(uploadedIndexMetadata, clusterUUID);
             remoteIndexMetadata.put(uploadedIndexMetadata.getIndexUUID(), indexMetadata);
         }
         return remoteIndexMetadata;

@@ -56,7 +56,9 @@ import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.RET
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.SKIP_CLEANUP_STATE_CHANGES;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_PATH_TOKEN;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.encodeString;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.getFormattedIndexFileName;
 import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata.SETTING_METADATA;
@@ -160,9 +162,9 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
             new PlainBlobMetadata("manifest4.dat", 1L),
             new PlainBlobMetadata("manifest5.dat", 1L)
         );
-        UploadedIndexMetadata index1Metadata = new UploadedIndexMetadata("index1", "indexUUID1", "index_metadata1");
-        UploadedIndexMetadata index2Metadata = new UploadedIndexMetadata("index2", "indexUUID2", "index_metadata2");
-        UploadedIndexMetadata index1UpdatedMetadata = new UploadedIndexMetadata("index1", "indexUUID1", "index_metadata1_updated");
+        UploadedIndexMetadata index1Metadata = new UploadedIndexMetadata("index1", "indexUUID1", "index_metadata1__1");
+        UploadedIndexMetadata index2Metadata = new UploadedIndexMetadata("index2", "indexUUID2", "index_metadata2__2");
+        UploadedIndexMetadata index1UpdatedMetadata = new UploadedIndexMetadata("index1", "indexUUID1", "index_metadata1_updated__2");
         UploadedMetadataAttribute coordinationMetadata = new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination_metadata");
         UploadedMetadataAttribute templateMetadata = new UploadedMetadataAttribute(TEMPLATES_METADATA, "template_metadata");
         UploadedMetadataAttribute settingMetadata = new UploadedMetadataAttribute(SETTING_METADATA, "settings_metadata");
@@ -220,9 +222,14 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
 
         remoteClusterStateCleanupManager.deleteClusterMetadata(clusterName, clusterUUID, activeBlobs, inactiveBlobs);
         verify(container).deleteBlobsIgnoringIfNotExists(
-            List.of(coordinationMetadata.getUploadedFilename(), settingMetadata.getUploadedFilename(), "global_metadata.dat")
+            List.of(
+                // coordination/setting metadata is from CODEC_V2, the uploaded filename with contain the complete path
+                coordinationMetadata.getUploadedFilename(),
+                settingMetadata.getUploadedFilename(),
+                new BlobPath().add(GLOBAL_METADATA_PATH_TOKEN).buildAsString() + "global_metadata.dat"
+            )
         );
-        verify(container).deleteBlobsIgnoringIfNotExists(List.of(index1Metadata.getUploadedFilePath()));
+        verify(container).deleteBlobsIgnoringIfNotExists(List.of(getFormattedIndexFileName(index1Metadata.getUploadedFilePath())));
         Set<String> staleManifest = new HashSet<>();
         inactiveBlobs.forEach(
             blob -> staleManifest.add(
@@ -235,7 +242,8 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
 
     public void testDeleteStaleClusterUUIDs() throws IOException {
         final ClusterState clusterState = RemoteClusterStateServiceTests.generateClusterStateWithOneIndex()
-            .nodes(RemoteClusterStateServiceTests.nodesWithLocalNodeClusterManager()).build();
+            .nodes(RemoteClusterStateServiceTests.nodesWithLocalNodeClusterManager())
+            .build();
         ClusterMetadataManifest clusterMetadataManifest = ClusterMetadataManifest.builder()
             .indices(List.of())
             .clusterTerm(1L)

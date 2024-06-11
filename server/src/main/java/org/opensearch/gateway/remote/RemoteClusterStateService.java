@@ -681,15 +681,6 @@ public class RemoteClusterStateService implements Closeable {
         return remoteManifestManager.getLatestClusterMetadataManifest(clusterName, clusterUUID);
     }
 
-    public Optional<ClusterMetadataManifest> getClusterMetadataManifestByTermVersion(
-        String clusterName,
-        String clusterUUID,
-        long term,
-        long version
-    ) {
-        return remoteManifestManager.getClusterMetadataManifestByTermVersion(clusterName, clusterUUID, term, version);
-    }
-
     @Override
     public void close() throws IOException {
         remoteClusterStateCleanupManager.close();
@@ -816,8 +807,7 @@ public class RemoteClusterStateService implements Closeable {
      * @param clusterName name of the cluster
      * @return {@link IndexMetadata}
      */
-    public ClusterState getLatestClusterState(String clusterName, String clusterUUID) throws IOException {
-        start();
+    public ClusterState getLatestClusterState(String clusterName, String clusterUUID) {
         Optional<ClusterMetadataManifest> clusterMetadataManifest = remoteManifestManager.getLatestClusterMetadataManifest(
             clusterName,
             clusterUUID
@@ -1014,8 +1004,7 @@ public class RemoteClusterStateService implements Closeable {
         for (UploadedIndexMetadata uploadedIndexMetadata : first.getIndices()) {
             final IndexMetadata firstIndexMetadata = remoteIndexMetadataManager.getIndexMetadata(
                 uploadedIndexMetadata,
-                first.getClusterUUID(),
-                first.getCodecVersion()
+                first.getClusterUUID()
             );
             final UploadedIndexMetadata secondUploadedIndexMetadata = secondIndices.get(uploadedIndexMetadata.getIndexName());
             if (secondUploadedIndexMetadata == null) {
@@ -1023,8 +1012,7 @@ public class RemoteClusterStateService implements Closeable {
             }
             final IndexMetadata secondIndexMetadata = remoteIndexMetadataManager.getIndexMetadata(
                 secondUploadedIndexMetadata,
-                second.getClusterUUID(),
-                second.getCodecVersion()
+                second.getClusterUUID()
             );
             if (firstIndexMetadata.equals(secondIndexMetadata) == false) {
                 return false;

@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
+
 /**
  * Utility class for Remote Cluster State
  */
@@ -52,8 +54,11 @@ public class RemoteClusterStateUtils {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(content.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static String getFormattedFileName(String fileName, int codecVersion) {
-        if (codecVersion < ClusterMetadataManifest.CODEC_V2) {
+    public static String getFormattedIndexFileName(String fileName) {
+        String[] pathTokens = fileName.split(DELIMITER);
+        // last value added is the codec version in IndexMetadata file
+        int codecVersion = Integer.parseInt(pathTokens[pathTokens.length - 1]);
+        if (codecVersion == CODEC_V1) {
             return String.format(Locale.ROOT, METADATA_NAME_FORMAT, fileName);
         }
         return fileName;
