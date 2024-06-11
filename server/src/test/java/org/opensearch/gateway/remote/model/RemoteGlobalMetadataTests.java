@@ -205,6 +205,5 @@ public class RemoteGlobalMetadataTests extends OpenSearchTestCase {
                     .build()
             )
             .build();
-
     }
 }

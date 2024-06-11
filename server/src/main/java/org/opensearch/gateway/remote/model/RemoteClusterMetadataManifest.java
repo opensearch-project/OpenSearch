@@ -35,7 +35,7 @@ public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEnt
     public static final int SPLITTED_MANIFEST_FILE_LENGTH = 6;
 
     public static final String METADATA_MANIFEST_NAME_FORMAT = "%s";
-    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V3;
+    public static final int MANIFEST_CURRENT_CODEC_VERSION = ClusterMetadataManifest.CODEC_V2;
     public static final String COMMITTED = "C";
     public static final String PUBLISHED = "P";
 
@@ -84,6 +84,11 @@ public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEnt
     @Override
     public BlobPathParameters getBlobPathParameters() {
         return new BlobPathParameters(List.of(MANIFEST), MANIFEST);
+    }
+
+    @Override
+    public String getType() {
+        return MANIFEST;
     }
 
     @Override
@@ -150,4 +155,5 @@ public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEnt
         }
         throw new IllegalArgumentException("Cluster metadata manifest file is corrupted, don't have valid codec version");
     }
+
 }

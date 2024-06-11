@@ -26,6 +26,8 @@ import org.opensearch.http.HttpReadTimeoutException;
 import org.opensearch.http.HttpServerChannel;
 import org.opensearch.http.reactor.netty4.ssl.SslUtils;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.reactor.SharedGroupFactory;
@@ -40,6 +42,7 @@ import java.net.SocketOption;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelOption;
@@ -351,24 +354,45 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
      * @return response publisher
      */
     protected Publisher<Void> incomingRequest(HttpServerRequest request, HttpServerResponse response) {
-        final NonStreamingRequestConsumer<HttpContent> consumer = new NonStreamingRequestConsumer<>(
-            this,
-            request,
-            response,
-            maxCompositeBufferComponents
+        final Method method = HttpConversionUtil.convertMethod(request.method());
+        final Optional<RestHandler> dispatchHandlerOpt = dispatcher.dispatchHandler(
+            request.uri(),
+            request.fullPath(),
+            method,
+            request.params()
         );
+        if (dispatchHandlerOpt.map(RestHandler::supportsStreaming).orElse(false)) {
+            final ReactorNetty4StreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4StreamingRequestConsumer<>(
+                request,
+                response
+            );
 
-        request.receiveContent().switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT)).subscribe(consumer);
+            request.receiveContent()
+                .switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT))
+                .subscribe(consumer, error -> {}, () -> consumer.accept(DefaultLastHttpContent.EMPTY_LAST_CONTENT));
 
-        return Mono.from(consumer).flatMap(hc -> {
-            final FullHttpResponse r = (FullHttpResponse) hc;
-            response.status(r.status());
-            response.trailerHeaders(c -> r.trailingHeaders().forEach(h -> c.add(h.getKey(), h.getValue())));
-            response.chunkedTransfer(false);
-            response.compression(true);
-            r.headers().forEach(h -> response.addHeader(h.getKey(), h.getValue()));
-            return Mono.from(response.sendObject(r.content()));
-        });
+            incomingStream(new ReactorNetty4HttpRequest(request), consumer.httpChannel());
+            return response.sendObject(consumer);
+        } else {
+            final ReactorNetty4NonStreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4NonStreamingRequestConsumer<>(
+                this,
+                request,
+                response,
+                maxCompositeBufferComponents
+            );
+
+            request.receiveContent().switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT)).subscribe(consumer);
+
+            return Mono.from(consumer).flatMap(hc -> {
+                final FullHttpResponse r = (FullHttpResponse) hc;
+                response.status(r.status());
+                response.trailerHeaders(c -> r.trailingHeaders().forEach(h -> c.add(h.getKey(), h.getValue())));
+                response.chunkedTransfer(false);
+                response.compression(true);
+                r.headers().forEach(h -> response.addHeader(h.getKey(), h.getValue()));
+                return Mono.from(response.sendObject(r.content()));
+            });
+        }
     }
 
     /**
