@@ -152,6 +152,7 @@ public class RemoteGlobalMetadataManager {
                 );
                 return globalMetadataBlobStore.read(remoteGlobalMetadata);
             } else if (clusterMetadataManifest.hasMetadataAttributesFiles()) {
+                // from CODEC_V2, we have started uploading all the metadata in granular files instead of a single entity
                 Metadata.Builder builder = new Metadata.Builder();
                 if (clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename() != null) {
                     RemoteCoordinationMetadata remoteCoordinationMetadata = new RemoteCoordinationMetadata(

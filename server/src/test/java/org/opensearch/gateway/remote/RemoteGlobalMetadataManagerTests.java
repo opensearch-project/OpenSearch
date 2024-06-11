@@ -9,21 +9,12 @@
 package org.opensearch.gateway.remote;
 
 import org.opensearch.cluster.ClusterModule;
-import org.opensearch.cluster.coordination.CoordinationMetadata;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
-import org.opensearch.gateway.remote.model.RemoteCoordinationMetadata;
-import org.opensearch.gateway.remote.model.RemoteCustomMetadata;
-import org.opensearch.gateway.remote.model.RemoteGlobalMetadata;
-import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
-import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -37,10 +28,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.mockito.Mockito.when;
-import static org.opensearch.threadpool.ThreadPool.Names.GENERIC;
-import static org.opensearch.threadpool.ThreadPool.Names.REMOTE_STATE_READ;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
     private RemoteGlobalMetadataManager remoteGlobalMetadataManager;

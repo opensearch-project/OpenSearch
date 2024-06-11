@@ -19,8 +19,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;

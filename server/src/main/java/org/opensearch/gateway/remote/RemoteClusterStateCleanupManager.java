@@ -71,6 +71,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
     private long lastCleanupAttemptStateVersion;
     private final ThreadPool threadpool;
     private final ClusterApplierService clusterApplierService;
+    private final RemoteManifestManager remoteManifestManager;
 
     public RemoteClusterStateCleanupManager(RemoteClusterStateService remoteClusterStateService, ClusterService clusterService) {
         this.remoteClusterStateService = remoteClusterStateService;
@@ -82,6 +83,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         // initialize with 0, a cleanup will be done when this node is elected master node and version is incremented more than threshold
         this.lastCleanupAttemptStateVersion = 0;
         clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING, this::updateCleanupInterval);
+        remoteManifestManager = remoteClusterStateService.getRemoteManifestManager();
     }
 
     void start() {
@@ -169,8 +171,11 @@ public class RemoteClusterStateCleanupManager implements Closeable {
             Set<String> staleIndexMetadataPaths = new HashSet<>();
             Set<String> staleGlobalMetadataPaths = new HashSet<>();
             activeManifestBlobMetadata.forEach(blobMetadata -> {
-                ClusterMetadataManifest clusterMetadataManifest = remoteClusterStateService.getRemoteManifestManager()
-                    .fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, blobMetadata.name());
+                ClusterMetadataManifest clusterMetadataManifest = remoteManifestManager.fetchRemoteClusterMetadataManifest(
+                    clusterName,
+                    clusterUUID,
+                    blobMetadata.name()
+                );
                 clusterMetadataManifest.getIndices()
                     .forEach(
                         uploadedIndexMetadata -> filesToKeep.add(
@@ -189,11 +194,13 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                 }
             });
             staleManifestBlobMetadata.forEach(blobMetadata -> {
-                ClusterMetadataManifest clusterMetadataManifest = remoteClusterStateService.getRemoteManifestManager()
-                    .fetchRemoteClusterMetadataManifest(clusterName, clusterUUID, blobMetadata.name());
+                ClusterMetadataManifest clusterMetadataManifest = remoteManifestManager.fetchRemoteClusterMetadataManifest(
+                    clusterName,
+                    clusterUUID,
+                    blobMetadata.name()
+                );
                 staleManifestPaths.add(
-                    remoteClusterStateService.getRemoteManifestManager().getManifestFolderPath(clusterName, clusterUUID).buildAsString()
-                        + blobMetadata.name()
+                    remoteManifestManager.getManifestFolderPath(clusterName, clusterUUID).buildAsString() + blobMetadata.name()
                 );
                 if (clusterMetadataManifest.getCodecVersion() == ClusterMetadataManifest.CODEC_V1) {
                     addStaleGlobalMetadataPath(clusterMetadataManifest.getGlobalMetadataFileName(), filesToKeep, staleGlobalMetadataPaths);
@@ -258,7 +265,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         try {
             getBlobStoreTransferService().listAllInSortedOrderAsync(
                 ThreadPool.Names.REMOTE_PURGE,
-                remoteClusterStateService.getRemoteManifestManager().getManifestFolderPath(clusterName, clusterUUID),
+                remoteManifestManager.getManifestFolderPath(clusterName, clusterUUID),
                 MANIFEST,
                 Integer.MAX_VALUE,
                 new ActionListener<>() {

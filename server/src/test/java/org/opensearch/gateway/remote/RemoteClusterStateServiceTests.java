@@ -1632,11 +1632,33 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
 
         if (differGlobalMetadata) {
             mockBlobContainerOrderedList.addAll(
-                List.of(blobContainer3, blobContainer1, blobContainer3, blobContainer1, blobContainer1, blobContainer1, blobContainer1, blobContainer3, blobContainer3, blobContainer3)
+                List.of(
+                    blobContainer3,
+                    blobContainer1,
+                    blobContainer3,
+                    blobContainer1,
+                    blobContainer1,
+                    blobContainer1,
+                    blobContainer1,
+                    blobContainer3,
+                    blobContainer3,
+                    blobContainer3
+                )
             );
         }
         mockBlobContainerOrderedList.addAll(
-            List.of(blobContainer2, blobContainer1, blobContainer2, blobContainer1, blobContainer1, blobContainer1, blobContainer1, blobContainer2, blobContainer2, blobContainer2)
+            List.of(
+                blobContainer2,
+                blobContainer1,
+                blobContainer2,
+                blobContainer1,
+                blobContainer1,
+                blobContainer1,
+                blobContainer1,
+                blobContainer2,
+                blobContainer2,
+                blobContainer2
+            )
         );
         BlobContainer[] mockBlobContainerOrderedArray = new BlobContainer[mockBlobContainerOrderedList.size()];
         mockBlobContainerOrderedList.toArray(mockBlobContainerOrderedArray);

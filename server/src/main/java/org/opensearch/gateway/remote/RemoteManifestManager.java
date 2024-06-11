@@ -79,12 +79,13 @@ public class RemoteManifestManager {
         this.metadataManifestUploadTimeout = clusterSettings.get(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING);
         this.nodeId = nodeId;
         this.manifestBlobStore = new RemoteClusterStateBlobStore<>(
-                blobStoreTransferService,
-                blobStoreRepository,
-                clusterName,
-                threadpool,
-                ThreadPool.Names.REMOTE_STATE_READ
-            );;
+            blobStoreTransferService,
+            blobStoreRepository,
+            clusterName,
+            threadpool,
+            ThreadPool.Names.REMOTE_STATE_READ
+        );
+        ;
         clusterSettings.addSettingsUpdateConsumer(METADATA_MANIFEST_UPLOAD_TIMEOUT_SETTING, this::setMetadataManifestUploadTimeout);
         this.compressor = blobStoreRepository.getCompressor();
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();

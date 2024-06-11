@@ -66,7 +66,8 @@ public class RemoteIndexMetadataManager {
             clusterName,
             threadpool,
             ThreadPool.Names.REMOTE_STATE_READ
-        );;
+        );
+        ;
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
         this.compressor = blobStoreRepository.getCompressor();
         this.indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
