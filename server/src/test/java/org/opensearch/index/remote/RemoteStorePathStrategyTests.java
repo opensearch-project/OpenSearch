@@ -22,10 +22,10 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
     private static final String SHARD_ID = "shardId";
 
     public void testBasePathInput() {
-        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.PathInput.builder().build());
-        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.PathInput.builder().basePath(BASE_PATH).build());
-        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.PathInput.builder().indexUUID(INDEX_UUID).build());
-        RemoteStorePathStrategy.PathInput input = RemoteStorePathStrategy.PathInput.builder()
+        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.BasePathInput.builder().build());
+        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.BasePathInput.builder().basePath(BASE_PATH).build());
+        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.BasePathInput.builder().indexUUID(INDEX_UUID).build());
+        RemoteStorePathStrategy.BasePathInput input = RemoteStorePathStrategy.BasePathInput.builder()
             .basePath(BASE_PATH)
             .indexUUID(INDEX_UUID)
             .build();
@@ -34,17 +34,17 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
     }
 
     public void testPathInput() {
-        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.ShardDataPathInput.builder().build());
-        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.ShardDataPathInput.builder().shardId(SHARD_ID).build());
+        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.PathInput.builder().build());
+        assertThrows(NullPointerException.class, () -> RemoteStorePathStrategy.PathInput.builder().shardId(SHARD_ID).build());
         assertThrows(
             NullPointerException.class,
-            () -> RemoteStorePathStrategy.ShardDataPathInput.builder().shardId(SHARD_ID).dataCategory(TRANSLOG).build()
+            () -> RemoteStorePathStrategy.PathInput.builder().shardId(SHARD_ID).dataCategory(TRANSLOG).build()
         );
 
         // Translog Lock files - This is a negative case where the assertion will trip.
         assertThrows(
             AssertionError.class,
-            () -> RemoteStorePathStrategy.ShardDataPathInput.builder()
+            () -> RemoteStorePathStrategy.PathInput.builder()
                 .basePath(BASE_PATH)
                 .indexUUID(INDEX_UUID)
                 .shardId(SHARD_ID)
@@ -53,7 +53,7 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
                 .build()
         );
 
-        RemoteStorePathStrategy.ShardDataPathInput input = RemoteStorePathStrategy.ShardDataPathInput.builder()
+        RemoteStorePathStrategy.PathInput input = RemoteStorePathStrategy.PathInput.builder()
             .basePath(BASE_PATH)
             .indexUUID(INDEX_UUID)
             .shardId(SHARD_ID)
@@ -68,13 +68,13 @@ public class RemoteStorePathStrategyTests extends OpenSearchTestCase {
     }
 
     public void testFixedSubPath() {
-        RemoteStorePathStrategy.PathInput input = RemoteStorePathStrategy.PathInput.builder()
+        RemoteStorePathStrategy.BasePathInput input = RemoteStorePathStrategy.BasePathInput.builder()
             .basePath(BASE_PATH)
             .indexUUID(INDEX_UUID)
             .build();
         assertEquals(BlobPath.cleanPath().add(INDEX_UUID), input.fixedSubPath());
 
-        RemoteStorePathStrategy.ShardDataPathInput input2 = RemoteStorePathStrategy.ShardDataPathInput.builder()
+        RemoteStorePathStrategy.PathInput input2 = RemoteStorePathStrategy.PathInput.builder()
             .basePath(BASE_PATH)
             .indexUUID(INDEX_UUID)
             .shardId(SHARD_ID)

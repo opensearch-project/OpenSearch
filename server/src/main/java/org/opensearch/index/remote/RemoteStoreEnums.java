@@ -13,7 +13,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.hash.FNV1a;
-import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
+import org.opensearch.index.remote.RemoteStorePathStrategy.BasePathInput;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -92,7 +92,7 @@ public class RemoteStoreEnums {
     public enum PathType {
         FIXED(0) {
             @Override
-            public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
+            public BlobPath generatePath(BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.isNull(hashAlgorithm) : "hashAlgorithm is expected to be null with fixed remote store path type";
                 // Hash algorithm is not used in FIXED path type
                 return pathInput.basePath().add(pathInput.fixedSubPath());
@@ -105,7 +105,7 @@ public class RemoteStoreEnums {
         },
         HASHED_PREFIX(1) {
             @Override
-            public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
+            public BlobPath generatePath(BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
                 return BlobPath.cleanPath().add(hashAlgorithm.hash(pathInput)).add(pathInput.basePath()).add(pathInput.fixedSubPath());
             }
@@ -117,7 +117,7 @@ public class RemoteStoreEnums {
         },
         HASHED_INFIX(2) {
             @Override
-            public BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
+            public BlobPath generatePath(BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
                 assert Objects.nonNull(hashAlgorithm) : "hashAlgorithm is expected to be non-null";
                 return pathInput.basePath().add(hashAlgorithm.hash(pathInput)).add(pathInput.fixedSubPath());
             }
@@ -170,12 +170,18 @@ public class RemoteStoreEnums {
          * @param hashAlgorithm hashing algorithm.
          * @return the blob path for the path input.
          */
-        public BlobPath path(PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
+        public BlobPath path(BasePathInput pathInput, PathHashAlgorithm hashAlgorithm) {
             pathInput.assertIsValid();
             return generatePath(pathInput, hashAlgorithm);
         }
 
-        protected abstract BlobPath generatePath(PathInput pathInput, PathHashAlgorithm hashAlgorithm);
+        // Added for BWC
+        public BlobPath path(RemoteStorePathStrategy.PathInput pathInput, PathHashAlgorithm hashAlgorithm) {
+            pathInput.assertIsValid();
+            return generatePath(pathInput, hashAlgorithm);
+        }
+
+        protected abstract BlobPath generatePath(BasePathInput pathInput, PathHashAlgorithm hashAlgorithm);
 
         abstract boolean requiresHashAlgorithm();
 
@@ -205,7 +211,7 @@ public class RemoteStoreEnums {
 
         FNV_1A_BASE64(0) {
             @Override
-            String hash(PathInput pathInput) {
+            String hash(BasePathInput pathInput) {
                 StringBuilder input = new StringBuilder();
                 for (String path : pathInput.fixedSubPath().toArray()) {
                     input.append(path);
@@ -220,7 +226,7 @@ public class RemoteStoreEnums {
          */
         FNV_1A_COMPOSITE_1(1) {
             @Override
-            String hash(PathInput pathInput) {
+            String hash(BasePathInput pathInput) {
                 StringBuilder input = new StringBuilder();
                 for (String path : pathInput.fixedSubPath().toArray()) {
                     input.append(path);
@@ -264,7 +270,7 @@ public class RemoteStoreEnums {
             return CODE_TO_ENUM.get(code);
         }
 
-        abstract String hash(PathInput pathInput);
+        abstract String hash(BasePathInput pathInput);
 
         public static PathHashAlgorithm parseString(String pathHashAlgorithm) {
             try {

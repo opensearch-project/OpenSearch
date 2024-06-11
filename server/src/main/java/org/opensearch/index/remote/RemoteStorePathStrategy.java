@@ -67,9 +67,15 @@ public class RemoteStorePathStrategy {
         return "RemoteStorePathStrategy{" + "type=" + type + ", hashAlgorithm=" + hashAlgorithm + '}';
     }
 
+    public BlobPath generatePath(BasePathInput pathInput) {
+        return type.path(pathInput, hashAlgorithm);
+    }
+
+    // Added for BWC
     public BlobPath generatePath(PathInput pathInput) {
         return type.path(pathInput, hashAlgorithm);
     }
+
 
     /**
      * Wrapper class for the path input required to generate path for remote store uploads. This input is composed of
@@ -79,11 +85,17 @@ public class RemoteStorePathStrategy {
      */
     @PublicApi(since = "2.14.0")
     @ExperimentalApi
-    public static class PathInput {
+    public static class BasePathInput {
         private final BlobPath basePath;
         private final String indexUUID;
 
-        public PathInput(Builder<?> builder) {
+        //Adding for BWC
+        public BasePathInput(BlobPath basePath, String indexUUID) {
+            this.basePath = basePath;
+            this.indexUUID = indexUUID;
+        }
+
+        public BasePathInput(Builder<?> builder) {
             this.basePath = Objects.requireNonNull(builder.basePath);
             this.indexUUID = Objects.requireNonNull(builder.indexUUID);
         }
@@ -101,7 +113,7 @@ public class RemoteStorePathStrategy {
         }
 
         /**
-         * Returns a new builder for {@link PathInput}.
+         * Returns a new builder for {@link BasePathInput}.
          */
         public static Builder<?> builder() {
             return new Builder<>();
@@ -112,7 +124,7 @@ public class RemoteStorePathStrategy {
         }
 
         /**
-         * Builder for {@link PathInput}.
+         * Builder for {@link BasePathInput}.
          *
          * @opensearch.internal
          */
@@ -136,8 +148,8 @@ public class RemoteStorePathStrategy {
                 return (T) this;
             }
 
-            public PathInput build() {
-                return new PathInput(this);
+            public BasePathInput build() {
+                return new BasePathInput(this);
             }
         }
     }
@@ -150,12 +162,20 @@ public class RemoteStorePathStrategy {
      */
     @PublicApi(since = "2.14.0")
     @ExperimentalApi
-    public static class ShardDataPathInput extends PathInput {
+    public static class PathInput extends BasePathInput {
         private final String shardId;
         private final DataCategory dataCategory;
         private final DataType dataType;
 
-        public ShardDataPathInput(Builder builder) {
+        //Adding for BWC
+        public PathInput(BlobPath basePath, String indexUUID, String shardId, DataCategory dataCategory, DataType dataType) {
+            super(basePath, indexUUID);
+            this.shardId = shardId;
+            this.dataCategory = dataCategory;
+            this.dataType = dataType;
+        }
+
+        public PathInput(Builder builder) {
             super(builder);
             this.shardId = Objects.requireNonNull(builder.shardId);
             this.dataCategory = Objects.requireNonNull(builder.dataCategory);
@@ -186,20 +206,20 @@ public class RemoteStorePathStrategy {
         }
 
         /**
-         * Returns a new builder for {@link ShardDataPathInput}.
+         * Returns a new builder for {@link PathInput}.
          */
         public static Builder builder() {
             return new Builder();
         }
 
         /**
-         * Builder for {@link ShardDataPathInput}.
+         * Builder for {@link PathInput}.
          *
          * @opensearch.internal
          */
         @PublicApi(since = "2.14.0")
         @ExperimentalApi
-        public static class Builder extends PathInput.Builder<Builder> {
+        public static class Builder extends BasePathInput.Builder<Builder> {
             private String shardId;
             private DataCategory dataCategory;
             private DataType dataType;
@@ -234,8 +254,8 @@ public class RemoteStorePathStrategy {
                 return this;
             }
 
-            public ShardDataPathInput build() {
-                return new ShardDataPathInput(this);
+            public PathInput build() {
+                return new PathInput(this);
             }
         }
     }

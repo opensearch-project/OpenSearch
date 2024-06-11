@@ -158,7 +158,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
         BlobPath indexRoutingPath = clusterBasePath.add(INDEX_ROUTING_PATH_TOKEN);
         BlobPath path = pathType.path(
-            RemoteStorePathStrategy.PathInput.builder().basePath(indexRoutingPath).indexUUID(indexRouting.getIndex().getUUID()).build(),
+            RemoteStorePathStrategy.BasePathInput.builder().basePath(indexRoutingPath).indexUUID(indexRouting.getIndex().getUUID()).build(),
             pathHashAlgo
         );
         final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
