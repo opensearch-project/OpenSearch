@@ -812,6 +812,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         private static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
         private static final ParseField INDEX_UUID_FIELD = new ParseField("index_uuid");
         private static final ParseField UPLOADED_FILENAME_FIELD = new ParseField("uploaded_filename");
+        private static final ParseField COMPONENT_PREFIX_FIELD = new ParseField("component_prefix");
 
         private static String indexName(Object[] fields) {
             return (String) fields[0];
@@ -825,23 +826,34 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return (String) fields[2];
         }
 
+        private static String componentPrefix(Object[] fields) {
+            return (String) fields[3];
+        }
+
         private static final ConstructingObjectParser<UploadedIndexMetadata, Void> PARSER = new ConstructingObjectParser<>(
             "uploaded_index_metadata",
-            fields -> new UploadedIndexMetadata(indexName(fields), indexUUID(fields), uploadedFilename(fields))
+            fields -> new UploadedIndexMetadata(indexName(fields), indexUUID(fields), uploadedFilename(fields), componentPrefix(fields))
         );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_NAME_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_UUID_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), UPLOADED_FILENAME_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), COMPONENT_PREFIX_FIELD);
         }
 
         static final String COMPONENT_PREFIX = "index--";
+        private final String componentPrefix;
         private final String indexName;
         private final String indexUUID;
         private final String uploadedFilename;
 
         public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName) {
+            this(indexName, indexUUID, uploadedFileName, COMPONENT_PREFIX);
+        }
+
+        public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName, String componentPrefix) {
+            this.componentPrefix = componentPrefix;
             this.indexName = indexName;
             this.indexUUID = indexUUID;
             this.uploadedFilename = uploadedFileName;
@@ -851,6 +863,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             this.indexName = in.readString();
             this.indexUUID = in.readString();
             this.uploadedFilename = in.readString();
+            this.componentPrefix = in.readString();
         }
 
         public String getUploadedFilePath() {
@@ -859,7 +872,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         @Override
         public String getComponent() {
-            return COMPONENT_PREFIX + getIndexName();
+            return componentPrefix + getIndexName();
         }
 
         public String getUploadedFilename() {
@@ -875,11 +888,16 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return indexUUID;
         }
 
+        public String getComponentPrefix() {
+            return componentPrefix;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.field(INDEX_NAME_FIELD.getPreferredName(), getIndexName())
                 .field(INDEX_UUID_FIELD.getPreferredName(), getIndexUUID())
-                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath());
+                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath())
+                .field(COMPONENT_PREFIX_FIELD.getPreferredName(), getComponentPrefix());
         }
 
         @Override
@@ -887,6 +905,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             out.writeString(indexName);
             out.writeString(indexUUID);
             out.writeString(uploadedFilename);
+            out.writeString(componentPrefix);
         }
 
         @Override
@@ -900,12 +919,13 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             final UploadedIndexMetadata that = (UploadedIndexMetadata) o;
             return Objects.equals(indexName, that.indexName)
                 && Objects.equals(indexUUID, that.indexUUID)
-                && Objects.equals(uploadedFilename, that.uploadedFilename);
+                && Objects.equals(uploadedFilename, that.uploadedFilename)
+                && Objects.equals(componentPrefix, that.componentPrefix);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexName, indexUUID, uploadedFilename);
+            return Objects.hash(indexName, indexUUID, uploadedFilename, componentPrefix);
         }
 
         @Override
