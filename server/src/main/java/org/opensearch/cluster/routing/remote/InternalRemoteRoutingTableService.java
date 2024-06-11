@@ -10,6 +10,7 @@ package org.opensearch.cluster.routing.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
@@ -296,5 +297,16 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
     @Override
     protected void doStop() {}
+
+    @Override
+    public void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException {
+        try {
+            logger.debug(() -> "Deleting stale index routing files from remote - " + stalePaths);
+            blobStoreRepository.blobStore().blobContainer(BlobPath.cleanPath()).deleteBlobsIgnoringIfNotExists(stalePaths);
+        } catch (IOException e) {
+            logger.error(() -> new ParameterizedMessage("Failed to delete some stale index routing paths from {}", stalePaths), e);
+            throw e;
+        }
+    }
 
 }
