@@ -137,13 +137,10 @@ public class RemoteGlobalMetadataManager {
         AbstractRemoteWritableBlobEntity writeEntity,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
-        return (() -> getRemoteWriteableEntityStoreForObject(writeEntity).writeAsync(
-            writeEntity,
-            getActionListener(writeEntity, latchedActionListener)
-        ));
+        return (() -> getStore(writeEntity).writeAsync(writeEntity, getActionListener(writeEntity, latchedActionListener)));
     }
 
-    private RemoteWritableEntityStore getRemoteWriteableEntityStoreForObject(AbstractRemoteWritableBlobEntity entity) {
+    private RemoteWritableEntityStore getStore(AbstractRemoteWritableBlobEntity entity) {
         RemoteWritableEntityStore remoteStore = remoteWritableEntityStores.get(entity.getType());
         if (remoteStore == null) {
             throw new IllegalArgumentException("Unknown entity type [" + entity.getType() + "]");
@@ -172,7 +169,7 @@ public class RemoteGlobalMetadataManager {
                     compressor,
                     namedXContentRegistry
                 );
-                return (Metadata) getRemoteWriteableEntityStoreForObject(remoteGlobalMetadata).read(remoteGlobalMetadata);
+                return (Metadata) getStore(remoteGlobalMetadata).read(remoteGlobalMetadata);
             } else if (clusterMetadataManifest.hasMetadataAttributesFiles()) {
                 // from CODEC_V2, we have started uploading all the metadata in granular files instead of a single entity
                 Metadata.Builder builder = new Metadata.Builder();
@@ -184,9 +181,7 @@ public class RemoteGlobalMetadataManager {
                         namedXContentRegistry
                     );
                     builder.coordinationMetadata(
-                        (CoordinationMetadata) getRemoteWriteableEntityStoreForObject(remoteCoordinationMetadata).read(
-                            remoteCoordinationMetadata
-                        )
+                        (CoordinationMetadata) getStore(remoteCoordinationMetadata).read(remoteCoordinationMetadata)
                     );
                 }
                 if (clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename() != null) {
@@ -196,9 +191,7 @@ public class RemoteGlobalMetadataManager {
                         compressor,
                         namedXContentRegistry
                     );
-                    builder.templates(
-                        (TemplatesMetadata) getRemoteWriteableEntityStoreForObject(remoteTemplatesMetadata).read(remoteTemplatesMetadata)
-                    );
+                    builder.templates((TemplatesMetadata) getStore(remoteTemplatesMetadata).read(remoteTemplatesMetadata));
                 }
                 if (clusterMetadataManifest.getSettingsMetadata().getUploadedFilename() != null) {
                     RemotePersistentSettingsMetadata remotePersistentSettingsMetadata = new RemotePersistentSettingsMetadata(
@@ -208,9 +201,7 @@ public class RemoteGlobalMetadataManager {
                         namedXContentRegistry
                     );
                     builder.persistentSettings(
-                        (Settings) getRemoteWriteableEntityStoreForObject(remotePersistentSettingsMetadata).read(
-                            remotePersistentSettingsMetadata
-                        )
+                        (Settings) getStore(remotePersistentSettingsMetadata).read(remotePersistentSettingsMetadata)
                     );
                 }
                 builder.clusterUUID(clusterMetadataManifest.getClusterUUID());
@@ -224,10 +215,7 @@ public class RemoteGlobalMetadataManager {
                             compressor,
                             namedXContentRegistry
                         );
-                        builder.putCustom(
-                            key,
-                            (Custom) getRemoteWriteableEntityStoreForObject(remoteCustomMetadata).read(remoteCustomMetadata)
-                        );
+                        builder.putCustom(key, (Custom) getStore(remoteCustomMetadata).read(remoteCustomMetadata));
                     } catch (IOException e) {
                         throw new IllegalStateException(
                             String.format(Locale.ROOT, "Error while downloading Custom Metadata - %s", value.getUploadedFilename()),
