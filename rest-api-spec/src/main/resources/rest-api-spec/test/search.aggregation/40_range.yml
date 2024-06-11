@@ -536,32 +536,40 @@ setup:
 "Double range profiler shows filter rewrite info":
   - skip:
       version: " - 2.99.99"
-      reason: debug info for filter rewrite added in 3.0.0 (to be backported to 2.14.0)
+      reason: debug info for filter rewrite added in 3.0.0 (to be backported to 2.15.0)
 
   - do:
-      index:
-        index: test
-        id: 1
-        body: { "double" : 42 }
+      indices.create:
+        index: test_profile
+        body:
+          settings:
+            number_of_replicas: 0
+            refresh_interval: -1
+          mappings:
+            properties:
+              ip:
+                type: ip
+              double:
+                type: double
+              date:
+                type: date
+                format: epoch_second
 
   - do:
-      index:
-        index: test
-        id: 2
-        body: { "double" : 100 }
-
-  - do:
-      index:
-        index: test
-        id: 3
-        body: { "double" : 50 }
-
-  - do:
-      indices.refresh: {}
+      bulk:
+        index: test_profile
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"double" : 42}'
+          - '{"index": {}}'
+          - '{"double" : 100}'
+          - '{"index": {}}'
+          - '{"double" : 50}'
 
   - do:
       search:
-        index: test
+        index: test_profile
         body:
           size: 0
           profile: true
