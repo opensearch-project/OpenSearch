@@ -26,7 +26,7 @@ import java.util.List;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_CURRENT_CODEC_VERSION;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_FORMAT;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_PLAIN_FORMAT;
 
 /**
  * Wrapper class for uploading/downloading persistent {@link Settings} to/from remote blob store
@@ -37,7 +37,7 @@ public class RemotePersistentSettingsMetadata extends AbstractRemoteWritableBlob
 
     public static final ChecksumBlobStoreFormat<Settings> SETTINGS_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "settings",
-        METADATA_NAME_FORMAT,
+        METADATA_NAME_PLAIN_FORMAT,
         Settings::fromXContent
     );
 
@@ -69,6 +69,11 @@ public class RemotePersistentSettingsMetadata extends AbstractRemoteWritableBlob
     @Override
     public BlobPathParameters getBlobPathParameters() {
         return new BlobPathParameters(List.of("global-metadata"), SETTING_METADATA);
+    }
+
+    @Override
+    public String getType() {
+        return SETTING_METADATA;
     }
 
     @Override

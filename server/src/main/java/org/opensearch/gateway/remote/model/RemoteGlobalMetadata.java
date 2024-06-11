@@ -26,6 +26,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAM
  * Wrapper class for uploading/downloading global metadata ({@link Metadata}) to/from remote blob store
  */
 public class RemoteGlobalMetadata extends AbstractRemoteWritableBlobEntity<Metadata> {
+    public static final String GLOBAL_METADATA = "global_metadata";
 
     public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "metadata",
@@ -46,6 +47,11 @@ public class RemoteGlobalMetadata extends AbstractRemoteWritableBlobEntity<Metad
     @Override
     public BlobPathParameters getBlobPathParameters() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getType() {
+        return GLOBAL_METADATA;
     }
 
     @Override

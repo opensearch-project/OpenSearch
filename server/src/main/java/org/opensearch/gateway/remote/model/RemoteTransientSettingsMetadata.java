@@ -73,6 +73,11 @@ public class RemoteTransientSettingsMetadata extends AbstractRemoteWritableBlobE
     }
 
     @Override
+    public String getType() {
+        return TRANSIENT_SETTING_METADATA;
+    }
+
+    @Override
     public String generateBlobFileName() {
         String blobFileName = String.join(
             DELIMITER,
