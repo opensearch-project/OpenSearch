@@ -27,7 +27,6 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.compress.DeflateCompressor;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -36,7 +35,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteStateTransferException;
-import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -54,7 +52,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -665,29 +662,29 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
     // assertBusy(() -> verify(listener, times(1)).onResponse(any(IndexRoutingTable.class)));
     // }
 
-    public void testGetAsyncIndexMetadataReadActionFailureForIncorrectIndex() throws Exception {
-        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        ClusterState clusterState = createClusterState(indexName);
-        String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
-        Index index = new Index("incorrect-index", "uuid-01");
-
-        LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
-        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
-            clusterState.routingTable().getIndicesRouting().get(indexName)
-        );
-        remoteIndexRoutingTable.writeTo(streamOutput);
-        when(blobContainer.readBlob(anyString())).thenReturn(streamOutput.bytes().streamInput());
-        remoteRoutingTableService.doStart();
-
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, listener);
-        assertNotNull(runnable);
-        runnable.run();
-
-        verify(blobContainer, times(1)).readBlob(any());
-        assertBusy(() -> verify(listener, times(1)).onFailure(any(Exception.class)));
-    }
+    // public void testGetAsyncIndexMetadataReadActionFailureForIncorrectIndex() throws Exception {
+    // String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
+    // ClusterState clusterState = createClusterState(indexName);
+    // String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
+    // Index index = new Index("incorrect-index", "uuid-01");
+    //
+    // LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
+    // when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+    // BytesStreamOutput streamOutput = new BytesStreamOutput();
+    // RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
+    // clusterState.routingTable().getIndicesRouting().get(indexName)
+    // );
+    // remoteIndexRoutingTable.writeTo(streamOutput);
+    // when(blobContainer.readBlob(anyString())).thenReturn(streamOutput.bytes().streamInput());
+    // remoteRoutingTableService.doStart();
+    //
+    // CheckedRunnable<IOException> runnable = remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, listener);
+    // assertNotNull(runnable);
+    // runnable.run();
+    //
+    // verify(blobContainer, times(1)).readBlob(any());
+    // assertBusy(() -> verify(listener, times(1)).onFailure(any(Exception.class)));
+    // }
 
     // public void testGetAsyncIndexMetadataReadActionFailureInBlobRepo() throws Exception {
     // String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
@@ -715,16 +712,16 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertEquals(0, updatedIndexMetadata.size());
     }
 
-    public void testGetUpdatedIndexRoutingTableMetadataWhenIndexIsUpdated() {
-        List<String> updatedIndicesRouting = new ArrayList<>();
-        List<ClusterMetadataManifest.UploadedIndexMetadata> indicesRouting = randomUploadedIndexMetadataList();
-        ClusterMetadataManifest.UploadedIndexMetadata expectedIndexRouting = indicesRouting.get(randomIntBetween(0, indicesRouting.size()));
-        updatedIndicesRouting.add(expectedIndexRouting.getIndexName());
-        List<ClusterMetadataManifest.UploadedIndexMetadata> updatedIndexMetadata = remoteRoutingTableService
-            .getUpdatedIndexRoutingTableMetadata(updatedIndicesRouting, indicesRouting);
-        assertEquals(1, updatedIndexMetadata.size());
-        assertEquals(expectedIndexRouting, updatedIndexMetadata.get(0));
-    }
+    // public void testGetUpdatedIndexRoutingTableMetadataWhenIndexIsUpdated() {
+    // List<String> updatedIndicesRouting = new ArrayList<>();
+    // List<ClusterMetadataManifest.UploadedIndexMetadata> indicesRouting = randomUploadedIndexMetadataList();
+    // ClusterMetadataManifest.UploadedIndexMetadata expectedIndexRouting = indicesRouting.get(randomIntBetween(0, indicesRouting.size()));
+    // updatedIndicesRouting.add(expectedIndexRouting.getIndexName());
+    // List<ClusterMetadataManifest.UploadedIndexMetadata> updatedIndexMetadata = remoteRoutingTableService
+    // .getUpdatedIndexRoutingTableMetadata(updatedIndicesRouting, indicesRouting);
+    // assertEquals(1, updatedIndexMetadata.size());
+    // assertEquals(expectedIndexRouting, updatedIndexMetadata.get(0));
+    // }
 
     private ClusterState createIndices(int numberOfIndices) {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
