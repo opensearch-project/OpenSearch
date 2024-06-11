@@ -8,6 +8,10 @@
 
 package org.opensearch.common.util.concurrent;
 
+/**
+ * An ExecutionContext is a singular header within ThreadLocal that contains the identity of a plugin that is on
+ * the path of execution.
+ */
 public class ExecutionContext {
     private final ThreadLocal<String> context = new ThreadLocal<>();
 

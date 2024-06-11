@@ -16,6 +16,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
+/**
+ * RestHandlerProxy is a wrapper around {@link RestHandler} that populates the ExecutionContext prior
+ * to delegating execution to a plugin for handling a REST Request
+ */
 public class RestHandlerProxy implements InvocationHandler {
     private final RestHandler restHandler;
     private final ThreadPool threadPool;
