@@ -1287,8 +1287,8 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         final Index index = state.metadata().index(indexName).getIndex();
 
         assertBusy(() -> {
-            assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(false));
-            assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
+            assertFalse(Arrays.stream(shardDirectory(node_1, index, 0)).anyMatch(Files::exists));
+            assertEquals(1, Arrays.stream(shardDirectory(node_2, index, 0)).filter(Files::exists).count());
         });
 
         logger.info("Moving the shard: {} again from node:{} to node:{}", indexName + "#0", node_2, node_1);
@@ -1301,11 +1301,10 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             .setWaitForNoInitializingShards(true)
             .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
 
         assertBusy(() -> {
-            assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
-            assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(false));
+            assertEquals(1, Arrays.stream(shardDirectory(node_1, index, 0)).filter(Files::exists).count());
+            assertFalse(Arrays.stream(shardDirectory(node_2, index, 0)).anyMatch(Files::exists));
         });
 
         logger.info("Clearing the cache for index:{}. And verify the request stats doesn't go negative", indexName);
@@ -1318,11 +1317,12 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertTrue(stats.getMemorySizeInBytes() == 0);
     }
 
-    private Path shardDirectory(String server, Index index, int shard) {
+    private Path[] shardDirectory(String server, Index index, int shard) {
         NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
         final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
-        assert paths.length == 1;
-        return paths[0];
+        // the available paths of the shard may be bigger than the 1,
+        // it depends on `InternalTestCluster.numDataPaths`.
+        return paths;
     }
 
     private void setupIndex(Client client, String index) throws Exception {
