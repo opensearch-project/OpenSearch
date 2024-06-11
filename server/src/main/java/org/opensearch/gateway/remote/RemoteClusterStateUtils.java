@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
+
 /**
  * Utility class for Remote Cluster State
  */
@@ -33,6 +35,7 @@ public class RemoteClusterStateUtils {
     public static final String GLOBAL_METADATA_PATH_TOKEN = "global-metadata";
     public static final String CLUSTER_STATE_EPHEMERAL_PATH_TOKEN = "ephemeral";
     public static final int GLOBAL_METADATA_CURRENT_CODEC_VERSION = 1;
+    public static final String METADATA_FILE_PREFIX = "metadata";
     public static final String CUSTOM_DELIMITER = "--";
     public static final String PATH_DELIMITER = "/";
     public static final String METADATA_NAME_PLAIN_FORMAT = "%s";
@@ -43,7 +46,7 @@ public class RemoteClusterStateUtils {
         Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)
     );
 
-    public static BlobPath getCusterMetadataBasePath(BlobStoreRepository blobStoreRepository, String clusterName, String clusterUUID) {
+    public static BlobPath getClusterMetadataBasePath(BlobStoreRepository blobStoreRepository, String clusterName, String clusterUUID) {
         return blobStoreRepository.basePath().add(encodeString(clusterName)).add(CLUSTER_STATE_PATH_TOKEN).add(clusterUUID);
     }
 
@@ -51,8 +54,11 @@ public class RemoteClusterStateUtils {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(content.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static String getFormattedFileName(String fileName, int codecVersion) {
-        if (codecVersion < ClusterMetadataManifest.CODEC_V2) {
+    public static String getFormattedIndexFileName(String fileName) {
+        String[] pathTokens = fileName.split(DELIMITER);
+        // last value added is the codec version in IndexMetadata file
+        int codecVersion = Integer.parseInt(pathTokens[pathTokens.length - 1]);
+        if (codecVersion == CODEC_V1) {
             return String.format(Locale.ROOT, METADATA_NAME_FORMAT, fileName);
         }
         return fileName;
@@ -88,8 +94,8 @@ public class RemoteClusterStateUtils {
             Map<String, ClusterMetadataManifest.UploadedMetadataAttribute> uploadedCustomMetadataMap,
             ClusterMetadataManifest.UploadedMetadataAttribute uploadedCoordinationMetadata,
             ClusterMetadataManifest.UploadedMetadataAttribute uploadedSettingsMetadata,
-            ClusterMetadataManifest.UploadedMetadataAttribute uploadedTransientSettingsMetadata,
             ClusterMetadataManifest.UploadedMetadataAttribute uploadedTemplatesMetadata,
+            ClusterMetadataManifest.UploadedMetadataAttribute uploadedTransientSettingsMetadata,
             ClusterMetadataManifest.UploadedMetadataAttribute uploadedDiscoveryNodes,
             ClusterMetadataManifest.UploadedMetadataAttribute uploadedClusterBlocks,
             List<ClusterMetadataManifest.UploadedIndexMetadata> uploadedIndicesRoutingMetadata,
