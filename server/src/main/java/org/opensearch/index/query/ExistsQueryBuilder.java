@@ -230,20 +230,16 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         if (context.getObjectMapper(fieldPattern) != null) {
             // the _field_names field also indexes objects, so we don't have to
             // do any more work to support exists queries on whole objects
-            fields = Collections.singleton(fieldPattern);
+            return Collections.singleton(fieldPattern);
         } else {
             fields = context.simpleMatchToIndexNames(fieldPattern);
         }
 
         if (fields.size() == 1) {
             String field = fields.iterator().next();
-            MappedFieldType fieldType = context.getMapperService().fieldType(field);
+            MappedFieldType fieldType = context.fieldMapper(field);
             if (fieldType == null) {
-                // The field does not exist as a leaf but could be an object so
-                // check for an object mapper
-                if (context.getObjectMapper(field) == null) {
-                    return Collections.emptySet();
-                }
+                return Collections.emptySet();
             }
         }
 
