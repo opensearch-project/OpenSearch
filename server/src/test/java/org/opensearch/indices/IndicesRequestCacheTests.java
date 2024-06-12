@@ -195,6 +195,58 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
+    public void testBasicOperationsCacheWithFeatureFlag() throws Exception {
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.PLUGGABLE_CACHE, "true").build();
+        cache = getIndicesRequestCache(settings);
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = getReader(writer, indexShard.shardId());
+
+        // initial cache
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        Loader loader = new Loader(reader, 0);
+        BytesReference value = cache.getOrCompute(entity, loader, reader, getTermBytes());
+        assertEquals("foo", value.streamInput().readString());
+        ShardRequestCache requestCacheStats = indexShard.requestCache();
+        assertEquals(0, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+
+        // cache hit
+        entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        loader = new Loader(reader, 0);
+        value = cache.getOrCompute(entity, loader, reader, getTermBytes());
+        assertEquals("foo", value.streamInput().readString());
+        requestCacheStats = indexShard.requestCache();
+        assertEquals(1, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+        assertTrue(requestCacheStats.stats().getMemorySize().bytesAsInt() > value.length());
+        assertEquals(1, cache.numRegisteredCloseListeners());
+
+        // Closing the cache doesn't modify an already returned CacheEntity
+        if (randomBoolean()) {
+            reader.close();
+        } else {
+            indexShard.close("test", true, true); // closed shard but reader is still open
+            cache.clear(entity);
+        }
+        cache.cacheCleanupManager.cleanCache();
+        assertEquals(1, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(0, cache.count());
+        assertEquals(0, requestCacheStats.stats().getMemorySize().bytesAsInt());
+
+        IOUtils.close(reader);
+        assertEquals(0, cache.numRegisteredCloseListeners());
+    }
+
     public void testCacheDifferentReaders() throws Exception {
         threadPool = getThreadPool();
         cache = getIndicesRequestCache(Settings.EMPTY);
