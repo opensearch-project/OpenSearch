@@ -20,4 +20,8 @@ Refer to these documents for more information about this integration:
 
 ### Other integrations
 
-TBD
+We host development environments to support the following integrations:
+
+* [Splunk](./splunk/README.md).
+* [Elasticsearch](./elastic/README.md).
+* [OpenSearch](./opensearch/README.md).
