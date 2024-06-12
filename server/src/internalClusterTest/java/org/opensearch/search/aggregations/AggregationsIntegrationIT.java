@@ -187,4 +187,27 @@ public class AggregationsIntegrationIT extends ParameterizedStaticSettingsOpenSe
         // Validate non-global agg does not throw an exception
         assertSearchResponse(client().prepareSearch("idx").addAggregation(stats("value_stats").field("score")).get());
     }
+
+    public void testAggsWithTerminateAfter() throws InterruptedException {
+        assertAcked(
+            prepareCreate(
+                "terminate_index",
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            ).setMapping("f", "type=keyword").get()
+        );
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(5, 20); ++i) {
+            docs.add(client().prepareIndex("terminate_index").setSource("f", Integer.toString(i / 3)));
+        }
+        indexRandom(true, docs);
+
+        SearchResponse response = client().prepareSearch("terminate_index")
+            .setSize(2)
+            .setTerminateAfter(1)
+            .addAggregation(terms("f").field("f"))
+            .get();
+        assertSearchResponse(response);
+        assertTrue(response.isTerminatedEarly());
+        assertEquals(response.getHits().getHits().length, 1);
+    }
 }
