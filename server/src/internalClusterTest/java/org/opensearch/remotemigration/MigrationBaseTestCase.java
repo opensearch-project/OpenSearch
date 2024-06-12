@@ -66,6 +66,9 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
     boolean addRemote = false;
     Settings extraSettings = Settings.EMPTY;
 
+    private static final int MIN_DOC_COUNT = 50;
+    private static final int MAX_DOC_COUNT = 100;
+
     private final List<String> documentKeys = List.of(
         randomAlphaOfLength(5),
         randomAlphaOfLength(5),
@@ -145,6 +148,10 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         return client().bulk(bulkRequest).actionGet();
     }
 
+    protected int numDocs() {
+        return between(MIN_DOC_COUNT, MAX_DOC_COUNT);
+    }
+
     Map<String, Integer> getShardCountByNodeId() {
         final Map<String, Integer> shardCountByNodeId = new HashMap<>();
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
@@ -167,9 +174,17 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         client().prepareIndex(indexName).setSource("auto", true).get();
     }
 
+    private int bulkIndex(String indexName) throws InterruptedException {
+        final int numDocs = numDocs();
+        indexBulk(indexName, numDocs);
+        return numDocs;
+    }
+
     public class AsyncIndexingService {
-        private String indexName;
-        private AtomicLong indexedDocs = new AtomicLong(0);
+        private final String indexName;
+        private final AtomicLong indexedDocs = new AtomicLong(0);
+
+        private final AtomicLong singleIndexedDocs = new AtomicLong(0);
         private AtomicBoolean finished = new AtomicBoolean();
         private Thread indexingThread;
 
@@ -193,11 +208,28 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
             return indexedDocs.get();
         }
 
+        public long getSingleIndexedDocs() {
+            return singleIndexedDocs.get();
+        }
+
         private Thread getIndexingThread() {
             return new Thread(() -> {
+                int iteration = 0;
                 while (finished.get() == false) {
-                    indexSingleDoc(indexName);
-                    long currentDocCount = indexedDocs.incrementAndGet();
+                    long currentDocCount;
+                    if (rarely()) {
+                        indexSingleDoc(indexName);
+                        currentDocCount = indexedDocs.incrementAndGet();
+                        singleIndexedDocs.incrementAndGet();
+                    } else {
+                        try {
+                            currentDocCount = indexedDocs.addAndGet(bulkIndex(indexName));
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    iteration++;
+
                     if (currentDocCount > 0 && currentDocCount % refreshFrequency == 0) {
                         if (rarely()) {
                             client().admin().indices().prepareFlush(indexName).get();

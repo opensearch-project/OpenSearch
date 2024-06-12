@@ -19,6 +19,7 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
@@ -38,6 +39,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
+
+    private final String INDEX_NAME = "primary-relocation";
+
     protected int maximumNumberOfShards() {
         return 1;
     }
@@ -58,14 +62,14 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // create shard with 0 replica and 1 shard
-        client().admin().indices().prepareCreate("test").setSettings(indexSettings()).setMapping("field", "type=text").get();
-        ensureGreen("test");
+        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).setMapping("field", "type=text").get();
+        ensureGreen(INDEX_NAME);
 
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);
-        AsyncIndexingService asyncIndexingService = new AsyncIndexingService("test");
+        AsyncIndexingService asyncIndexingService = new AsyncIndexingService(INDEX_NAME);
         asyncIndexingService.startIndexing();
-        refresh("test");
+        refresh(INDEX_NAME);
 
         // add remote node in mixed mode cluster
         setAddRemote(true);
@@ -86,7 +90,12 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         // Index some more docs
         int currentDoc = numAutoGenDocs.get();
         int finalCurrentDoc1 = currentDoc;
-        waitUntil(() -> numAutoGenDocs.get() > finalCurrentDoc1 + 5);
+        waitUntil(() -> numAutoGenDocs.get() > finalCurrentDoc1 + 100);
+
+        ByteSizeValue shardSize = client().admin().indices().prepareStats(INDEX_NAME).execute().actionGet().getShards()[0].getStats()
+            .getStore()
+            .size();
+        slowDownRecovery(shardSize);
 
         // Change direction to remote store
         updateSettingsRequest.persistentSettings(Settings.builder().put(MIGRATION_DIRECTION_SETTING.getKey(), "remote_store"));
@@ -96,11 +105,25 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         client().admin()
             .cluster()
             .prepareReroute()
-            .add(new MoveAllocationCommand("test", 0, primaryNodeName("test"), remoteNode))
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, primaryNodeName(INDEX_NAME), remoteNode))
             .execute()
             .actionGet();
+<<<<<<< HEAD
         waitForRelocation();
         assertEquals(remoteNode, primaryNodeName("test"));
+=======
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .execute()
+            .actionGet();
+
+        assertEquals(0, clusterHealthResponse.getRelocatingShards());
+        assertEquals(remoteNode, primaryNodeName(INDEX_NAME));
+>>>>>>> cd5fcc7c969 (Fix remote recovery IT)
         logger.info("-->  relocation from docrep to remote  complete");
 
         // Index some more docs
@@ -111,27 +134,26 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         client().admin()
             .cluster()
             .prepareReroute()
-            .add(new MoveAllocationCommand("test", 0, remoteNode, remoteNode2))
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, remoteNode, remoteNode2))
             .execute()
             .actionGet();
         waitForRelocation();
-        assertEquals(remoteNode2, primaryNodeName("test"));
-
+        assertEquals(remoteNode2, primaryNodeName(INDEX_NAME));
         logger.info("-->  relocation from remote to remote  complete");
 
         finished.set(true);
         asyncIndexingService.stopIndexing();
-        refresh("test");
+        refresh(INDEX_NAME);
         OpenSearchAssertions.assertHitCount(
-            client().prepareSearch("test").setTrackTotalHits(true).get(),
+            client().prepareSearch(INDEX_NAME).setTrackTotalHits(true).get(),
             asyncIndexingService.getIndexedDocs()
         );
         OpenSearchAssertions.assertHitCount(
-            client().prepareSearch("test")
+            client().prepareSearch(INDEX_NAME)
                 .setTrackTotalHits(true)// extra paranoia ;)
                 .setQuery(QueryBuilders.termQuery("auto", true))
                 .get(),
-            asyncIndexingService.getIndexedDocs()
+            asyncIndexingService.getSingleIndexedDocs()
         );
     }
 
@@ -142,13 +164,13 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         // create shard with 0 replica and 1 shard
-        client().admin().indices().prepareCreate("test").setSettings(indexSettings()).setMapping("field", "type=text").get();
-        ensureGreen("test");
+        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).setMapping("field", "type=text").get();
+        ensureGreen(INDEX_NAME);
 
-        AsyncIndexingService asyncIndexingService = new AsyncIndexingService("test");
+        AsyncIndexingService asyncIndexingService = new AsyncIndexingService(INDEX_NAME);
         asyncIndexingService.startIndexing();
 
-        refresh("test");
+        refresh(INDEX_NAME);
 
         // add remote node in mixed mode cluster
         setAddRemote(true);
@@ -167,7 +189,12 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         logger.info("--> relocating from {} to {} ", docRepNode, remoteNode);
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, docRepNode, remoteNode)).execute().actionGet();
+        client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, docRepNode, remoteNode))
+            .execute()
+            .actionGet();
         ClusterHealthResponse clusterHealthResponse = client().admin()
             .cluster()
             .prepareHealth()
@@ -186,7 +213,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .waitForNoInitializingShards(true);
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
         assertEquals(actionGet.getRelocatingShards(), 0);
-        assertEquals(docRepNode, primaryNodeName("test"));
+        assertEquals(docRepNode, primaryNodeName(INDEX_NAME));
 
         asyncIndexingService.stopIndexing();
         client().admin()
