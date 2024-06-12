@@ -304,6 +304,20 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return createAggregator(aggregationBuilder, searchContext);
     }
 
+    protected <A extends Aggregator> A createAggregatorWithCustomizableSearchContext(
+        Query query,
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        MultiBucketConsumer bucketConsumer,
+        Consumer<SearchContext> customizeSearchContext,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
+        customizeSearchContext.accept(searchContext);
+        return createAggregator(aggregationBuilder, searchContext);
+    }
+
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, SearchContext searchContext)
         throws IOException {
         @SuppressWarnings("unchecked")
