@@ -105,6 +105,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
@@ -1416,14 +1417,11 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     public void testIndexShardClosedAndVerifyCacheCleanUpWorksSuccessfully() throws Exception {
         threadPool = getThreadPool();
         String indexName = "test1";
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         // Create a shard
         IndexService indexService = createIndex(
             indexName,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
         );
-        Index idx = resolveIndex(indexName);
-        ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
         IndexShard indexShard = indexService.getShard(0);
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
@@ -1440,7 +1438,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         );
         IndicesService.IndexShardCacheEntity cacheEntity = new IndicesService.IndexShardCacheEntity(indexShard);
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "bar");
-        BytesReference termBytes = XContentHelper.toXContent(termQuery, MediaTypeRegistry.JSON, false);
 
         // Cache some values for indexShard
         BytesReference value = cache.getOrCompute(cacheEntity, loader, reader, getTermBytes());
@@ -1452,20 +1449,17 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(1, cache.count());
         assertEquals(1, stats.getMissCount());
         assertTrue(stats.getMemorySizeInBytes() > 0);
-        System.out.println("memory = " + stats.getMemorySizeInBytes());
 
         // Remove the shard making its cache entries stale
         IOUtils.close(reader, writer, dir);
         indexService.removeShard(0, "force");
-        System.out.println("index stats = " + indexShard.state());
 
-        assertBusy(() -> { assertEquals(IndexShardState.CLOSED, indexShard.state()); });
+        assertBusy(() -> { assertEquals(IndexShardState.CLOSED, indexShard.state()); }, 1, TimeUnit.SECONDS);
 
         // Trigger clean up of cache. Should not throw any exception.
         cache.cacheCleanupManager.cleanCache();
         // Verify all cleared up.
         assertEquals(0, cache.count());
-
         IOUtils.close(cache);
     }
 
