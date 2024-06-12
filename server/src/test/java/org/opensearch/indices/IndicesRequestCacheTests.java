@@ -394,7 +394,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when staleness count is higher than stale threshold, stale keys should be cleaned up.
     public void testCacheCleanupBasedOnStaleThreshold_StalenessHigherThanThreshold() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.49").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.49")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -429,7 +432,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when staleness count equal to stale threshold, stale keys should be cleaned up.
     public void testCacheCleanupBasedOnStaleThreshold_StalenessEqualToThreshold() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.5").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.5")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
@@ -461,7 +467,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when a cache entry that is Stale is evicted for any reason, we have to deduct the count from our staleness count
     public void testStaleCount_OnRemovalNotificationOfStaleKey_DecrementsStaleCount() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         ShardId shardId = indexShard.shardId();
@@ -523,7 +532,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when a cache entry that is NOT Stale is evicted for any reason, staleness count should NOT be deducted
     public void testStaleCount_OnRemovalNotificationOfNonStaleKey_DoesNotDecrementsStaleCount() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         ShardId shardId = indexShard.shardId();
@@ -584,7 +596,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when a cache entry that is NOT Stale is evicted WITHOUT its reader closing, we should NOT deduct it from staleness count
     public void testStaleCount_WithoutReaderClosing_DecrementsStaleCount() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -623,7 +638,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // test staleness count based on removal notifications
     public void testStaleCount_OnRemovalNotifications() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -677,7 +695,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when staleness count less than the stale threshold, stale keys should NOT be cleaned up.
     public void testCacheCleanupBasedOnStaleThreshold_StalenessLesserThanThreshold() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -710,7 +731,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // test the cleanupKeyToCountMap are set appropriately when both readers are closed
     public void testCleanupKeyToCountMapAreSetAppropriately() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -798,7 +822,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // test adding to cleanupKeyToCountMap with multiple threads
     public void testAddToCleanupKeyToCountMap() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
 
         int numberOfThreads = 10;
@@ -1008,7 +1035,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testCacheCleanupBasedOnStaleThreshold_thresholdUpdate() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%")
+            .put(FeatureFlags.PLUGGABLE_CACHE, true)
+            .build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
