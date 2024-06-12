@@ -564,7 +564,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * @param cleanupKey the CleanupKey to be updated in the map
          */
         private void updateStaleCountOnCacheInsert(CleanupKey cleanupKey) {
-            if (pluggableCacheEnabled || cleanupKey.entity == null) {
+            if (!pluggableCacheEnabled || cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -601,7 +601,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             CleanupKey cleanupKey,
             RemovalNotification<ICacheKey<Key>, BytesReference> notification
         ) {
-            if (pluggableCacheEnabled || notification.getRemovalReason() == RemovalReason.REPLACED) {
+            if (!pluggableCacheEnabled || notification.getRemovalReason() == RemovalReason.REPLACED) {
                 // The reason of the notification is REPLACED when a cache entry's value is updated, since replacing an entry
                 // does not affect the staleness count, we skip such notifications.
                 return;
@@ -661,7 +661,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * @param cleanupKey the CleanupKey that has been marked for cleanup
          */
         private void incrementStaleKeysCount(CleanupKey cleanupKey) {
-            if (pluggableCacheEnabled || cleanupKey.entity == null) {
+            if (!pluggableCacheEnabled || cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -803,7 +803,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * @return true if the cache cleanup process can be skipped, false otherwise.
          */
         private synchronized boolean canSkipCacheCleanup(double cleanThresholdPercent) {
-            if (pluggableCacheEnabled || cleanThresholdPercent == 0.0) {
+            if (!pluggableCacheEnabled || cleanThresholdPercent == 0.0) {
                 return false;
             }
             double staleKeysInCachePercentage = staleKeysInCachePercentage();
