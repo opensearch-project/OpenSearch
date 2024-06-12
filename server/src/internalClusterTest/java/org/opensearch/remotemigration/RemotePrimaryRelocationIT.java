@@ -15,6 +15,7 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
@@ -61,9 +62,19 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        // create shard with 0 replica and 1 shard
+        // create shard with 1 replica and 1 shard
         client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).setMapping("field", "type=text").get();
         ensureGreen(INDEX_NAME);
+
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings()
+                .setIndices(INDEX_NAME)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build())
+                .get()
+        );
 
         AtomicInteger numAutoGenDocs = new AtomicInteger();
         final AtomicBoolean finished = new AtomicBoolean(false);
@@ -95,6 +106,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         ByteSizeValue shardSize = client().admin().indices().prepareStats(INDEX_NAME).execute().actionGet().getShards()[0].getStats()
             .getStore()
             .size();
+        logger.info("Shard size after migration is {}", shardSize);
         slowDownRecovery(shardSize);
 
         // Change direction to remote store
@@ -108,28 +120,17 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .add(new MoveAllocationCommand(INDEX_NAME, 0, primaryNodeName(INDEX_NAME), remoteNode))
             .execute()
             .actionGet();
-<<<<<<< HEAD
         waitForRelocation();
-        assertEquals(remoteNode, primaryNodeName("test"));
-=======
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setTimeout(TimeValue.timeValueSeconds(60))
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
-
-        assertEquals(0, clusterHealthResponse.getRelocatingShards());
         assertEquals(remoteNode, primaryNodeName(INDEX_NAME));
->>>>>>> cd5fcc7c969 (Fix remote recovery IT)
-        logger.info("-->  relocation from docrep to remote  complete");
 
         // Index some more docs
         currentDoc = numAutoGenDocs.get();
         int finalCurrentDoc = currentDoc;
         waitUntil(() -> numAutoGenDocs.get() > finalCurrentDoc + 5);
+
+        // increase recovery speed a bit to account for current size
+        shardSize = client().admin().indices().prepareStats(INDEX_NAME).execute().actionGet().getShards()[0].getStats().getStore().size();
+        slowDownRecovery(shardSize);
 
         client().admin()
             .cluster()
