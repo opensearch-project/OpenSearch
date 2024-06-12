@@ -48,7 +48,6 @@ import java.util.Set;
 public class FilterPath {
 
     static final FilterPath EMPTY = new FilterPath();
-    private static final Logger logger = LogManager.getLogger(FilterPath.class);
     private final String filter;
     private final String segment;
     private final FilterPath next;
