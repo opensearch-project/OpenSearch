@@ -15,13 +15,13 @@ public class MetricTypeFieldPairTests extends OpenSearchTestCase {
 
     public void testConstructor() {
         MetricTypeFieldPair pair = new MetricTypeFieldPair(MetricType.SUM, "column1");
-        assertEquals(MetricType.SUM, pair.getFunctionType());
+        assertEquals(MetricType.SUM, pair.getMetricType());
         assertEquals("column1", pair.getField());
     }
 
     public void testCountStarConstructor() {
         MetricTypeFieldPair pair = new MetricTypeFieldPair(MetricType.COUNT, "anything");
-        assertEquals(MetricType.COUNT, pair.getFunctionType());
+        assertEquals(MetricType.COUNT, pair.getMetricType());
         assertEquals("*", pair.getField());
     }
 
@@ -32,13 +32,13 @@ public class MetricTypeFieldPairTests extends OpenSearchTestCase {
 
     public void testFromFieldName() {
         MetricTypeFieldPair pair = MetricTypeFieldPair.fromFieldName("max__column3");
-        assertEquals(MetricType.MAX, pair.getFunctionType());
+        assertEquals(MetricType.MAX, pair.getMetricType());
         assertEquals("column3", pair.getField());
     }
 
     public void testCountStarFromFieldName() {
         MetricTypeFieldPair pair = MetricTypeFieldPair.fromFieldName("count__*");
-        assertEquals(MetricType.COUNT, pair.getFunctionType());
+        assertEquals(MetricType.COUNT, pair.getMetricType());
         assertEquals("*", pair.getField());
         assertSame(MetricTypeFieldPair.COUNT_STAR, pair);
     }

@@ -9,6 +9,7 @@
 package org.opensearch.index.compositeindex.startree.aggregators;
 
 import org.opensearch.index.compositeindex.MetricType;
+import org.opensearch.index.compositeindex.startree.data.DataType;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ValueAggregatorFactoryTests extends OpenSearchTestCase {

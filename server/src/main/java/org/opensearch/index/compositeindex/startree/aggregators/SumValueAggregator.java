@@ -8,6 +8,7 @@
 package org.opensearch.index.compositeindex.startree.aggregators;
 
 import org.opensearch.index.compositeindex.MetricType;
+import org.opensearch.index.compositeindex.startree.data.DataType;
 
 /**
  * Sum value aggregator for star tree

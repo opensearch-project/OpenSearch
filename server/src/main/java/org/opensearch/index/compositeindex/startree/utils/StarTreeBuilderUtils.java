@@ -37,17 +37,17 @@ public class StarTreeBuilderUtils {
 
     private StarTreeBuilderUtils() {}
 
-    public static final int INVALID_ID = -1;
+    public static final int ALL = -1;
     public static final long MAGIC_MARKER = 0xBADDA55B00DAD00DL;
 
     /** Tree node representation */
     public static class TreeNode {
-        public int dimensionId = INVALID_ID;
-        public long dimensionValue = INVALID_ID;
-        public int startDocId = INVALID_ID;
-        public int endDocId = INVALID_ID;
-        public int aggregatedDocId = INVALID_ID;
-        public int childDimensionId = INVALID_ID;
+        public int dimensionId = ALL;
+        public long dimensionValue = ALL;
+        public int startDocId = ALL;
+        public int endDocId = ALL;
+        public int aggregatedDocId = ALL;
+        public int childDimensionId = ALL;
         public Map<Long, TreeNode> children;
     }
 
@@ -100,7 +100,7 @@ public class StarTreeBuilderUtils {
             TreeNode node = queue.remove();
 
             if (node.children == null) {
-                writeNode(output, node, INVALID_ID, INVALID_ID);
+                writeNode(output, node, ALL, ALL);
             } else {
                 // Sort all children nodes based on dimension value
                 List<TreeNode> sortedChildren = new ArrayList<>(node.children.values());

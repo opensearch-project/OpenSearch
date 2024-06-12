@@ -12,6 +12,7 @@ import java.util.Iterator;
 
 /**
  * Class representing each node in star tree
+ * The interface is implemented by build-mode based nodes
  * @opensearch.experimental
  */
 public interface StarTreeNode {

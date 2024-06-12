@@ -21,15 +21,15 @@ public class MetricTypeFieldPair implements Comparable<MetricTypeFieldPair> {
     public static final String STAR = "*";
     public static final MetricTypeFieldPair COUNT_STAR = new MetricTypeFieldPair(MetricType.COUNT, STAR);
 
-    private final MetricType functionType;
+    private final MetricType metricType;
     private final String field;
 
     /**
      * Constructor for MetricTypeFieldPair
      */
-    public MetricTypeFieldPair(MetricType functionType, String field) {
-        this.functionType = functionType;
-        if (functionType == MetricType.COUNT) {
+    public MetricTypeFieldPair(MetricType metricType, String field) {
+        this.metricType = metricType;
+        if (metricType == MetricType.COUNT) {
             this.field = STAR;
         } else {
             this.field = field;
@@ -39,8 +39,8 @@ public class MetricTypeFieldPair implements Comparable<MetricTypeFieldPair> {
     /**
      * @return Metric Type
      */
-    public MetricType getFunctionType() {
-        return functionType;
+    public MetricType getMetricType() {
+        return metricType;
     }
 
     /**
@@ -51,17 +51,17 @@ public class MetricTypeFieldPair implements Comparable<MetricTypeFieldPair> {
     }
 
     /**
-     * @return field name with function type and field
+     * @return field name with metric type and field
      */
     public String toFieldName() {
-        return toFieldName(functionType, field);
+        return toFieldName(metricType, field);
     }
 
     /**
-     * Builds field name with function type and field
+     * Builds field name with metric type and field
      */
-    public static String toFieldName(MetricType functionType, String field) {
-        return functionType.getTypeName() + DELIMITER + field;
+    public static String toFieldName(MetricType metricType, String field) {
+        return metricType.getTypeName() + DELIMITER + field;
     }
 
     /**
@@ -69,24 +69,24 @@ public class MetricTypeFieldPair implements Comparable<MetricTypeFieldPair> {
      */
     public static MetricTypeFieldPair fromFieldName(String fieldName) {
         String[] parts = fieldName.split(DELIMITER, 2);
-        return fromFunctionAndFieldName(parts[0], parts[1]);
+        return fromMetricAndFieldName(parts[0], parts[1]);
     }
 
     /**
-     * Builds MetricTypeFieldPair from function and field name
+     * Builds MetricTypeFieldPair from metric and field name
      */
-    private static MetricTypeFieldPair fromFunctionAndFieldName(String functionName, String fieldName) {
-        MetricType functionType = MetricType.fromTypeName(functionName);
-        if (functionType == MetricType.COUNT) {
+    private static MetricTypeFieldPair fromMetricAndFieldName(String metricName, String fieldName) {
+        MetricType metricType = MetricType.fromTypeName(metricName);
+        if (metricType == MetricType.COUNT) {
             return COUNT_STAR;
         } else {
-            return new MetricTypeFieldPair(functionType, fieldName);
+            return new MetricTypeFieldPair(metricType, fieldName);
         }
     }
 
     @Override
     public int hashCode() {
-        return 31 * functionType.hashCode() + field.hashCode();
+        return 31 * metricType.hashCode() + field.hashCode();
     }
 
     @Override
@@ -96,7 +96,7 @@ public class MetricTypeFieldPair implements Comparable<MetricTypeFieldPair> {
         }
         if (obj instanceof MetricTypeFieldPair) {
             MetricTypeFieldPair anotherPair = (MetricTypeFieldPair) obj;
-            return functionType == anotherPair.functionType && field.equals(anotherPair.field);
+            return metricType == anotherPair.metricType && field.equals(anotherPair.field);
         }
         return false;
     }
@@ -109,7 +109,7 @@ public class MetricTypeFieldPair implements Comparable<MetricTypeFieldPair> {
     @Override
     public int compareTo(MetricTypeFieldPair other) {
         return Comparator.comparing((MetricTypeFieldPair o) -> o.field)
-            .thenComparing((MetricTypeFieldPair o) -> o.functionType)
+            .thenComparing((MetricTypeFieldPair o) -> o.metricType)
             .compare(this, other);
     }
 }

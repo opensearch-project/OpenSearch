@@ -8,6 +8,7 @@
 package org.opensearch.index.compositeindex.startree.aggregators;
 
 import org.opensearch.index.compositeindex.MetricType;
+import org.opensearch.index.compositeindex.startree.data.DataType;
 
 /**
  * A value aggregator that pre-aggregates on the input values for a specific type of aggregation.

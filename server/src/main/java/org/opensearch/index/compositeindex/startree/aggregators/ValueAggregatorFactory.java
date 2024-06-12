@@ -8,6 +8,7 @@
 package org.opensearch.index.compositeindex.startree.aggregators;
 
 import org.opensearch.index.compositeindex.MetricType;
+import org.opensearch.index.compositeindex.startree.data.DataType;
 
 /**
  * Value aggregator factory for a given aggregation type

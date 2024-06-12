@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.index.compositeindex.startree.builder;
+package org.opensearch.index.compositeindex.startree.data;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.opensearch.index.compositeindex.startree.node.StarTree;

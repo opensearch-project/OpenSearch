@@ -8,6 +8,8 @@
 
 package org.opensearch.index.compositeindex.startree.builder;
 
+import org.opensearch.index.compositeindex.startree.data.StarTreeDocValues;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -16,7 +18,7 @@ import java.util.List;
  * A star-tree builder that builds a single star-tree.
  * @opensearch.experimental
  */
-public interface CompositeFieldWriter extends Closeable {
+public interface SingleTreeBuilder extends Closeable {
 
     /**
      * Builds the data structure for the given composite index config.
