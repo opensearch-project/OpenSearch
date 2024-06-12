@@ -153,7 +153,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     private final TimeValue expire;
     private final ICache<Key, BytesReference> cache;
     private final ClusterService clusterService;
-    private final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
+    // pkg-private for testing
+    final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
     // pkg-private for testing
     final IndicesRequestCacheCleanupManager cacheCleanupManager;
 

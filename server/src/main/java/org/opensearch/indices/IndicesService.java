@@ -406,7 +406,7 @@ public class IndicesService extends AbstractLifecycleComponent
             if (indexService == null) {
                 return Optional.empty();
             }
-            return Optional.of(new IndexShardCacheEntity(indexService.getShard(shardId.id())));
+            return Optional.of(new IndexShardCacheEntity(indexService.getShardOrNull(shardId.id())));
         }), cacheService, threadPool, clusterService);
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
