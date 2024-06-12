@@ -631,7 +631,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         assertCacheState(client, index, 2, 2);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/11374")
     public void testProfileDisableCache() throws Exception {
         Client client = client();
         String index = "index";
@@ -674,7 +673,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/12308")
     public void testCacheWithInvalidation() throws Exception {
         Client client = client();
         String index = "index";
@@ -760,7 +758,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is lower than staleness, it should clean the stale keys from cache
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13540")
     public void testStaleKeysCleanupWithLowThreshold() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
@@ -807,7 +804,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is equal to staleness, it should clean the stale keys from cache
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13503")
     public void testCacheCleanupOnEqualStalenessAndThreshold() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
@@ -986,7 +982,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when cache cleaner interval setting is not set, cache cleaner is configured appropriately with the fall-back setting
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13711")
     public void testCacheCleanupWithDefaultSettings() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
@@ -1027,7 +1022,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // staleness threshold updates flows through to the cache cleaner
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13949")
     public void testDynamicStalenessThresholdUpdate() throws Exception {
         int cacheCleanIntervalInMillis = 1;
         String node = internalCluster().startNode(
@@ -1175,7 +1169,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     // when staleness threshold is lower than staleness, it should clean the cache from all indices having stale keys
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13437")
     public void testStaleKeysCleanupWithMultipleIndices() throws Exception {
         int cacheCleanIntervalInMillis = 10;
         String node = internalCluster().startNode(
@@ -1230,7 +1223,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13600")
     public void testDeleteAndCreateSameIndexShardOnSameNode() throws Exception {
         String node_1 = internalCluster().startNode(Settings.builder().build());
         Client client = client(node_1);
