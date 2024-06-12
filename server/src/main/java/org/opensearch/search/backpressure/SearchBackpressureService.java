@@ -46,6 +46,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -66,10 +67,6 @@ import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.isHea
  */
 public class SearchBackpressureService extends AbstractLifecycleComponent implements TaskCompletionListener {
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
-    private static final List<Class<? extends SearchBackpressureTask>> TRACKED_TASK_TYPES = List.of(
-        SearchTask.class,
-        SearchShardTask.class
-    );
     private static final Map<TaskResourceUsageTrackerType, Function<NodeDuressTrackers, Boolean>> trackerApplyConditions = Map.of(
         TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
         (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.CPU),
@@ -139,7 +136,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         );
     }
 
-    public SearchBackpressureService(
+    SearchBackpressureService(
         SearchBackpressureSettings settings,
         TaskResourceTrackingService taskResourceTrackingService,
         ThreadPool threadPool,
@@ -191,11 +188,20 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
         List<CancellableTask> searchTasks = getTaskByType(SearchTask.class);
         List<CancellableTask> searchShardTasks = getTaskByType(SearchShardTask.class);
+
+        boolean isHeapUsageDominatedBySearchTasks = HeapUsageTracker.isHeapUsageDominatedBySearch(
+            searchTasks,
+            getSettings().getSearchTaskSettings().getTotalHeapPercentThreshold()
+        );
+        boolean isHeapUsageDominatedBySearchShardTasks = HeapUsageTracker.isHeapUsageDominatedBySearch(
+            searchTasks,
+            getSettings().getSearchShardTaskSettings().getTotalHeapPercentThreshold()
+        );
         final Map<Class<? extends SearchBackpressureTask>, List<CancellableTask>> cancellableTasks = Map.of(
             SearchTask.class,
-            searchTasks,
+            isHeapUsageDominatedBySearchTasks ? searchTasks : Collections.emptyList(),
             SearchShardTask.class,
-            searchShardTasks
+            isHeapUsageDominatedBySearchShardTasks ? searchShardTasks : Collections.emptyList()
         );
 
         // Force-refresh usage stats of these tasks before making a cancellation decision.
@@ -255,31 +261,22 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         List<TaskCancellation> taskCancellations,
         Map<Class<? extends SearchBackpressureTask>, List<CancellableTask>> cancellableTasks
     ) {
-        for (Class<? extends SearchBackpressureTask> taskType : TRACKED_TASK_TYPES) {
-            final Optional<TaskResourceUsageTracker> taskResourceTracker = getTaskResourceUsageTrackersByType(taskType).getTracker(type);
+        for (Map.Entry<Class<? extends SearchBackpressureTask>, TaskResourceUsageTrackers> taskResourceUsageTrackers : taskTrackers
+            .entrySet()) {
+            final Optional<TaskResourceUsageTracker> taskResourceUsageTracker = taskResourceUsageTrackers.getValue().getTracker(type);
+            final Class<? extends SearchBackpressureTask> taskType = taskResourceUsageTrackers.getKey();
 
-            addTaskCancellationsFromTaskResourceUsageTracker(
-                taskCancellations,
-                cancellableTasks.get(taskType),
-                taskResourceTracker,
-                taskType
+            taskResourceUsageTracker.ifPresent(
+                tracker -> taskCancellations.addAll(
+                    tracker.getTaskCancellations(
+                        cancellableTasks.get(taskType),
+                        searchBackpressureStates.get(taskType)::incrementCancellationCount
+                    )
+                )
             );
         }
 
         return taskCancellations;
-    }
-
-    private void addTaskCancellationsFromTaskResourceUsageTracker(
-        List<TaskCancellation> taskCancellations,
-        List<CancellableTask> tasks,
-        Optional<TaskResourceUsageTracker> taskResourceUsageTracker,
-        Class<?> type
-    ) {
-        taskResourceUsageTracker.ifPresent(
-            tracker -> taskCancellations.addAll(
-                tracker.getTaskCancellations(tasks, searchBackpressureStates.get(type)::incrementCancellationCount)
-            )
-        );
     }
 
     /**

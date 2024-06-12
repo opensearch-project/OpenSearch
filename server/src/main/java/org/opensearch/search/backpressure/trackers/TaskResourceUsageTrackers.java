@@ -115,22 +115,17 @@ public class TaskResourceUsageTrackers {
          */
         public List<TaskCancellation> getTaskCancellations(List<CancellableTask> tasks, Runnable cancellationCallback) {
             return tasks.stream()
-                .map(task -> this.getTaskCancellation(task, cancellationCallback))
+                .map(task -> this.getTaskCancellation(task, List.of(cancellationCallback, this::incrementCancellations)))
                 .filter(TaskCancellation::isEligibleForCancellation)
-                .map(taskCancellation -> {
-                    List<Runnable> onCancelCallbacks = new ArrayList<>(taskCancellation.getOnCancelCallbacks());
-                    onCancelCallbacks.add(this::incrementCancellations);
-                    return new TaskCancellation(taskCancellation.getTask(), taskCancellation.getReasons(), onCancelCallbacks);
-                })
                 .collect(Collectors.toList());
         }
 
-        private TaskCancellation getTaskCancellation(final CancellableTask task, final Runnable cancellationCallback) {
+        private TaskCancellation getTaskCancellation(final CancellableTask task, final List<Runnable> cancellationCallback) {
             Optional<TaskCancellation.Reason> reason = checkAndMaybeGetCancellationReason(task);
             List<TaskCancellation.Reason> reasons = new ArrayList<>();
             reason.ifPresent(reasons::add);
 
-            return new TaskCancellation(task, reasons, List.of(cancellationCallback));
+            return new TaskCancellation(task, reasons, cancellationCallback);
         }
 
         /**
