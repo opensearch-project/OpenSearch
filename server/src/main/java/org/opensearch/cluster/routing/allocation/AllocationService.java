@@ -584,10 +584,7 @@ public class AllocationService {
         /*
          Use batch mode if enabled and there is no custom allocator set for Allocation service
          */
-        Boolean batchModeEnabled = EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(settings);
-        if (batchModeEnabled
-            && allocation.nodes().getMinNodeVersion().onOrAfter(Version.V_2_14_0)
-            && existingShardsAllocators.size() == 2) {
+        if (isBatchModeEnabled(allocation)) {
             /*
              If we do not have any custom allocator set then we will be using ShardsBatchGatewayAllocator
              Currently AllocationService will not run any custom Allocator that implements allocateAllUnassignedShards
@@ -724,11 +721,22 @@ public class AllocationService {
 
     private ExistingShardsAllocator getAllocatorForShard(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
         assert assertInitialized();
-        final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
-        );
+        String allocatorName;
+        if (isBatchModeEnabled(routingAllocation)) {
+            allocatorName = ShardsBatchGatewayAllocator.ALLOCATOR_NAME;
+        } else {
+            allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
+                routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+            );
+        }
         final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);
+    }
+
+    private boolean isBatchModeEnabled(RoutingAllocation routingAllocation) {
+        return EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(settings)
+            && routingAllocation.nodes().getMinNodeVersion().onOrAfter(Version.V_2_14_0)
+            && existingShardsAllocators.size() == 2;
     }
 
     private boolean assertInitialized() {
