@@ -105,8 +105,6 @@ public class FilterPath {
                 filter = filter.trim();
                 if (filter.length() > 0) {
                     paths.add(parse(filter));
-                } else {
-                    logger.warn("Filter is empty!");
                 }
             }
         }
