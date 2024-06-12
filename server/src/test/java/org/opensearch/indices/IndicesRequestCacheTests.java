@@ -391,6 +391,37 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IOUtils.close(secondReader);
     }
 
+    // when the feature flag is disabled, stale keys should be cleaned up every time cache cleaner is invoked.
+    public void testCacheCleanupWhenFeatureFlagIsDisabled() throws Exception {
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0%")
+            .put(FeatureFlags.PLUGGABLE_CACHE, false)
+            .build();
+        cache = getIndicesRequestCache(settings);
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = getReader(writer, indexShard.shardId());
+        DirectoryReader secondReader = getReader(writer, indexShard.shardId());
+
+        // Get 2 entries into the cache
+        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
+        assertEquals(1, cache.count());
+
+        cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
+        assertEquals(2, cache.count());
+
+        // Close the reader, to be enqueued for cleanup
+        // 1 out of 2 keys ie 50% are now stale.
+        reader.close();
+        // cache count should not be affected
+        assertEquals(2, cache.count());
+        // clean cache with 0% staleness threshold
+        cache.cacheCleanupManager.cleanCache();
+        // cleanup should remove the stale-key
+        assertEquals(1, cache.count());
+        IOUtils.close(secondReader);
+    }
+
     // when staleness count is higher than stale threshold, stale keys should be cleaned up.
     public void testCacheCleanupBasedOnStaleThreshold_StalenessHigherThanThreshold() throws Exception {
         threadPool = getThreadPool();
@@ -815,6 +846,63 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cache.cacheCleanupManager.getStaleKeysCount().get());
         // since all the readers of this shard is closed, the cleanupKeyToCountMap should have no entries
         assertEquals(0, cleanupKeyToCountMap.size());
+
+        IOUtils.close(secondReader);
+    }
+
+    // test the cleanupKeyToCountMap stays empty when the pluggable cache feature flag is disabled
+    public void testCleanupKeyToCountMapAreSetAppropriatelyWhenFeatureFlagIsDisabled() throws Exception {
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder()
+            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
+            .put(FeatureFlags.PLUGGABLE_CACHE, false)
+            .build();
+        cache = getIndicesRequestCache(settings);
+
+        writer.addDocument(newDoc(0, "foo"));
+        ShardId shardId = indexShard.shardId();
+        DirectoryReader reader = getReader(writer, shardId);
+        DirectoryReader secondReader = getReader(writer, shardId);
+
+        // Get 2 entries into the cache from 2 different readers
+        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
+        assertEquals(1, cache.count());
+        // test the mappings
+        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        assertTrue(cleanupKeyToCountMap.isEmpty());
+
+        cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
+        // test the mapping
+        assertEquals(2, cache.count());
+        assertTrue(cleanupKeyToCountMap.isEmpty());
+        // create another entry for the second reader
+        cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes("id", "1"));
+        // test the mapping
+        assertEquals(3, cache.count());
+        assertTrue(cleanupKeyToCountMap.isEmpty());
+
+        // Close the reader, to create stale entries
+        reader.close();
+        // cache count should not be affected
+        assertEquals(3, cache.count());
+        // test the mapping, cleanupKeyToCountMap should be empty
+        assertTrue(cleanupKeyToCountMap.isEmpty());
+        // send removal notification for first reader
+        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
+            indexShard.shardId(),
+            getTermBytes(),
+            getReaderCacheKeyId(reader),
+            indexShard.hashCode()
+        );
+        cache.onRemoval(
+            new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
+                new ICacheKey<>(key),
+                getTermBytes(),
+                RemovalReason.EVICTED
+            )
+        );
+        // test the mapping, it should stay the same
+        assertTrue(cleanupKeyToCountMap.isEmpty());
 
         IOUtils.close(secondReader);
     }
