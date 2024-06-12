@@ -8,67 +8,80 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexInput;
-import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.HashSet;
+import java.util.Set;
 
-/**
- * Implementation of the CachedIndexInput for NON_BLOCK files which takes in an IndexInput as parameter
- *
- * @opensearch.experimental
- */
-@ExperimentalApi
-public class FullFileCachedIndexInput implements CachedIndexInput {
-    private final FileCache fileCache;
-    private final Path path;
-    private final FileCachedIndexInput fileCachedIndexInput;
-    private final AtomicBoolean isClosed;
+public class FullFileCachedIndexInput extends FileCachedIndexInput {
+    private static final Logger logger = LogManager.getLogger(FullFileCachedIndexInput.class);
+    private final Set<FullFileCachedIndexInput> clones;
 
-    /**
-     * Constructor - takes IndexInput as parameter
-     */
-    public FullFileCachedIndexInput(FileCache fileCache, Path path, IndexInput indexInput) {
-        this.fileCache = fileCache;
-        this.path = path;
-        fileCachedIndexInput = new FileCachedIndexInput(fileCache, path, indexInput);
-        isClosed = new AtomicBoolean(false);
+    public FullFileCachedIndexInput(FileCache cache, Path filePath, IndexInput underlyingIndexInput) {
+        this(cache, filePath, underlyingIndexInput, false);
     }
 
-    /**
-     * Returns the wrapped indexInput
-     */
-    @Override
-    public IndexInput getIndexInput() {
-        if (isClosed.get()) throw new AlreadyClosedException("Index input is already closed");
-        return fileCachedIndexInput;
+    public FullFileCachedIndexInput(FileCache cache, Path filePath, IndexInput underlyingIndexInput, boolean isClone) {
+        super(cache, filePath, underlyingIndexInput, isClone);
+        clones = new HashSet<>();
     }
 
-    /**
-     * Returns the length of the wrapped indexInput
-     */
     @Override
-    public long length() {
-        return fileCachedIndexInput.length();
+    public FullFileCachedIndexInput clone() {
+        FullFileCachedIndexInput clonedIndexInput = new FullFileCachedIndexInput(cache, filePath, luceneIndexInput.clone(), true);
+        cache.incRef(filePath);
+        clones.add(clonedIndexInput);
+        return clonedIndexInput;
     }
 
-    /**
-     * Checks if the wrapped indexInput is closed
-     */
     @Override
-    public boolean isClosed() {
-        return isClosed.get();
+    public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+        if (offset < 0 || length < 0 || offset + length > this.length()) {
+            throw new IllegalArgumentException(
+                "slice() "
+                    + sliceDescription
+                    + " out of bounds: offset="
+                    + offset
+                    + ",length="
+                    + length
+                    + ",fileLength="
+                    + this.length()
+                    + ": "
+                    + this
+            );
+        }
+        IndexInput slicedLuceneIndexInput = luceneIndexInput.slice(sliceDescription, offset, length);
+        FullFileCachedIndexInput slicedIndexInput = new FullFileCachedIndexInput(cache, filePath, slicedLuceneIndexInput, true);
+        clones.add(slicedIndexInput);
+        cache.incRef(filePath);
+        return slicedIndexInput;
     }
 
-    /**
-     * Closes the wrapped indexInput
-     */
     @Override
-    public void close() throws Exception {
-        if (!isClosed.getAndSet(true)) {
-            fileCachedIndexInput.close();
+    public void close() throws IOException {
+        if (!closed) {
+            if (isClone) {
+                cache.decRef(filePath);
+            }
+            clones.forEach(indexInput -> {
+                try {
+                    indexInput.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            try {
+                luceneIndexInput.close();
+            } catch (AlreadyClosedException e) {
+                logger.trace("FullFileCachedIndexInput already closed");
+            }
+            luceneIndexInput = null;
+            closed = true;
         }
     }
 }

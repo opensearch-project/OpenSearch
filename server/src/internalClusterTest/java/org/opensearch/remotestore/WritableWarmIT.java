@@ -12,11 +12,13 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.query.QueryBuilders;
@@ -24,10 +26,11 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.node.Node;
+import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -38,9 +41,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
 // Uncomment the below line to enable trace level logs for this test for better debugging
-// @TestLogging(reason = "Getting trace logs from composite directory package", value = "org.opensearch.index.store:TRACE")
+@TestLogging(reason = "Getting trace logs from composite directory package", value = "org.opensearch.index.store:TRACE")
 public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
     protected static final String INDEX_NAME = "test-idx-1";
@@ -64,7 +67,9 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
     public void testWritableWarmFeatureFlagDisabled() {
         Settings clusterSettings = Settings.builder().put(super.nodeSettings(0)).put(FeatureFlags.TIERED_REMOTE_INDEX, false).build();
-        internalCluster().startDataOnlyNodes(1, clusterSettings);
+        InternalTestCluster internalTestCluster = internalCluster();
+        internalTestCluster.startClusterManagerOnlyNodes(3, clusterSettings);
+        internalTestCluster.startDataOnlyNodes(1, clusterSettings);
 
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -72,16 +77,24 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
             .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL.name())
             .build();
 
-        assertThrows(
-            "index.store.locality can be set to PARTIAL only if Feature Flag ["
-                + FeatureFlags.TIERED_REMOTE_INDEX_SETTING.getKey()
-                + "] is set to true",
-            IllegalArgumentException.class,
-            () -> client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings).get()
-        );
+        try {
+            prepareCreate(INDEX_NAME).setSettings(indexSettings).get();
+            fail("Should have thrown Exception as setting should not be registered if Feature Flag is Disabled");
+        } catch (SettingsException ex) {
+            assertEquals(
+                "unknown setting ["
+                    + IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()
+                    + "] please check that any required plugins are installed, or check the "
+                    + "breaking changes documentation for removed settings",
+                ex.getMessage()
+            );
+        }
     }
 
     public void testWritableWarmBasic() throws Exception {
+        InternalTestCluster internalTestCluster = internalCluster();
+        internalTestCluster.startClusterManagerOnlyNode();
+        internalTestCluster.startDataOnlyNode();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -112,8 +125,8 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         indexBulk(INDEX_NAME, NUM_DOCS_IN_BULK);
         flushAndRefresh(INDEX_NAME);
 
-        FileCache fileCache = internalCluster().getDataNodeInstance(Node.class).fileCache();
-        IndexShard shard = internalCluster().getDataNodeInstance(IndicesService.class)
+        FileCache fileCache = internalTestCluster.getDataNodeInstance(Node.class).fileCache();
+        IndexShard shard = internalTestCluster.getDataNodeInstance(IndicesService.class)
             .indexService(resolveIndex(INDEX_NAME))
             .getShardOrNull(0);
         Directory directory = (((FilterDirectory) (((FilterDirectory) (shard.store().directory())).getDelegate())).getDelegate());
@@ -124,22 +137,18 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         flushAndRefresh(INDEX_NAME);
         Set<String> filesAfterMerge = new HashSet<>(Arrays.asList(directory.listAll()));
 
-        CacheUsage usageBeforePrune = fileCache.usage();
-        fileCache.prune();
-        CacheUsage usageAfterPrune = fileCache.usage();
-
         Set<String> filesFromPreviousGenStillPresent = filesBeforeMerge.stream()
             .filter(filesAfterMerge::contains)
             .filter(file -> !FileTypeUtils.isLockFile(file))
+            .filter(file -> !FileTypeUtils.isSegmentsFile(file))
             .collect(Collectors.toUnmodifiableSet());
 
         // Asserting that after merge all the files from previous gen are no more part of the directory
         assertTrue(filesFromPreviousGenStillPresent.isEmpty());
-        // Asserting that after the merge, refCount of some files in FileCache dropped to zero which resulted in their eviction after
-        // pruning
-        assertTrue(usageAfterPrune.usage() < usageBeforePrune.usage());
 
-        // Clearing the file cache to avoid any file leaks
-        fileCache.clear();
+        // Deleting the index (so that ref count drops to zero for all the files) and then pruning the cache to clear it to avoid any file
+        // leaks
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
+        fileCache.prune();
     }
 }

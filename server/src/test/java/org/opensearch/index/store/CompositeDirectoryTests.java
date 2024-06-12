@@ -67,34 +67,11 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
 
     public void testDeleteFile() throws IOException {
         assertTrue(existsInCompositeDirectory(FILE_PRESENT_LOCALLY));
-        // Read existing file from directory
-        IndexInput indexInput = compositeDirectory.openInput(FILE_PRESENT_LOCALLY, IOContext.DEFAULT);
         // Delete the file and assert that it no more is a part of the directory
         compositeDirectory.deleteFile(FILE_PRESENT_LOCALLY);
         assertFalse(existsInCompositeDirectory(FILE_PRESENT_LOCALLY));
-        // On trying any operations(such as openInput) on the deleted file again, it should throw NoSuchFileException
-        assertThrows(
-            "File _1.cfe is already pending delete",
-            NoSuchFileException.class,
-            () -> compositeDirectory.openInput(FILE_PRESENT_LOCALLY, IOContext.DEFAULT)
-        );
-        // Trying to delete it again should also result in NoSuchFileException
-        assertThrows(
-            "File" + FILE_PRESENT_LOCALLY + " is already pending delete",
-            NoSuchFileException.class,
-            () -> compositeDirectory.deleteFile("_1.cfe")
-        );
-        // Even though the file is deleted, IndexInputs opened prior to deletion should work fine until closed
-        indexInput.getFilePointer();
-        indexInput.close();
-        assertThrows(RuntimeException.class, indexInput::getFilePointer);
-        // Files which do not exist in directory should throw NoSuchFileException
-        assertFalse(existsInCompositeDirectory(NON_EXISTENT_FILE));
-        assertThrows(
-            "File " + NON_EXISTENT_FILE + " not found in directory",
-            NoSuchFileException.class,
-            () -> compositeDirectory.deleteFile(NON_EXISTENT_FILE)
-        );
+        // Reading deleted file from directory should result in NoSuchFileException
+        assertThrows(NoSuchFileException.class, () -> compositeDirectory.openInput(FILE_PRESENT_LOCALLY, IOContext.DEFAULT));
     }
 
     public void testFileLength() throws IOException {

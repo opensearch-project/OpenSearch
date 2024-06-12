@@ -262,11 +262,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
                         .stream()
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-                    Collection<String> segmentsToRefresh = localSegmentsPostRefresh.stream()
-                        .filter(file -> !skipUpload(file))
-                        .collect(Collectors.toList());
-
                     CountDownLatch latch = new CountDownLatch(1);
                     ActionListener<Void> segmentUploadsCompletedListener = new LatchedActionListener<>(new ActionListener<>() {
                         @Override
