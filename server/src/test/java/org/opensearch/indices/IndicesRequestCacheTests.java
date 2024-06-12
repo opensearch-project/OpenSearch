@@ -195,58 +195,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
-    public void testBasicOperationsCacheWithFeatureFlag() throws Exception {
-        threadPool = getThreadPool();
-        Settings settings = Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.PLUGGABLE_CACHE, "true").build();
-        cache = getIndicesRequestCache(settings);
-        writer.addDocument(newDoc(0, "foo"));
-        DirectoryReader reader = getReader(writer, indexShard.shardId());
-
-        // initial cache
-        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
-        Loader loader = new Loader(reader, 0);
-        BytesReference value = cache.getOrCompute(entity, loader, reader, getTermBytes());
-        assertEquals("foo", value.streamInput().readString());
-        ShardRequestCache requestCacheStats = indexShard.requestCache();
-        assertEquals(0, requestCacheStats.stats().getHitCount());
-        assertEquals(1, requestCacheStats.stats().getMissCount());
-        assertEquals(0, requestCacheStats.stats().getEvictions());
-        assertFalse(loader.loadedFromCache);
-        assertEquals(1, cache.count());
-
-        // cache hit
-        entity = new IndicesService.IndexShardCacheEntity(indexShard);
-        loader = new Loader(reader, 0);
-        value = cache.getOrCompute(entity, loader, reader, getTermBytes());
-        assertEquals("foo", value.streamInput().readString());
-        requestCacheStats = indexShard.requestCache();
-        assertEquals(1, requestCacheStats.stats().getHitCount());
-        assertEquals(1, requestCacheStats.stats().getMissCount());
-        assertEquals(0, requestCacheStats.stats().getEvictions());
-        assertTrue(loader.loadedFromCache);
-        assertEquals(1, cache.count());
-        assertTrue(requestCacheStats.stats().getMemorySize().bytesAsInt() > value.length());
-        assertEquals(1, cache.numRegisteredCloseListeners());
-
-        // Closing the cache doesn't modify an already returned CacheEntity
-        if (randomBoolean()) {
-            reader.close();
-        } else {
-            indexShard.close("test", true, true); // closed shard but reader is still open
-            cache.clear(entity);
-        }
-        cache.cacheCleanupManager.cleanCache();
-        assertEquals(1, requestCacheStats.stats().getHitCount());
-        assertEquals(1, requestCacheStats.stats().getMissCount());
-        assertEquals(0, requestCacheStats.stats().getEvictions());
-        assertTrue(loader.loadedFromCache);
-        assertEquals(0, cache.count());
-        assertEquals(0, requestCacheStats.stats().getMemorySize().bytesAsInt());
-
-        IOUtils.close(reader);
-        assertEquals(0, cache.numRegisteredCloseListeners());
-    }
-
     public void testCacheDifferentReaders() throws Exception {
         threadPool = getThreadPool();
         cache = getIndicesRequestCache(Settings.EMPTY);
@@ -391,44 +339,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IOUtils.close(secondReader);
     }
 
-    // when the feature flag is disabled, stale keys should be cleaned up every time cache cleaner is invoked.
-    public void testCacheCleanupWhenFeatureFlagIsDisabled() throws Exception {
-        threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0%")
-            .put(FeatureFlags.PLUGGABLE_CACHE, false)
-            .build();
-        cache = getIndicesRequestCache(settings);
-        writer.addDocument(newDoc(0, "foo"));
-        DirectoryReader reader = getReader(writer, indexShard.shardId());
-        DirectoryReader secondReader = getReader(writer, indexShard.shardId());
-
-        // Get 2 entries into the cache
-        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
-        assertEquals(1, cache.count());
-
-        cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
-        assertEquals(2, cache.count());
-
-        // Close the reader, to be enqueued for cleanup
-        // 1 out of 2 keys ie 50% are now stale.
-        reader.close();
-        // cache count should not be affected
-        assertEquals(2, cache.count());
-        // clean cache with 0% staleness threshold
-        cache.cacheCleanupManager.cleanCache();
-        // cleanup should remove the stale-key
-        assertEquals(1, cache.count());
-        IOUtils.close(secondReader);
-    }
-
     // when staleness count is higher than stale threshold, stale keys should be cleaned up.
     public void testCacheCleanupBasedOnStaleThreshold_StalenessHigherThanThreshold() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.49")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.49").build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -463,10 +377,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when staleness count equal to stale threshold, stale keys should be cleaned up.
     public void testCacheCleanupBasedOnStaleThreshold_StalenessEqualToThreshold() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.5")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.5").build();
         cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         DirectoryReader reader = getReader(writer, indexShard.shardId());
@@ -498,10 +409,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when a cache entry that is Stale is evicted for any reason, we have to deduct the count from our staleness count
     public void testStaleCount_OnRemovalNotificationOfStaleKey_DecrementsStaleCount() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
         cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         ShardId shardId = indexShard.shardId();
@@ -563,10 +471,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when a cache entry that is NOT Stale is evicted for any reason, staleness count should NOT be deducted
     public void testStaleCount_OnRemovalNotificationOfNonStaleKey_DoesNotDecrementsStaleCount() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
         cache = getIndicesRequestCache(settings);
         writer.addDocument(newDoc(0, "foo"));
         ShardId shardId = indexShard.shardId();
@@ -627,10 +532,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when a cache entry that is NOT Stale is evicted WITHOUT its reader closing, we should NOT deduct it from staleness count
     public void testStaleCount_WithoutReaderClosing_DecrementsStaleCount() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -669,10 +571,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // test staleness count based on removal notifications
     public void testStaleCount_OnRemovalNotifications() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -726,10 +625,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // when staleness count less than the stale threshold, stale keys should NOT be cleaned up.
     public void testCacheCleanupBasedOnStaleThreshold_StalenessLesserThanThreshold() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -762,10 +658,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     // test the cleanupKeyToCountMap are set appropriately when both readers are closed
     public void testCleanupKeyToCountMapAreSetAppropriately() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51").build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
@@ -850,70 +743,10 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         IOUtils.close(secondReader);
     }
 
-    // test the cleanupKeyToCountMap stays empty when the pluggable cache feature flag is disabled
-    public void testCleanupKeyToCountMapAreSetAppropriatelyWhenFeatureFlagIsDisabled() throws Exception {
-        threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "0.51")
-            .put(FeatureFlags.PLUGGABLE_CACHE, false)
-            .build();
-        cache = getIndicesRequestCache(settings);
-
-        writer.addDocument(newDoc(0, "foo"));
-        ShardId shardId = indexShard.shardId();
-        DirectoryReader reader = getReader(writer, shardId);
-        DirectoryReader secondReader = getReader(writer, shardId);
-
-        // Get 2 entries into the cache from 2 different readers
-        cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
-        assertEquals(1, cache.count());
-        // test the mappings
-        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
-        assertTrue(cleanupKeyToCountMap.isEmpty());
-
-        cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
-        // test the mapping
-        assertEquals(2, cache.count());
-        assertTrue(cleanupKeyToCountMap.isEmpty());
-        // create another entry for the second reader
-        cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes("id", "1"));
-        // test the mapping
-        assertEquals(3, cache.count());
-        assertTrue(cleanupKeyToCountMap.isEmpty());
-
-        // Close the reader, to create stale entries
-        reader.close();
-        // cache count should not be affected
-        assertEquals(3, cache.count());
-        // test the mapping, cleanupKeyToCountMap should be empty
-        assertTrue(cleanupKeyToCountMap.isEmpty());
-        // send removal notification for first reader
-        IndicesRequestCache.Key key = new IndicesRequestCache.Key(
-            indexShard.shardId(),
-            getTermBytes(),
-            getReaderCacheKeyId(reader),
-            indexShard.hashCode()
-        );
-        cache.onRemoval(
-            new RemovalNotification<ICacheKey<IndicesRequestCache.Key>, BytesReference>(
-                new ICacheKey<>(key),
-                getTermBytes(),
-                RemovalReason.EVICTED
-            )
-        );
-        // test the mapping, it should stay the same
-        assertTrue(cleanupKeyToCountMap.isEmpty());
-
-        IOUtils.close(secondReader);
-    }
-
     // test adding to cleanupKeyToCountMap with multiple threads
     public void testAddToCleanupKeyToCountMap() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
         cache = getIndicesRequestCache(settings);
 
         int numberOfThreads = 10;
@@ -1117,10 +950,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
 
     public void testCacheCleanupBasedOnStaleThreshold_thresholdUpdate() throws Exception {
         threadPool = getThreadPool();
-        Settings settings = Settings.builder()
-            .put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%")
-            .put(FeatureFlags.PLUGGABLE_CACHE, true)
-            .build();
+        Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
         cache = getIndicesRequestCache(settings);
 
         writer.addDocument(newDoc(0, "foo"));
