@@ -177,6 +177,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
             Set<String> staleManifestPaths = new HashSet<>();
             Set<String> staleIndexMetadataPaths = new HashSet<>();
             Set<String> staleGlobalMetadataPaths = new HashSet<>();
+            Set<String> staleEphemeralAttributePaths = new HashSet<>();
             Set<String> staleIndexRoutingPaths = new HashSet<>();
             activeManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = remoteManifestManager.fetchRemoteClusterMetadataManifest(
@@ -197,6 +198,23 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                     filesToKeep.add(clusterMetadataManifest.getSettingsMetadata().getUploadedFilename());
                     filesToKeep.add(clusterMetadataManifest.getTemplatesMetadata().getUploadedFilename());
                     clusterMetadataManifest.getCustomMetadataMap()
+                        .values()
+                        .forEach(attribute -> filesToKeep.add(attribute.getUploadedFilename()));
+                }
+                if (clusterMetadataManifest.getTransientSettingsMetadata() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getTransientSettingsMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getHashesOfConsistentSettings() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getHashesOfConsistentSettings().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getDiscoveryNodesMetadata() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getDiscoveryNodesMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getClusterBlocksMetadata() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getClusterBlocksMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getClusterStateCustomMap() != null) {
+                    clusterMetadataManifest.getClusterStateCustomMap()
                         .values()
                         .forEach(attribute -> filesToKeep.add(attribute.getUploadedFilename()));
                 }
@@ -253,6 +271,31 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                         staleIndexMetadataPaths.add(fileName);
                     }
                 });
+
+                if (clusterMetadataManifest.getClusterBlocksMetadata() != null
+                    && !filesToKeep.contains(clusterMetadataManifest.getClusterBlocksMetadata().getUploadedFilename())) {
+                    staleEphemeralAttributePaths.add(clusterMetadataManifest.getClusterBlocksMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getDiscoveryNodesMetadata() != null
+                    && !filesToKeep.contains(clusterMetadataManifest.getDiscoveryNodesMetadata().getUploadedFilename())) {
+                    staleEphemeralAttributePaths.add(clusterMetadataManifest.getDiscoveryNodesMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getTransientSettingsMetadata() != null
+                    && !filesToKeep.contains(clusterMetadataManifest.getTransientSettingsMetadata().getUploadedFilename())) {
+                    staleEphemeralAttributePaths.add(clusterMetadataManifest.getTransientSettingsMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getHashesOfConsistentSettings() != null
+                    && !filesToKeep.contains(clusterMetadataManifest.getHashesOfConsistentSettings().getUploadedFilename())) {
+                    staleEphemeralAttributePaths.add(clusterMetadataManifest.getHashesOfConsistentSettings().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getClusterStateCustomMap() != null) {
+                    clusterMetadataManifest.getCustomMetadataMap()
+                        .values()
+                        .stream()
+                        .filter(u -> !filesToKeep.contains(u.getUploadedFilename()))
+                        .forEach(attribute -> staleEphemeralAttributePaths.add(attribute.getUploadedFilename()));
+                }
+
             });
 
             if (staleManifestPaths.isEmpty()) {
@@ -262,6 +305,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
 
             deleteStalePaths(new ArrayList<>(staleGlobalMetadataPaths));
             deleteStalePaths(new ArrayList<>(staleIndexMetadataPaths));
+            deleteStalePaths(new ArrayList<>(staleEphemeralAttributePaths));
             deleteStalePaths(new ArrayList<>(staleManifestPaths));
             try {
                 remoteRoutingTableService.deleteStaleIndexRoutingPaths(new ArrayList<>(staleIndexRoutingPaths));

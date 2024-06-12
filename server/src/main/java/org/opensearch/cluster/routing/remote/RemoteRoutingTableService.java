@@ -18,6 +18,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.IOException;
@@ -25,7 +26,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Interface for RemoteRoutingTableService. Exposes methods to orchestrate upload and download of routing table from remote store.
+ * A Service which provides APIs to upload and download routing table from remote store.
+ *
+ * @opensearch.internal
  */
 public interface RemoteRoutingTableService extends LifecycleComponent {
     public static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
@@ -42,6 +45,17 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         };
 
     List<IndexRoutingTable> getIndicesRouting(RoutingTable routingTable);
+
+    CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+        String uploadedFilename,
+        Index index,
+        LatchedActionListener<IndexRoutingTable> latchedActionListener
+    );
+
+    List<ClusterMetadataManifest.UploadedIndexMetadata> getUpdatedIndexRoutingTableMetadata(
+        List<String> updatedIndicesRouting,
+        List<ClusterMetadataManifest.UploadedIndexMetadata> allIndicesRouting
+    );
 
     DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> getIndicesRoutingMapDiff(
         RoutingTable before,

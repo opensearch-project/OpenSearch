@@ -57,6 +57,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             "test-cluster",
             blobStoreRepository,
             blobStoreTransferService,
+            writableRegistry(),
             threadPool
         );
     }

@@ -10,20 +10,17 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
-import org.opensearch.core.common.io.stream.BytesStreamInput;
-import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import static org.opensearch.core.common.bytes.BytesReference.toBytes;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_STATE_ATTRIBUTES_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_PATH_TOKEN;
@@ -33,6 +30,8 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METAD
  */
 public class RemoteHashesOfConsistentSettings extends AbstractRemoteWritableBlobEntity<DiffableStringMap> {
     public static final String HASHES_OF_CONSISTENT_SETTINGS = "hashes-of-consistent-settings";
+    public static final ChecksumWritableBlobStoreFormat<DiffableStringMap> HASHES_OF_CONSISTENT_SETTINGS_FORMAT =
+        new ChecksumWritableBlobStoreFormat<>("hashes-of-consistent-settings", DiffableStringMap::readFrom);
 
     private DiffableStringMap hashesOfConsistentSettings;
     private long metadataVersion;
@@ -84,21 +83,12 @@ public class RemoteHashesOfConsistentSettings extends AbstractRemoteWritableBlob
 
     @Override
     public InputStream serialize() throws IOException {
-        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
-            hashesOfConsistentSettings.writeTo(bytesStreamOutput);
-            return bytesStreamOutput.bytes().streamInput();
-        } catch (IOException e) {
-            throw new IOException("Failed to serialize hashes of consistent settings", e);
-        }
-
+        return HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(hashesOfConsistentSettings, generateBlobFileName(), getCompressor())
+            .streamInput();
     }
 
     @Override
     public DiffableStringMap deserialize(final InputStream inputStream) throws IOException {
-        try (StreamInput in = new BytesStreamInput(toBytes(Streams.readFully(inputStream)))) {
-            return DiffableStringMap.readFrom(in);
-        } catch (IOException e) {
-            throw new IOException("Failed to deserialize hashes of consistent settings", e);
-        }
+        return HASHES_OF_CONSISTENT_SETTINGS_FORMAT.deserialize(blobName, Streams.readFully(inputStream));
     }
 }

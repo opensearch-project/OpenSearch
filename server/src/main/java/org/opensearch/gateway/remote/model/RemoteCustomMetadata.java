@@ -8,18 +8,17 @@
 
 package org.opensearch.gateway.remote.model;
 
-import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
-import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.index.remote.RemoteStoreUtils;
-import org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat;
+import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,7 +27,6 @@ import java.util.List;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_PATH_TOKEN;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_PLAIN_FORMAT;
 
 /**
  * Wrapper class for uploading/downloading {@link Custom} to/from remote blob store
@@ -37,11 +35,12 @@ public class RemoteCustomMetadata extends AbstractRemoteWritableBlobEntity<Custo
 
     public static final String CUSTOM_METADATA = "custom";
     public static final String CUSTOM_DELIMITER = "--";
-    public final ChecksumBlobStoreFormat<Custom> customBlobStoreFormat;
+    public final ChecksumWritableBlobStoreFormat<Custom> customBlobStoreFormat;
 
     private Custom custom;
     private final String customType;
     private long metadataVersion;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     public RemoteCustomMetadata(
         final Custom custom,
@@ -49,16 +48,16 @@ public class RemoteCustomMetadata extends AbstractRemoteWritableBlobEntity<Custo
         final long metadataVersion,
         final String clusterUUID,
         Compressor compressor,
-        NamedXContentRegistry namedXContentRegistry
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, null);
         this.custom = custom;
         this.customType = customType;
         this.metadataVersion = metadataVersion;
-        this.customBlobStoreFormat = new ChecksumBlobStoreFormat<>(
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.customBlobStoreFormat = new ChecksumWritableBlobStoreFormat<>(
             "custom",
-            METADATA_NAME_PLAIN_FORMAT,
-            (parser -> Metadata.Custom.fromXContent(parser, customType))
+            is -> readFrom(is, namedWriteableRegistry, customType)
         );
     }
 
@@ -67,15 +66,15 @@ public class RemoteCustomMetadata extends AbstractRemoteWritableBlobEntity<Custo
         final String customType,
         final String clusterUUID,
         final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
+        final NamedWriteableRegistry namedWriteableRegistry
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, null);
         this.blobName = blobName;
         this.customType = customType;
-        this.customBlobStoreFormat = new ChecksumBlobStoreFormat<>(
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.customBlobStoreFormat = new ChecksumWritableBlobStoreFormat<>(
             "custom",
-            METADATA_NAME_PLAIN_FORMAT,
-            (parser -> Metadata.Custom.fromXContent(parser, customType))
+            is -> readFrom(is, namedWriteableRegistry, customType)
         );
     }
 
@@ -107,18 +106,22 @@ public class RemoteCustomMetadata extends AbstractRemoteWritableBlobEntity<Custo
 
     @Override
     public InputStream serialize() throws IOException {
-        return customBlobStoreFormat.serialize(custom, generateBlobFileName(), getCompressor(), RemoteClusterStateUtils.FORMAT_PARAMS)
-            .streamInput();
+        return customBlobStoreFormat.serialize(custom, generateBlobFileName(), getCompressor()).streamInput();
     }
 
     @Override
     public Custom deserialize(final InputStream inputStream) throws IOException {
-        return customBlobStoreFormat.deserialize(blobName, getNamedXContentRegistry(), Streams.readFully(inputStream));
+        return customBlobStoreFormat.deserialize(blobName, Streams.readFully(inputStream));
     }
 
     @Override
     public UploadedMetadata getUploadedMetadata() {
         assert blobName != null;
         return new UploadedMetadataAttribute(String.join(CUSTOM_DELIMITER, CUSTOM_METADATA, customType), blobName);
+    }
+
+    public static Custom readFrom(StreamInput streamInput, NamedWriteableRegistry namedWriteableRegistry, String customType)
+        throws IOException {
+        return namedWriteableRegistry.getReader(Custom.class, customType).read(streamInput);
     }
 }

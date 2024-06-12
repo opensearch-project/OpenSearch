@@ -8,24 +8,21 @@
 
 package org.opensearch.gateway.remote.model;
 
-import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.compress.DeflateCompressor;
-import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.index.Index;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
-import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -36,10 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.function.Function;
-import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toList;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_DELIMITER;
 import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_METADATA;
@@ -62,7 +56,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
     private String clusterName;
     private ClusterSettings clusterSettings;
     private Compressor compressor;
-    private NamedXContentRegistry namedXContentRegistry;
+    private NamedWriteableRegistry namedWriteableRegistry;
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Before
@@ -75,15 +69,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
         when(blobStoreRepository.basePath()).thenReturn(blobPath);
         when(blobStoreRepository.getCompressor()).thenReturn(new DeflateCompressor());
         compressor = new NoneCompressor();
-        namedXContentRegistry = new NamedXContentRegistry(
-            Stream.of(
-                NetworkModule.getNamedXContents().stream(),
-                IndicesModule.getNamedXContents().stream(),
-                ClusterModule.getNamedXWriteables().stream()
-            ).flatMap(Function.identity()).collect(toList())
-        );
-        // namedXContentRegistry = new NamedXContentRegistry(List.of(new Entry(Metadata.Custom.class, new ParseField(CUSTOM_TYPE),
-        // p->TestCustomMetadata.fromXContent(CustomMetadata1::new, p))));
+        namedWriteableRegistry = writableRegistry();
         this.clusterName = "test-cluster-name";
     }
 
@@ -101,7 +87,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         assertThat(remoteObjectForUpload.clusterUUID(), is(clusterUUID));
 
@@ -110,7 +96,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             "test-custom",
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         assertThat(remoteObjectForDownload.clusterUUID(), is(clusterUUID));
     }
@@ -123,7 +109,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         assertThat(remoteObjectForUpload.getFullBlobName(), nullValue());
 
@@ -132,7 +118,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             "test-custom",
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         assertThat(remoteObjectForDownload.getFullBlobName(), is(TEST_BLOB_NAME));
     }
@@ -145,7 +131,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         assertThat(remoteObjectForUpload.getBlobFileName(), nullValue());
 
@@ -154,7 +140,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             "test-custom",
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         assertThat(remoteObjectForDownload.getBlobFileName(), is(TEST_BLOB_FILE_NAME));
     }
@@ -166,7 +152,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             "test-custom",
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         assertThat(remoteObjectForDownload.getBlobPathTokens(), is(new String[] { "user", "local", "opensearch", "customMetadata" }));
     }
@@ -179,7 +165,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertThat(params.getPathTokens(), is(List.of(RemoteClusterStateUtils.GLOBAL_METADATA_PATH_TOKEN)));
@@ -195,7 +181,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
@@ -215,7 +201,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
 
@@ -236,7 +222,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedWriteableRegistry
         );
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());

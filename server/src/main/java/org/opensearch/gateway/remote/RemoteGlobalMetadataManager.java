@@ -22,14 +22,19 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteCoordinationMetadata;
 import org.opensearch.gateway.remote.model.RemoteCustomMetadata;
 import org.opensearch.gateway.remote.model.RemoteGlobalMetadata;
+import org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings;
 import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
+import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
+import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
@@ -65,17 +70,20 @@ public class RemoteGlobalMetadataManager {
     private Map<String, RemoteWritableEntityStore> remoteWritableEntityStores;
     private final Compressor compressor;
     private final NamedXContentRegistry namedXContentRegistry;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     RemoteGlobalMetadataManager(
         ClusterSettings clusterSettings,
         String clusterName,
         BlobStoreRepository blobStoreRepository,
         BlobStoreTransferService blobStoreTransferService,
+        NamedWriteableRegistry namedWriteableRegistry,
         ThreadPool threadpool
     ) {
         this.globalMetadataUploadTimeout = clusterSettings.get(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING);
         this.compressor = blobStoreRepository.getCompressor();
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.remoteWritableEntityStores = new HashMap<>();
         this.remoteWritableEntityStores.put(
             RemoteGlobalMetadata.GLOBAL_METADATA,
@@ -99,6 +107,26 @@ public class RemoteGlobalMetadataManager {
         );
         this.remoteWritableEntityStores.put(
             RemotePersistentSettingsMetadata.SETTING_METADATA,
+            new RemoteClusterStateBlobStore<>(
+                blobStoreTransferService,
+                blobStoreRepository,
+                clusterName,
+                threadpool,
+                ThreadPool.Names.REMOTE_STATE_READ
+            )
+        );
+        this.remoteWritableEntityStores.put(
+            RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA,
+            new RemoteClusterStateBlobStore<>(
+                blobStoreTransferService,
+                blobStoreRepository,
+                clusterName,
+                threadpool,
+                ThreadPool.Names.REMOTE_STATE_READ
+            )
+        );
+        this.remoteWritableEntityStores.put(
+            RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS,
             new RemoteClusterStateBlobStore<>(
                 blobStoreTransferService,
                 blobStoreRepository,
@@ -154,8 +182,22 @@ public class RemoteGlobalMetadataManager {
     ) {
         return ActionListener.wrap(
             resp -> latchedActionListener.onResponse(remoteBlobStoreObject.getUploadedMetadata()),
-            ex -> latchedActionListener.onFailure(new RemoteStateTransferException("Upload failed", ex))
+            ex -> latchedActionListener.onFailure(
+                new RemoteStateTransferException("Upload failed for " + remoteBlobStoreObject.getType(), ex)
+            )
         );
+    }
+
+    CheckedRunnable<IOException> getAsyncMetadataReadAction(
+        AbstractRemoteWritableBlobEntity readEntity,
+        String componentName,
+        LatchedActionListener<RemoteReadResult> listener
+    ) {
+        ActionListener actionListener = ActionListener.wrap(
+            response -> listener.onResponse(new RemoteReadResult((ToXContent) response, readEntity.getType(), componentName)),
+            listener::onFailure
+        );
+        return () -> getStore(readEntity).readAsync(readEntity, actionListener);
     }
 
     Metadata getGlobalMetadata(String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
@@ -213,7 +255,7 @@ public class RemoteGlobalMetadataManager {
                             key,
                             clusterUUID,
                             compressor,
-                            namedXContentRegistry
+                            namedWriteableRegistry
                         );
                         builder.putCustom(key, (Custom) getStore(remoteCustomMetadata).read(remoteCustomMetadata));
                     } catch (IOException e) {

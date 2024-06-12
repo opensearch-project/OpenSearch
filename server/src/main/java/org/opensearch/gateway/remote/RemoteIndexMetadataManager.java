@@ -20,6 +20,7 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
+import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
@@ -67,7 +68,6 @@ public class RemoteIndexMetadataManager {
             threadpool,
             ThreadPool.Names.REMOTE_STATE_READ
         );
-        ;
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
         this.compressor = blobStoreRepository.getCompressor();
         this.indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
@@ -91,6 +91,26 @@ public class RemoteIndexMetadataManager {
             ex -> latchedActionListener.onFailure(new RemoteStateTransferException(indexMetadata.getIndex().getName(), ex))
         );
         return () -> indexMetadataBlobStore.writeAsync(remoteIndexMetadata, completionListener);
+    }
+
+    CheckedRunnable<IOException> getAsyncIndexMetadataReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<RemoteReadResult> latchedActionListener
+    ) {
+        RemoteIndexMetadata remoteIndexMetadata = new RemoteIndexMetadata(
+            RemoteClusterStateUtils.getFormattedIndexFileName(uploadedFilename),
+            clusterUUID,
+            compressor,
+            namedXContentRegistry
+        );
+        ActionListener<IndexMetadata> actionListener = ActionListener.wrap(
+            response -> latchedActionListener.onResponse(
+                new RemoteReadResult(response, RemoteIndexMetadata.INDEX, response.getIndex().getName())
+            ),
+            latchedActionListener::onFailure
+        );
+        return () -> indexMetadataBlobStore.readAsync(remoteIndexMetadata, actionListener);
     }
 
     /**
