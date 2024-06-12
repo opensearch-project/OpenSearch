@@ -33,4 +33,8 @@ public class FileTypeUtils {
     public static boolean isLockFile(String name) {
         return name.endsWith(".lock");
     }
+
+    public static boolean isSegmentsFile(String name) {
+        return name.startsWith("segments_");
+    }
 }

@@ -23,7 +23,7 @@ import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FullFileCachedIndexInput;
+import org.opensearch.index.store.remote.filecache.FullFileCachedIndexInputImpl;
 import org.opensearch.index.store.remote.utils.BlockIOContext;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
@@ -53,7 +53,6 @@ public class CompositeDirectory extends FilterDirectory {
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final FileCache fileCache;
     private final TransferManager transferManager;
-    private final Set<String> pendingDeletes;
 
     /**
      * Constructor to initialise the composite directory
@@ -67,7 +66,6 @@ public class CompositeDirectory extends FilterDirectory {
         this.localDirectory = (FSDirectory) localDirectory;
         this.remoteDirectory = (RemoteSegmentStoreDirectory) remoteDirectory;
         this.fileCache = fileCache;
-        this.pendingDeletes = new HashSet<>();
         transferManager = new TransferManager(
             (name, position, length) -> new InputStreamIndexInput(
                 remoteDirectory.openInput(name, new BlockIOContext(IOContext.DEFAULT, position, length)),
@@ -95,7 +93,6 @@ public class CompositeDirectory extends FilterDirectory {
         logger.trace("Composite Directory[{}]: Remote Directory files - {}", this::toString, () -> Arrays.toString(remoteFiles));
         Set<String> nonBlockLuceneFiles = allFiles.stream()
             .filter(file -> !FileTypeUtils.isBlockFile(file))
-            .filter(file -> !pendingDeletes.contains(file))
             .collect(Collectors.toUnmodifiableSet());
         String[] files = new String[nonBlockLuceneFiles.size()];
         nonBlockLuceneFiles.toArray(files);
@@ -113,14 +110,13 @@ public class CompositeDirectory extends FilterDirectory {
     @Override
     public void deleteFile(String name) throws IOException {
         ensureOpen();
-        ensureFileNotDeleted(name);
         logger.trace("Composite Directory[{}]: deleteFile() called {}", this::toString, () -> name);
         if (FileTypeUtils.isTempFile(name)) {
             localDirectory.deleteFile(name);
         } else if (Arrays.asList(listAll()).contains(name) == false) {
             throw new NoSuchFileException("File " + name + " not found in directory");
         } else {
-            pendingDeletes.add(name);
+            fileCache.remove(localDirectory.getDirectory().resolve(name));
         }
     }
 
@@ -133,7 +129,6 @@ public class CompositeDirectory extends FilterDirectory {
     @Override
     public long fileLength(String name) throws IOException {
         ensureOpen();
-        ensureFileNotDeleted(name);
         logger.trace("Composite Directory[{}]: fileLength() called {}", this::toString, () -> name);
         long fileLength;
         Path key = localDirectory.getDirectory().resolve(name);
@@ -170,10 +165,6 @@ public class CompositeDirectory extends FilterDirectory {
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
         ensureOpen();
-        // If file was deleted earlier, removing it from the deleted list
-        if (pendingDeletes.contains(name)) {
-            pendingDeletes.remove(name);
-        }
         logger.trace("Composite Directory[{}]: createOutput() called {}", this::toString, () -> name);
         // The CloseableFilterIndexOutput will ensure that the file is added to FileCache once write is completed on this file
         return new CloseableFilterIndexOutput(localDirectory.createOutput(name, context), name, this::cacheFile);
@@ -201,7 +192,6 @@ public class CompositeDirectory extends FilterDirectory {
     @Override
     public void rename(String source, String dest) throws IOException {
         ensureOpen();
-        ensureFileNotDeleted(source);
         logger.trace("Composite Directory[{}]: rename() called : source-{}, dest-{}", this::toString, () -> source, () -> dest);
         localDirectory.rename(source, dest);
         fileCache.remove(localDirectory.getDirectory().resolve(source));
@@ -217,7 +207,6 @@ public class CompositeDirectory extends FilterDirectory {
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
         ensureOpen();
-        ensureFileNotDeleted(name);
         logger.trace("Composite Directory[{}]: openInput() called {}", this::toString, () -> name);
         // We aren't tracking temporary files (created via createTempOutput) currently in FileCache as these are created and then deleted
         // within a very short span of time
@@ -269,6 +258,11 @@ public class CompositeDirectory extends FilterDirectory {
         localDirectory.close();
     }
 
+    @Override
+    public String toString() {
+        return "Composite Directory @ " + Integer.toHexString(hashCode());
+    }
+
     /**
      * Function to perform operations once files have been uploaded to Remote Store
      * Currently deleting the local files here, as once uploaded to Remote, local files become eligible for eviction from FileCache
@@ -315,15 +309,6 @@ public class CompositeDirectory extends FilterDirectory {
     }
 
     /**
-     * Ensure that the file has not already been deleted
-     */
-    private void ensureFileNotDeleted(String name) throws IOException {
-        if (pendingDeletes.contains(name)) {
-            throw new NoSuchFileException("File " + name + " is already pending delete");
-        }
-    }
-
-    /**
      * Return the list of files present in Remote
      */
     private String[] getRemoteFiles() throws IOException {
@@ -348,7 +333,7 @@ public class CompositeDirectory extends FilterDirectory {
         // this is just a temporary solution, will pin the file once support for that is added in FileCache
         // TODO : Pin the above filePath in the file cache once pinning support is added so that it cannot be evicted unless it has been
         // successfully uploaded to Remote
-        fileCache.put(filePath, new FullFileCachedIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.READ)));
+        fileCache.put(filePath, new FullFileCachedIndexInputImpl(fileCache, filePath, localDirectory.openInput(name, IOContext.DEFAULT)));
     }
 
 }

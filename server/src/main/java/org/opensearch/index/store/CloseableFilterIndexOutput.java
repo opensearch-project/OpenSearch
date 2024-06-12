@@ -13,6 +13,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.store.FilterIndexOutput;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * FilterIndexOutput which takes in an additional FunctionalInterface as a parameter to perform required operations once the IndexOutput is closed
@@ -32,16 +33,21 @@ public class CloseableFilterIndexOutput extends FilterIndexOutput {
 
     private final OnCloseListener onCloseListener;
     private final String fileName;
+    private final AtomicBoolean isClosed;
 
     public CloseableFilterIndexOutput(IndexOutput out, String fileName, OnCloseListener onCloseListener) {
         super("CloseableFilterIndexOutput for file " + fileName, out);
         this.fileName = fileName;
         this.onCloseListener = onCloseListener;
+        this.isClosed = new AtomicBoolean(false);
     }
 
     @Override
     public void close() throws IOException {
         super.close();
-        onCloseListener.onClose(fileName);
+        if (isClosed.get() == false) {
+            onCloseListener.onClose(fileName);
+            isClosed.set(true);
+        }
     }
 }

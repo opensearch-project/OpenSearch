@@ -39,9 +39,9 @@ public class FileCachedIndexInput extends IndexInput implements RandomAccessInpu
     protected IndexInput luceneIndexInput;
 
     /** indicates if this IndexInput instance is a clone or not */
-    private final boolean isClone;
+    protected final boolean isClone;
 
-    private volatile boolean closed = false;
+    protected volatile boolean closed = false;
 
     public FileCachedIndexInput(FileCache cache, Path filePath, IndexInput underlyingIndexInput) {
         this(cache, filePath, underlyingIndexInput, false);
@@ -133,23 +133,8 @@ public class FileCachedIndexInput extends IndexInput implements RandomAccessInpu
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-        if (offset < 0 || length < 0 || offset + length > this.length()) {
-            throw new IllegalArgumentException(
-                "slice() "
-                    + sliceDescription
-                    + " out of bounds: offset="
-                    + offset
-                    + ",length="
-                    + length
-                    + ",fileLength="
-                    + this.length()
-                    + ": "
-                    + this
-            );
-        }
-        IndexInput slicedIndexInput = luceneIndexInput.slice(sliceDescription, offset, length);
-        cache.incRef(filePath);
-        return new FileCachedIndexInput(cache, filePath, slicedIndexInput, true);
+        // never reach here!
+        throw new UnsupportedOperationException("FileCachedIndexInput couldn't be sliced.");
     }
 
     @Override
