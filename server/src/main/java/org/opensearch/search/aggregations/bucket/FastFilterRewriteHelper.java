@@ -33,7 +33,7 @@ import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.PointFieldType;
+import org.opensearch.index.mapper.NumericPointEncoder;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.search.aggregations.bucket.composite.CompositeAggregator;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
@@ -479,7 +479,7 @@ public final class FastFilterRewriteHelper {
         public boolean isRewriteable(Object parent, int subAggLength) {
             if (config.fieldType() == null) return false;
             MappedFieldType fieldType = config.fieldType();
-            if (fieldType.isSearchable() == false || !(fieldType instanceof PointFieldType)) return false;
+            if (fieldType.isSearchable() == false || !(fieldType instanceof NumericPointEncoder)) return false;
 
             if (parent == null && subAggLength == 0 && config.script() == null && config.missing() == null) {
                 if (config.getValuesSource() instanceof ValuesSource.Numeric.FieldData) {
@@ -500,15 +500,15 @@ public final class FastFilterRewriteHelper {
 
         @Override
         public Ranges buildRanges(SearchContext context, MappedFieldType fieldType) {
-            assert fieldType instanceof PointFieldType;
-            PointFieldType pointFieldType = (PointFieldType) fieldType;
+            assert fieldType instanceof NumericPointEncoder;
+            NumericPointEncoder numericPointEncoder = (NumericPointEncoder) fieldType;
             byte[][] lowers = new byte[ranges.length][];
             byte[][] uppers = new byte[ranges.length][];
             for (int i = 0; i < ranges.length; i++) {
                 double rangeMin = ranges[i].getFrom();
                 double rangeMax = ranges[i].getTo();
-                byte[] lower = pointFieldType.encodePoint(rangeMin);
-                byte[] upper = pointFieldType.encodePoint(rangeMax);
+                byte[] lower = numericPointEncoder.encodePoint(rangeMin);
+                byte[] upper = numericPointEncoder.encodePoint(rangeMax);
                 lowers[i] = lower;
                 uppers[i] = upper;
             }

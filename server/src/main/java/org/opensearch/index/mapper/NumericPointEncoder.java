@@ -11,6 +11,6 @@ package org.opensearch.index.mapper;
 /**
  * Interface for encoding a point value
  */
-public interface PointFieldType {
+public interface NumericPointEncoder {
     byte[] encodePoint(Number value);
 }

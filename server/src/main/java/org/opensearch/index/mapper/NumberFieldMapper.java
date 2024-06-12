@@ -171,7 +171,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public enum NumberType {
+    public enum NumberType implements NumericPointEncoder {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
@@ -1191,8 +1191,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public abstract Number parsePoint(byte[] value);
 
-        public abstract byte[] encodePoint(Number value);
-
         public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
 
         abstract Number valueForSearch(String value);
@@ -1421,7 +1419,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static class NumberFieldType extends SimpleMappedFieldType implements PointFieldType {
+    public static class NumberFieldType extends SimpleMappedFieldType implements NumericPointEncoder {
 
         private final NumberType type;
         private final boolean coerce;
