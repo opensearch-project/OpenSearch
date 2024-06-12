@@ -32,8 +32,6 @@
 
 package org.opensearch.core.xcontent.filtering;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Glob;
 
 import java.util.ArrayList;
