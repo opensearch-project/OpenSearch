@@ -61,6 +61,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -75,7 +76,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -176,7 +176,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         this.cacheCleanupManager = new IndicesRequestCacheCleanupManager(
             threadPool,
             INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING.get(settings),
-            getStalenessThreshold(settings)
+            getStalenessThreshold(settings),
+            FeatureFlags.PLUGGABLE_CACHE_SETTING.get(settings)
         );
         this.cacheEntityLookup = cacheEntityFunction;
         this.clusterService = clusterService;
@@ -507,17 +508,24 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      * */
     class IndicesRequestCacheCleanupManager implements Closeable {
         private final Set<CleanupKey> keysToClean;
-        private final ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap;
+        private final ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap;
         private final AtomicInteger staleKeysCount;
         private volatile double stalenessThreshold;
         private final IndicesRequestCacheCleaner cacheCleaner;
+        private final boolean pluggableCacheEnabled;
 
-        IndicesRequestCacheCleanupManager(ThreadPool threadpool, TimeValue cleanInterval, double stalenessThreshold) {
+        IndicesRequestCacheCleanupManager(
+            ThreadPool threadpool,
+            TimeValue cleanInterval,
+            double stalenessThreshold,
+            boolean pluggableCacheEnabled
+        ) {
             this.stalenessThreshold = stalenessThreshold;
             this.keysToClean = ConcurrentCollections.newConcurrentSet();
             this.cleanupKeyToCountMap = ConcurrentCollections.newConcurrentMap();
             this.staleKeysCount = new AtomicInteger(0);
             this.cacheCleaner = new IndicesRequestCacheCleaner(this, threadpool, cleanInterval);
+            this.pluggableCacheEnabled = pluggableCacheEnabled;
             threadpool.schedule(cacheCleaner, cleanInterval, ThreadPool.Names.SAME);
         }
 
@@ -556,7 +564,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * @param cleanupKey the CleanupKey to be updated in the map
          */
         private void updateStaleCountOnCacheInsert(CleanupKey cleanupKey) {
-            if (cleanupKey.entity == null) {
+            if (pluggableCacheEnabled || cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -568,7 +576,13 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
             // If the key doesn't exist, it's added with a value of 1.
             // If the key exists, its value is incremented by 1.
-            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> new HashMap<>()).merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
+            addToCleanupKeyToCountMap(shardId, cleanupKey.readerCacheKeyId);
+        }
+
+        // pkg-private for testing
+        void addToCleanupKeyToCountMap(ShardId shardId, String readerCacheKeyId) {
+            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentMap())
+                .merge(readerCacheKeyId, 1, Integer::sum);
         }
 
         /**
@@ -587,7 +601,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             CleanupKey cleanupKey,
             RemovalNotification<ICacheKey<Key>, BytesReference> notification
         ) {
-            if (notification.getRemovalReason() == RemovalReason.REPLACED) {
+            if (pluggableCacheEnabled || notification.getRemovalReason() == RemovalReason.REPLACED) {
                 // The reason of the notification is REPLACED when a cache entry's value is updated, since replacing an entry
                 // does not affect the staleness count, we skip such notifications.
                 return;
@@ -647,7 +661,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * @param cleanupKey the CleanupKey that has been marked for cleanup
          */
         private void incrementStaleKeysCount(CleanupKey cleanupKey) {
-            if (cleanupKey.entity == null) {
+            if (pluggableCacheEnabled || cleanupKey.entity == null) {
                 return;
             }
             IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
@@ -789,7 +803,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * @return true if the cache cleanup process can be skipped, false otherwise.
          */
         private synchronized boolean canSkipCacheCleanup(double cleanThresholdPercent) {
-            if (cleanThresholdPercent == 0.0) {
+            if (pluggableCacheEnabled || cleanThresholdPercent == 0.0) {
                 return false;
             }
             double staleKeysInCachePercentage = staleKeysInCachePercentage();
@@ -826,7 +840,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         }
 
         // for testing
-        ConcurrentMap<ShardId, HashMap<String, Integer>> getCleanupKeyToCountMap() {
+        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> getCleanupKeyToCountMap() {
             return cleanupKeyToCountMap;
         }
 
