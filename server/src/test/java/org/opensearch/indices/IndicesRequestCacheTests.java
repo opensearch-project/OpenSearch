@@ -195,6 +195,58 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
+    public void testBasicOperationsCacheWithFeatureFlag() throws Exception {
+        threadPool = getThreadPool();
+        Settings settings = Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.PLUGGABLE_CACHE, "true").build();
+        cache = getIndicesRequestCache(settings);
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = getReader(writer, indexShard.shardId());
+
+        // initial cache
+        IndicesService.IndexShardCacheEntity entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        Loader loader = new Loader(reader, 0);
+        BytesReference value = cache.getOrCompute(entity, loader, reader, getTermBytes());
+        assertEquals("foo", value.streamInput().readString());
+        ShardRequestCache requestCacheStats = indexShard.requestCache();
+        assertEquals(0, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+
+        // cache hit
+        entity = new IndicesService.IndexShardCacheEntity(indexShard);
+        loader = new Loader(reader, 0);
+        value = cache.getOrCompute(entity, loader, reader, getTermBytes());
+        assertEquals("foo", value.streamInput().readString());
+        requestCacheStats = indexShard.requestCache();
+        assertEquals(1, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+        assertTrue(requestCacheStats.stats().getMemorySize().bytesAsInt() > value.length());
+        assertEquals(1, cache.numRegisteredCloseListeners());
+
+        // Closing the cache doesn't modify an already returned CacheEntity
+        if (randomBoolean()) {
+            reader.close();
+        } else {
+            indexShard.close("test", true, true); // closed shard but reader is still open
+            cache.clear(entity);
+        }
+        cache.cacheCleanupManager.cleanCache();
+        assertEquals(1, requestCacheStats.stats().getHitCount());
+        assertEquals(1, requestCacheStats.stats().getMissCount());
+        assertEquals(0, requestCacheStats.stats().getEvictions());
+        assertTrue(loader.loadedFromCache);
+        assertEquals(0, cache.count());
+        assertEquals(0, requestCacheStats.stats().getMemorySize().bytesAsInt());
+
+        IOUtils.close(reader);
+        assertEquals(0, cache.numRegisteredCloseListeners());
+    }
+
     public void testCacheDifferentReaders() throws Exception {
         threadPool = getThreadPool();
         cache = getIndicesRequestCache(Settings.EMPTY);
@@ -744,7 +796,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     // test adding to cleanupKeyToCountMap with multiple threads
-    public void testAddToCleanupKeyToCountMap() throws Exception {
+    public void testAddToCleanupKeyToCountMap() throws InterruptedException {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
         cache = getIndicesRequestCache(settings);
@@ -764,7 +816,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                         cache.cacheCleanupManager.addToCleanupKeyToCountMap(indexShard.shardId(), UUID.randomUUID().toString());
                     }
                 } catch (ConcurrentModificationException e) {
-                    logger.error("ConcurrentModificationException detected in thread : " + e.getMessage());
+                    e.printStackTrace();
                     exceptionDetected.set(true); // Set flag if exception is detected
                 }
             });
@@ -783,21 +835,28 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                     });
                 }
             } catch (ConcurrentModificationException e) {
-                logger.error("ConcurrentModificationException detected in main thread : " + e.getMessage());
+                e.printStackTrace();
                 exceptionDetected.set(true); // Set flag if exception is detected
             }
         });
 
         executorService.shutdown();
         executorService.awaitTermination(60, TimeUnit.SECONDS);
+
         assertFalse(exceptionDetected.get());
     }
 
     private IndicesRequestCache getIndicesRequestCache(Settings settings) {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        return new IndicesRequestCache(
-            settings,
-            indicesService.indicesRequestCache.cacheEntityLookup,
+        return new IndicesRequestCache(settings, (shardId -> {
+            IndexService indexService = null;
+            try {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } catch (IndexNotFoundException ex) {
+                return Optional.empty();
+            }
+            return Optional.of(new IndicesService.IndexShardCacheEntity(indexService.getShard(shardId.id())));
+        }),
             new CacheModule(new ArrayList<>(), Settings.EMPTY).getCacheService(),
             threadPool,
             ClusterServiceUtils.createClusterService(threadPool)
@@ -1412,55 +1471,6 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         assertEquals(0, cache.count());
 
         IOUtils.close(reader, writer, dir, cache);
-    }
-
-    public void testIndexShardClosedAndVerifyCacheCleanUpWorksSuccessfully() throws Exception {
-        threadPool = getThreadPool();
-        String indexName = "test1";
-        // Create a shard
-        IndexService indexService = createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
-        IndexShard indexShard = indexService.getShard(0);
-        Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
-        writer.addDocument(newDoc(0, "foo"));
-        writer.addDocument(newDoc(1, "hack"));
-        DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), indexShard.shardId());
-        Loader loader = new Loader(reader, 0);
-
-        // Set clean interval to a high value as we will do it manually here.
-        IndicesRequestCache cache = getIndicesRequestCache(
-            Settings.builder()
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY, TimeValue.timeValueMillis(100000))
-                .build()
-        );
-        IndicesService.IndexShardCacheEntity cacheEntity = new IndicesService.IndexShardCacheEntity(indexShard);
-        TermQueryBuilder termQuery = new TermQueryBuilder("id", "bar");
-
-        // Cache some values for indexShard
-        BytesReference value = cache.getOrCompute(cacheEntity, loader, reader, getTermBytes());
-
-        // Verify response and stats.
-        assertEquals("foo", value.streamInput().readString());
-        RequestCacheStats stats = indexShard.requestCache().stats();
-        assertEquals("foo", value.streamInput().readString());
-        assertEquals(1, cache.count());
-        assertEquals(1, stats.getMissCount());
-        assertTrue(stats.getMemorySizeInBytes() > 0);
-
-        // Remove the shard making its cache entries stale
-        IOUtils.close(reader, writer, dir);
-        indexService.removeShard(0, "force");
-
-        assertBusy(() -> { assertEquals(IndexShardState.CLOSED, indexShard.state()); }, 1, TimeUnit.SECONDS);
-
-        // Trigger clean up of cache. Should not throw any exception.
-        cache.cacheCleanupManager.cleanCache();
-        // Verify all cleared up.
-        assertEquals(0, cache.count());
-        IOUtils.close(cache);
     }
 
     public static String generateString(int length) {
