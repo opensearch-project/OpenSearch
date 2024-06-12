@@ -33,30 +33,56 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
+import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.mockito.Mockito.when;
 
 public class CardinalityAggregatorTests extends AggregatorTestCase {
 
@@ -198,5 +224,277 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType
     ) throws IOException {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    }
+
+    public void testDynamicPruningDisabledWhenExceedingThreshold() throws IOException {
+        final String fieldName = "testField";
+        final String filterFieldName = "filterField";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+
+        int randomCardinality = randomIntBetween(20, 100);
+        AtomicInteger counter = new AtomicInteger();
+
+        testDynamicPruning(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
+            for (int i = 0; i < randomCardinality; i++) {
+                String filterValue = "foo";
+                if (randomBoolean()) {
+                    filterValue = "bar";
+                    counter.getAndIncrement();
+                }
+                iw.addDocument(
+                    asList(
+                        new KeywordField(filterFieldName, filterValue, Field.Store.NO),
+                        new KeywordField(fieldName, String.valueOf(i), Field.Store.NO),
+                        new SortedSetDocValuesField(fieldName, new BytesRef(String.valueOf(i)))
+                    )
+                );
+            }
+        },
+            card -> { assertEquals(randomCardinality - counter.get(), card.getValue(), 0); },
+            fieldType,
+            10,
+            (collectCount) -> assertEquals(randomCardinality - counter.get(), (int) collectCount)
+        );
+    }
+
+    public void testDynamicPruningFixedValues() throws IOException {
+        final String fieldName = "testField";
+        final String filterFieldName = "filterField";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+        testDynamicPruning(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "1", Field.Store.NO),
+                    new KeywordField(fieldName, "2", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("1")),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "2", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "1", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("1"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "2", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("2"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "3", Field.Store.NO),
+                    new KeywordField(filterFieldName, "foo", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("3"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "4", Field.Store.NO),
+                    new KeywordField(filterFieldName, "bar", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("4"))
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new KeywordField(fieldName, "5", Field.Store.NO),
+                    new KeywordField(filterFieldName, "bar", Field.Store.NO),
+                    new SortedSetDocValuesField(fieldName, new BytesRef("5"))
+                )
+            );
+        }, card -> {
+            assertEquals(3.0, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, fieldType, 100, (collectCount) -> assertEquals(0, (int) collectCount));
+    }
+
+    public void testDynamicPruningRandomValues() throws IOException {
+        final String fieldName = "testField";
+        final String filterFieldName = "filterField";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+
+        int randomCardinality = randomIntBetween(1, 100);
+        AtomicInteger counter = new AtomicInteger();
+
+        testDynamicPruning(aggregationBuilder, new TermQuery(new Term(filterFieldName, "foo")), iw -> {
+            for (int i = 0; i < randomCardinality; i++) {
+                String filterValue = "foo";
+                if (randomBoolean()) {
+                    filterValue = "bar";
+                    counter.getAndIncrement();
+                }
+                iw.addDocument(
+                    asList(
+                        new KeywordField(filterFieldName, filterValue, Field.Store.NO),
+                        new KeywordField(fieldName, String.valueOf(i), Field.Store.NO),
+                        new SortedSetDocValuesField(fieldName, new BytesRef(String.valueOf(i)))
+                    )
+                );
+            }
+        }, card -> {
+            logger.info("expected {}, cardinality: {}", randomCardinality - counter.get(), card.getValue());
+            assertEquals(randomCardinality - counter.get(), card.getValue(), 0);
+        }, fieldType, 100, (collectCount) -> assertEquals(0, (int) collectCount));
+    }
+
+    public void testDynamicPruningRandomDelete() throws IOException {
+        final String fieldName = "testField";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+
+        int randomCardinality = randomIntBetween(1, 100);
+        AtomicInteger counter = new AtomicInteger();
+
+        testDynamicPruning(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < randomCardinality; i++) {
+                iw.addDocument(
+                    asList(
+                        new KeywordField(fieldName, String.valueOf(i), Field.Store.NO),
+                        new SortedSetDocValuesField(fieldName, new BytesRef(String.valueOf(i)))
+                    )
+                );
+                if (randomBoolean()) {
+                    iw.deleteDocuments(new Term(fieldName, String.valueOf(i)));
+                    counter.getAndIncrement();
+                }
+            }
+        },
+            card -> { assertEquals(randomCardinality - counter.get(), card.getValue(), 0); },
+            fieldType,
+            100,
+            (collectCount) -> assertEquals(0, (int) collectCount)
+        );
+    }
+
+    public void testDynamicPruningFieldMissingInSegment() throws IOException {
+        final String fieldName = "testField";
+        final String fieldName2 = "testField2";
+
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field(fieldName);
+
+        int randomNumSegments = randomIntBetween(1, 50);
+        logger.info("Indexing [{}] segments", randomNumSegments);
+
+        testDynamicPruning(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < randomNumSegments; i++) {
+                iw.addDocument(
+                    asList(
+                        new KeywordField(fieldName, String.valueOf(i), Field.Store.NO),
+                        new SortedSetDocValuesField(fieldName, new BytesRef(String.valueOf(i)))
+                    )
+                );
+                iw.commit();
+            }
+            iw.addDocument(List.of(new KeywordField(fieldName2, "100", Field.Store.NO)));
+            iw.addDocument(List.of(new KeywordField(fieldName2, "101", Field.Store.NO)));
+            iw.addDocument(List.of(new KeywordField(fieldName2, "102", Field.Store.NO)));
+            iw.commit();
+        },
+            card -> { assertEquals(randomNumSegments, card.getValue(), 0); },
+            fieldType,
+            100,
+            (collectCount) -> assertEquals(3, (int) collectCount)
+        );
+    }
+
+    private void testDynamicPruning(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<IndexWriter, IOException> buildIndex,
+        Consumer<InternalCardinality> verify,
+        MappedFieldType fieldType,
+        int pruningThreshold,
+        Consumer<Integer> verifyCollectCount
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (
+                IndexWriter indexWriter = new IndexWriter(
+                    directory,
+                    new IndexWriterConfig().setCodec(TestUtil.getDefaultCodec()).setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
+                // disable merge so segment number is same as commit times
+                buildIndex.accept(indexWriter);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+
+                CountingAggregator aggregator = createCountingAggregator(
+                    query,
+                    aggregationBuilder,
+                    indexSearcher,
+                    fieldType,
+                    pruningThreshold
+                );
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+
+                MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                    Integer.MAX_VALUE,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                );
+                InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                    aggregator.context().bigArrays(),
+                    getMockScriptService(),
+                    reduceBucketConsumer,
+                    PipelineAggregator.PipelineTree.EMPTY
+                );
+                InternalCardinality topLevel = (InternalCardinality) aggregator.buildTopLevel();
+                InternalCardinality card = (InternalCardinality) topLevel.reduce(Collections.singletonList(topLevel), context);
+                doAssertReducedMultiBucketConsumer(card, reduceBucketConsumer);
+
+                verify.accept(card);
+
+                logger.info("aggregator collect count {}", aggregator.getCollectCount().get());
+                verifyCollectCount.accept(aggregator.getCollectCount().get());
+            }
+        }
+    }
+
+    protected CountingAggregator createCountingAggregator(
+        Query query,
+        AggregationBuilder builder,
+        IndexSearcher searcher,
+        MappedFieldType fieldType,
+        int pruningThreshold
+    ) throws IOException {
+        return new CountingAggregator(
+            new AtomicInteger(),
+            createAggregatorWithCustomizableSearchContext(
+                query,
+                builder,
+                searcher,
+                createIndexSettings(),
+                new MultiBucketConsumerService.MultiBucketConsumer(
+                    DEFAULT_MAX_BUCKETS,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                ),
+                (searchContext) -> {
+                    when(searchContext.cardinalityAggregationPruningThreshold()).thenReturn(pruningThreshold);
+                },
+                fieldType
+            )
+        );
     }
 }

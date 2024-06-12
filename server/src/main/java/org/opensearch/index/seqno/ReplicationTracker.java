@@ -1321,13 +1321,27 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         if (primaryMode) {
             return this.checkpoints.entrySet()
                 .stream()
-                // filter out this shard's allocation id, any shards that are out of sync or unavailable (shard marked in-sync but has not
-                // been assigned to a node).
+                /* Filter out:
+                - This shard's allocation id
+                - Any shards that are out of sync or unavailable (shard marked in-sync but has not been assigned to a node).
+                - (For remote store enabled clusters) Any shard that is not yet migrated to remote store enabled nodes during migration
+                 */
                 .filter(
                     entry -> entry.getKey().equals(this.shardAllocationId) == false
                         && entry.getValue().inSync
                         && replicationGroup.getUnavailableInSyncShards().contains(entry.getKey()) == false
                         && isPrimaryRelocation(entry.getKey()) == false
+                        /*Check if the current primary shard is migrating to remote and
+                        all the other shard copies of the same index still hasn't completely moved over
+                        to the remote enabled nodes. Ensures that:
+                        - Vanilla segrep is not enabled
+                        - Remote Store settings are not enabled (This would be done after all shard copies migrate to remote enabled nodes)
+                        - Index is assigned to remote node (Primary has been seeded) but the corresponding replication group entry has not yet moved to remote
+                        */
+                        && (indexSettings.isRemoteStoreEnabled()
+                            || indexSettings.isSegRepLocalEnabled()
+                            || (indexSettings.isAssignedOnRemoteNode()
+                                && isShardOnRemoteEnabledNode.apply(routingTable.getByAllocationId(entry.getKey()).currentNodeId())))
                 )
                 .map(entry -> buildShardStats(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toUnmodifiableSet());
