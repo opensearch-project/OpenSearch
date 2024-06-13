@@ -15,7 +15,7 @@ import org.opensearch.task.commons.worker.WorkerNode;
 /**
  * Request object for listing tasks
  */
-public class ListTaskRequest {
+public class TaskListRequest {
 
     /**
      * Filters listTasks response by specific task status'
@@ -35,28 +35,28 @@ public class ListTaskRequest {
     /**
      * Depicts the start page number for the list call.
      *
-     * @see TaskManagerClient#listTasks(ListTaskRequest)
+     * @see TaskManagerClient#listTasks(TaskListRequest)
      */
     private int startPageNumber;
 
     /**
      * Depicts the page size for the list call.
      *
-     * @see TaskManagerClient#listTasks(ListTaskRequest)
+     * @see TaskManagerClient#listTasks(TaskListRequest)
      */
     private int pageSize;
 
     /**
      * Default constructor
      */
-    public ListTaskRequest() {}
+    public TaskListRequest() {}
 
     /**
      * Update task types to filter with in the request
      * @param taskTypes TaskType[]
      * @return ListTaskRequest
      */
-    public ListTaskRequest taskType(TaskType... taskTypes) {
+    public TaskListRequest taskType(TaskType... taskTypes) {
         this.taskTypes = taskTypes;
         return this;
     }
@@ -66,7 +66,7 @@ public class ListTaskRequest {
      * @param taskStatus TaskStatus[]
      * @return ListTaskRequest
      */
-    public ListTaskRequest taskType(TaskStatus... taskStatus) {
+    public TaskListRequest taskType(TaskStatus... taskStatus) {
         this.taskStatus = taskStatus;
         return this;
     }
@@ -76,7 +76,7 @@ public class ListTaskRequest {
      * @param workerNode WorkerNode
      * @return ListTaskRequest
      */
-    private ListTaskRequest workerNode(WorkerNode workerNode) {
+    private TaskListRequest workerNode(WorkerNode workerNode) {
         this.workerNodes = workerNode;
         return this;
     }
@@ -86,7 +86,7 @@ public class ListTaskRequest {
      * @param startPageNumber startPageNumber
      * @return ListTaskRequest
      */
-    public ListTaskRequest startPageNumber(int startPageNumber) {
+    public TaskListRequest startPageNumber(int startPageNumber) {
         this.startPageNumber = startPageNumber;
         return this;
     }
@@ -96,7 +96,7 @@ public class ListTaskRequest {
      * @param pageSize int
      * @return ListTaskRequest
      */
-    public ListTaskRequest pageSize(int pageSize) {
+    public TaskListRequest pageSize(int pageSize) {
         this.pageSize = pageSize;
         return this;
     }

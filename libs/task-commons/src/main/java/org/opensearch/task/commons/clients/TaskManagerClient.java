@@ -16,7 +16,10 @@ import org.opensearch.task.commons.worker.WorkerNode;
 import java.util.List;
 
 /**
- * Client used to interact with Task Store/Queue
+ * Client used to interact with Task Store/Queue.
+ *
+ * TODO: TaskManager can be something not running an opensearch process.
+ * We need to come up with a way to allow this interface to be used with in and out opensearch as well
  *
  * @opensearch.experimental
  */
@@ -49,10 +52,10 @@ public interface TaskManagerClient {
     /**
      * List all tasks applying all the filters present in listTaskRequest
      *
-     * @param listTaskRequest ListTaskRequest
+     * @param taskListRequest TaskListRequest
      * @return list of all the task matching the filters in listTaskRequest
      */
-    List<Task> listTasks(ListTaskRequest listTaskRequest);
+    List<Task> listTasks(TaskListRequest taskListRequest);
 
     /**
      * Assign Task to a particular WorkerNode. This ensures no 2 worker Nodes work on the same task.
@@ -63,21 +66,4 @@ public interface TaskManagerClient {
      * @return true if task is assigned successfully, false otherwise
      */
     boolean assignTask(TaskId taskId, WorkerNode node);
-
-    /**
-     * List all tasks assigned to a WorkerNode.
-     * Useful when the implementation uses a separate store for Task assignments to Worker nodes
-     *
-     * @param listTaskRequest ListTaskRequest
-     * @return list of all tasks assigned to a WorkerNode
-     */
-    List<Task> getAssignedTasks(ListTaskRequest listTaskRequest);
-
-    /**
-     * Sends task heart beat to Task Store/Queue
-     *
-     * @param taskId TaskId of Task to send heartbeat for
-     * @param timestamp timestamp of heartbeat to be recorded in TaskStore/Queue
-     */
-    void sendTaskHeartbeat(TaskId taskId, long timestamp);
 }
