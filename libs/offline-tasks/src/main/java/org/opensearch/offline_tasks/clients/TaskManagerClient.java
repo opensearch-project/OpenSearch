@@ -47,6 +47,14 @@ public interface TaskManagerClient {
     void cancelTask(TaskId taskId);
 
     /**
+     * List all tasks applying all the filters present in listTaskRequest
+     *
+     * @param listTaskRequest ListTaskRequest
+     * @return list of all the task matching the filters in listTaskRequest
+     */
+    List<Task> listTasks(ListTaskRequest listTaskRequest);
+
+    /**
      * Assign Task to a particular WorkerNode. This ensures no 2 worker Nodes work on the same task.
      * This API can be used in both pull and push models of task assignment.
      *
@@ -57,12 +65,13 @@ public interface TaskManagerClient {
     boolean assignTask(TaskId taskId, WorkerNode node);
 
     /**
-     * List all tasks applying all the filters present in listTaskRequest
+     * List all tasks assigned to a WorkerNode.
+     * Useful when the implementation uses a separate store for Task assignments to Worker nodes
      *
      * @param listTaskRequest ListTaskRequest
-     * @return list of all the task matching the filters in listTaskRequest
+     * @return list of all tasks assigned to a WorkerNode
      */
-    List<Task> listTasks(ListTaskRequest listTaskRequest);
+    List<Task> getAssignedTasks(ListTaskRequest listTaskRequest);
 
     /**
      * Sends task heart beat to Task Store/Queue
