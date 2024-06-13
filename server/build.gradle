@@ -393,14 +393,18 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named("dependencyLicenses").configure {
+    mapping from: /jackson-.*/, to: 'jackson'
     mapping from: /reactor-.*/, to: 'reactor'
     mapping from: /lucene-.*/, to: 'lucene'
-    dependencies = project.configurations.runtimeClasspath.fileCollection {
-        it.group.startsWith('org.opensearch') == false ||
-                // keep the following org.opensearch jars in
-                (it.name == 'jna' ||
-                        it.name == 'securesm')
-    }
+    dependencies = project.configurations.runtimeClasspath.incoming.artifactView {
+        componentFilter {
+            it instanceof ModuleComponentIdentifier &&
+                (it.group.startsWith('org.opensearch') == false ||
+                    // keep the following org.opensearch jars in
+                    (it.name == 'jna' ||
+                            it.name == 'securesm'))
+        }
+    }.files
 }
 
 tasks.named("filepermissions").configure {
