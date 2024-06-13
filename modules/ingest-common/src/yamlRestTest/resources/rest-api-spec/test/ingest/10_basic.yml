@@ -90,9 +90,9 @@
 ---
 "Fingerprint processor exists":
   - skip:
-      version: " - 2.14.99"
+      version: " - 2.15.99"
       features: contains
-      reason: "fingerprint processor was introduced in 2.15.0 and contains is a newly added assertion"
+      reason: "fingerprint processor was introduced in 2.16.0 and contains is a newly added assertion"
   - do:
       cluster.state: {}
 
