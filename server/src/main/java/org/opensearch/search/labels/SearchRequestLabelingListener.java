@@ -27,5 +27,6 @@ public final class SearchRequestLabelingListener extends SearchRequestOperations
     public void onRequestStart(SearchRequestContext searchRequestContext) {
         // add tags to search request
         requestLabelingService.applyAllRules(searchRequestContext.getRequest());
+        requestLabelingService.parseUserLabels();
     }
 }
