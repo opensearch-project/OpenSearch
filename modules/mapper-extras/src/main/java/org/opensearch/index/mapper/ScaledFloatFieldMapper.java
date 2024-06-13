@@ -192,8 +192,15 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         @Override
         public byte[] encodePoint(Number value) {
             assert value instanceof Double;
+            double doubleValue = (Double) value;
             byte[] point = new byte[Long.BYTES];
-            LongPoint.encodeDimension(Math.round(scale(value)), point, 0);
+            if (doubleValue == Double.POSITIVE_INFINITY) {
+                LongPoint.encodeDimension(Long.MAX_VALUE, point, 0);
+            } else if (doubleValue == Double.NEGATIVE_INFINITY) {
+                LongPoint.encodeDimension(Long.MIN_VALUE, point, 0);
+            } else {
+                LongPoint.encodeDimension(Math.round(scale(value)), point, 0);
+            }
             return point;
         }
 
