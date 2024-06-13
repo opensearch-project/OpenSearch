@@ -10,6 +10,7 @@ package org.opensearch.cache.common.tier;
 
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.Client;
@@ -20,6 +21,7 @@ import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.IndicesRequestCache;
@@ -102,8 +104,8 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         );
 
         for (ImmutableCacheStatsHolder statsHolder : List.of(allLevelsStatsHolder, indicesOnlyStatsHolder)) {
-            assertEquals(index1ExpectedStats, statsHolder.getStatsForDimensionValues(List.of(index1Name)));
-            assertEquals(index2ExpectedStats, statsHolder.getStatsForDimensionValues(List.of(index2Name)));
+            assertStatsEqual(index1ExpectedStats, statsHolder.getStatsForDimensionValues(List.of(index1Name)));
+            assertStatsEqual(index2ExpectedStats, statsHolder.getStatsForDimensionValues(List.of(index2Name)));
         }
     }
 
@@ -139,7 +141,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
                 values.get("itemsOnHeapIndex1AfterTest")
             )
         );
-        assertEquals(
+        assertStatsEqual(
             index1HeapExpectedStats,
             allLevelsStatsHolder.getStatsForDimensionValues(List.of(index1Name, TIER_DIMENSION_VALUE_ON_HEAP))
         );
@@ -153,7 +155,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
                 values.get("itemsOnHeapIndex2AfterTest")
             )
         );
-        assertEquals(
+        assertStatsEqual(
             index2HeapExpectedStats,
             allLevelsStatsHolder.getStatsForDimensionValues(List.of(index2Name, TIER_DIMENSION_VALUE_ON_HEAP))
         );
@@ -167,7 +169,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
                 values.get("itemsOnDiskIndex1AfterTest")
             )
         );
-        assertEquals(
+        assertStatsEqual(
             index1DiskExpectedStats,
             allLevelsStatsHolder.getStatsForDimensionValues(List.of(index1Name, TIER_DIMENSION_VALUE_DISK))
         );
@@ -181,7 +183,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
                 values.get("itemsOnDiskIndex2AfterTest")
             )
         );
-        assertEquals(
+        assertStatsEqual(
             index2DiskExpectedStats,
             allLevelsStatsHolder.getStatsForDimensionValues(List.of(index2Name, TIER_DIMENSION_VALUE_DISK))
         );
@@ -218,7 +220,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
             )
         );
         ImmutableCacheStats heapStats = tiersOnlyStatsHolder.getStatsForDimensionValues(List.of(TIER_DIMENSION_VALUE_ON_HEAP));
-        assertEquals(totalHeapExpectedStats, heapStats);
+        assertStatsEqual(totalHeapExpectedStats, heapStats);
         ImmutableCacheStats totalDiskExpectedStats = returnNullIfAllZero(
             new ImmutableCacheStats(
                 values.get("hitsOnDiskIndex1") + values.get("hitsOnDiskIndex2"),
@@ -229,7 +231,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
             )
         );
         ImmutableCacheStats diskStats = tiersOnlyStatsHolder.getStatsForDimensionValues(List.of(TIER_DIMENSION_VALUE_DISK));
-        assertEquals(totalDiskExpectedStats, diskStats);
+        assertStatsEqual(totalDiskExpectedStats, diskStats);
     }
 
     public void testInvalidLevelsAreIgnored() throws Exception {
@@ -322,7 +324,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         ImmutableCacheStats totalStats = getNodeCacheStatsResult(client, List.of()).getTotalStats();
 
         // Check the new stats API values are as expected
-        assertEquals(
+        assertStatsEqual(
             new ImmutableCacheStats(expectedHits, expectedMisses, 0, expectedEntries * singleSearchSize, expectedEntries),
             totalStats
         );
@@ -351,11 +353,15 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        // Disable index refreshing to avoid cache being invalidated mid-test
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
                         .build()
                 )
                 .get()
         );
         indexRandom(true, client.prepareIndex(indexName).setSource("k", "hello"));
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge(indexName).setFlush(true).get();
         ensureSearchable(indexName);
     }
 
@@ -497,5 +503,17 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         assertEquals(1, nodeStatsResponse.getNodes().size());
         NodeCacheStats ncs = nodeStatsResponse.getNodes().get(0).getNodeCacheStats();
         return ncs.getStatsByCache(CacheType.INDICES_REQUEST_CACHE);
+    }
+
+    // Check each stat separately for more transparency if there's a failure
+    private void assertStatsEqual(ImmutableCacheStats expected, ImmutableCacheStats actual) {
+        if (expected == null && actual == null) {
+            return;
+        }
+        assertEquals(expected.getHits(), actual.getHits());
+        assertEquals(expected.getMisses(), actual.getMisses());
+        assertEquals(expected.getEvictions(), actual.getEvictions());
+        assertEquals(expected.getSizeInBytes(), actual.getSizeInBytes());
+        assertEquals(expected.getItems(), actual.getItems());
     }
 }
