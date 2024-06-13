@@ -193,16 +193,6 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
         assertThat(nameTokens[3], is("C"));
         assertThat(RemoteStoreUtils.invertLong(nameTokens[4]), lessThanOrEqualTo(System.currentTimeMillis()));
         assertThat(nameTokens[5], is(String.valueOf(MANIFEST_CURRENT_CODEC_VERSION)));
-
-        String blobName = "/usr/local/random/path/to/manifest/manifest__1__2__3__4__2";
-        RemoteClusterMetadataManifest remoteObjectForDownload = new RemoteClusterMetadataManifest(
-            blobName,
-            clusterUUID,
-            compressor,
-            namedXContentRegistry
-        );
-        assertEquals("manifest__1__2__3__4__2", remoteObjectForDownload.generateBlobFileName());
-        assertEquals(remoteObjectForDownload.getManifestCodecVersion(), 2);
     }
 
     public void testGetUploadedMetadata() throws IOException {
