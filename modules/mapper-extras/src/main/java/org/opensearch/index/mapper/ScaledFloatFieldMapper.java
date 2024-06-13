@@ -193,7 +193,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         public byte[] encodePoint(Number value) {
             assert value instanceof Double;
             byte[] point = new byte[Long.BYTES];
-            LongPoint.encodeDimension((long) (scalingFactor * value.doubleValue()), point, 0);
+            LongPoint.encodeDimension(Math.round(scale(value)), point, 0);
             return point;
         }
 
