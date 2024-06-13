@@ -99,16 +99,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .add(new MoveAllocationCommand("test", 0, primaryNodeName("test"), remoteNode))
             .execute()
             .actionGet();
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setTimeout(TimeValue.timeValueSeconds(60))
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
-
-        assertEquals(0, clusterHealthResponse.getRelocatingShards());
+        waitForRelocation();
         assertEquals(remoteNode, primaryNodeName("test"));
         logger.info("-->  relocation from docrep to remote  complete");
 
@@ -123,16 +114,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
             .add(new MoveAllocationCommand("test", 0, remoteNode, remoteNode2))
             .execute()
             .actionGet();
-        clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setTimeout(TimeValue.timeValueSeconds(60))
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
-
-        assertEquals(0, clusterHealthResponse.getRelocatingShards());
+        waitForRelocation();
         assertEquals(remoteNode2, primaryNodeName("test"));
 
         logger.info("-->  relocation from remote to remote  complete");
@@ -155,7 +137,6 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
 
     public void testMixedModeRelocation_RemoteSeedingFail() throws Exception {
         String docRepNode = internalCluster().startNode();
-        Client client = internalCluster().client(docRepNode);
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
