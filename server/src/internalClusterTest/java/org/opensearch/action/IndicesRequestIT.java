@@ -84,6 +84,8 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.search.SearchType;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionResponse;
 import org.opensearch.action.support.replication.TransportReplicationActionTests;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
 import org.opensearch.action.termvectors.MultiTermVectorsRequest;
@@ -93,6 +95,8 @@ import org.opensearch.action.update.UpdateAction;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
+import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -124,6 +128,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -195,6 +200,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetFieldMappings() {
+
         String getFieldMappingsShardAction = GetFieldMappingsAction.NAME + "[index][s]";
         interceptTransportActions(getFieldMappingsShardAction);
 
@@ -546,6 +552,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
     public void testGetMappings() {
         interceptTransportActions(GetMappingsAction.NAME);
+        stubClusterTermResponse(internalCluster().getClusterManagerName());
 
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(randomIndicesOrAliases());
         internalCluster().coordOnlyNodeClient().admin().indices().getMappings(getMappingsRequest).actionGet();
@@ -565,8 +572,9 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testGetSettings() {
-        interceptTransportActions(GetSettingsAction.NAME);
 
+        interceptTransportActions(GetSettingsAction.NAME);
+        stubClusterTermResponse(internalCluster().getClusterManagerName());
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(randomIndicesOrAliases());
         internalCluster().coordOnlyNodeClient().admin().indices().getSettings(getSettingsRequest).actionGet();
 
@@ -781,6 +789,7 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         }
 
         private final Set<String> actions = new HashSet<>();
+        private final Map<String, TransportRequestHandler> stubHandlers = new ConcurrentHashMap<>();
 
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
@@ -804,6 +813,11 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
         synchronized void clearInterceptedActions() {
             actions.clear();
+            stubHandlers.clear();
+        }
+
+        synchronized void stub(String action, TransportRequestHandler handler) {
+            stubHandlers.put(action, handler);
         }
 
         private class InterceptingRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
@@ -830,8 +844,25 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
                         }
                     }
                 }
-                requestHandler.messageReceived(request, channel, task);
+                if (!stubHandlers.containsKey(action)) {
+                    requestHandler.messageReceived(request, channel, task);
+                } else {
+                    stubHandlers.get(action).messageReceived(request, channel, task);
+                }
+
             }
         }
     }
+
+    private void stubClusterTermResponse(String master) {
+        PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, master);
+        pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get().instance.stub(
+            GetTermVersionAction.NAME,
+            (request, channel, task) -> channel.sendResponse(
+                new GetTermVersionResponse(new ClusterStateTermVersion(new ClusterName("test"), "1", -1, -1))
+            )
+        );
+
+    }
+
 }
