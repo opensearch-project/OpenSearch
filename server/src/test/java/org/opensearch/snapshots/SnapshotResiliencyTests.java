@@ -1921,13 +1921,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     settings,
                     clusterSettings,
                     clusterManagerService,
-                    new ClusterApplierService(
-                        node.getName(),
-                        settings,
-                        clusterSettings,
-                        threadPool,
-                        new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
-                    ) {
+                    new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
                             return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
@@ -2291,7 +2285,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
-                    null
+                    null,
+                    new TaskResourceTrackingService(settings, clusterSettings, threadPool)
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
@@ -2326,7 +2321,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         ),
                         NoopMetricsRegistry.INSTANCE,
                         searchRequestOperationsCompositeListenerFactory,
-                        NoopTracer.INSTANCE
+                        NoopTracer.INSTANCE,
+                        new TaskResourceTrackingService(settings, clusterSettings, threadPool)
                     )
                 );
                 actions.put(
@@ -2559,7 +2555,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     ElectionStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
                     persistedStateRegistry,
-                    remoteStoreNodeService
+                    remoteStoreNodeService,
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+                    null
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 coordinator.start();
