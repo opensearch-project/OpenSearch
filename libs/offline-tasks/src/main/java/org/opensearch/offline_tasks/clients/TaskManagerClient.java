@@ -52,7 +52,7 @@ public interface TaskManagerClient {
      *
      * @param taskId TaskId of the task to be assigned
      * @param node WorkerNode task is being assigned to
-     * @return true if task is claimed successfully, false otherwise
+     * @return true if task is assigned successfully, false otherwise
      */
     boolean assignTask(TaskId taskId, WorkerNode node);
 

@@ -200,7 +200,7 @@ import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.plugins.NetworkPlugin;
-import org.opensearch.plugins.OfflineTaskClientPlugin;
+import org.opensearch.plugins.OfflineTaskManagerClientPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
@@ -1272,9 +1272,9 @@ public class Node implements Closeable {
                 .flatMap(List::stream)
                 .collect(toList());
 
-            final Optional<TaskManagerClient> taskClient = pluginsService.filterPlugins(OfflineTaskClientPlugin.class)
+            final Optional<TaskManagerClient> taskClient = pluginsService.filterPlugins(OfflineTaskManagerClientPlugin.class)
                 .stream()
-                .map((OfflineTaskClientPlugin taskClientPlugin) -> taskClientPlugin.getTaskClient(client, clusterService, threadPool))
+                .map((OfflineTaskManagerClientPlugin taskClientPlugin) -> taskClientPlugin.getTaskManagerClient(client, clusterService, threadPool))
                 .findFirst();
 
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);

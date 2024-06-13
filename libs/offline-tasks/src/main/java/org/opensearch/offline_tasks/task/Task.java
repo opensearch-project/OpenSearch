@@ -51,7 +51,7 @@ public class Task {
     /**
      * Timestamp at which the Task was assigned to a worker
      */
-    private final long claimedAt;
+    private final long assignedAt;
 
     /**
      * Timestamp at which the Task was started execution on worker
@@ -76,7 +76,7 @@ public class Task {
      * @param params Task Params
      * @param taskType Task Type
      * @param createdAt Timestamp at which the Task was created
-     * @param claimedAt Timestamp at which the Task was assigned to a worker
+     * @param assignedAt Timestamp at which the Task was assigned to a worker
      * @param startedAt Timestamp at which the Task was started execution on worker
      * @param completedAt Timestamp at which the Task was either completed/failed/cancelled
      * @param lastHeartbeatAt Timestamp at which last heartbeat was sent by the worker
@@ -88,7 +88,7 @@ public class Task {
         TaskParams params,
         TaskType taskType,
         long createdAt,
-        @Nullable long claimedAt,
+        @Nullable long assignedAt,
         @Nullable long startedAt,
         @Nullable long completedAt,
         @Nullable long lastHeartbeatAt,
@@ -99,7 +99,7 @@ public class Task {
         this.params = params;
         this.taskType = taskType;
         this.createdAt = createdAt;
-        this.claimedAt = claimedAt;
+        this.assignedAt = assignedAt;
         this.startedAt = startedAt;
         this.completedAt = completedAt;
         this.lastHeartbeatAt = lastHeartbeatAt;
@@ -150,8 +150,8 @@ public class Task {
      * Get Task Assignment Time
      * @return assignedAt
      */
-    public long getClaimedAt() {
-        return claimedAt;
+    public long getAssignedAt() {
+        return assignedAt;
     }
 
     /**
@@ -223,7 +223,7 @@ public class Task {
         /**
          * Timestamp at which the Task was assigned to a worker
          */
-        private long claimedAt;
+        private long assignedAt;
 
         /**
          * Timestamp at which the Task was started execution on worker
@@ -270,7 +270,7 @@ public class Task {
                 task.getTaskType(),
                 task.getCreatedAt()
             );
-            builder.claimedAt(task.getClaimedAt());
+            builder.assignedAt(task.getAssignedAt());
             builder.startedAt(task.getStartedAt());
             builder.completedAt(task.getCompletedAt());
             builder.assignedNode(task.getAssignedNode());
@@ -292,10 +292,10 @@ public class Task {
 
         /**
          * Set Task Assignment Time
-         * @param claimedAt
+         * @param assignedAt
          */
-        public void claimedAt(long claimedAt) {
-            this.claimedAt = claimedAt;
+        public void assignedAt(long assignedAt) {
+            this.assignedAt = assignedAt;
         }
 
         /**
@@ -341,7 +341,7 @@ public class Task {
                 params,
                 taskType,
                 createdAt,
-                claimedAt,
+                assignedAt,
                 startedAt,
                 completedAt,
                 lastHeartbeatAt,
