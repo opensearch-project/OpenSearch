@@ -244,4 +244,21 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         }
         return actionGet.getStatus();
     }
+
+    public ClusterHealthStatus waitForRelocation(TimeValue t) {
+        ClusterHealthRequest request = Requests.clusterHealthRequest()
+            .waitForNoRelocatingShards(true)
+            .timeout(t)
+            .waitForEvents(Priority.LANGUID);
+        ClusterHealthResponse actionGet = client().admin().cluster().health(request).actionGet();
+        if (actionGet.isTimedOut()) {
+            logger.info(
+                "waitForRelocation timed out, cluster state:\n{}\n{}",
+                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get()
+            );
+            assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
+        }
+        return actionGet.getStatus();
+    }
 }
