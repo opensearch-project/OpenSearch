@@ -13,6 +13,9 @@ import org.opensearch.task.commons.task.TaskId;
 
 import java.util.List;
 
+/**
+ * Consumer interface used to find new tasks assigned to a {@code WorkerNode} for execution.
+ */
 public interface TaskWorkerClient {
 
     /**
