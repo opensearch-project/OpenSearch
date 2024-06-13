@@ -85,4 +85,12 @@ public class StarTreeFieldSpec implements ToXContent {
     public int maxLeafDocs() {
         return maxLeafDocs.get();
     }
+
+    public StarTreeBuildMode getBuildMode() {
+        return buildMode;
+    }
+
+    public List<String> getSkipStarNodeCreationInDims() {
+        return skipStarNodeCreationInDims;
+    }
 }

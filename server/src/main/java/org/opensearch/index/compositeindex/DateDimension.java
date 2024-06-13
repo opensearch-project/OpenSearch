@@ -17,7 +17,7 @@ import org.opensearch.index.mapper.Mapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -53,7 +53,7 @@ public class DateDimension extends Dimension {
                     String.format(Locale.ROOT, "At most 3 calendar intervals are allowed in dimension [%s]", dimension.getKey())
                 );
             }
-            Set<Rounding.DateTimeUnit> calendarIntervals = new HashSet<>();
+            Set<Rounding.DateTimeUnit> calendarIntervals = new LinkedHashSet<>();
             for (String interval : intervalStrings) {
                 calendarIntervals.add(StarTreeIndexSettings.getTimeUnit(interval));
             }

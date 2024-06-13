@@ -23,8 +23,9 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -118,7 +119,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                     String.format(Locale.ROOT, "ordered_dimensions is required for star tree field [%s]", this.name)
                 );
             }
-            List<Dimension> dimensions = new ArrayList<>();
+            List<Dimension> dimensions = new LinkedList<>();
             if (dims instanceof LinkedHashMap<?, ?>) {
                 if (((LinkedHashMap<?, ?>) dims).size() > context.getSettings()
                     .getAsInt(StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(), 10)) {
@@ -214,7 +215,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
          */
         @SuppressWarnings("unchecked")
         private List<Metric> buildMetrics(Map<String, Object> map, Mapper.TypeParser.ParserContext context) {
-            List<Metric> metrics = new ArrayList<>();
+            List<Metric> metrics = new LinkedList<>();
             Object metricsFromInput = XContentMapValues.extractValue("metrics", map);
             if (metricsFromInput == null) {
                 throw new IllegalArgumentException(
@@ -257,7 +258,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
             if (metricStrings.isEmpty()) {
                 metricTypes = new ArrayList<>(StarTreeIndexSettings.DEFAULT_METRICS_LIST.get(context.getSettings()));
             } else {
-                Set<MetricType> metricSet = new HashSet<>();
+                Set<MetricType> metricSet = new LinkedHashSet<>();
                 for (String metricString : metricStrings) {
                     metricSet.add(MetricType.fromTypeName(metricString));
                 }
@@ -371,6 +372,10 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
         public StarTreeFieldType(String name, StarTreeField starTreeField) {
             super(name, starTreeField.getDimensionsOrder(), starTreeField.getMetrics(), CompositeFieldType.STAR_TREE);
             this.starTreeFieldSpec = starTreeField.getSpec();
+        }
+
+        public StarTreeFieldSpec getStarTreeFieldSpec() {
+            return starTreeFieldSpec;
         }
 
         @Override
