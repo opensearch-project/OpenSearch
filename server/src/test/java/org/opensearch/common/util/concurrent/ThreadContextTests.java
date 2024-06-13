@@ -344,11 +344,11 @@ public class ThreadContextTests extends OpenSearchTestCase {
         }
 
         final String value = HeaderWarning.formatWarning("qux");
-        threadContext.addResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
+        threadContext.updateResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         // pretend that another thread created the same response at a different time
         if (randomBoolean()) {
             final String duplicateValue = HeaderWarning.formatWarning("qux");
-            threadContext.addResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
+            threadContext.updateResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         }
 
         threadContext.addResponseHeader("Warning", "One is the loneliest number");

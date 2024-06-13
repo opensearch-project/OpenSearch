@@ -106,6 +106,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 
@@ -189,6 +190,7 @@ final class DefaultSearchContext extends SearchContext {
     private final boolean concurrentSearchSettingsEnabled;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
     private final int maxAggRewriteFilters;
+    private final int cardinalityAggregationPruningThreshold;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -244,6 +246,7 @@ final class DefaultSearchContext extends SearchContext {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
 
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
+        this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
     }
 
     @Override
@@ -1007,6 +1010,18 @@ final class DefaultSearchContext extends SearchContext {
     private int evaluateFilterRewriteSetting() {
         if (clusterService != null) {
             return clusterService.getClusterSettings().get(MAX_AGGREGATION_REWRITE_FILTERS);
+        }
+        return 0;
+    }
+
+    @Override
+    public int cardinalityAggregationPruningThreshold() {
+        return cardinalityAggregationPruningThreshold;
+    }
+
+    private int evaluateCardinalityAggregationPruningThreshold() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(CARDINALITY_AGGREGATION_PRUNING_THRESHOLD);
         }
         return 0;
     }

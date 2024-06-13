@@ -43,7 +43,15 @@ public enum Attribute {
     /**
      * The node id for this request
      */
-    NODE_ID;
+    NODE_ID,
+    /**
+     * Tasks level resource usages in this request
+     */
+    TASK_RESOURCE_USAGES,
+    /**
+     * Custom search request labels
+     */
+    LABELS;
 
     /**
      * Read an Attribute from a StreamInput

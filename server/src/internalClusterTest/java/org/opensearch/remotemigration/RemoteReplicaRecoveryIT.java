@@ -47,6 +47,7 @@ public class RemoteReplicaRecoveryIT extends MigrationBaseTestCase {
     Brings up new replica copies on remote and docrep nodes, when primary is on a remote node
     Live indexing is happening meanwhile
     */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13473")
     public void testReplicaRecovery() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(0);
         String primaryNode = internalCluster().startNode();

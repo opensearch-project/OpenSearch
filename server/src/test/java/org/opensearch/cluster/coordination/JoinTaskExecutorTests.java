@@ -420,8 +420,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
             .build();
-        final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         Metadata metadata = Metadata.builder().persistentSettings(settings).build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(existingNode).localNodeId(existingNode.getId()).build())
@@ -439,8 +437,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
             .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed")
             .build();
-        final Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         Metadata metadata = Metadata.builder().persistentSettings(settings).build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
@@ -888,9 +884,6 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     }
 
     public void testNodeJoinInMixedMode() {
-        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-
         List<Version> versions = allOpenSearchVersions();
         assert versions.size() >= 2 : "test requires at least two open search versions";
         Version baseVersion = versions.get(versions.size() - 2);
