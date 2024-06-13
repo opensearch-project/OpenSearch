@@ -34,6 +34,9 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  */
 public final class FingerprintProcessor extends AbstractProcessor {
     public static final String TYPE = "fingerprint";
+    // this processor is introduced in 2.16.0, we append the OpenSearch version to the hash method name to ensure
+    // that this processor always generates same hash value based on a specific hash method, if the processing logic
+    // of this processor changes in future version, the version number in the hash method should be increased correspondingly.
     private static final Set<String> HASH_METHODS = Set.of("MD5@2.16.0", "SHA-1@2.16.0", "SHA-256@2.16.0", "SHA3-256@2.16.0");
 
     // fields used to generate hash value
