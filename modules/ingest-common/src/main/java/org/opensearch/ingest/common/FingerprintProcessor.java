@@ -34,7 +34,7 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  */
 public final class FingerprintProcessor extends AbstractProcessor {
     public static final String TYPE = "fingerprint";
-    private static final Set<String> HASH_METHODS = Set.of("MD5", "SHA-1", "SHA-256", "SHA3-256");
+    private static final Set<String> HASH_METHODS = Set.of("MD5@2.16.0", "SHA-1@2.16.0", "SHA-256@2.16.0", "SHA3-256@2.16.0");
 
     // fields used to generate hash value
     private final List<String> fields;
@@ -69,7 +69,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
         }
 
         if (!HASH_METHODS.contains(hashMethod.toUpperCase(Locale.ROOT))) {
-            throw new IllegalArgumentException("hash method must be MD5, SHA-1 or SHA-256 or SHA3-256");
+            throw new IllegalArgumentException("hash method must be MD5@2.16.0, SHA-1@2.16.0 or SHA-256@2.16.0 or SHA3-256@2.16.0");
         }
         this.fields = fields;
         this.excludeFields = excludeFields;
@@ -223,13 +223,13 @@ public final class FingerprintProcessor extends AbstractProcessor {
         public static MessageDigest fromMethodName(String methodName) {
             String name = methodName.toUpperCase(Locale.ROOT);
             switch (name) {
-                case "MD5":
+                case "MD5@2.16.0":
                     return MD5.messageDigest;
-                case "SHA-1":
+                case "SHA-1@2.16.0":
                     return SHA1.messageDigest;
-                case "SHA-256":
+                case "SHA-256@2.16.0":
                     return SHA256.messageDigest;
-                case "SHA3-256":
+                case "SHA3-256@2.16.0":
                     return SHA3256.messageDigest;
                 default:
                     return null;
@@ -260,9 +260,14 @@ public final class FingerprintProcessor extends AbstractProcessor {
             }
 
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "fingerprint");
-            String hashMethod = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "hash_method", "SHA-1");
+            String hashMethod = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "hash_method", "SHA-1@2.16.0");
             if (!HASH_METHODS.contains(hashMethod.toUpperCase(Locale.ROOT))) {
-                throw newConfigurationException(TYPE, processorTag, "hash_method", "hash method must be MD5, SHA-1, SHA-256 or SHA3-256");
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "hash_method",
+                    "hash method must be MD5@2.16.0, SHA-1@2.16.0, SHA-256@2.16.0 or SHA3-256@2.16.0"
+                );
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             return new FingerprintProcessor(processorTag, description, fields, excludeFields, targetField, hashMethod, ignoreMissing);

@@ -8,8 +8,8 @@ teardown:
 ---
 "Test creat fingerprint processor":
   - skip:
-      version: " - 2.14.99"
-      reason: "introduced in 2.15"
+      version: " - 2.15.99"
+      reason: "introduced in 2.16.0"
   - do:
       catch: /field name cannot be null nor empty/
       ingest.put_pipeline:
@@ -55,7 +55,7 @@ teardown:
           }
 
   - do:
-      catch: /hash method must be MD5\, SHA\-1, SHA\-256 or SHA3\-256/
+      catch: /hash method must be MD5@2.16.0\, SHA\-1@2.16.0, SHA\-256@2.16.0 or SHA3\-256@2.16.0/
       ingest.put_pipeline:
         id: "1"
         body:  >
@@ -80,7 +80,7 @@ teardown:
                 "fingerprint" : {
                   "fields" : ["foo"],
                   "target_field" : "fingerprint_field",
-                  "hash_method": "SHA-256"
+                  "hash_method": "SHA-256@2.16.0"
                 }
               }
             ]
@@ -104,8 +104,8 @@ teardown:
 ---
 "Test fingerprint processor with ignore_missing":
   - skip:
-      version: " - 2.14.99"
-      reason: "introduced in 2.15"
+      version: " - 2.15.99"
+      reason: "introduced in 2.16.0"
   - do:
       ingest.put_pipeline:
         id: "1"
@@ -164,8 +164,8 @@ teardown:
 ---
 "Test fingerprint processor with custom target field":
   - skip:
-      version: " - 2.14.99"
-      reason: "introduced in 2.15"
+      version: " - 2.15.99"
+      reason: "introduced in 2.16.0"
   - do:
       ingest.put_pipeline:
         id: "1"
@@ -199,8 +199,8 @@ teardown:
 ---
 "Test fingerprint processor with non-primitive fields":
   - skip:
-      version: " - 2.14.99"
-      reason: "introduced in 2.15"
+      version: " - 2.15.99"
+      reason: "introduced in 2.16.0"
   - do:
       ingest.put_pipeline:
         id: "1"

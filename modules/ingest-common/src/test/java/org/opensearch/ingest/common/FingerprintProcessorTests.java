@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FingerprintProcessorTests extends OpenSearchTestCase {
-    private final List<String> hashMethods = List.of("MD5", "SHA-1", "SHA-256", "SHA3-256");
+    private final List<String> hashMethods = List.of("MD5@2.16.0", "SHA-1@2.16.0", "SHA-256@2.16.0", "SHA3-256@2.16.0");
 
     public void testGenerateFingerprint() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -32,7 +32,6 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
             for (int i = 0; i < randomIntBetween(1, 10); i++) {
                 fields.add(RandomDocumentPicks.addRandomField(random(), ingestDocument, randomAlphaOfLength(10)));
             }
-
         } else {
             excludeFields = new ArrayList<>();
             for (int i = 0; i < randomIntBetween(1, 10); i++) {
@@ -63,7 +62,7 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
         assertThrows(
             "field name in [fields] cannot be null nor empty",
             IllegalArgumentException.class,
-            () -> createFingerprintProcessor(fields, null, null, randomFrom(List.of("MD5", "SHA-1", "SHA-256", "SHA3-256")), false)
+            () -> createFingerprintProcessor(fields, null, null, randomFrom(hashMethods), false)
         );
 
         List<String> excludeFields = new ArrayList<>();
@@ -77,7 +76,7 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
         assertThrows(
             "field name in [exclude_fields] cannot be null nor empty",
             IllegalArgumentException.class,
-            () -> createFingerprintProcessor(null, excludeFields, null, randomFrom(List.of("MD5", "SHA-1", "SHA-256", "SHA3-256")), false)
+            () -> createFingerprintProcessor(null, excludeFields, null, randomFrom(hashMethods), false)
         );
 
         assertThrows(
@@ -87,13 +86,13 @@ public class FingerprintProcessorTests extends OpenSearchTestCase {
                 List.of(randomAlphaOfLength(10)),
                 List.of(randomAlphaOfLength(10)),
                 null,
-                randomFrom(List.of("MD5", "SHA-1", "SHA-256", "SHA3-256")),
+                randomFrom(hashMethods),
                 false
             )
         );
 
         assertThrows(
-            "hash method must be MD5, SHA-1, SHA-256 or SHA3-256",
+            "hash method must be MD5@2.16.0, SHA-1@2.16.0, SHA-256@2.16.0 or SHA3-256@2.16.0",
             IllegalArgumentException.class,
             () -> createFingerprintProcessor(Collections.emptyList(), null, "fingerprint", randomAlphaOfLength(10), false)
         );
