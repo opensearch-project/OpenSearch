@@ -288,7 +288,12 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     public void testFieldTypes() {
         internalCluster().startNode();
         ensureGreen();
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .includeAnalysisStats(true)
+            .includeMappingStats(true)
+            .get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
@@ -301,7 +306,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                     + "\"eggplant\":{\"type\":\"integer\"}}}}}"
             )
             .get();
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = client().admin().cluster().prepareClusterStats().includeMappingStats(true).includeAnalysisStats(true).get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
         Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
         for (IndexFeatureStats stat : stats) {

@@ -105,6 +105,35 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         this.status = status;
     }
 
+    public ClusterStatsResponse(
+        long timestamp,
+        String clusterUUID,
+        ClusterName clusterName,
+        List<ClusterStatsNodeResponse> nodes,
+        List<FailedNodeException> failures,
+        ClusterState state,
+        ClusterStatsRequest request
+    ) {
+        super(clusterName, nodes, failures);
+        this.clusterUUID = clusterUUID;
+        this.timestamp = timestamp;
+        nodesStats = new ClusterStatsNodes(nodes);
+        indicesStats = new ClusterStatsIndices(
+            nodes,
+            request.isIncludeMappingStats() ? MappingStats.of(state) : null,
+            request.isIncludeAnalysisStats() ? AnalysisStats.of(state) : null
+        );
+        ClusterHealthStatus status = null;
+        for (ClusterStatsNodeResponse response : nodes) {
+            // only the cluster-manager node populates the status
+            if (response.clusterStatus() != null) {
+                status = response.clusterStatus();
+                break;
+            }
+        }
+        this.status = status;
+    }
+
     public String getClusterUUID() {
         return this.clusterUUID;
     }

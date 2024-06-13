@@ -808,7 +808,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesUsageAction());
         registerHandler.accept(new RestNodesHotThreadsAction());
         registerHandler.accept(new RestClusterAllocationExplainAction());
-        registerHandler.accept(new RestClusterStatsAction());
+        registerHandler.accept(new RestClusterStatsAction(settings, clusterSettings));
         registerHandler.accept(new RestClusterStateAction(settingsFilter));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());

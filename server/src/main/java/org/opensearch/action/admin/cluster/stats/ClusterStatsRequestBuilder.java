@@ -50,4 +50,14 @@ public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
     public ClusterStatsRequestBuilder(OpenSearchClient client, ClusterStatsAction action) {
         super(client, action, new ClusterStatsRequest());
     }
+
+    public ClusterStatsRequestBuilder includeMappingStats(boolean value) {
+        request.setIncludeMappingStats(value);
+        return this;
+    }
+
+    public ClusterStatsRequestBuilder includeAnalysisStats(boolean value) {
+        request.setIncludeAnalysisStats(value);
+        return this;
+    }
 }

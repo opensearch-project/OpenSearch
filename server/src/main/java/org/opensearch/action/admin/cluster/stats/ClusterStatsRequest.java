@@ -47,8 +47,27 @@ import java.io.IOException;
 @PublicApi(since = "1.0.0")
 public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
+    private boolean includeMappingStats;
+    private boolean includeAnalysisStats;
+
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
+    }
+
+    public void setIncludeMappingStats(boolean bool) {
+        this.includeMappingStats = bool;
+    }
+
+    public boolean isIncludeMappingStats() {
+        return includeMappingStats;
+    }
+
+    public void setIncludeAnalysisStats(boolean bool) {
+        this.includeAnalysisStats = bool;
+    }
+
+    public boolean isIncludeAnalysisStats() {
+        return includeAnalysisStats;
     }
 
     /**

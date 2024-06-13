@@ -34,6 +34,9 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions.NodesResponseRestListener;
@@ -52,6 +55,40 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  */
 public class RestClusterStatsAction extends BaseRestHandler {
 
+    /**
+     * Setting up the response in the form of levels - for experimental testings -
+     *          level 1 excludes Mapping and Analysis Stats.
+     *
+     * This will determine the default behavior of the cluster stats call.
+     */
+    public static final String CLUSTER_STATS_RESPONSE_LEVEL = "opensearch.experimental.optimization.cluster_stats.response_level";
+
+    public static final Setting<Integer> CLUSTER_STATS_LEVEL_SETTING = Setting.intSetting(
+        CLUSTER_STATS_RESPONSE_LEVEL,
+        2,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public volatile boolean defaultMappingAndAnalysisStats;
+
+    public RestClusterStatsAction(Settings settings, ClusterSettings clusterSettings) {
+        updateMappingAndAnalysisStatsFromLevel(CLUSTER_STATS_LEVEL_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_STATS_LEVEL_SETTING, this::updateMappingAndAnalysisStatsFromLevel);
+    }
+
+    private void updateMappingAndAnalysisStatsFromLevel(int level) {
+        switch (level) {
+            case 1:
+                this.defaultMappingAndAnalysisStats = false;
+                break;
+            case 2:
+                this.defaultMappingAndAnalysisStats = true;
+                break;
+        }
+    }
+
     @Override
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(GET, "/_cluster/stats"), new Route(GET, "/_cluster/stats/nodes/{nodeId}")));
@@ -66,6 +103,10 @@ public class RestClusterStatsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.timeout(request.param("timeout"));
+
+        clusterStatsRequest.setIncludeMappingStats(request.paramAsBoolean("include_mapping_stats", defaultMappingAndAnalysisStats));
+        clusterStatsRequest.setIncludeAnalysisStats(request.paramAsBoolean("include_analysis_stats", defaultMappingAndAnalysisStats));
+
         return channel -> client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
     }
 
