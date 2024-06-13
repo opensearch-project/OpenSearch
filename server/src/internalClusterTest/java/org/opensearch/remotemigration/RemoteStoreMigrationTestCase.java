@@ -8,15 +8,12 @@
 
 package org.opensearch.remotemigration;
 
-import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -189,16 +186,7 @@ public class RemoteStoreMigrationTestCase extends MigrationBaseTestCase {
                 )
                 .get()
         );
-
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setTimeout(TimeValue.timeValueSeconds(45))
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
-        assertTrue(clusterHealthResponse.getRelocatingShards() == 0);
+        waitForRelocation();
         logger.info("---> Stopping indexing thread");
         asyncIndexingService.stopIndexing();
         Map<String, Integer> shardCountByNodeId = getShardCountByNodeId();
