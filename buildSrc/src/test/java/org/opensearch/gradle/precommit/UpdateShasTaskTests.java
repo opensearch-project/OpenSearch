@@ -102,7 +102,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
     public void whenDependencyAndWrongShaExistsThenShouldNotOverwriteShaFile() throws IOException, NoSuchAlgorithmException {
         project.getDependencies().add("someCompileConfiguration", dependency);
 
-        File groovyJar = task.getParentTask().getDependencies().getFiles().iterator().next();
+        File groovyJar = task.getParentTask().getDependencies().get().getFiles().iterator().next();
         String groovyShaName = groovyJar.getName() + ".sha1";
 
         File groovySha = createFileIn(getLicensesDir(project), groovyShaName, "content");
@@ -162,7 +162,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
             .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
                 @Override
                 public void execute(DependencyLicensesTask dependencyLicensesTask) {
-                    dependencyLicensesTask.setDependencies(getDependencies(project));
+                    dependencyLicensesTask.getDependencies().set(getDependencies(project));
                 }
             });
 
