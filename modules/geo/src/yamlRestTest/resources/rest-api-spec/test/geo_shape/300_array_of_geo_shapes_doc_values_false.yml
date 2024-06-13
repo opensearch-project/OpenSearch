@@ -1,0 +1,68 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              location:
+                type: "geo_shape"
+                doc_values: false
+
+---
+"Single shape":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _id: 1
+          - location:
+              type: "polygon"
+              coordinates: [
+                [
+                  [ -87.0, 41.0 ],
+                  [ -88.0, 41.0 ],
+                  [ -88.0, 42.0 ],
+                  [ -87.0, 42.0 ],
+                  [ -87.0, 41.0 ],
+                ]
+              ]
+
+  - match: {errors: false}
+
+---
+"Array of shapes":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _id: 1
+          - location:
+              - type: "polygon"
+                coordinates: [
+                  [
+                    [ -87.0, 41.0 ],
+                    [ -88.0, 41.0 ],
+                    [ -88.0, 42.0 ],
+                    [ -87.0, 42.0 ],
+                    [ -87.0, 41.0 ],
+                  ]
+                ]
+              - type: "polygon"
+                coordinates: [
+                  [
+                    [ -97.0, 41.0 ],
+                    [ -98.0, 41.0 ],
+                    [ -98.0, 42.0 ],
+                    [ -97.0, 42.0 ],
+                    [ -97.0, 41.0 ],
+                  ]
+                ]
+
+  - match: {errors: false}
