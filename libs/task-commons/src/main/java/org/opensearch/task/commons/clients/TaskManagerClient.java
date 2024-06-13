@@ -6,12 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.clients;
+package org.opensearch.task.commons.clients;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.offline_tasks.task.Task;
-import org.opensearch.offline_tasks.task.TaskId;
-import org.opensearch.offline_tasks.worker.WorkerNode;
+import org.opensearch.task.commons.task.Task;
+import org.opensearch.task.commons.task.TaskId;
+import org.opensearch.task.commons.worker.WorkerNode;
 
 import java.util.List;
 

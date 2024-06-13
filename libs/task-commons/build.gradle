@@ -16,7 +16,7 @@ dependencies {
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.opensearch', module: 'opensearch-offline-tasks'
+    exclude group: 'org.opensearch', module: 'opensearch-commons'
   }
 }
 

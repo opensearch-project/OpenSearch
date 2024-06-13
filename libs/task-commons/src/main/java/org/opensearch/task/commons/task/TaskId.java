@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.task;
+package org.opensearch.task.commons.task;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.worker;
+package org.opensearch.task.commons.worker;
 
 /**
  * Represents a worker node in the fleet

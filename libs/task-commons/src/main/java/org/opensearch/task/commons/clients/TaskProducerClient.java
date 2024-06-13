@@ -6,9 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.clients;
+package org.opensearch.task.commons.clients;
 
-import org.opensearch.offline_tasks.task.Task;
+import org.opensearch.task.commons.task.Task;
 
 /**
  * Producer interface used to submit new tasks for execution on worker nodes.

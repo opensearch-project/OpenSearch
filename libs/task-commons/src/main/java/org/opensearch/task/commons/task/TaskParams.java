@@ -6,22 +6,18 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.task;
+package org.opensearch.task.commons.task;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Enum for task type
+ * Base class for all TaskParams implementation of various TaskTypes
  */
 @ExperimentalApi
-public enum TaskType {
-    /**
-     * For all segment merge related tasks
-     */
-    MERGE,
+public abstract class TaskParams {
 
     /**
-     * For all snapshot related tasks
+     * Default constructor
      */
-    SNAPSHOT
+    public TaskParams() {}
 }

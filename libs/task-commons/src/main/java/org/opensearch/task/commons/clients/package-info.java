@@ -9,4 +9,4 @@
 /**
  * Contains task client related classes
  */
-package org.opensearch.offline_tasks.clients;
+package org.opensearch.task.commons.clients;

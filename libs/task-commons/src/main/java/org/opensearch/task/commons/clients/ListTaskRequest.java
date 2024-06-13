@@ -6,11 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.clients;
+package org.opensearch.task.commons.clients;
 
-import org.opensearch.offline_tasks.task.TaskStatus;
-import org.opensearch.offline_tasks.task.TaskType;
-import org.opensearch.offline_tasks.worker.WorkerNode;
+import org.opensearch.task.commons.task.TaskStatus;
+import org.opensearch.task.commons.task.TaskType;
+import org.opensearch.task.commons.worker.WorkerNode;
 
 /**
  * Request object for listing tasks

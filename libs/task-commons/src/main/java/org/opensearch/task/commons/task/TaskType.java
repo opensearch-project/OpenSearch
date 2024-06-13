@@ -6,24 +6,22 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.worker;
+package org.opensearch.task.commons.task;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.offline_tasks.task.Task;
 
 /**
- * Task Worker that executes the Task
- *
- * @opensearch.experimental
+ * Enum for task type
  */
 @ExperimentalApi
-public interface TaskWorker {
+public enum TaskType {
+    /**
+     * For all segment merge related tasks
+     */
+    MERGE,
 
     /**
-     * Execute the Task
-     *
-     * @param task Task to be executed
+     * For all snapshot related tasks
      */
-    void executeTask(Task task);
-
+    SNAPSHOT
 }

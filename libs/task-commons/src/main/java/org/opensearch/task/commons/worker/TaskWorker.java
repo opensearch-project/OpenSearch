@@ -6,18 +6,24 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.task;
+package org.opensearch.task.commons.worker;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.task.commons.task.Task;
 
 /**
- * Base class for all TaskParams implementation of various TaskTypes
+ * Task Worker that executes the Task
+ *
+ * @opensearch.experimental
  */
 @ExperimentalApi
-public abstract class TaskParams {
+public interface TaskWorker {
 
     /**
-     * Default constructor
+     * Execute the Task
+     *
+     * @param task Task to be executed
      */
-    public TaskParams() {}
+    void executeTask(Task task);
+
 }

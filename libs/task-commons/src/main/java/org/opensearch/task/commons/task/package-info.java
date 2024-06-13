@@ -9,4 +9,4 @@
 /**
  * Contains tasks related classes
  */
-package org.opensearch.offline_tasks.task;
+package org.opensearch.task.commons.task;

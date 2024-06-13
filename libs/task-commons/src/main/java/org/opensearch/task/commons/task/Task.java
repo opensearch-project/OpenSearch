@@ -6,11 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.offline_tasks.task;
+package org.opensearch.task.commons.task;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.offline_tasks.worker.WorkerNode;
+import org.opensearch.task.commons.worker.WorkerNode;
 
 /**
  * A Background Task to be run on Offline Node.

@@ -9,4 +9,3 @@
 /**
  * Contains task worker related classes
  */
-package org.opensearch.offline_tasks.worker;

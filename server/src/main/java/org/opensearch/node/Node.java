@@ -179,7 +179,7 @@ import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
-import org.opensearch.offline_tasks.clients.TaskManagerClient;
+import org.opensearch.task.commons.clients.TaskManagerClient;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
@@ -200,7 +200,7 @@ import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.MetadataUpgrader;
 import org.opensearch.plugins.NetworkPlugin;
-import org.opensearch.plugins.OfflineTaskManagerClientPlugin;
+import org.opensearch.plugins.TaskManagerClientPlugin;
 import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
@@ -1272,9 +1272,9 @@ public class Node implements Closeable {
                 .flatMap(List::stream)
                 .collect(toList());
 
-            final Optional<TaskManagerClient> taskClient = pluginsService.filterPlugins(OfflineTaskManagerClientPlugin.class)
+            final Optional<TaskManagerClient> taskClientOptional = pluginsService.filterPlugins(TaskManagerClientPlugin.class)
                 .stream()
-                .map((OfflineTaskManagerClientPlugin taskClientPlugin) -> taskClientPlugin.getTaskManagerClient(client, clusterService, threadPool))
+                .map((TaskManagerClientPlugin taskClientPlugin) -> taskClientPlugin.getTaskManagerClient(client, clusterService, threadPool))
                 .findFirst();
 
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
@@ -1384,7 +1384,7 @@ public class Node implements Closeable {
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
 
-                taskClient.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
+                taskClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
             injector = modules.createInjector();
 
