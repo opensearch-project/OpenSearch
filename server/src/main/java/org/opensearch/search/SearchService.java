@@ -334,8 +334,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile int maxOpenPitContext;
 
-    private volatile int maxClauseCount;
-
     private volatile boolean allowDerivedField;
 
     private final Cancellable keepAliveReaper;
@@ -410,8 +408,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
 
-        setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, this::setMaxClauseCount);
+        IndexSearcher.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_CLAUSE_COUNT_SETTING, IndexSearcher::setMaxClauseCount);
 
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
@@ -493,11 +491,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
-    }
-
-    private void setMaxClauseCount(int maxClauseCount) {
-        this.maxClauseCount = maxClauseCount;
-        IndexSearcher.setMaxClauseCount(maxClauseCount);
     }
 
     @Override
