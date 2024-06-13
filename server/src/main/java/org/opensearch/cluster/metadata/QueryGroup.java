@@ -28,21 +28,21 @@ import java.util.Objects;
 /**
  * Class to define the ResourceLimitGroup schema
  * {
- *     "analytics" : {
+ *     "fafjafjkaf9ag8a9ga9g7ag0aagaga" : {
  *              "jvm": 0.4,
  *              "mode": "enforced",
- *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga",
+ *              "name": "analytics",
  *              "updatedAt": 4513232415
  *      }
  * }
  */
 @ExperimentalApi
-public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> implements ToXContentObject {
+public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXContentObject {
 
     public static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
     private final String name;
     private final String _id;
-    private final ResourceLimitGroupMode mode;
+    private final QueryGroupMode mode;
     // It is an epoch in millis
     private final long updatedAtInMillis;
     private final Map<String, Object> resourceLimits;
@@ -50,7 +50,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     // list of resources that are allowed to be present in the ResourceLimitGroup schema
     public static final List<String> ALLOWED_RESOURCES = List.of("jvm");
 
-    public ResourceLimitGroup(String name, String _id, ResourceLimitGroupMode mode, Map<String, Object> resourceLimits, long updatedAt) {
+    public QueryGroup(String name, String _id, QueryGroupMode mode, Map<String, Object> resourceLimits, long updatedAt) {
         Objects.requireNonNull(name, "ResourceLimitGroup.name can't be null");
         Objects.requireNonNull(resourceLimits, "ResourceLimitGroup.resourceLimits can't be null");
         Objects.requireNonNull(mode, "ResourceLimitGroup.mode can't be null");
@@ -85,8 +85,8 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         return minValidTimestamp <= updatedAt && updatedAt <= currentSeconds;
     }
 
-    public ResourceLimitGroup(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), ResourceLimitGroupMode.fromName(in.readString()), in.readMap(), in.readLong());
+    public QueryGroup(StreamInput in) throws IOException {
+        this(in.readString(), in.readString(), QueryGroupMode.fromName(in.readString()), in.readMap(), in.readLong());
     }
 
     /**
@@ -141,7 +141,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         return builder;
     }
 
-    public static ResourceLimitGroup fromXContent(final XContentParser parser) throws IOException {
+    public static QueryGroup fromXContent(final XContentParser parser) throws IOException {
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }
@@ -184,15 +184,15 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         return builder.build();
     }
 
-    public static Diff<ResourceLimitGroup> readDiff(final StreamInput in) throws IOException {
-        return readDiffFrom(ResourceLimitGroup::new, in);
+    public static Diff<QueryGroup> readDiff(final StreamInput in) throws IOException {
+        return readDiffFrom(QueryGroup::new, in);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ResourceLimitGroup that = (ResourceLimitGroup) o;
+        QueryGroup that = (QueryGroup) o;
         return Objects.equals(name, that.name) && Objects.equals(resourceLimits, that.resourceLimits);
     }
 
@@ -205,7 +205,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         return name;
     }
 
-    public ResourceLimitGroupMode getMode() {
+    public QueryGroupMode getMode() {
         return mode;
     }
 
@@ -222,7 +222,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     }
 
     /**
-     * builder method for this {@link ResourceLimitGroup}
+     * builder method for this {@link QueryGroup}
      * @return
      */
     public static Builder builder() {
@@ -233,14 +233,14 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
      * This enum models the different sandbox modes
      */
     @ExperimentalApi
-    public enum ResourceLimitGroupMode {
+    public enum QueryGroupMode {
         SOFT("soft"),
         ENFORCED("enforced"),
         MONITOR("monitor");
 
         private final String name;
 
-        ResourceLimitGroupMode(String mode) {
+        QueryGroupMode(String mode) {
             this.name = mode;
         }
 
@@ -248,8 +248,8 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
             return name;
         }
 
-        public static ResourceLimitGroupMode fromName(String s) {
-            for (ResourceLimitGroupMode mode : values()) {
+        public static QueryGroupMode fromName(String s) {
+            for (QueryGroupMode mode : values()) {
                 if (mode.getName().equalsIgnoreCase(s)) return mode;
 
             }
@@ -259,15 +259,15 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
     }
 
     /**
-     * Builder class for {@link ResourceLimitGroup}
+     * Builder class for {@link QueryGroup}
      */
     @ExperimentalApi
     public static class Builder {
         private String name;
         private String _id;
-        private ResourceLimitGroupMode mode;
+        private QueryGroupMode mode;
         private long updatedAt;
-        private Map<String, Object> resourceLimitGroup;
+        private Map<String, Object> resourceLimits;
 
         private Builder() {}
 
@@ -282,7 +282,7 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         }
 
         public Builder mode(String mode) {
-            this.mode = ResourceLimitGroupMode.fromName(mode);
+            this.mode = QueryGroupMode.fromName(mode);
             return this;
         }
 
@@ -292,12 +292,12 @@ public class ResourceLimitGroup extends AbstractDiffable<ResourceLimitGroup> imp
         }
 
         public Builder resourceLimitGroup(Map<String, Object> resourceLimitGroup) {
-            this.resourceLimitGroup = resourceLimitGroup;
+            this.resourceLimits = resourceLimitGroup;
             return this;
         }
 
-        public ResourceLimitGroup build() {
-            return new ResourceLimitGroup(name, _id, mode, resourceLimitGroup, updatedAt);
+        public QueryGroup build() {
+            return new QueryGroup(name, _id, mode, resourceLimits, updatedAt);
         }
 
     }

@@ -14,34 +14,34 @@ import org.opensearch.test.AbstractNamedWriteableTestCase;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.opensearch.cluster.metadata.ResourceLimitGroupTests.createRandomResourceLimitGroup;
+import static org.opensearch.cluster.metadata.QueryGroupTests.createRandomResourceLimitGroup;
 
-public class ResourceLimitGroupMetadataTests extends AbstractNamedWriteableTestCase<ResourceLimitGroupMetadata> {
+public class QueryGroupMetadataTests extends AbstractNamedWriteableTestCase<QueryGroupMetadata> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Collections.singletonList(
                 new NamedWriteableRegistry.Entry(
-                    ResourceLimitGroupMetadata.class,
-                    ResourceLimitGroupMetadata.TYPE,
-                    ResourceLimitGroupMetadata::new
+                    QueryGroupMetadata.class,
+                    QueryGroupMetadata.TYPE,
+                    QueryGroupMetadata::new
                 )
             )
         );
     }
 
     @Override
-    protected Class<ResourceLimitGroupMetadata> categoryClass() {
-        return ResourceLimitGroupMetadata.class;
+    protected Class<QueryGroupMetadata> categoryClass() {
+        return QueryGroupMetadata.class;
     }
 
     @Override
-    protected ResourceLimitGroupMetadata createTestInstance() {
-        return new ResourceLimitGroupMetadata(getRandomResourceLimitGroups());
+    protected QueryGroupMetadata createTestInstance() {
+        return new QueryGroupMetadata(getRandomResourceLimitGroups());
     }
 
-    private Set<ResourceLimitGroup> getRandomResourceLimitGroups() {
+    private Set<QueryGroup> getRandomResourceLimitGroups() {
         return Set.of(createRandomResourceLimitGroup(), createRandomResourceLimitGroup());
     }
 }

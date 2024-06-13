@@ -844,9 +844,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
-    public Set<ResourceLimitGroup> resourceLimitGroups() {
-        return Optional.ofNullable((ResourceLimitGroupMetadata) this.custom(ResourceLimitGroupMetadata.TYPE))
-            .map(ResourceLimitGroupMetadata::resourceLimitGroups)
+    public Set<QueryGroup> queryGroups() {
+        return Optional.ofNullable((QueryGroupMetadata) this.custom(QueryGroupMetadata.TYPE))
+            .map(QueryGroupMetadata::queryGroups)
             .orElse(Collections.emptySet());
 
     }
@@ -1374,22 +1374,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public Builder resourceLimitGroups(final Set<ResourceLimitGroup> resourceLimitGroups) {
-            this.customs.put(ResourceLimitGroupMetadata.TYPE, new ResourceLimitGroupMetadata(resourceLimitGroups));
+        public Builder queryGroups(final Set<QueryGroup> queryGroups) {
+            this.customs.put(QueryGroupMetadata.TYPE, new QueryGroupMetadata(queryGroups));
             return this;
         }
 
-        public Builder put(final ResourceLimitGroup resourceLimitGroup) {
-            Objects.requireNonNull(resourceLimitGroup, "resourceLimitGroup should not be null");
-            Set<ResourceLimitGroup> existing = getResourceLimitGroups();
-            existing.add(resourceLimitGroup);
-            return resourceLimitGroups(existing);
+        public Builder put(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Set<QueryGroup> existing = getQueryGroups();
+            existing.add(queryGroup);
+            return queryGroups(existing);
         }
 
-        private Set<ResourceLimitGroup> getResourceLimitGroups() {
-            return Optional.ofNullable(this.customs.get(ResourceLimitGroupMetadata.TYPE))
-                .map(o -> (ResourceLimitGroupMetadata) o)
-                .map(ResourceLimitGroupMetadata::resourceLimitGroups)
+        private Set<QueryGroup> getQueryGroups() {
+            return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
+                .map(o -> (QueryGroupMetadata) o)
+                .map(QueryGroupMetadata::queryGroups)
                 .orElse(Collections.emptySet());
         }
 

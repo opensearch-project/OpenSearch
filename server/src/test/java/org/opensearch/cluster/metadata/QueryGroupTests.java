@@ -19,22 +19,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ResourceLimitGroupTests extends AbstractSerializingTestCase<ResourceLimitGroup> {
+public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
 
-    private static final List<ResourceLimitGroup.ResourceLimitGroupMode> allowedModes = List.of(
-        ResourceLimitGroup.ResourceLimitGroupMode.SOFT,
-        ResourceLimitGroup.ResourceLimitGroupMode.ENFORCED,
-        ResourceLimitGroup.ResourceLimitGroupMode.MONITOR
+    private static final List<QueryGroup.QueryGroupMode> allowedModes = List.of(
+        QueryGroup.QueryGroupMode.SOFT,
+        QueryGroup.QueryGroupMode.ENFORCED,
+        QueryGroup.QueryGroupMode.MONITOR
     );
 
-    static ResourceLimitGroup createRandomResourceLimitGroup() {
+    static QueryGroup createRandomResourceLimitGroup() {
         String name = randomAlphaOfLength(10);
         Map<String, Object> resourceLimit = new HashMap<>();
         resourceLimit.put("jvm", randomDoubleBetween(0.0, 0.80, false));
-        return new ResourceLimitGroup(name, "random", randomMode(), resourceLimit, Instant.now().getMillis());
+        return new QueryGroup(name, "random", randomMode(), resourceLimit, Instant.now().getMillis());
     }
 
-    private static ResourceLimitGroup.ResourceLimitGroupMode randomMode() {
+    private static QueryGroup.QueryGroupMode randomMode() {
         return allowedModes.get(randomIntBetween(0, allowedModes.size() - 1));
     }
 
@@ -44,16 +44,16 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
      * @param parser
      */
     @Override
-    protected ResourceLimitGroup doParseInstance(XContentParser parser) throws IOException {
-        return ResourceLimitGroup.fromXContent(parser);
+    protected QueryGroup doParseInstance(XContentParser parser) throws IOException {
+        return QueryGroup.fromXContent(parser);
     }
 
     /**
      * Returns a {@link Writeable.Reader} that can be used to de-serialize the instance
      */
     @Override
-    protected Writeable.Reader<ResourceLimitGroup> instanceReader() {
-        return ResourceLimitGroup::new;
+    protected Writeable.Reader<QueryGroup> instanceReader() {
+        return QueryGroup::new;
     }
 
     /**
@@ -62,49 +62,49 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
      * random instance each time it is called.
      */
     @Override
-    protected ResourceLimitGroup createTestInstance() {
+    protected QueryGroup createTestInstance() {
         return createRandomResourceLimitGroup();
     }
 
     public void testNullName() {
         assertThrows(
             NullPointerException.class,
-            () -> new ResourceLimitGroup(null, "_id", randomMode(), Collections.emptyMap(), Instant.now().getMillis())
+            () -> new QueryGroup(null, "_id", randomMode(), Collections.emptyMap(), Instant.now().getMillis())
         );
     }
 
     public void testNullId() {
         assertThrows(
             NullPointerException.class,
-            () -> new ResourceLimitGroup("Dummy", null, randomMode(), Collections.emptyMap(), Instant.now().getMillis())
+            () -> new QueryGroup("Dummy", null, randomMode(), Collections.emptyMap(), Instant.now().getMillis())
         );
     }
 
     public void testNullResourceLimits() {
         assertThrows(
             NullPointerException.class,
-            () -> new ResourceLimitGroup("analytics", "_id", randomMode(), null, Instant.now().getMillis())
+            () -> new QueryGroup("analytics", "_id", randomMode(), null, Instant.now().getMillis())
         );
     }
 
     public void testEmptyResourceLimits() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup("analytics", "_id", randomMode(), Collections.emptyMap(), Instant.now().getMillis())
+            () -> new QueryGroup("analytics", "_id", randomMode(), Collections.emptyMap(), Instant.now().getMillis())
         );
     }
 
     public void testIllegalResourceLimitGroupMode() {
         assertThrows(
             NullPointerException.class,
-            () -> new ResourceLimitGroup("analytics", "_id", null, Map.of("jvm", (Object) 0.4), Instant.now().getMillis())
+            () -> new QueryGroup("analytics", "_id", null, Map.of("jvm", (Object) 0.4), Instant.now().getMillis())
         );
     }
 
     public void testInvalidResourceLimitWhenInvalidSystemResourceNameIsGiven() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup(
+            () -> new QueryGroup(
                 "analytics",
                 "_id",
                 randomMode(),
@@ -117,7 +117,7 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
     public void testInvalidResourceLimitWhenInvalidSystemResourceValueIsGiven() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> new ResourceLimitGroup(
+            () -> new QueryGroup(
                 "analytics",
                 "_id",
                 randomMode(),
@@ -128,7 +128,7 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
     }
 
     public void testValidResourceLimitGroup() {
-        ResourceLimitGroup resourceLimitGroup = new ResourceLimitGroup(
+        QueryGroup queryGroup = new QueryGroup(
             "analytics",
             "_id",
             randomMode(),
@@ -136,12 +136,12 @@ public class ResourceLimitGroupTests extends AbstractSerializingTestCase<Resourc
             Instant.ofEpochMilli(1717187289).getMillis()
         );
 
-        assertNotNull(resourceLimitGroup.getName());
-        assertEquals("analytics", resourceLimitGroup.getName());
-        assertNotNull(resourceLimitGroup.getResourceLimits());
-        assertFalse(resourceLimitGroup.getResourceLimits().isEmpty());
-        assertEquals(1, resourceLimitGroup.getResourceLimits().size());
-        assertTrue(allowedModes.contains(resourceLimitGroup.getMode()));
-        assertEquals(1717187289, resourceLimitGroup.getUpdatedAtInMillis());
+        assertNotNull(queryGroup.getName());
+        assertEquals("analytics", queryGroup.getName());
+        assertNotNull(queryGroup.getResourceLimits());
+        assertFalse(queryGroup.getResourceLimits().isEmpty());
+        assertEquals(1, queryGroup.getResourceLimits().size());
+        assertTrue(allowedModes.contains(queryGroup.getMode()));
+        assertEquals(1717187289, queryGroup.getUpdatedAtInMillis());
     }
 }
