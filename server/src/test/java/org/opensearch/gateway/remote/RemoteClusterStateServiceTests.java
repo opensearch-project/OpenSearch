@@ -133,6 +133,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     private BlobStoreRepository blobStoreRepository;
     private BlobStore blobStore;
     private Settings settings;
+    private boolean publicationEnabled;
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Before
@@ -178,7 +179,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when(repositoriesService.repository("routing_repository")).thenReturn(blobStoreRepository);
 
         when(blobStoreRepository.getNamedXContentRegistry()).thenReturn(xContentRegistry);
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
+        // TODO Make the publication flag parameterized
+        publicationEnabled = true;
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, publicationEnabled).build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
@@ -355,8 +358,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
         assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
 
-        assertEquals(7, actionListenerArgumentCaptor.getAllValues().size());
-        assertEquals(7, writeContextArgumentCaptor.getAllValues().size());
+        assertEquals(12, actionListenerArgumentCaptor.getAllValues().size());
+        assertEquals(12, writeContextArgumentCaptor.getAllValues().size());
 
         byte[] writtenBytes = capturedWriteContext.get("metadata")
             .getStreamProvider(Integer.MAX_VALUE)
@@ -814,6 +817,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     .putCustom("custom1", new CustomMetadata1("mock_custom_metadata1"))
                     .putCustom("custom2", new CustomMetadata1("mock_custom_metadata2"))
                     .putCustom("custom3", new CustomMetadata1("mock_custom_metadata3"))
+                    .version(initialClusterState.metadata().version() + 1)
             )
             .build();
 
@@ -829,6 +833,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     .putCustom("custom2", new CustomMetadata1("mock_updated_custom_metadata"))
                     .putCustom("custom3", new CustomMetadata1("mock_custom_metadata3"))
                     .putCustom("custom4", new CustomMetadata1("mock_custom_metadata4"))
+                    .version(clusterState1.metadata().version() + 1)
             )
             .build();
         ClusterMetadataManifest manifest2 = remoteClusterStateService.writeIncrementalMetadata(clusterState1, clusterState2, manifest1)
@@ -1358,7 +1363,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     public void testRemoteRoutingTableNotInitializedWhenDisabled() {
-        assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof NoopRemoteRoutingTableService);
+        if (publicationEnabled) {
+            assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
+        } else {
+            assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof NoopRemoteRoutingTableService);
+        }
     }
 
     public void testRemoteRoutingTableInitializedWhenEnabled() {
