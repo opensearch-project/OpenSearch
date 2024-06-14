@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class FullFileCachedIndexInputImpl implements CachedIndexInput {
+public class CachedFullFileIndexInput implements CachedIndexInput {
     private final FileCache fileCache;
     private final Path path;
     private final FullFileCachedIndexInput fullFileCachedIndexInput;
@@ -30,7 +30,7 @@ public class FullFileCachedIndexInputImpl implements CachedIndexInput {
     /**
      * Constructor - takes IndexInput as parameter
      */
-    public FullFileCachedIndexInputImpl(FileCache fileCache, Path path, IndexInput indexInput) {
+    public CachedFullFileIndexInput(FileCache fileCache, Path path, IndexInput indexInput) {
         this.fileCache = fileCache;
         this.path = path;
         fullFileCachedIndexInput = new FullFileCachedIndexInput(fileCache, path, indexInput);

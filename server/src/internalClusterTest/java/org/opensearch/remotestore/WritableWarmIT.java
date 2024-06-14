@@ -23,6 +23,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
@@ -145,6 +146,12 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
         // Asserting that after merge all the files from previous gen are no more part of the directory
         assertTrue(filesFromPreviousGenStillPresent.isEmpty());
+
+        // Asserting that files from previous gen are not present in File Cache as well
+        filesBeforeMerge.stream()
+            .filter(file -> !FileTypeUtils.isLockFile(file))
+            .filter(file -> !FileTypeUtils.isSegmentsFile(file))
+            .forEach(file -> assertNull(fileCache.get(((CompositeDirectory) directory).getFilePath(file))));
 
         // Deleting the index (so that ref count drops to zero for all the files) and then pruning the cache to clear it to avoid any file
         // leaks

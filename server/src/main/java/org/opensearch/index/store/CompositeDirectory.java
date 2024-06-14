@@ -21,9 +21,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
+import org.opensearch.index.store.remote.filecache.CachedFullFileIndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FullFileCachedIndexInputImpl;
 import org.opensearch.index.store.remote.utils.BlockIOContext;
 import org.opensearch.index.store.remote.utils.FileTypeUtils;
 import org.opensearch.index.store.remote.utils.TransferManager;
@@ -116,7 +116,7 @@ public class CompositeDirectory extends FilterDirectory {
         } else if (Arrays.asList(listAll()).contains(name) == false) {
             throw new NoSuchFileException("File " + name + " not found in directory");
         } else {
-            fileCache.remove(localDirectory.getDirectory().resolve(name));
+            fileCache.remove(getFilePath(name));
         }
     }
 
@@ -131,7 +131,7 @@ public class CompositeDirectory extends FilterDirectory {
         ensureOpen();
         logger.trace("Composite Directory[{}]: fileLength() called {}", this::toString, () -> name);
         long fileLength;
-        Path key = localDirectory.getDirectory().resolve(name);
+        Path key = getFilePath(name);
         if (FileTypeUtils.isTempFile(name) || fileCache.get(key) != null) {
             try {
                 fileLength = localDirectory.fileLength(name);
@@ -194,7 +194,7 @@ public class CompositeDirectory extends FilterDirectory {
         ensureOpen();
         logger.trace("Composite Directory[{}]: rename() called : source-{}, dest-{}", this::toString, () -> source, () -> dest);
         localDirectory.rename(source, dest);
-        fileCache.remove(localDirectory.getDirectory().resolve(source));
+        fileCache.remove(getFilePath(source));
         cacheFile(dest);
     }
 
@@ -215,7 +215,7 @@ public class CompositeDirectory extends FilterDirectory {
             return localDirectory.openInput(name, context);
         }
         // Return directly from the FileCache (via TransferManager) if complete file is present
-        Path key = localDirectory.getDirectory().resolve(name);
+        Path key = getFilePath(name);
         CachedIndexInput indexInput = fileCache.get(key);
         if (indexInput != null) {
             logger.trace("Composite Directory[{}]: Complete file {} found in FileCache", this::toString, () -> name);
@@ -281,8 +281,13 @@ public class CompositeDirectory extends FilterDirectory {
             this::toString,
             () -> file
         );
-        fileCache.decRef(localDirectory.getDirectory().resolve(file));
-        // fileCache.remove(localDirectory.getDirectory().resolve(fileName));
+        fileCache.decRef(getFilePath(file));
+        // fileCache.remove(getFilePath(fileName));
+    }
+
+    // Visibility public since we need it in IT tests
+    public Path getFilePath(String name) {
+        return localDirectory.getDirectory().resolve(name);
     }
 
     /**
@@ -327,13 +332,13 @@ public class CompositeDirectory extends FilterDirectory {
     }
 
     private void cacheFile(String name) throws IOException {
-        Path filePath = localDirectory.getDirectory().resolve(name);
+        Path filePath = getFilePath(name);
         // put will increase the refCount for the path, making sure it is not evicted, will decrease the ref after it is uploaded to Remote
         // so that it can be evicted after that
         // this is just a temporary solution, will pin the file once support for that is added in FileCache
         // TODO : Pin the above filePath in the file cache once pinning support is added so that it cannot be evicted unless it has been
         // successfully uploaded to Remote
-        fileCache.put(filePath, new FullFileCachedIndexInputImpl(fileCache, filePath, localDirectory.openInput(name, IOContext.DEFAULT)));
+        fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, localDirectory.openInput(name, IOContext.DEFAULT)));
     }
 
 }
