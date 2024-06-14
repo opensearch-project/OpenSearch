@@ -25,7 +25,6 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteCoordinationMetadata;
 import org.opensearch.gateway.remote.model.RemoteCustomMetadata;
@@ -194,7 +193,7 @@ public class RemoteGlobalMetadataManager {
         LatchedActionListener<RemoteReadResult> listener
     ) {
         ActionListener actionListener = ActionListener.wrap(
-            response -> listener.onResponse(new RemoteReadResult((ToXContent) response, readEntity.getType(), componentName)),
+            response -> listener.onResponse(new RemoteReadResult(response, readEntity.getType(), componentName)),
             listener::onFailure
         );
         return () -> getStore(readEntity).readAsync(readEntity, actionListener);
