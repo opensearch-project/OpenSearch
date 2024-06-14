@@ -117,19 +117,25 @@ public class ImmutableCacheStats implements Writeable, ToXContent {
 
     @Override
     public String toString() {
-        return String.format(
-            "%s=%d, %s=%d, %s=%d, %s=%d, %s=%d",
-            Fields.HIT_COUNT,
-            hits,
-            Fields.MISS_COUNT,
-            misses,
-            Fields.EVICTIONS,
-            evictions,
-            Fields.SIZE_IN_BYTES,
-            sizeInBytes,
-            Fields.ITEM_COUNT,
-            items
-        );
+        return Fields.HIT_COUNT
+            + "="
+            + hits
+            + ", "
+            + Fields.MISS_COUNT
+            + "="
+            + misses
+            + ", "
+            + Fields.EVICTIONS
+            + "="
+            + evictions
+            + ", "
+            + Fields.SIZE_IN_BYTES
+            + "="
+            + sizeInBytes
+            + ", "
+            + Fields.ITEM_COUNT
+            + "="
+            + items;
     }
 
     /**
