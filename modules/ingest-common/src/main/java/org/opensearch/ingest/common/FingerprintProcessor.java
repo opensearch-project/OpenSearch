@@ -167,7 +167,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
         MessageDigest messageDigest = HashMethod.fromMethodName(hashMethod);
         assert (messageDigest != null);
         messageDigest.update(concatenatedFields.toString().getBytes(StandardCharsets.UTF_8));
-        document.setFieldValue(targetField, Base64.getEncoder().encodeToString(messageDigest.digest()));
+        document.setFieldValue(targetField, hashMethod + ":" + Base64.getEncoder().encodeToString(messageDigest.digest()));
 
         return document;
     }
