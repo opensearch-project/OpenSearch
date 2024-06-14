@@ -104,8 +104,8 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         );
 
         for (ImmutableCacheStatsHolder statsHolder : List.of(allLevelsStatsHolder, indicesOnlyStatsHolder)) {
-            assertStatsEqual(index1ExpectedStats, statsHolder.getStatsForDimensionValues(List.of(index1Name)));
-            assertStatsEqual(index2ExpectedStats, statsHolder.getStatsForDimensionValues(List.of(index2Name)));
+            assertEquals(index1ExpectedStats, statsHolder.getStatsForDimensionValues(List.of(index1Name)));
+            assertEquals(index2ExpectedStats, statsHolder.getStatsForDimensionValues(List.of(index2Name)));
         }
     }
 
@@ -141,7 +141,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
                 values.get("itemsOnHeapIndex1AfterTest")
             )
         );
-        assertStatsEqual(
+        assertEquals(
             index1HeapExpectedStats,
             allLevelsStatsHolder.getStatsForDimensionValues(List.of(index1Name, TIER_DIMENSION_VALUE_ON_HEAP))
         );
@@ -155,7 +155,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
                 values.get("itemsOnHeapIndex2AfterTest")
             )
         );
-        assertStatsEqual(
+        assertEquals(
             index2HeapExpectedStats,
             allLevelsStatsHolder.getStatsForDimensionValues(List.of(index2Name, TIER_DIMENSION_VALUE_ON_HEAP))
         );
@@ -169,7 +169,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
                 values.get("itemsOnDiskIndex1AfterTest")
             )
         );
-        assertStatsEqual(
+        assertEquals(
             index1DiskExpectedStats,
             allLevelsStatsHolder.getStatsForDimensionValues(List.of(index1Name, TIER_DIMENSION_VALUE_DISK))
         );
@@ -183,7 +183,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
                 values.get("itemsOnDiskIndex2AfterTest")
             )
         );
-        assertStatsEqual(
+        assertEquals(
             index2DiskExpectedStats,
             allLevelsStatsHolder.getStatsForDimensionValues(List.of(index2Name, TIER_DIMENSION_VALUE_DISK))
         );
@@ -220,7 +220,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
             )
         );
         ImmutableCacheStats heapStats = tiersOnlyStatsHolder.getStatsForDimensionValues(List.of(TIER_DIMENSION_VALUE_ON_HEAP));
-        assertStatsEqual(totalHeapExpectedStats, heapStats);
+        assertEquals(totalHeapExpectedStats, heapStats);
         ImmutableCacheStats totalDiskExpectedStats = returnNullIfAllZero(
             new ImmutableCacheStats(
                 values.get("hitsOnDiskIndex1") + values.get("hitsOnDiskIndex2"),
@@ -231,7 +231,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
             )
         );
         ImmutableCacheStats diskStats = tiersOnlyStatsHolder.getStatsForDimensionValues(List.of(TIER_DIMENSION_VALUE_DISK));
-        assertStatsEqual(totalDiskExpectedStats, diskStats);
+        assertEquals(totalDiskExpectedStats, diskStats);
     }
 
     public void testInvalidLevelsAreIgnored() throws Exception {
@@ -324,7 +324,7 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         ImmutableCacheStats totalStats = getNodeCacheStatsResult(client, List.of()).getTotalStats();
 
         // Check the new stats API values are as expected
-        assertStatsEqual(
+        assertEquals(
             new ImmutableCacheStats(expectedHits, expectedMisses, 0, expectedEntries * singleSearchSize, expectedEntries),
             totalStats
         );
@@ -503,17 +503,5 @@ public class TieredSpilloverCacheStatsIT extends OpenSearchIntegTestCase {
         assertEquals(1, nodeStatsResponse.getNodes().size());
         NodeCacheStats ncs = nodeStatsResponse.getNodes().get(0).getNodeCacheStats();
         return ncs.getStatsByCache(CacheType.INDICES_REQUEST_CACHE);
-    }
-
-    // Check each stat separately for more transparency if there's a failure
-    private void assertStatsEqual(ImmutableCacheStats expected, ImmutableCacheStats actual) {
-        if (expected == null && actual == null) {
-            return;
-        }
-        assertEquals(expected.getHits(), actual.getHits());
-        assertEquals(expected.getMisses(), actual.getMisses());
-        assertEquals(expected.getEvictions(), actual.getEvictions());
-        assertEquals(expected.getSizeInBytes(), actual.getSizeInBytes());
-        assertEquals(expected.getItems(), actual.getItems());
     }
 }
