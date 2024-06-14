@@ -2155,7 +2155,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentUploadeCount = directory.getSegmentsUploadedToRemoteStore().size();
                     }
                     try {
-                        Thread.sleep(TimeValue.timeValueSeconds(30).seconds());
+                        Thread.sleep(TimeValue.timeValueSeconds(30).millis());
                     } catch (InterruptedException ie) {
                         throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
                     }
