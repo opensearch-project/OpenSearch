@@ -131,7 +131,7 @@ public class RemoteClusterStateAttributesManager {
         ClusterState clusterState,
         ClusterState previousClusterState,
         boolean includeEphemeral,
-        boolean firstUploadForSplitGlobalMetadata
+        boolean firstUploadForEphemeralMetadata
     ) {
         if (!includeEphemeral) {
             // When includeEphemeral is false, we do not want store any custom objects
@@ -142,7 +142,7 @@ public class RemoteClusterStateAttributesManager {
                 NonDiffableValueSerializer.getAbstractInstance()
             );
         }
-        if (firstUploadForSplitGlobalMetadata) {
+        if (firstUploadForEphemeralMetadata) {
             // For first split global metadata upload, we want to upload all customs
             return DiffableUtils.diff(
                 Collections.emptyMap(),

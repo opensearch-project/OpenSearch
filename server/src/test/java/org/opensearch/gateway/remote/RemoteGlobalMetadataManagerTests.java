@@ -117,7 +117,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             CustomMetadata4.TYPE,
             new CustomMetadata4("data4"),
             CustomMetadata5.TYPE,
-            new CustomMetadata5("data4")
+            new CustomMetadata5("data5")
         );
         ClusterState currentState = ClusterState.builder(new ClusterName("test-cluster"))
             .metadata(Metadata.builder().customs(currentCustoms))
