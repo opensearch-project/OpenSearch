@@ -118,9 +118,7 @@ thirdPartyAudit {
 
     'com.github.luben.zstd.Zstd',
     'com.github.luben.zstd.util.Native',
-    'com.github.luben.zstd.BaseZstdBufferDecompressingStreamNoFinalizer',
-    'com.github.luben.zstd.ZstdBufferDecompressingStreamNoFinalizer',
-    'com.github.luben.zstd.ZstdDirectBufferDecompressingStreamNoFinalizer',
+    'com.github.luben.zstd.ZstdInputStreamNoFinalizer',
     'com.google.protobuf.ExtensionRegistryLite',
     'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
