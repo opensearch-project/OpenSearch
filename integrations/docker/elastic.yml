@@ -5,7 +5,6 @@ services:
     image: wazuh/indexer-events-generator
     build:
       context: ../tools/events-generator
-    container_name: events-generator
     depends_on:
       wazuh.indexer:
         condition: service_healthy
@@ -13,7 +12,6 @@ services:
 
   wazuh.indexer:
     image: opensearchproject/opensearch:2.12.0
-    container_name: wazuh.indexer
     depends_on:
       wazuh-certs-generator:
         condition: service_completed_successfully
@@ -54,7 +52,6 @@ services:
 
   wazuh.dashboard:
     image: opensearchproject/opensearch-dashboards:2.12.0
-    container_name: wazuh.dashboard
     depends_on:
       - wazuh.indexer
     hostname: wazuh.dashboard
@@ -68,7 +65,6 @@ services:
   wazuh-certs-generator:
     image: wazuh/wazuh-certs-generator:0.0.1
     hostname: wazuh-certs-generator
-    container_name: wazuh-certs-generator
     entrypoint: sh -c "/entrypoint.sh; chown -R 1000:999 /certificates; chmod 740 /certificates; chmod 440 /certificates/*"
     volumes:
       - ./certs/:/certificates/

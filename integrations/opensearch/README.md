@@ -13,15 +13,19 @@ This document describes how to prepare a Docker Compose environment to test the 
    ```bash
    docker compose -f ./docker/opensearch.yml up -d
    ```
+3. If you prefer, you can start the integration with the Wazuh Manager as data source:
+   ```bash
+   docker compose -f ./docker/manager-opensearch.yml up -d
+   ```
 
 The Docker Compose project will bring up the following services:
 
 - 1x Events Generator (learn more in [wazuh-indexer/integrations/tools/events-generator](../tools/events-generator/README.md)).
 - 1x Wazuh Indexer (OpenSearch).
-- 1x Wazuh Dashboards (OpenSearch Dashboards).
 - 1x Logstash
 - 1x OpenSearch
 - 1x OpenSearch Dashboards
+- 1x Wazuh Manager (optional).
 
 For custom configurations, you may need to modify these files:
 
@@ -29,12 +33,15 @@ For custom configurations, you may need to modify these files:
 - [docker/.env](../docker/.env): Environment variables file.
 - [opensearch/logstash/pipeline/indexer-to-opensearch.conf](./logstash/pipeline/indexer-to-opensearch.conf): Logstash Pipeline configuration file.
 
+If you opted to start the integration with the Wazuh Manager, you can modify the following files:
+- [docker/manager-opensearch.yml](../docker/manager-opensearch.yml): Docker Compose file.
+- [opensearch/logstash/pipeline/manager-to-opensearch.conf](./logstash/pipeline/manager-to-opensearch.conf): Logstash Pipeline configuration file.
+
 Check the files above for **credentials**, ports, and other configurations.
 
 | Service               | Address                | Credentials |
 | --------------------- | ---------------------- | ----------- |
 | Wazuh Indexer         | https://localhost:9200 | admin:admin |
-| Wazuh Dashboard       | https://localhost:5601 | admin:admin |
 | OpenSearch            | https://localhost:9201 | admin:admin |
 | OpenSearch Dashboards | https://localhost:5602 | admin:admin |
 

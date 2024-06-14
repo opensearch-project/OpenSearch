@@ -22,7 +22,6 @@ The Docker Compose project will bring up the following services:
 
 - 1x Events Generator (learn more in [wazuh-indexer/integrations/tools/events-generator](../tools/events-generator/README.md)).
 - 1x Wazuh Indexer (OpenSearch).
-- 1x Wazuh Dashboards (OpenSearch Dashboards).
 - 1x Logstash
 - 1x Elastic
 - 1x Kibana
@@ -43,7 +42,6 @@ Check the files above for **credentials**, ports, and other configurations.
 | Service          | Address                | Credentials     |
 | ---------------- | ---------------------- | --------------- |
 | Wazuh Indexer    | https://localhost:9200 | admin:admin     |
-| Wazuh Dashboards | https://localhost:5601 | admin:admin     |
 | Elastic          | https://localhost:9201 | elastic:elastic |
 | Kibana           | https://localhost:5602 | elastic:elastic |
 

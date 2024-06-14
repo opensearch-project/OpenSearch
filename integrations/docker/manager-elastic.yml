@@ -45,8 +45,6 @@ services:
       - ./certs/wazuh.manager.pem:/etc/ssl/filebeat.pem
       - ./certs/wazuh.manager-key.pem:/etc/ssl/filebeat.key
       - ./certs/root-ca.pem:/usr/share/logstash/root-ca.pem
-      - ../elastic/logstash/pipeline:/usr/share/logstash/pipeline
-      - es_certs:/etc/certs/elastic
       - alerts:/var/ossec/logs/alerts/
 
   wazuh.indexer:
