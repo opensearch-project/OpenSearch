@@ -232,12 +232,12 @@ public class RemoteClusterStateCustomsTests extends OpenSearchTestCase {
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());
             assertThat(inputStream.available(), greaterThan(0));
-            Custom readclusterStateCustoms = remoteObjectForUpload.deserialize(inputStream);
-            assertThat(readclusterStateCustoms, is(clusterStateCustoms));
+            Custom readClusterStateCustoms = remoteObjectForUpload.deserialize(inputStream);
+            assertThat(readClusterStateCustoms, is(clusterStateCustoms));
         }
     }
 
-    private Custom getClusterStateCustom() {
+    public static SnapshotsInProgress getClusterStateCustom() {
         return SnapshotsInProgress.of(
             List.of(
                 new SnapshotsInProgress.Entry(
