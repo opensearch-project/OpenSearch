@@ -292,7 +292,7 @@ public class RemoteClusterStateService implements Closeable {
         assert previousClusterState.metadata().coordinationMetadata().term() == clusterState.metadata().coordinationMetadata().term();
 
         boolean firstUploadForSplitGlobalMetadata = !previousManifest.hasMetadataAttributesFiles();
-        boolean firstUploadForEphemeralMetadata = previousManifest.getDiscoveryNodesMetadata() != null;
+        boolean firstUploadForEphemeralMetadata = previousManifest.getDiscoveryNodesMetadata() == null;
 
         final DiffableUtils.MapDiff<String, Metadata.Custom, Map<String, Metadata.Custom>> customsDiff = remoteGlobalMetadataManager
             .getCustomsDiff(clusterState, previousClusterState, firstUploadForSplitGlobalMetadata, isPublicationEnabled);
