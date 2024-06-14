@@ -1096,13 +1096,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (!dropped.isEmpty()) {
                     dropped.forEach(t -> itemDroppedHandler.accept(t.getSlot()));
                 }
-                if (!succeeded.isEmpty()) {
-                    for (IngestDocumentWrapper ingestDocumentWrapper : succeeded) {
-                        updateIndexRequestWithIngestDocument(
-                            slotToindexRequestMap.get(ingestDocumentWrapper.getSlot()),
-                            ingestDocumentWrapper.getIngestDocument()
-                        );
-                    }
+                for (IngestDocumentWrapper ingestDocumentWrapper : succeeded) {
+                    updateIndexRequestWithIngestDocument(
+                        slotToindexRequestMap.get(ingestDocumentWrapper.getSlot()),
+                        ingestDocumentWrapper.getIngestDocument()
+                    );
                 }
                 handler.accept(allResults);
             }
