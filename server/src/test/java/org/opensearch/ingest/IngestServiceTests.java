@@ -97,6 +97,7 @@ import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
@@ -1894,7 +1895,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         verify(mockCompoundProcessor, never()).execute(any(), any());
     }
 
-    public void testExecuteBulkRequestInBatchWithExceptionInCallback() {
+    public void testExecuteBulkRequestInBatchWithExceptionAndDropInCallback() {
         CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
         IngestService ingestService = createWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
@@ -1906,11 +1907,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
-        bulkRequest.batchSize(2);
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest3);
+        bulkRequest.batchSize(3);
 
         List<IngestDocumentWrapper> results = Arrays.asList(
             new IngestDocumentWrapper(0, IngestService.toIngestDocument(indexRequest1), null),
-            new IngestDocumentWrapper(1, null, new RuntimeException())
+            new IngestDocumentWrapper(1, null, new RuntimeException()),
+            new IngestDocumentWrapper(2, null, null)
         );
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
@@ -1923,16 +1927,22 @@ public class IngestServiceTests extends OpenSearchTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final IntConsumer dropHandler = mock(IntConsumer.class);
         ingestService.executeBulkRequest(
-            2,
+            3,
             bulkRequest.requests(),
             failureHandler,
             completionHandler,
-            indexReq -> {},
+            dropHandler,
             Names.WRITE,
             bulkRequest
         );
-        verify(failureHandler, times(1)).accept(any(), any());
+        ArgumentCaptor<Integer> failureSlotCaptor = ArgumentCaptor.forClass(Integer.class);
+        verify(failureHandler, times(1)).accept(failureSlotCaptor.capture(), any());
+        assertEquals(1, failureSlotCaptor.getValue().intValue());
+        ArgumentCaptor<Integer> dropSlotCaptor = ArgumentCaptor.forClass(Integer.class);
+        verify(dropHandler, times(1)).accept(dropSlotCaptor.capture());
+        assertEquals(2, dropSlotCaptor.getValue().intValue());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
         verify(mockCompoundProcessor, times(1)).batchExecute(any(), any());
         verify(mockCompoundProcessor, never()).execute(any(), any());

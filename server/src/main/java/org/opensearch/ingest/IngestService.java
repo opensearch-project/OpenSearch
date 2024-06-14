@@ -775,7 +775,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                 ),
                                 results.get(i).getException()
                             );
-                            onFailure.accept(slots.get(i), results.get(i).getException());
+                            onFailure.accept(results.get(i).getSlot(), results.get(i).getException());
                         }
                     }
 
@@ -1092,9 +1092,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
                 if (!exceptions.isEmpty()) {
                     totalMetrics.failedN(exceptions.size());
-                } else if (!dropped.isEmpty()) {
+                }
+                if (!dropped.isEmpty()) {
                     dropped.forEach(t -> itemDroppedHandler.accept(t.getSlot()));
-                } else {
+                }
+                if (!succeeded.isEmpty()) {
                     for (IngestDocumentWrapper ingestDocumentWrapper : succeeded) {
                         updateIndexRequestWithIngestDocument(
                             slotToindexRequestMap.get(ingestDocumentWrapper.getSlot()),
