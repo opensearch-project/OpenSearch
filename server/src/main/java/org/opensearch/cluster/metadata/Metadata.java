@@ -835,10 +835,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
-    public Map<String, ResourceLimitGroup> resourceLimitGroups() {
-        return Optional.ofNullable((ResourceLimitGroupMetadata) this.custom(ResourceLimitGroupMetadata.TYPE))
-            .map(ResourceLimitGroupMetadata::resourceLimitGroups)
-            .orElse(Collections.emptyMap());
+    public Set<QueryGroup> queryGroups() {
+        return Optional.ofNullable((QueryGroupMetadata) this.custom(QueryGroupMetadata.TYPE))
+            .map(QueryGroupMetadata::queryGroups)
+            .orElse(Collections.emptySet());
     }
 
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
@@ -1335,34 +1335,32 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public Builder resourceLimitGroups(final Map<String, ResourceLimitGroup> resourceLimitGroups) {
-            this.customs.put(ResourceLimitGroupMetadata.TYPE, new ResourceLimitGroupMetadata(resourceLimitGroups));
+        public Builder queryGroups(final Set<QueryGroup> queryGroups) {
+            this.customs.put(QueryGroupMetadata.TYPE, new QueryGroupMetadata(queryGroups));
             return this;
         }
 
-        public ResourceLimitGroup getResourceLimitGroup(final String resourceLimitGroupName) {
-            return getResourceLimitGroups().get(resourceLimitGroupName);
+        public Builder put(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Set<QueryGroup> existing = getQueryGroups();
+            HashSet<QueryGroup> updatedGroups = new HashSet<>(existing);
+            updatedGroups.add(queryGroup);
+            return queryGroups(updatedGroups);
         }
 
-        public Builder put(final ResourceLimitGroup resourceLimitGroup) {
-            Objects.requireNonNull(resourceLimitGroup, "resourceLimitGroup should not be null");
-            Map<String, ResourceLimitGroup> existing = new HashMap<>(getResourceLimitGroups());
-            existing.put(resourceLimitGroup.getName(), resourceLimitGroup);
-            return resourceLimitGroups(existing);
+        public Builder remove(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Set<QueryGroup> existing = getQueryGroups();
+            HashSet<QueryGroup> updatedGroups = new HashSet<>(existing);
+            updatedGroups.remove(queryGroup);
+            return queryGroups(updatedGroups);
         }
 
-        public Builder removeResourceLimitGroup(final String resourceLimitGroupName) {
-            Objects.requireNonNull(resourceLimitGroupName, "resourceLimitGroup should not be null");
-            Map<String, ResourceLimitGroup> existing = new HashMap<>(getResourceLimitGroups());
-            existing.remove(resourceLimitGroupName);
-            return resourceLimitGroups(existing);
-        }
-
-        private Map<String, ResourceLimitGroup> getResourceLimitGroups() {
-            return Optional.ofNullable(this.customs.get(ResourceLimitGroupMetadata.TYPE))
-                .map(o -> (ResourceLimitGroupMetadata) o)
-                .map(ResourceLimitGroupMetadata::resourceLimitGroups)
-                .orElse(Collections.emptyMap());
+        public Set<QueryGroup> getQueryGroups() {
+            return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
+                .map(o -> (QueryGroupMetadata) o)
+                .map(QueryGroupMetadata::queryGroups)
+                .orElse(Collections.emptySet());
         }
 
         private Map<String, View> getViews() {
@@ -1761,8 +1759,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
                     String prefix = DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-";
                     Set<String> conflicts = indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the
-                                                                                                                               // char after
-                                                                                                                               // '-'
+                        // char after
+                        // '-'
                         .keySet()
                         .stream()
                         .filter(s -> NUMBER_PATTERN.matcher(s.substring(prefix.length())).matches())
