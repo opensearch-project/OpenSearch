@@ -46,7 +46,7 @@ public class FileCachedIndexInputTests extends OpenSearchTestCase {
 
     protected void setupIndexInputAndAddToFileCache() {
         fileCachedIndexInput = new FileCachedIndexInput(fileCache, filePath, underlyingIndexInput);
-        fileCache.put(filePath, new FullFileCachedIndexInputImpl(fileCache, filePath, fileCachedIndexInput));
+        fileCache.put(filePath, new CachedFullFileIndexInput(fileCache, filePath, fileCachedIndexInput));
     }
 
     public void testClone() throws IOException {

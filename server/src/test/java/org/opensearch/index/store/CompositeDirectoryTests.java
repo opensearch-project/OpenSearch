@@ -157,11 +157,13 @@ public class CompositeDirectoryTests extends BaseRemoteSegmentStoreDirectoryTest
 
     public void testAfterSyncToRemote() throws IOException {
         // File will be present locally until uploaded to Remote
-        assertTrue(existsInLocalDirectory("_1.cfe"));
-        compositeDirectory.afterSyncToRemote("_1.cfe");
+        assertTrue(existsInLocalDirectory(FILE_PRESENT_LOCALLY));
+        compositeDirectory.afterSyncToRemote(FILE_PRESENT_LOCALLY);
         fileCache.prune();
         // After uploading to Remote, refCount will be decreased by 1 making it 0 and will be evicted if cache is pruned
-        assertFalse(existsInLocalDirectory("_1.cfe"));
+        assertFalse(existsInLocalDirectory(FILE_PRESENT_LOCALLY));
+        // Asserting file is not present in FileCache
+        assertNull(fileCache.get(getFilePath(FILE_PRESENT_LOCALLY)));
     }
 
     private void addFilesToDirectory(String[] files) throws IOException {

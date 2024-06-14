@@ -71,8 +71,8 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
             clones.forEach(indexInput -> {
                 try {
                     indexInput.close();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                } catch (Exception e) {
+                    logger.trace("Exception while closing clone - {}", e.getMessage());
                 }
             });
             try {
@@ -81,6 +81,7 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
                 logger.trace("FullFileCachedIndexInput already closed");
             }
             luceneIndexInput = null;
+            clones.clear();
             closed = true;
         }
     }

@@ -44,8 +44,8 @@ public class CloseableFilterIndexOutput extends FilterIndexOutput {
 
     @Override
     public void close() throws IOException {
-        super.close();
         if (isClosed.get() == false) {
+            super.close();
             onCloseListener.onClose(fileName);
             isClosed.set(true);
         }
