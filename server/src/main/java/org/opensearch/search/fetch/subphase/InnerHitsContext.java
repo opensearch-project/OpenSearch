@@ -120,11 +120,6 @@ public final class InnerHitsContext {
         }
 
         @Override
-        public boolean hasInnerHits() {
-            return childInnerHits != null;
-        }
-
-        @Override
         public InnerHitsContext innerHits() {
             return childInnerHits;
         }

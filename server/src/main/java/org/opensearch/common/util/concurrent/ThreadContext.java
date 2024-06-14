@@ -484,6 +484,16 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Update the {@code value} for the specified {@code key}
+     *
+     * @param key         the header name
+     * @param value       the header value
+     */
+    public void updateResponseHeader(final String key, final String value) {
+        updateResponseHeader(key, value, v -> v);
+    }
+
+    /**
      * Add the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
      * {@code value} after applying {@code uniqueValue} is ignored.
      *
@@ -492,7 +502,19 @@ public final class ThreadContext implements Writeable {
      * @param uniqueValue the function that produces de-duplication values
      */
     public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
-        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize));
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize, false));
+    }
+
+    /**
+     * Update the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
+     * {@code value} after applying {@code uniqueValue} is ignored.
+     *
+     * @param key         the header name
+     * @param value       the header value
+     * @param uniqueValue the function that produces de-duplication values
+     */
+    public void updateResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize, true));
     }
 
     /**
@@ -717,7 +739,8 @@ public final class ThreadContext implements Writeable {
             final String value,
             final Function<String, String> uniqueValue,
             final int maxWarningHeaderCount,
-            final long maxWarningHeaderSize
+            final long maxWarningHeaderSize,
+            final boolean replaceExistingKey
         ) {
             assert value != null;
             long newWarningHeaderSize = warningHeadersSize;
@@ -759,8 +782,13 @@ public final class ThreadContext implements Writeable {
                 if (existingValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }
-                // preserve insertion order
-                final Set<String> newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
+                Set<String> newValues;
+                if (replaceExistingKey) {
+                    newValues = Stream.of(value).collect(LINKED_HASH_SET_COLLECTOR);
+                } else {
+                    // preserve insertion order
+                    newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
+                }
                 newResponseHeaders = new HashMap<>(responseHeaders);
                 newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
             } else {

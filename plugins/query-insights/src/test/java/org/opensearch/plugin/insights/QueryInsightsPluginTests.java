@@ -21,6 +21,7 @@ import org.opensearch.plugin.insights.rules.resthandler.top_queries.RestTopQueri
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
@@ -46,12 +47,8 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
         Settings.Builder settingsBuilder = Settings.builder();
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
-        clusterSettings.registerSetting(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE);
-
-        clusterService = new ClusterService(settings, clusterSettings, threadPool);
-
+        QueryInsightsTestUtils.registerAllQueryInsightsSettings(clusterSettings);
+        clusterService = ClusterServiceUtils.createClusterService(settings, clusterSettings, threadPool);
     }
 
     public void testGetSettings() {
@@ -59,7 +56,16 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
             Arrays.asList(
                 QueryInsightsSettings.TOP_N_LATENCY_QUERIES_ENABLED,
                 QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE,
-                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE
+                QueryInsightsSettings.TOP_N_LATENCY_QUERIES_WINDOW_SIZE,
+                QueryInsightsSettings.TOP_N_LATENCY_EXPORTER_SETTINGS,
+                QueryInsightsSettings.TOP_N_CPU_QUERIES_ENABLED,
+                QueryInsightsSettings.TOP_N_CPU_QUERIES_SIZE,
+                QueryInsightsSettings.TOP_N_CPU_QUERIES_WINDOW_SIZE,
+                QueryInsightsSettings.TOP_N_CPU_EXPORTER_SETTINGS,
+                QueryInsightsSettings.TOP_N_MEMORY_QUERIES_ENABLED,
+                QueryInsightsSettings.TOP_N_MEMORY_QUERIES_SIZE,
+                QueryInsightsSettings.TOP_N_MEMORY_QUERIES_WINDOW_SIZE,
+                QueryInsightsSettings.TOP_N_MEMORY_EXPORTER_SETTINGS
             ),
             queryInsightsPlugin.getSettings()
         );

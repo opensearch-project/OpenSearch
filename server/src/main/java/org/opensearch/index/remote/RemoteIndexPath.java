@@ -19,6 +19,7 @@ import org.opensearch.index.remote.RemoteStoreEnums.DataType;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
+import org.opensearch.index.remote.RemoteStorePathStrategy.ShardDataPathInput;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -52,7 +53,7 @@ public class RemoteIndexPath implements ToXContentFragment {
         combinedPath.putAll(SEGMENT_PATH);
         COMBINED_PATH = Collections.unmodifiableMap(combinedPath);
     }
-    private static final String DEFAULT_VERSION = "1";
+    public static final String DEFAULT_VERSION = "1";
     public static final String DIR = "remote-index-path";
     public static final String FILE_NAME_FORMAT = "remote_path_%s";
     static final String KEY_VERSION = "version";
@@ -60,6 +61,8 @@ public class RemoteIndexPath implements ToXContentFragment {
     static final String KEY_SHARD_COUNT = "shard_count";
     static final String KEY_PATH_CREATION_MAP = "path_creation_map";
     static final String KEY_PATHS = "paths";
+
+    private final String version;
     private final String indexUUID;
     private final int shardCount;
     private final Iterable<String> basePath;
@@ -109,6 +112,7 @@ public class RemoteIndexPath implements ToXContentFragment {
                     .getFormattedMessage()
             );
         }
+        this.version = DEFAULT_VERSION;
         this.indexUUID = indexUUID;
         this.shardCount = shardCount;
         this.basePath = basePath;
@@ -119,7 +123,7 @@ public class RemoteIndexPath implements ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(KEY_VERSION, DEFAULT_VERSION);
+        builder.field(KEY_VERSION, version);
         builder.field(KEY_INDEX_UUID, indexUUID);
         builder.field(KEY_SHARD_COUNT, shardCount);
         builder.field(PathType.NAME, pathType.name());
@@ -138,7 +142,7 @@ public class RemoteIndexPath implements ToXContentFragment {
             DataCategory dataCategory = entry.getKey();
             for (DataType type : entry.getValue()) {
                 for (int shardNo = 0; shardNo < shardCount; shardNo++) {
-                    PathInput pathInput = PathInput.builder()
+                    PathInput pathInput = ShardDataPathInput.builder()
                         .basePath(new BlobPath().add(basePath))
                         .indexUUID(indexUUID)
                         .shardId(Integer.toString(shardNo))
@@ -155,5 +159,9 @@ public class RemoteIndexPath implements ToXContentFragment {
 
     public static RemoteIndexPath fromXContent(XContentParser ignored) {
         throw new UnsupportedOperationException("RemoteIndexPath.fromXContent() is not supported");
+    }
+
+    String getVersion() {
+        return version;
     }
 }

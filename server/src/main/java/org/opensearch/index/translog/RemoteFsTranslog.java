@@ -91,6 +91,7 @@ public class RemoteFsTranslog extends Translog {
     private static final int SYNC_PERMIT = 1;
     private final Semaphore syncPermit = new Semaphore(SYNC_PERMIT);
     private final AtomicBoolean pauseSync = new AtomicBoolean(false);
+    private final boolean isTranslogMetadataEnabled;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -110,6 +111,7 @@ public class RemoteFsTranslog extends Translog {
         this.startedPrimarySupplier = startedPrimarySupplier;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
+        isTranslogMetadataEnabled = indexSettings().isTranslogMetadataEnabled();
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -117,7 +119,8 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             indexSettings().getRemoteStorePathStrategy(),
-            remoteStoreSettings
+            remoteStoreSettings,
+            isTranslogMetadataEnabled
         );
         try {
             download(translogTransferManager, location, logger, config.shouldSeedRemote());
@@ -169,7 +172,8 @@ public class RemoteFsTranslog extends Translog {
         RemoteStorePathStrategy pathStrategy,
         RemoteStoreSettings remoteStoreSettings,
         Logger logger,
-        boolean seedRemote
+        boolean seedRemote,
+        boolean isTranslogMetadataEnabled
     ) throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
             Locale.ROOT,
@@ -188,7 +192,8 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             pathStrategy,
-            remoteStoreSettings
+            remoteStoreSettings,
+            isTranslogMetadataEnabled
         );
         RemoteFsTranslog.download(translogTransferManager, location, logger, seedRemote);
         logger.trace(remoteTranslogTransferTracker.toString());
@@ -293,12 +298,13 @@ public class RemoteFsTranslog extends Translog {
         FileTransferTracker fileTransferTracker,
         RemoteTranslogTransferTracker tracker,
         RemoteStorePathStrategy pathStrategy,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isTranslogMetadataEnabled
     ) {
         assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
         String shardIdStr = String.valueOf(shardId.id());
-        RemoteStorePathStrategy.PathInput dataPathInput = RemoteStorePathStrategy.PathInput.builder()
+        RemoteStorePathStrategy.ShardDataPathInput dataPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
             .basePath(blobStoreRepository.basePath())
             .indexUUID(indexUUID)
             .shardId(shardIdStr)
@@ -306,7 +312,7 @@ public class RemoteFsTranslog extends Translog {
             .dataType(DATA)
             .build();
         BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
-        RemoteStorePathStrategy.PathInput mdPathInput = RemoteStorePathStrategy.PathInput.builder()
+        RemoteStorePathStrategy.ShardDataPathInput mdPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
             .basePath(blobStoreRepository.basePath())
             .indexUUID(indexUUID)
             .shardId(shardIdStr)
@@ -315,7 +321,16 @@ public class RemoteFsTranslog extends Translog {
             .build();
         BlobPath mdPath = pathStrategy.generatePath(mdPathInput);
         BlobStoreTransferService transferService = new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool);
-        return new TranslogTransferManager(shardId, transferService, dataPath, mdPath, fileTransferTracker, tracker, remoteStoreSettings);
+        return new TranslogTransferManager(
+            shardId,
+            transferService,
+            dataPath,
+            mdPath,
+            fileTransferTracker,
+            tracker,
+            remoteStoreSettings,
+            isTranslogMetadataEnabled
+        );
     }
 
     @Override
@@ -592,7 +607,8 @@ public class RemoteFsTranslog extends Translog {
         ShardId shardId,
         ThreadPool threadPool,
         RemoteStorePathStrategy pathStrategy,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isTranslogMetadataEnabled
     ) throws IOException {
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
@@ -607,7 +623,8 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             remoteTranslogTransferTracker,
             pathStrategy,
-            remoteStoreSettings
+            remoteStoreSettings,
+            isTranslogMetadataEnabled
         );
         // clean up all remote translog files
         translogTransferManager.deleteTranslogFiles();
@@ -689,6 +706,10 @@ public class RemoteFsTranslog extends Translog {
      */
     @Override
     protected boolean shouldFlush() {
-        return readers.size() >= translogTransferManager.getMaxRemoteTranslogReadersSettings();
+        int maxRemoteTlogReaders = translogTransferManager.getMaxRemoteTranslogReadersSettings();
+        if (maxRemoteTlogReaders == -1) {
+            return false;
+        }
+        return readers.size() >= maxRemoteTlogReaders;
     }
 }

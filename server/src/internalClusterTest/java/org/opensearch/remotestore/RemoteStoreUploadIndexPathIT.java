@@ -13,11 +13,13 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.remote.RemoteIndexPath;
+import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
-import java.util.Locale;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
@@ -39,6 +41,7 @@ public class RemoteStoreUploadIndexPathIT extends RemoteStoreBaseIntegTestCase {
      * wherever not required.
      */
     public void testRemoteIndexPathFileCreation() throws ExecutionException, InterruptedException, IOException {
+        asyncUploadMockFsRepo = false;
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(2);
 
@@ -81,28 +84,29 @@ public class RemoteStoreUploadIndexPathIT extends RemoteStoreBaseIntegTestCase {
 
     }
 
-    private void validateRemoteIndexPathFile(boolean exists) {
+    private void validateRemoteIndexPathFile(boolean exists) throws IOException {
         String indexUUID = client().admin()
             .indices()
             .prepareGetSettings(INDEX_NAME)
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-
+        String fileName = generatePartFileName(indexUUID);
         assertEquals(exists, FileSystemUtils.exists(translogRepoPath.resolve(RemoteIndexPath.DIR)));
-        assertEquals(
-            exists,
-            FileSystemUtils.exists(
-                translogRepoPath.resolve(RemoteIndexPath.DIR)
-                    .resolve(String.format(Locale.ROOT, RemoteIndexPath.FILE_NAME_FORMAT, indexUUID))
-            )
-        );
-        assertEquals(exists, FileSystemUtils.exists(segmentRepoPath.resolve(RemoteIndexPath.DIR)));
-        assertEquals(
-            exists,
-            FileSystemUtils.exists(
-                segmentRepoPath.resolve(RemoteIndexPath.DIR)
-                    .resolve(String.format(Locale.ROOT, RemoteIndexPath.FILE_NAME_FORMAT, indexUUID))
-            )
-        );
+        if (exists) {
+            Path[] files = FileSystemUtils.files(translogRepoPath.resolve(RemoteIndexPath.DIR));
+            assertEquals(1, files.length);
+            assertTrue(Arrays.stream(files).anyMatch(file -> file.toString().contains(fileName)));
+            String translogPathFile = files[0].toString();
+            assertTrue(FileSystemUtils.exists(segmentRepoPath.resolve(RemoteIndexPath.DIR)));
+            files = FileSystemUtils.files(segmentRepoPath.resolve(RemoteIndexPath.DIR));
+            assertEquals(1, files.length);
+            assertTrue(Arrays.stream(files).anyMatch(file -> file.toString().contains(fileName)));
+            String segmentPathFile = files[0].toString();
+            assertNotEquals(translogPathFile, segmentPathFile);
+        }
+    }
+
+    private String generatePartFileName(String indexUUID) {
+        return String.join(RemoteIndexPathUploader.DELIMITER, indexUUID, "2", RemoteIndexPath.DEFAULT_VERSION);
     }
 }

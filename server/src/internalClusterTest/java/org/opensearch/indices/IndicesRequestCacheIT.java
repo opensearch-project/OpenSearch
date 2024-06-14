@@ -34,6 +34,7 @@ package org.opensearch.indices;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -43,11 +44,17 @@ import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.client.Client;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.query.QueryBuilders;
@@ -59,6 +66,8 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -70,6 +79,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.opensearch.indices.IndicesRequestCache.INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING;
 import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEANUP_INTERVAL_SETTING_KEY;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -1067,24 +1077,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     // staleness threshold dynamic updates should throw exceptions on invalid input
     public void testInvalidStalenessThresholdUpdateThrowsException() throws Exception {
-        int cacheCleanIntervalInMillis = 1;
-        String node = internalCluster().startNode(
-            Settings.builder()
-                .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.90)
-                .put(
-                    IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_INTERVAL_SETTING_KEY,
-                    TimeValue.timeValueMillis(cacheCleanIntervalInMillis)
-                )
-        );
-        Client client = client(node);
-        String index1 = "index1";
-        setupIndex(client, index1);
-
-        // create first cache entry in index1
-        createCacheEntry(client, index1, "hello");
-        assertCacheState(client, index1, 0, 1);
-        assertTrue(getRequestCacheStats(client, index1).getMemorySizeInBytes() > 0);
-
         // Update indices.requests.cache.cleanup.staleness_threshold to "10%" with illegal argument
         assertThrows("Ratio should be in [0-1.0]", IllegalArgumentException.class, () -> {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
@@ -1093,15 +1085,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             );
             client().admin().cluster().updateSettings(updateSettingsRequest).actionGet();
         });
-
-        // everything else should continue to work fine later on.
-        // force refresh so that it creates 1 stale key
-        flushAndRefresh(index1);
-        // sleep until cache cleaner would have cleaned up the stale key from index 2
-        assertBusy(() -> {
-            // cache cleaner should NOT have cleaned from index 1
-            assertEquals(0, getRequestCacheStats(client, index1).getMemorySizeInBytes());
-        }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
     // closing the Index after caching will clean up from Indices Request Cache
@@ -1119,6 +1102,10 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         String index = "index";
         setupIndex(client, index);
 
+        // assert there are no entries in the cache for index
+        assertEquals(0, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // assert there are no entries in the cache from other indices in the node
+        assertEquals(0, getNodeCacheStats(client).getMemorySizeInBytes());
         // create first cache entry in index
         createCacheEntry(client, index, "hello");
         assertCacheState(client, index, 0, 1);
@@ -1136,7 +1123,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // sleep until cache cleaner would have cleaned up the stale key from index
         assertBusy(() -> {
             // cache cleaner should have cleaned up the stale keys from index
-            assertFalse(getNodeCacheStats(client).getMemorySizeInBytes() > 0);
+            assertEquals(0, getNodeCacheStats(client).getMemorySizeInBytes());
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
@@ -1155,6 +1142,10 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         String index = "index";
         setupIndex(client, index);
 
+        // assert there are no entries in the cache for index
+        assertEquals(0, getRequestCacheStats(client, index).getMemorySizeInBytes());
+        // assert there are no entries in the cache from other indices in the node
+        assertEquals(0, getNodeCacheStats(client).getMemorySizeInBytes());
         // create first cache entry in index
         createCacheEntry(client, index, "hello");
         assertCacheState(client, index, 0, 1);
@@ -1173,13 +1164,13 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         // sleep until cache cleaner would have cleaned up the stale key from index
         assertBusy(() -> {
             // cache cleaner should have cleaned up the stale keys from index
-            assertFalse(getNodeCacheStats(client).getMemorySizeInBytes() > 0);
+            assertEquals(0, getNodeCacheStats(client).getMemorySizeInBytes());
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
     // when staleness threshold is lower than staleness, it should clean the cache from all indices having stale keys
     public void testStaleKeysCleanupWithMultipleIndices() throws Exception {
-        int cacheCleanIntervalInMillis = 300;
+        int cacheCleanIntervalInMillis = 10;
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
@@ -1194,38 +1185,137 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         setupIndex(client, index1);
         setupIndex(client, index2);
 
+        // assert cache is empty for index1
+        assertEquals(0, getRequestCacheStats(client, index1).getMemorySizeInBytes());
         // create first cache entry in index1
         createCacheEntry(client, index1, "hello");
         assertCacheState(client, index1, 0, 1);
-        long memorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
-        assertTrue(memorySizeForIndex1 > 0);
+        long memorySizeForIndex1With1Entries = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1With1Entries > 0);
 
         // create second cache entry in index1
         createCacheEntry(client, index1, "there");
         assertCacheState(client, index1, 0, 2);
-        long finalMemorySizeForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
-        assertTrue(finalMemorySizeForIndex1 > memorySizeForIndex1);
+        long memorySizeForIndex1With2Entries = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+        assertTrue(memorySizeForIndex1With2Entries > memorySizeForIndex1With1Entries);
 
+        // assert cache is empty for index2
+        assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
         // create first cache entry in index2
         createCacheEntry(client, index2, "hello");
         assertCacheState(client, index2, 0, 1);
         assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
 
-        // force refresh index 1 so that it creates 2 stale keys
-        flushAndRefresh(index1);
-        // create another cache entry in index 1, this should not be cleaned up.
+        // force refresh both index1 and index2
+        flushAndRefresh(index1, index2);
+        // create another cache entry in index 1 same as memorySizeForIndex1With1Entries, this should not be cleaned up.
         createCacheEntry(client, index1, "hello");
-        // record the size of this entry
-        long memorySizeOfLatestEntryForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes() - finalMemorySizeForIndex1;
-        // force refresh index 2 so that it creates 1 stale key
-        flushAndRefresh(index2);
-        // sleep until cache cleaner would have cleaned up the stale key from index 2
+        // sleep until cache cleaner would have cleaned up the stale key from index2
         assertBusy(() -> {
-            // cache cleaner should have cleaned up the stale key from index 2
+            // cache cleaner should have cleaned up the stale key from index2 and hence cache should be empty
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
-            // cache cleaner should have only cleaned up the stale entities
-            assertEquals(memorySizeOfLatestEntryForIndex1, getRequestCacheStats(client, index1).getMemorySizeInBytes());
+            // cache cleaner should have only cleaned up the stale entities for index1
+            long currentMemorySizeInBytesForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
+            // assert the memory size of index1 to only contain 1 entry added after flushAndRefresh
+            assertEquals(memorySizeForIndex1With1Entries, currentMemorySizeInBytesForIndex1);
+            // cache for index1 should not be empty since there was an item cached after flushAndRefresh
+            assertTrue(currentMemorySizeInBytesForIndex1 > 0);
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
+    }
+
+    public void testDeleteAndCreateSameIndexShardOnSameNode() throws Exception {
+        String node_1 = internalCluster().startNode(Settings.builder().build());
+        Client client = client(node_1);
+
+        logger.info("Starting a node in the cluster");
+
+        assertThat(cluster().size(), equalTo(1));
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1").execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        String indexName = "test";
+
+        logger.info("Creating an index: {} with 2 shards", indexName);
+        createIndex(
+            indexName,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+
+        ensureGreen(indexName);
+
+        logger.info("Writing few docs and searching those which will cache items in RequestCache");
+        indexRandom(true, client.prepareIndex(indexName).setSource("k", "hello"));
+        indexRandom(true, client.prepareIndex(indexName).setSource("y", "hello again"));
+        SearchResponse resp = client.prepareSearch(indexName).setRequestCache(true).setQuery(QueryBuilders.termQuery("k", "hello")).get();
+        assertSearchResponse(resp);
+        resp = client.prepareSearch(indexName).setRequestCache(true).setQuery(QueryBuilders.termQuery("y", "hello")).get();
+
+        RequestCacheStats stats = getNodeCacheStats(client);
+        assertTrue(stats.getMemorySizeInBytes() > 0);
+
+        logger.info("Disabling allocation");
+        Settings newSettings = Settings.builder()
+            .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE.name())
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
+
+        logger.info("Starting a second node");
+        String node_2 = internalCluster().startDataOnlyNode(Settings.builder().build());
+        assertThat(cluster().size(), equalTo(2));
+        healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        logger.info("Moving the shard:{} from node:{} to node:{}", indexName + "#0", node_1, node_2);
+        MoveAllocationCommand cmd = new MoveAllocationCommand(indexName, 0, node_1, node_2);
+        internalCluster().client().admin().cluster().prepareReroute().add(cmd).get();
+        ClusterHealthResponse clusterHealth = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .get();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final Index index = state.metadata().index(indexName).getIndex();
+
+        assertBusy(() -> {
+            assertFalse(Arrays.stream(shardDirectory(node_1, index, 0)).anyMatch(Files::exists));
+            assertEquals(1, Arrays.stream(shardDirectory(node_2, index, 0)).filter(Files::exists).count());
+        });
+
+        logger.info("Moving the shard: {} again from node:{} to node:{}", indexName + "#0", node_2, node_1);
+        cmd = new MoveAllocationCommand(indexName, 0, node_2, node_1);
+        internalCluster().client().admin().cluster().prepareReroute().add(cmd).get();
+        clusterHealth = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .get();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+
+        assertBusy(() -> {
+            assertEquals(1, Arrays.stream(shardDirectory(node_1, index, 0)).filter(Files::exists).count());
+            assertFalse(Arrays.stream(shardDirectory(node_2, index, 0)).anyMatch(Files::exists));
+        });
+
+        logger.info("Clearing the cache for index:{}. And verify the request stats doesn't go negative", indexName);
+        ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(indexName);
+        client.admin().indices().clearCache(clearIndicesCacheRequest).actionGet();
+
+        stats = getNodeCacheStats(client(node_1));
+        assertTrue(stats.getMemorySizeInBytes() == 0);
+        stats = getNodeCacheStats(client(node_2));
+        assertTrue(stats.getMemorySizeInBytes() == 0);
+    }
+
+    private Path[] shardDirectory(String server, Index index, int shard) {
+        NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
+        final Path[] paths = env.availableShardPaths(new ShardId(index, shard));
+        // the available paths of the shard may be bigger than the 1,
+        // it depends on `InternalTestCluster.numDataPaths`.
+        return paths;
     }
 
     private void setupIndex(Client client, String index) throws Exception {

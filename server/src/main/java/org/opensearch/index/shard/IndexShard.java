@@ -523,7 +523,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Function<String, Boolean> isShardOnRemoteEnabledNode = nodeId -> {
         DiscoveryNode node = discoveryNodes.get(nodeId);
         if (node != null) {
-            logger.trace("Node {} has remote_enabled as {}", nodeId, node.isRemoteStoreNode());
             return node.isRemoteStoreNode();
         }
         return false;
@@ -2147,7 +2146,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentUploadeCount = directory.getSegmentsUploadedToRemoteStore().size();
                     }
                     try {
-                        Thread.sleep(TimeValue.timeValueSeconds(30).seconds());
+                        Thread.sleep(TimeValue.timeValueSeconds(30).millis());
                     } catch (InterruptedException ie) {
                         throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
                     }
@@ -3970,7 +3969,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 new RemoteStoreRefreshListener(
                     this,
                     this.checkpointPublisher,
-                    remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId())
+                    remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(shardId()),
+                    remoteStoreSettings
                 )
             );
         }
@@ -4976,7 +4976,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
         Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
-        RemoteFsTranslog.cleanup(repository, shardId, getThreadPool(), indexSettings.getRemoteStorePathStrategy(), remoteStoreSettings);
+        RemoteFsTranslog.cleanup(
+            repository,
+            shardId,
+            getThreadPool(),
+            indexSettings.getRemoteStorePathStrategy(),
+            remoteStoreSettings,
+            indexSettings().isTranslogMetadataEnabled()
+        );
     }
 
     /*
@@ -5001,7 +5008,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.getRemoteStorePathStrategy(),
             remoteStoreSettings,
             logger,
-            shouldSeedRemoteStore()
+            shouldSeedRemoteStore(),
+            indexSettings().isTranslogMetadataEnabled()
         );
     }
 
