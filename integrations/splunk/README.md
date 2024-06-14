@@ -13,14 +13,18 @@ This document describes how to prepare a Docker Compose environment to test the 
    ```bash
    docker compose -f ./docker/splunk.yml up -d
    ```
+3. If you prefer, you can start the integration with the Wazuh Manager as data source:
+   ```bash
+   docker compose -f ./docker/manager-splunk.yml up -d
+   ```
 
 The Docker Compose project will bring up the following services:
 
 - 1x Events Generator (learn more in [wazuh-indexer/integrations/tools/events-generator](../tools/events-generator/README.md)).
 - 1x Wazuh Indexer (OpenSearch).
-- 1x Wazuh Dashboards (OpenSearch Dashboards).
 - 1x Logstash
 - 1x Splunk
+- 1x Wazuh Manager (optional).
 
 For custom configurations, you may need to modify these files:
 
@@ -28,12 +32,15 @@ For custom configurations, you may need to modify these files:
 - [docker/.env](../docker/.env): Environment variables file.
 - [splunk/logstash/pipeline/indexer-to-splunk.conf](./logstash/pipeline/indexer-to-splunk.conf): Logstash Pipeline configuration file.
 
+If you opted to start the integration with the Wazuh Manager, you can modify the following files:
+- [docker/manager-splunk.yml](../docker/manager-splunk.yml): Docker Compose file.
+- [splunk/logstash/pipeline/manager-to-splunk.conf](./logstash/pipeline/manager-to-splunk.conf): Logstash Pipeline configuration file.
+
 Check the files above for **credentials**, ports, and other configurations.
 
 | Service          | Address                | Credentials         |
 | ---------------- | ---------------------- | ------------------- |
 | Wazuh Indexer    | https://localhost:9200 | admin:admin         |
-| Wazuh Dashboards | https://localhost:5601 | admin:admin         |
 | Splunk           | https://localhost:8000 | admin:Password.1234 |
 
 ## Importing the dashboards
