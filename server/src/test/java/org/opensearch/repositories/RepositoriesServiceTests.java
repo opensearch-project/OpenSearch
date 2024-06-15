@@ -700,6 +700,11 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
+        public long getLowPriorityRemoteUploadThrottleTimeInNanos() {
+            return 0;
+        }
+
+        @Override
         public long getRemoteDownloadThrottleTimeInNanos() {
             return 0;
         }
