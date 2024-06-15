@@ -179,10 +179,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         when(repositoriesService.repository("routing_repository")).thenReturn(blobStoreRepository);
 
         when(blobStoreRepository.getNamedXContentRegistry()).thenReturn(xContentRegistry);
-        // TODO Make the publication flag parameterized
-        publicationEnabled = true;
-        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, publicationEnabled).build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
         remoteClusterStateService = new RemoteClusterStateService(
             "test-node-id",
             repositoriesServiceSupplier,
@@ -199,6 +195,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     public void teardown() throws Exception {
         super.tearDown();
         remoteClusterStateService.close();
+        publicationEnabled = false;
+        Settings nodeSettings = Settings.builder().build();
+        FeatureFlags.initializeFeatureFlags(nodeSettings);
         threadPool.shutdown();
     }
 
@@ -272,9 +271,28 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getSettingsMetadata(), notNullValue());
         assertThat(manifest.getTemplatesMetadata(), notNullValue());
         assertFalse(manifest.getCustomMetadataMap().isEmpty());
+        assertThat(manifest.getClusterBlocksMetadata(), nullValue());
+        assertThat(manifest.getDiscoveryNodesMetadata(), nullValue());
+        assertThat(manifest.getTransientSettingsMetadata(), nullValue());
+        assertThat(manifest.getHashesOfConsistentSettings(), nullValue());
+        assertThat(manifest.getClusterStateCustomMap().size(), is(0));
     }
 
     public void testWriteFullMetadataSuccessPublicationEnabled() throws IOException {
+        // TODO Make the publication flag parameterized
+        publicationEnabled = true;
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, publicationEnabled).build();
+        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        remoteClusterStateService = new RemoteClusterStateService(
+            "test-node-id",
+            repositoriesServiceSupplier,
+            settings,
+            clusterService,
+            () -> 0L,
+            threadPool,
+            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+            writableRegistry()
+        );
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager())
             .customs(Map.of(RepositoryCleanupInProgress.TYPE, new RepositoryCleanupInProgress(List.of(new Entry("test-repo", 10L)))))
             .build();
@@ -358,8 +376,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
         assertThat(manifest.getPreviousClusterUUID(), is(expectedManifest.getPreviousClusterUUID()));
 
-        assertEquals(12, actionListenerArgumentCaptor.getAllValues().size());
-        assertEquals(12, writeContextArgumentCaptor.getAllValues().size());
+        assertEquals(7, actionListenerArgumentCaptor.getAllValues().size());
+        assertEquals(7, writeContextArgumentCaptor.getAllValues().size());
 
         byte[] writtenBytes = capturedWriteContext.get("metadata")
             .getStreamProvider(Integer.MAX_VALUE)

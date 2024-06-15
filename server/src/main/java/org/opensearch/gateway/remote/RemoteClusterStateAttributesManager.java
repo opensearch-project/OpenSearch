@@ -130,11 +130,11 @@ public class RemoteClusterStateAttributesManager {
     public DiffableUtils.MapDiff<String, ClusterState.Custom, Map<String, ClusterState.Custom>> getUpdatedCustoms(
         ClusterState clusterState,
         ClusterState previousClusterState,
-        boolean includeEphemeral,
+        boolean isWriteFull,
         boolean firstUploadForEphemeralMetadata
     ) {
-        if (!includeEphemeral) {
-            // When includeEphemeral is false, we do not want store any custom objects
+        if (!isWriteFull) {
+            // When isWriteFull is false, we do not want store any custom objects
             return DiffableUtils.diff(
                 Collections.emptyMap(),
                 Collections.emptyMap(),

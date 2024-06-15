@@ -8,9 +8,6 @@
 
 package org.opensearch.gateway.remote;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.AbstractNamedDiffable;
@@ -43,6 +40,9 @@ import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -53,11 +53,11 @@ import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BL
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.randomClusterBlocks;
 import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodes.DISCOVERY_NODES_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodesTests.getDiscoveryNodes;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.hamcrest.Matchers.is;
 
 public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase {
     private RemoteClusterStateAttributesManager remoteClusterStateAttributesManager;
