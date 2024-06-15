@@ -725,7 +725,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
     // calling cache clear api, when staleness threshold is lower than staleness, it should clean the stale keys from cache
     public void testCacheClearAPIRemovesStaleKeysWhenStalenessThresholdIsLow() throws Exception {
-
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(IndicesRequestCache.INDICES_REQUEST_CACHE_CLEANUP_STALENESS_THRESHOLD_SETTING_KEY, 0.10)
