@@ -57,7 +57,11 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -86,6 +90,10 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
      * https://github.com/opensearch-project/OpenSearch/issues/2858
      */
     private static final int DEFAULT_MAX_REGEX_LENGTH = 1000;
+    /**
+     * The maximum number of prefixes to extract from a regex in tryCreatePrefixOrdinalsFilter
+     */
+    private static final int MAX_PREFIXES = 1000;
 
     // for parsing purposes only
     // TODO: move all aggs to the same package so that this stuff could be pkg-private
@@ -391,6 +399,91 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             return acceptedGlobalOrdinals;
         }
 
+    }
+
+    /**
+     * An ordinals filter that includes/excludes all ordinals corresponding to terms starting with the given prefixes
+     */
+    static class PrefixBackedOrdinalsFilter extends OrdinalsFilter {
+
+        private final SortedSet<BytesRef> includePrefixes, excludePrefixes;
+
+        private PrefixBackedOrdinalsFilter(SortedSet<BytesRef> includePrefixes, SortedSet<BytesRef> excludePrefixes) {
+            this.includePrefixes = includePrefixes;
+            this.excludePrefixes = excludePrefixes;
+        }
+
+        private static BytesRef nextBytesRef(BytesRef bytesRef) {
+            BytesRef next = BytesRef.deepCopyOf(bytesRef);
+            int pos = next.offset + next.length - 1;
+            while (pos >= next.offset && next.bytes[pos] == -1) {
+                next.bytes[pos] = 0;
+                pos--;
+            }
+            if (pos >= next.offset) {
+                next.bytes[pos]++;
+            } else {
+                // Every byte in our prefix had value 0xFF. We must match all subsequent ordinals.
+                return null;
+            }
+            return next;
+        }
+
+        private interface LongLongBiconsumer {
+            void accept(long a, long b);
+        }
+
+        private static void process(
+            SortedSetDocValues globalOrdinals,
+            long length,
+            SortedSet<BytesRef> prefixes,
+            LongLongBiconsumer consumer
+        ) throws IOException {
+            for (BytesRef prefix : prefixes) {
+                long startOrd = globalOrdinals.lookupTerm(prefix);
+                if (startOrd < 0) {
+                    // The prefix is not an exact match in the ordinals (can skip equal length below)
+                    startOrd = -1 - startOrd;
+                    // Make sure that the term at startOrd starts with prefix
+                    BytesRef startTerm = globalOrdinals.lookupOrd(startOrd);
+                    if (startTerm.length <= prefix.length
+                        || !Arrays.equals(
+                            startTerm.bytes,
+                            startTerm.offset,
+                            startTerm.offset + prefix.length,
+                            prefix.bytes,
+                            prefix.offset,
+                            prefix.offset + prefix.length
+                        )) {
+                        continue;
+                    }
+                }
+                if (startOrd >= length) {
+                    continue;
+                }
+                BytesRef next = nextBytesRef(prefix);
+                if (next == null) {
+                    consumer.accept(startOrd, length);
+                } else {
+                    long endOrd = globalOrdinals.lookupTerm(next);
+                    if (endOrd < 0) {
+                        endOrd = -1 - endOrd;
+                    }
+                    if (startOrd < endOrd) {
+                        consumer.accept(startOrd, endOrd);
+                    }
+                }
+            }
+
+        }
+
+        @Override
+        public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
+            LongBitSet accept = new LongBitSet(globalOrdinals.getValueCount());
+            process(globalOrdinals, accept.length(), includePrefixes, accept::set);
+            process(globalOrdinals, accept.length(), excludePrefixes, accept::clear);
+            return accept;
+        }
     }
 
     private final String include, exclude;
@@ -709,8 +802,13 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
     }
 
     public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format, int maxRegexLength) {
-
         if (isRegexBased()) {
+            if ((include == null || include.endsWith(".*")) && (exclude == null || exclude.endsWith(".*"))) {
+                PrefixBackedOrdinalsFilter prefixBackedOrdinalsFilter = tryCreatePrefixOrdinalsFilter(maxRegexLength);
+                if (prefixBackedOrdinalsFilter != null) {
+                    return prefixBackedOrdinalsFilter;
+                }
+            }
             return new AutomatonBackedOrdinalsFilter(toAutomaton(maxRegexLength));
         }
         if (isPartitionBased()) {
@@ -718,6 +816,94 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
 
         return new TermListBackedOrdinalsFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
+    }
+
+    private static List<String> expandRegexp(RegExp regExp, int maxPrefixes) {
+        switch (regExp.kind) {
+            case REGEXP_UNION:
+                List<RegExp> alternatives = new ArrayList<>();
+                while (regExp.exp1.kind == RegExp.Kind.REGEXP_UNION) {
+                    alternatives.add(regExp.exp2);
+                    regExp = regExp.exp1;
+                }
+                alternatives.add(regExp.exp2);
+                alternatives.add(regExp.exp1);
+                List<String> output = new ArrayList<>();
+                for (RegExp leaf : alternatives) {
+                    List<String> leafExpansions = expandRegexp(leaf, maxPrefixes);
+                    if (leafExpansions == null) {
+                        return null;
+                    } else {
+                        if (output.size() + leafExpansions.size() > maxPrefixes) {
+                            return null;
+                        }
+                        output.addAll(leafExpansions);
+                    }
+                }
+                return output;
+            case REGEXP_CONCATENATION:
+                List<String> prefixes = expandRegexp(regExp.exp1, maxPrefixes);
+                if (prefixes == null) {
+                    return null;
+                }
+                List<String> suffixes = expandRegexp(regExp.exp2, maxPrefixes);
+                if (suffixes == null) {
+                    return null;
+                }
+                if (prefixes.size() * suffixes.size() > maxPrefixes) {
+                    return null;
+                }
+                List<String> out = new ArrayList<>();
+                StringBuilder stringBuilder = new StringBuilder();
+                for (String prefix : prefixes) {
+                    for (String suffix : suffixes) {
+                        stringBuilder.setLength(0);
+                        stringBuilder.append(prefix).append(suffix);
+                        out.add(stringBuilder.toString());
+                    }
+                }
+                return out;
+            case REGEXP_CHAR:
+                return List.of(Character.toString(regExp.c));
+            case REGEXP_STRING:
+                return List.of(regExp.s);
+            default:
+                return null;
+        }
+    }
+
+    private static SortedSet<BytesRef> extractPrefixes(String pattern, int maxRegexLength) {
+        if (pattern == null) {
+            return Collections.emptySortedSet();
+        }
+        SortedSet<BytesRef> prefixSet = null;
+        validateRegExpStringLength(pattern, maxRegexLength);
+        RegExp regExp = new RegExp(pattern);
+        if (regExp.kind == RegExp.Kind.REGEXP_CONCATENATION && regExp.exp2.kind == RegExp.Kind.REGEXP_REPEAT) {
+            RegExp tail = regExp.exp2.exp1;
+            if (tail.kind == RegExp.Kind.REGEXP_ANYCHAR || tail.kind == RegExp.Kind.REGEXP_ANYSTRING) {
+                List<String> prefixes = expandRegexp(regExp.exp1, MAX_PREFIXES);
+                if (prefixes != null) {
+                    prefixSet = new TreeSet<>();
+                    for (String prefix : prefixes) {
+                        prefixSet.add(new BytesRef(prefix));
+                    }
+                }
+            }
+        }
+        return prefixSet;
+    }
+
+    private PrefixBackedOrdinalsFilter tryCreatePrefixOrdinalsFilter(int maxRegexLength) {
+        SortedSet<BytesRef> includeSet = extractPrefixes(include, maxRegexLength);
+        if (includeSet == null) {
+            return null;
+        }
+        SortedSet<BytesRef> excludeSet = extractPrefixes(exclude, maxRegexLength);
+        if (excludeSet == null) {
+            return null;
+        }
+        return new PrefixBackedOrdinalsFilter(includeSet, excludeSet);
     }
 
     public LongFilter convertToLongFilter(DocValueFormat format) {
