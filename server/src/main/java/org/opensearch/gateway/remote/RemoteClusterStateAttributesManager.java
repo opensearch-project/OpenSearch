@@ -15,7 +15,6 @@ import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.common.remote.RemoteWritableEntityStore;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.model.RemoteClusterBlocks;
 import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterStateCustoms;
@@ -121,7 +120,7 @@ public class RemoteClusterStateAttributesManager {
         LatchedActionListener<RemoteReadResult> listener
     ) {
         final ActionListener actionListener = ActionListener.wrap(
-            response -> listener.onResponse(new RemoteReadResult((ToXContent) response, CLUSTER_STATE_ATTRIBUTE, component)),
+            response -> listener.onResponse(new RemoteReadResult(response, CLUSTER_STATE_ATTRIBUTE, component)),
             listener::onFailure
         );
         return () -> getStore(blobEntity).readAsync(blobEntity, actionListener);

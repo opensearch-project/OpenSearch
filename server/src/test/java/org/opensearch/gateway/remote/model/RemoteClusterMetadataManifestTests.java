@@ -41,6 +41,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V0;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST;
 import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.hamcrest.Matchers.greaterThan;
@@ -234,6 +236,28 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
             namedXContentRegistry
         );
         assertThrows(IllegalArgumentException.class, () -> invalidRemoteObject.deserialize(new ByteArrayInputStream(new byte[0])));
+    }
+
+    public void testGetManifestCodecVersion() {
+        String manifestFileWithDelimiterInPath =
+            "123456789012_test-cluster/cluster-state/dsgYj10__Nkso7/manifest/manifest__9223372036854775806__9223372036854775804__C__9223370319103329556__2";
+        RemoteClusterMetadataManifest remoteManifestForDownload = new RemoteClusterMetadataManifest(
+            manifestFileWithDelimiterInPath,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry
+        );
+        assertEquals(CODEC_V2, remoteManifestForDownload.getManifestCodecVersion());
+
+        String v0ManifestFileWithDelimiterInPath =
+            "123456789012_test-cluster/cluster-state/dsgYj10__Nkso7/manifest/manifest__9223372036854775806__9223372036854775804__C__9223370319103329556";
+        RemoteClusterMetadataManifest remoteManifestV0ForDownload = new RemoteClusterMetadataManifest(
+            v0ManifestFileWithDelimiterInPath,
+            clusterUUID,
+            compressor,
+            namedXContentRegistry
+        );
+        assertEquals(CODEC_V0, remoteManifestV0ForDownload.getManifestCodecVersion());
     }
 
     private ClusterMetadataManifest getClusterMetadataManifest() {
