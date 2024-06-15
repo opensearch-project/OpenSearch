@@ -156,7 +156,7 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         IOException ioe = assertThrows(IOException.class, () -> remoteObjectForDownload.deserialize(in));
     }
 
-    private DiscoveryNodes getDiscoveryNodes() {
+    public static DiscoveryNodes getDiscoveryNodes() {
         return DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
