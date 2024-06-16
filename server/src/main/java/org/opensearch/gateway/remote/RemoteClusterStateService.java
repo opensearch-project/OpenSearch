@@ -292,17 +292,11 @@ public class RemoteClusterStateService implements Closeable {
         assert previousClusterState.metadata().coordinationMetadata().term() == clusterState.metadata().coordinationMetadata().term();
 
         boolean firstUploadForSplitGlobalMetadata = !previousManifest.hasMetadataAttributesFiles();
-        boolean firstUploadForEphemeralMetadata = previousManifest.getDiscoveryNodesMetadata() == null;
 
         final DiffableUtils.MapDiff<String, Metadata.Custom, Map<String, Metadata.Custom>> customsDiff = remoteGlobalMetadataManager
             .getCustomsDiff(clusterState, previousClusterState, firstUploadForSplitGlobalMetadata, isPublicationEnabled);
         final DiffableUtils.MapDiff<String, ClusterState.Custom, Map<String, ClusterState.Custom>> clusterStateCustomsDiff =
-            remoteClusterStateAttributesManager.getUpdatedCustoms(
-                clusterState,
-                previousClusterState,
-                isPublicationEnabled,
-                firstUploadForEphemeralMetadata
-            );
+            remoteClusterStateAttributesManager.getUpdatedCustoms(clusterState, previousClusterState, isPublicationEnabled, false);
         final Map<String, UploadedMetadataAttribute> allUploadedCustomMap = new HashMap<>(previousManifest.getCustomMetadataMap());
         final Map<String, UploadedMetadataAttribute> allUploadedClusterStateCustomsMap = new HashMap<>(
             previousManifest.getClusterStateCustomMap()
@@ -351,15 +345,17 @@ public class RemoteClusterStateService implements Closeable {
         ;
         boolean updateSettingsMetadata = firstUploadForSplitGlobalMetadata
             || Metadata.isSettingsMetadataEqual(previousClusterState.metadata(), clusterState.metadata()) == false;
-        boolean updateTransientSettingsMetadata = firstUploadForEphemeralMetadata
-            || Metadata.isTransientSettingsMetadataEqual(previousClusterState.metadata(), clusterState.metadata()) == false;
+        boolean updateTransientSettingsMetadata = Metadata.isTransientSettingsMetadataEqual(
+            previousClusterState.metadata(),
+            clusterState.metadata()
+        ) == false;
         boolean updateTemplatesMetadata = firstUploadForSplitGlobalMetadata
             || Metadata.isTemplatesMetadataEqual(previousClusterState.metadata(), clusterState.metadata()) == false;
 
         final boolean updateDiscoveryNodes = isPublicationEnabled
             && clusterState.getNodes().delta(previousClusterState.getNodes()).hasChanges();
         final boolean updateClusterBlocks = isPublicationEnabled && !clusterState.blocks().equals(previousClusterState.blocks());
-        final boolean updateHashesOfConsistentSettings = isPublicationEnabled && firstUploadForEphemeralMetadata
+        final boolean updateHashesOfConsistentSettings = isPublicationEnabled
             || Metadata.isHashesOfConsistentSettingsEqual(previousClusterState.metadata(), clusterState.metadata()) == false;
 
         uploadedMetadataResults = writeMetadataInParallel(
@@ -401,13 +397,13 @@ public class RemoteClusterStateService implements Closeable {
         if (!updateTemplatesMetadata) {
             uploadedMetadataResults.uploadedTemplatesMetadata = previousManifest.getTemplatesMetadata();
         }
-        if (!updateDiscoveryNodes && !firstUploadForEphemeralMetadata) {
+        if (!updateDiscoveryNodes) {
             uploadedMetadataResults.uploadedDiscoveryNodes = previousManifest.getDiscoveryNodesMetadata();
         }
-        if (!updateClusterBlocks && !firstUploadForEphemeralMetadata) {
+        if (!updateClusterBlocks) {
             uploadedMetadataResults.uploadedClusterBlocks = previousManifest.getClusterBlocksMetadata();
         }
-        if (!updateHashesOfConsistentSettings && !firstUploadForEphemeralMetadata) {
+        if (!updateHashesOfConsistentSettings) {
             uploadedMetadataResults.uploadedHashesOfConsistentSettings = previousManifest.getHashesOfConsistentSettings();
         }
         uploadedMetadataResults.uploadedCustomMetadataMap = allUploadedCustomMap;

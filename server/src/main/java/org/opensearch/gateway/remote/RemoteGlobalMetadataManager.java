@@ -284,27 +284,27 @@ public class RemoteGlobalMetadataManager {
         ClusterState currentState,
         ClusterState previousState,
         boolean firstUploadForSplitGlobalMetadata,
-        boolean includeEphemeral
+        boolean isRemotePublicationEnabled
     ) {
         if (firstUploadForSplitGlobalMetadata) {
             // For first split global metadata upload, we want to upload all customs
             return DiffableUtils.diff(
                 Collections.emptyMap(),
-                filterCustoms(currentState.metadata().customs(), includeEphemeral),
+                filterCustoms(currentState.metadata().customs(), isRemotePublicationEnabled),
                 DiffableUtils.getStringKeySerializer(),
                 NonDiffableValueSerializer.getAbstractInstance()
             );
         }
         return DiffableUtils.diff(
-            filterCustoms(previousState.metadata().customs(), includeEphemeral),
-            filterCustoms(currentState.metadata().customs(), includeEphemeral),
+            filterCustoms(previousState.metadata().customs(), isRemotePublicationEnabled),
+            filterCustoms(currentState.metadata().customs(), isRemotePublicationEnabled),
             DiffableUtils.getStringKeySerializer(),
             NonDiffableValueSerializer.getAbstractInstance()
         );
     }
 
-    public static Map<String, Metadata.Custom> filterCustoms(Map<String, Metadata.Custom> customs, boolean includeEphemeral) {
-        if (includeEphemeral) {
+    public static Map<String, Metadata.Custom> filterCustoms(Map<String, Metadata.Custom> customs, boolean isRemotePublicationEnabled) {
+        if (isRemotePublicationEnabled) {
             return customs;
         }
         return customs.entrySet()
