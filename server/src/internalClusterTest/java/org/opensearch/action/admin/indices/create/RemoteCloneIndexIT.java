@@ -222,7 +222,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
         RepositoryMetadata rmd = res.repositories().get(0);
         Settings.Builder settings = Settings.builder()
             .put("location", rmd.settings().get("location"))
-            .put("max_remote_upload_low_priority_bytes_per_sec", value);
+            .put("max_remote_low_priority_upload_bytes_per_sec", value);
         assertAcked(client().admin().cluster().preparePutRepository(repoName).setType(rmd.type()).setSettings(settings).get());
     }
 
