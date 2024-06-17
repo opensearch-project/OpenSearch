@@ -34,7 +34,7 @@ public class LabelingService {
 
     public LabelingService(List<LabelingPlugin> loadedPlugins) {
         implementations = new EnumMap<>(LabelingImplementationType.class);
-        for (LabelingPlugin plugin: loadedPlugins) {
+        for (LabelingPlugin plugin : loadedPlugins) {
             if (implementations.containsKey(plugin.getImplementationName())) {
                 throw new IllegalArgumentException("There should not be two implementations of a LabelingImplementation type");
             }
@@ -48,9 +48,7 @@ public class LabelingService {
      * @param request
      * @param threadContext
      */
-    public void labelRequestFor(final LabelingImplementationType type,
-                                final IndicesRequest request,
-                                final ThreadContext threadContext) {
+    public void labelRequestFor(final LabelingImplementationType type, final IndicesRequest request, final ThreadContext threadContext) {
         final LabelingPlugin plugin = implementations.get(type);
         if (plugin == null) {
             throw new IllegalArgumentException(type + " implementation is not enabled");

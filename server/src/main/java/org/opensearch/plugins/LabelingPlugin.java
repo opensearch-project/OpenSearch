@@ -12,7 +12,6 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.querygroup.LabelingService.LabelingImplementationType;
 
-
 /**
  * This plugin introduces contracts on how should the incoming requests be labeled using implicit/explicit request attributes
  *

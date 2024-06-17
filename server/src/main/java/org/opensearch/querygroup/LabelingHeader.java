@@ -13,13 +13,15 @@ package org.opensearch.querygroup;
  */
 public enum LabelingHeader {
     QUERY_GROUP_ID("queryGroupId");
+
     private final String name;
+
     private LabelingHeader(final String name) {
         this.name = name;
     }
 
     public static LabelingHeader fromName(String name) {
-        for (final LabelingHeader header: values()) {
+        for (final LabelingHeader header : values()) {
             if (header.getName().equals(name)) {
                 return header;
             }

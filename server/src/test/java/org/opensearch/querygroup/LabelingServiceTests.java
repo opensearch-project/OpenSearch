@@ -20,7 +20,6 @@ import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
-
 public class LabelingServiceTests extends OpenSearchTestCase {
 
     ThreadPool threadPool;
@@ -38,14 +37,25 @@ public class LabelingServiceTests extends OpenSearchTestCase {
     }
 
     public void testInvalidInstantiationOfLabelingService() {
-        assertThrows(IllegalArgumentException.class,
-            () -> new LabelingService(List.of(getTestImplementation(), getTestImplementation())));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new LabelingService(
+                List.of(
+                    getTestImplementation("", "", LabelingImplementationType.QUERY_GROUP_RESOURCE_MANAGEMENT),
+                    getTestImplementation("", "", LabelingImplementationType.QUERY_GROUP_RESOURCE_MANAGEMENT)
+                )
+            )
+        );
     }
 
     public void testExistingImplementationExistingCase() {
-        LabelingService labelingService = new LabelingService(List.of(getTestImplementation()));
+        LabelingService labelingService = new LabelingService(
+            List.of(
+                getTestImplementation("queryGroupId", "akfagagnaga232_2434t", LabelingImplementationType.QUERY_GROUP_RESOURCE_MANAGEMENT)
+            )
+        );
         IndicesRequest request = mock(IndicesRequest.class);
-//        threadPool = new TestThreadPool("QSB");
+        // threadPool = new TestThreadPool("QSB");
         ThreadContext threadContext = threadPool.getThreadContext();
 
         labelingService.labelRequestFor(LabelingImplementationType.QUERY_GROUP_RESOURCE_MANAGEMENT, request, threadContext);
@@ -53,25 +63,32 @@ public class LabelingServiceTests extends OpenSearchTestCase {
     }
 
     public void testNonExistingImplementationExistingCase() {
-        LabelingService labelingService = new LabelingService(List.of(getTestImplementation()));
+        LabelingService labelingService = new LabelingService(
+            List.of(
+                getTestImplementation("queryGroupId", "akfagagnaga232_2434t", LabelingImplementationType.QUERY_GROUP_RESOURCE_MANAGEMENT)
+            )
+        );
         IndicesRequest request = mock(IndicesRequest.class);
-//        threadPool = new TestThreadPool("QSB");
+        // threadPool = new TestThreadPool("QSB");
         ThreadContext threadContext = threadPool.getThreadContext();
 
-        assertThrows(IllegalArgumentException.class, () -> labelingService.labelRequestFor(LabelingImplementationType.NOOP, request, threadContext));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> labelingService.labelRequestFor(LabelingImplementationType.NOOP, request, threadContext)
+        );
 
     }
 
-    LabelingPlugin getTestImplementation() {
+    LabelingPlugin getTestImplementation(String header, String value, LabelingImplementationType type) {
         return new LabelingPlugin() {
             @Override
             public LabelingImplementationType getImplementationName() {
-                return LabelingImplementationType.QUERY_GROUP_RESOURCE_MANAGEMENT;
+                return type;
             }
 
             @Override
             public void labelRequest(IndicesRequest request, ThreadContext threadContext) {
-                threadContext.putHeader("queryGroupId", "akfagagnaga232_2434t");
+                threadContext.putHeader(header, value);
             }
         };
     }
