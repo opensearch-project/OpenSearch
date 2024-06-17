@@ -573,14 +573,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
         // pkg-private for testing
         void addToCleanupKeyToCountMap(ShardId shardId, String readerCacheKeyId) {
-            cleanupKeyToCountMap.compute(shardId, (currentShardId, readerCacheKeyMap) -> {
-                final ConcurrentHashMap<String, Integer> updatedReaderCacheKeyMap = Objects.requireNonNullElseGet(
-                    readerCacheKeyMap,
-                    ConcurrentHashMap::new
-                );
-                updatedReaderCacheKeyMap.compute(readerCacheKeyId, (currentReaderCacheKeyId, count) -> (count == null) ? 1 : count + 1);
-                return updatedReaderCacheKeyMap;
-            });
+            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> new ConcurrentHashMap<>())
+                .merge(readerCacheKeyId, 1, Integer::sum);
         }
 
         /**
