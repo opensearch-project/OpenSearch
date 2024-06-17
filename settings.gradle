@@ -10,7 +10,7 @@
  */
 
 plugins {
-  id "com.gradle.develocity" version "3.17.4"
+  id "com.gradle.develocity" version "3.17.5"
 }
 
 ext.disableBuildCache = hasProperty('DISABLE_BUILD_CACHE') || System.getenv().containsKey('DISABLE_BUILD_CACHE')
