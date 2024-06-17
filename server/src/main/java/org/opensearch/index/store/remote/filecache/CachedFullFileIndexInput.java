@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Implementation of the CachedIndexInput for NON_BLOCK files which takes in an IndexInput as parameter
+ * Implementation of the CachedIndexInput for full files which takes in an IndexInput as parameter
  *
  * @opensearch.experimental
  */
