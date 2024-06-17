@@ -26,7 +26,8 @@ public class LabelingService {
      * Enum to define what all are currently implementing the plugin
      */
     public enum LabelingImplementationType {
-        QUERY_GROUP_RESOURCE_MANAGEMENT
+        QUERY_GROUP_RESOURCE_MANAGEMENT,
+        NOOP
     }
 
     EnumMap<LabelingImplementationType, LabelingPlugin> implementations;
@@ -35,7 +36,7 @@ public class LabelingService {
         implementations = new EnumMap<>(LabelingImplementationType.class);
         for (LabelingPlugin plugin: loadedPlugins) {
             if (implementations.containsKey(plugin.getImplementationName())) {
-                throw new IllegalStateException("There should not be two implementations of a LabelingImplementation type");
+                throw new IllegalArgumentException("There should not be two implementations of a LabelingImplementation type");
             }
             implementations.put(plugin.getImplementationName(), plugin);
         }
