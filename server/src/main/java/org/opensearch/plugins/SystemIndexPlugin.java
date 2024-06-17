@@ -37,6 +37,9 @@ import org.opensearch.indices.SystemIndexDescriptor;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Plugin for defining system indices. Extends {@link ActionPlugin} because system indices must be accessed via APIs
@@ -54,5 +57,14 @@ public interface SystemIndexPlugin extends ActionPlugin {
      */
     default Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.emptyList();
+    }
+
+    /**
+     * This function passes the registered system indices to a plugin.
+     *
+     * Note: Only one installed plugin may implement onSystemIndices.
+     */
+    default Consumer<Map<String, Set<String>>> onSystemIndices() {
+        return null;
     }
 }
