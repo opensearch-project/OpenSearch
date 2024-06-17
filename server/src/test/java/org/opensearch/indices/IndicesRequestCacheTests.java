@@ -798,7 +798,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     // test adding to cleanupKeyToCountMap with multiple threads
-    public void testAddToCleanupKeyToCountMap() throws Exception {
+    public void testAddingToCleanupKeyToCountMapWorksAppropriatelyWithMultipleThreads() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
         cache = getIndicesRequestCache(settings);
@@ -806,7 +806,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         int numberOfThreads = 10;
         int numberOfIterations = 1000;
         Phaser phaser = new Phaser(numberOfThreads + 1); // +1 for the main thread
-        AtomicBoolean exceptionDetected = new AtomicBoolean(false);
+        AtomicBoolean concurrentModificationExceptionDetected = new AtomicBoolean(false);
 
         ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
 
@@ -819,7 +819,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                     }
                 } catch (ConcurrentModificationException e) {
                     logger.error("ConcurrentModificationException detected in thread : " + e.getMessage());
-                    exceptionDetected.set(true); // Set flag if exception is detected
+                    concurrentModificationExceptionDetected.set(true); // Set flag if exception is detected
                 }
             });
         }
@@ -838,13 +838,17 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 }
             } catch (ConcurrentModificationException e) {
                 logger.error("ConcurrentModificationException detected in main thread : " + e.getMessage());
-                exceptionDetected.set(true); // Set flag if exception is detected
+                concurrentModificationExceptionDetected.set(true); // Set flag if exception is detected
             }
         });
 
         executorService.shutdown();
         assertTrue(executorService.awaitTermination(60, TimeUnit.SECONDS));
-        assertFalse(exceptionDetected.get());
+        assertEquals(
+            numberOfThreads * numberOfIterations,
+            cache.cacheCleanupManager.getCleanupKeyToCountMap().get(indexShard.shardId()).size()
+        );
+        assertFalse(concurrentModificationExceptionDetected.get());
     }
 
     private IndicesRequestCache getIndicesRequestCache(Settings settings) {
