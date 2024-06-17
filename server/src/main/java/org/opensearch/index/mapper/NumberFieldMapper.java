@@ -1340,6 +1340,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     u = u.subtract(BigInteger.ONE);
                 }
             }
+            if(l > u){
+                return new MatchNoDocsQuery();
+            }
             return builder.apply(l, u);
         }
     }
