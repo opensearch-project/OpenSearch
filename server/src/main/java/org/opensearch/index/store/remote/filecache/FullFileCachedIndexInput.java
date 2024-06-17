@@ -81,7 +81,6 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
 
     /**
      * Closes the index input and it's clones as well
-     * @throws IOException
      */
     @Override
     public void close() throws IOException {
