@@ -127,7 +127,7 @@ dependencies {
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testFixturesApi gradleApi()
   testFixturesApi gradleTestKit()
-  testImplementation 'org.wiremock:wiremock-standalone:3.3.1'
+  testImplementation 'org.wiremock:wiremock-standalone:3.6.0'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
   integTestImplementation('org.spockframework:spock-core:2.3-groovy-3.0') {
     exclude module: "groovy"
