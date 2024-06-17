@@ -12,12 +12,21 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Extension of {@link FileCachedIndexInput} for full files for handling clones and slices
+ * We maintain a clone map so that we can close them when the parent IndexInput is closed so that ref count is properly maintained in file cache
+ * Closing of clones explicitly is needed as Lucene does not guarantee that it will close the clones
+ * https://github.com/apache/lucene/blob/8340b01c3cc229f33584ce2178b07b8984daa6a9/lucene/core/src/java/org/apache/lucene/store/IndexInput.java#L32-L33
+ * @opensearch.experimental
+ */
+@ExperimentalApi
 public class FullFileCachedIndexInput extends FileCachedIndexInput {
     private static final Logger logger = LogManager.getLogger(FullFileCachedIndexInput.class);
     private final Set<FullFileCachedIndexInput> clones;
@@ -31,6 +40,10 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
         clones = new HashSet<>();
     }
 
+    /**
+     * Clones the index input and returns the clone
+     * Increase the ref count whenever the index input is cloned and add it to the clone map as well
+     */
     @Override
     public FullFileCachedIndexInput clone() {
         FullFileCachedIndexInput clonedIndexInput = new FullFileCachedIndexInput(cache, filePath, luceneIndexInput.clone(), true);
@@ -39,6 +52,10 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
         return clonedIndexInput;
     }
 
+    /**
+     * Clones the index input and returns the slice
+     * Increase the ref count whenever the index input is sliced and add it to the clone map as well
+     */
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if (offset < 0 || length < 0 || offset + length > this.length()) {
@@ -62,6 +79,10 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
         return slicedIndexInput;
     }
 
+    /**
+     * Closes the index input and it's clones as well
+     * @throws IOException
+     */
     @Override
     public void close() throws IOException {
         if (!closed) {

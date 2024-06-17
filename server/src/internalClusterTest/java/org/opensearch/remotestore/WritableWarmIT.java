@@ -31,7 +31,6 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.node.Node;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -44,7 +43,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
 // Uncomment the below line to enable trace level logs for this test for better debugging
-@TestLogging(reason = "Getting trace logs from composite directory package", value = "org.opensearch.index.store:TRACE")
+// @TestLogging(reason = "Getting trace logs from composite directory package", value = "org.opensearch.index.store:TRACE")
 public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
 
     protected static final String INDEX_NAME = "test-idx-1";
@@ -69,8 +68,8 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     public void testWritableWarmFeatureFlagDisabled() {
         Settings clusterSettings = Settings.builder().put(super.nodeSettings(0)).put(FeatureFlags.TIERED_REMOTE_INDEX, false).build();
         InternalTestCluster internalTestCluster = internalCluster();
-        internalTestCluster.startClusterManagerOnlyNodes(3, clusterSettings);
-        internalTestCluster.startDataOnlyNodes(1, clusterSettings);
+        internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
+        internalTestCluster.startDataOnlyNode(clusterSettings);
 
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
