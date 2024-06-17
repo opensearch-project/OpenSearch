@@ -15,6 +15,7 @@ import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -85,9 +86,11 @@ public class TransportIndexCorrelationActionTests extends OpenSearchTestCase {
         );
         settings = Settings.builder()
             .put(EventsCorrelationSettings.CORRELATION_TIME_WINDOW.getKey(), new TimeValue(5, TimeUnit.MINUTES))
+            .put(EventsCorrelationSettings.REQUEST_TIMEOUT.getKey(), new TimeValue(10, TimeUnit.SECONDS))
             .build();
         Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingSet.add(EventsCorrelationSettings.CORRELATION_TIME_WINDOW);
+        settingSet.add(EventsCorrelationSettings.REQUEST_TIMEOUT);
         ClusterSettings clusterSettings = new ClusterSettings(settings, settingSet);
         clusterService = createClusterService(threadPool, discoveryNode, clusterSettings);
     }
@@ -196,7 +199,7 @@ public class TransportIndexCorrelationActionTests extends OpenSearchTestCase {
                         1,
                         0,
                         20L,
-                        null,
+                        ShardSearchFailure.EMPTY_ARRAY,
                         null
                     )
                 );

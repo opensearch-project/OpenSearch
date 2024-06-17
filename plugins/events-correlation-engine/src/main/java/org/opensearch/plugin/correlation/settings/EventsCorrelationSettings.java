@@ -40,8 +40,17 @@ public class EventsCorrelationSettings {
      * Global time window setting for Correlations
      */
     public static final Setting<TimeValue> CORRELATION_TIME_WINDOW = Setting.positiveTimeSetting(
-        "plugins.security_analytics.correlation_time_window",
+        "plugins.events_correlation.correlation_time_window",
         new TimeValue(5, TimeUnit.MINUTES),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    /**
+     * Global request timeout setting for Correlations
+     */
+    public static final Setting<TimeValue> REQUEST_TIMEOUT = Setting.positiveTimeSetting(
+        "plugins.events_correlation.request_timeout",
+        new TimeValue(10, TimeUnit.SECONDS),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

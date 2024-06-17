@@ -74,6 +74,8 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
 
     private volatile long correlationTimeWindow;
 
+    private volatile TimeValue requestTimeout;
+
     /**
      * Parameterized ctor for Transport Action
      * @param transportService TransportService
@@ -99,9 +101,12 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
         this.clusterService = clusterService;
         this.setupTimestamp = System.currentTimeMillis();
         this.correlationTimeWindow = EventsCorrelationSettings.CORRELATION_TIME_WINDOW.get(this.settings).getMillis();
+        this.requestTimeout = EventsCorrelationSettings.REQUEST_TIMEOUT.get(this.settings);
 
         this.clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EventsCorrelationSettings.CORRELATION_TIME_WINDOW, it -> correlationTimeWindow = it.getMillis());
+        this.clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(EventsCorrelationSettings.REQUEST_TIMEOUT, it -> requestTimeout = it);
     }
 
     @Override
@@ -212,6 +217,7 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
             searchSourceBuilder.query(queryBuilder);
             searchSourceBuilder.fetchSource(true);
             searchSourceBuilder.size(1);
+            searchSourceBuilder.timeout(requestTimeout);
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
@@ -222,9 +228,15 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                 public void onResponse(SearchResponse response) {
                     if (response.isTimedOut()) {
                         onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                        return;
+                    }
+                    if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                        onFailures(new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS));
+                        return;
                     }
                     if (response.getHits().getTotalHits().value != 1) {
                         onFailures(new OpenSearchStatusException("Score Root Record not found", RestStatus.INTERNAL_SERVER_ERROR));
+                        return;
                     }
 
                     SearchHit hit = response.getHits().getHits()[0];
@@ -318,6 +330,7 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
             searchSourceBuilder.query(queryBuilder);
             searchSourceBuilder.fetchSource(true);
             searchSourceBuilder.size(1);
+            searchSourceBuilder.timeout(requestTimeout);
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
@@ -328,9 +341,15 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                 public void onResponse(SearchResponse response) {
                     if (response.isTimedOut()) {
                         onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                        return;
+                    }
+                    if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                        onFailures(new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS));
+                        return;
                     }
                     if (response.getHits().getTotalHits().value != 1) {
                         onFailures(new OpenSearchStatusException("Root Record not found", RestStatus.INTERNAL_SERVER_ERROR));
+                        return;
                     }
 
                     SearchHit hit = response.getHits().getHits()[0];
@@ -350,6 +369,7 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                             searchSourceBuilder.query(queryBuilder);
                             searchSourceBuilder.fetchSource(true);
                             searchSourceBuilder.size(1);
+                            searchSourceBuilder.timeout(requestTimeout);
 
                             SearchRequest searchRequest = new SearchRequest();
                             searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
@@ -369,7 +389,7 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                             long totalNeighbors = 0L;
                             for (MultiSearchResponse.Item response : responses) {
                                 if (response.isFailure()) {
-                                    log.info(response.getFailureMessage());
+                                    log.error("error in multisearch request while inserting correlated events:", response.getFailure());
                                     continue;
                                 }
 
@@ -491,6 +511,7 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
             searchSourceBuilder.query(queryBuilder);
             searchSourceBuilder.fetchSource(true);
             searchSourceBuilder.size(1);
+            searchSourceBuilder.timeout(requestTimeout);
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
@@ -501,9 +522,15 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                 public void onResponse(SearchResponse response) {
                     if (response.isTimedOut()) {
                         onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                        return;
+                    }
+                    if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                        onFailures(new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS));
+                        return;
                     }
                     if (response.getHits().getTotalHits().value != 1) {
                         onFailures(new OpenSearchStatusException("Root Record not found", RestStatus.INTERNAL_SERVER_ERROR));
+                        return;
                     }
 
                     SearchHit hit = response.getHits().getHits()[0];
@@ -592,6 +619,7 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                                 searchSourceBuilder.query(correlationQueryBuilder);
                                 searchSourceBuilder.fetchSource(true);
                                 searchSourceBuilder.size(1);
+                                searchSourceBuilder.timeout(requestTimeout);
 
                                 SearchRequest searchRequest = new SearchRequest();
                                 searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
@@ -602,6 +630,11 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                                     public void onResponse(SearchResponse response) {
                                         if (response.isTimedOut()) {
                                             onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                                            return;
+                                        }
+                                        if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                                            onFailures(new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS));
+                                            return;
                                         }
 
                                         long totalHits = response.getHits().getTotalHits().value;
@@ -641,12 +674,20 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                                                             } catch (IOException ex) {
                                                                 onFailures(ex);
                                                             }
+                                                        } else {
+                                                            onFailures(
+                                                                new OpenSearchStatusException(
+                                                                    "Insert Orphan Events failed",
+                                                                    response.status(),
+                                                                    response.toString()
+                                                                )
+                                                            );
                                                         }
                                                     }
 
                                                     @Override
                                                     public void onFailure(Exception e) {
-
+                                                        onFailures(e);
                                                     }
                                                 });
                                             }

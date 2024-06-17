@@ -158,7 +158,8 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
         return List.of(
             EventsCorrelationSettings.IS_CORRELATION_INDEX_SETTING,
             EventsCorrelationSettings.CORRELATION_HISTORY_INDEX_SHARDS,
-            EventsCorrelationSettings.CORRELATION_TIME_WINDOW
+            EventsCorrelationSettings.CORRELATION_TIME_WINDOW,
+            EventsCorrelationSettings.REQUEST_TIMEOUT
         );
     }
 }

@@ -14,7 +14,9 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.client.Client;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.query.BoolQueryBuilder;
@@ -26,6 +28,7 @@ import org.opensearch.plugin.correlation.events.action.SearchCorrelatedEventsReq
 import org.opensearch.plugin.correlation.events.action.SearchCorrelatedEventsResponse;
 import org.opensearch.plugin.correlation.events.model.Correlation;
 import org.opensearch.plugin.correlation.events.model.EventWithScore;
+import org.opensearch.plugin.correlation.settings.EventsCorrelationSettings;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
@@ -47,16 +50,26 @@ public class TransportSearchCorrelatedEventsAction extends HandledTransportActio
 
     private final Client client;
 
+    private volatile TimeValue requestTimeout;
+
     /**
      * Parameterized ctor for Transport Action
      * @param transportService TransportService
      * @param client OS client
      * @param actionFilters ActionFilters
+     * @param clusterService ClusterService
      */
     @Inject
-    public TransportSearchCorrelatedEventsAction(TransportService transportService, Client client, ActionFilters actionFilters) {
+    public TransportSearchCorrelatedEventsAction(
+        TransportService transportService,
+        Client client,
+        ActionFilters actionFilters,
+        ClusterService clusterService
+    ) {
         super(SearchCorrelatedEventsAction.NAME, transportService, actionFilters, SearchCorrelatedEventsRequest::new);
         this.client = client;
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(EventsCorrelationSettings.REQUEST_TIMEOUT, it -> this.requestTimeout = it);
     }
 
     @Override
@@ -88,6 +101,7 @@ public class TransportSearchCorrelatedEventsAction extends HandledTransportActio
             searchSourceBuilder.fetchSource(false);
             searchSourceBuilder.fetchField(timestampField);
             searchSourceBuilder.size(1);
+            searchSourceBuilder.timeout(requestTimeout);
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices(index);
@@ -98,9 +112,15 @@ public class TransportSearchCorrelatedEventsAction extends HandledTransportActio
                 public void onResponse(SearchResponse response) {
                     if (response.isTimedOut()) {
                         onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                        return;
+                    }
+                    if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                        onFailures(new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS));
+                        return;
                     }
                     if (response.getHits().getTotalHits().value != 1) {
                         onFailures(new OpenSearchStatusException("Event not found", RestStatus.INTERNAL_SERVER_ERROR));
+                        return;
                     }
 
                     SearchHit hit = response.getHits().getAt(0);
@@ -111,6 +131,7 @@ public class TransportSearchCorrelatedEventsAction extends HandledTransportActio
                     scoreSearchSourceBuilder.query(scoreQueryBuilder);
                     scoreSearchSourceBuilder.fetchSource(true);
                     scoreSearchSourceBuilder.size(1);
+                    scoreSearchSourceBuilder.timeout(requestTimeout);
 
                     SearchRequest scoreSearchRequest = new SearchRequest();
                     scoreSearchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
@@ -121,11 +142,23 @@ public class TransportSearchCorrelatedEventsAction extends HandledTransportActio
                         public void onResponse(SearchResponse response) {
                             if (response.isTimedOut()) {
                                 onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                                return;
+                            }
+                            if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                                onFailures(new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS));
+                                return;
                             }
                             if (response.getHits().getTotalHits().value != 1) {
                                 onFailures(new OpenSearchStatusException("Score Root Record not found", RestStatus.INTERNAL_SERVER_ERROR));
+                                return;
                             }
 
+                            if (response.getHits().getTotalHits().value == 0) {
+                                onFailures(
+                                    new OpenSearchStatusException("cannot search correlated events", RestStatus.INTERNAL_SERVER_ERROR)
+                                );
+                                return;
+                            }
                             Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
                             assert source != null;
 
@@ -145,6 +178,7 @@ public class TransportSearchCorrelatedEventsAction extends HandledTransportActio
                             searchSourceBuilder.fetchSource(false);
                             searchSourceBuilder.fetchField("level");
                             searchSourceBuilder.size(1);
+                            searchSourceBuilder.timeout(requestTimeout);
 
                             SearchRequest searchRequest = new SearchRequest();
                             searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
@@ -155,6 +189,11 @@ public class TransportSearchCorrelatedEventsAction extends HandledTransportActio
                                 public void onResponse(SearchResponse response) {
                                     if (response.isTimedOut()) {
                                         onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                                        return;
+                                    }
+                                    if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                                        onFailures(new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS));
+                                        return;
                                     }
                                     if (response.getHits().getTotalHits().value != 1) {
                                         onFailures(
@@ -191,6 +230,7 @@ public class TransportSearchCorrelatedEventsAction extends HandledTransportActio
                                     searchSourceBuilder.query(correlationQueryBuilder);
                                     searchSourceBuilder.fetchSource(true);
                                     searchSourceBuilder.size(nearbyEvents);
+                                    searchSourceBuilder.timeout(requestTimeout);
 
                                     SearchRequest searchRequest = new SearchRequest();
                                     searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
@@ -201,6 +241,13 @@ public class TransportSearchCorrelatedEventsAction extends HandledTransportActio
                                         public void onResponse(SearchResponse response) {
                                             if (response.isTimedOut()) {
                                                 onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                                                return;
+                                            }
+                                            if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                                                onFailures(
+                                                    new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS)
+                                                );
+                                                return;
                                             }
                                             SearchHit[] hits = response.getHits().getHits();
                                             Map<String, Double> correlatedFindings = new HashMap<>();

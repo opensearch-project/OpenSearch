@@ -22,6 +22,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.action.ActionListener;
@@ -52,6 +53,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -74,6 +76,8 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
     private final ClusterService clusterService;
 
     private volatile long correlationTimeWindow;
+
+    private volatile TimeValue requestTimeout;
 
     /**
      * Parameterized ctor for Transport Action
@@ -99,9 +103,12 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
         this.settings = settings;
         this.clusterService = clusterService;
         this.correlationTimeWindow = EventsCorrelationSettings.CORRELATION_TIME_WINDOW.get(this.settings).getMillis();
+        this.requestTimeout = EventsCorrelationSettings.REQUEST_TIMEOUT.get(this.settings);
 
         this.clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EventsCorrelationSettings.CORRELATION_TIME_WINDOW, it -> correlationTimeWindow = it.getMillis());
+        this.clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(EventsCorrelationSettings.REQUEST_TIMEOUT, it -> requestTimeout = it);
     }
 
     @Override
@@ -132,6 +139,7 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             searchSourceBuilder.query(queryBuilder);
             searchSourceBuilder.fetchSource(true);
+            searchSourceBuilder.timeout(requestTimeout);
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.indices(CorrelationRule.CORRELATION_RULE_INDEX);
@@ -142,25 +150,34 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                 public void onResponse(SearchResponse response) {
                     if (response.isTimedOut()) {
                         onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                        return;
+                    }
+                    if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                        onFailures(new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS));
+                        return;
                     }
 
-                    Iterator<SearchHit> hits = response.getHits().iterator();
-                    List<CorrelationRule> correlationRules = new ArrayList<>();
-                    while (hits.hasNext()) {
-                        try {
-                            SearchHit hit = hits.next();
+                    try {
+                        Iterator<SearchHit> hits = response.getHits().iterator();
+                        List<CorrelationRule> correlationRules = new ArrayList<>();
+                        while (hits.hasNext()) {
+                            try {
+                                SearchHit hit = hits.next();
 
-                            XContentParser xcp = XContentType.JSON.xContent()
-                                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, hit.getSourceAsString());
+                                XContentParser xcp = XContentType.JSON.xContent()
+                                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, hit.getSourceAsString());
 
-                            CorrelationRule rule = CorrelationRule.parse(xcp);
-                            correlationRules.add(rule);
-                        } catch (IOException e) {
-                            onFailures(e);
+                                CorrelationRule rule = CorrelationRule.parse(xcp);
+                                correlationRules.add(rule);
+                            } catch (IOException e) {
+                                onFailures(e);
+                            }
                         }
-                    }
 
-                    prepRulesForCorrelatedEventsGeneration(inputIndex, event, correlationRules);
+                        prepRulesForCorrelatedEventsGeneration(inputIndex, event, correlationRules);
+                    } catch (Exception ex) {
+                        onFailure(ex);
+                    }
                 }
 
                 @Override
@@ -189,6 +206,7 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                     SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
                     searchSourceBuilder.query(queryBuilder);
                     searchSourceBuilder.fetchSource(false);
+                    searchSourceBuilder.timeout(requestTimeout);
 
                     // assuming all queries belonging to an index use the same timestamp field.
                     searchSourceBuilder.fetchField(query.get().getTimestampField());
@@ -202,6 +220,7 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                         SearchSourceBuilder eventSearchSourceBuilder = new SearchSourceBuilder();
                         eventSearchSourceBuilder.query(QueryBuilders.matchQuery("_id", event));
                         eventSearchSourceBuilder.fetchSource(false);
+                        eventSearchSourceBuilder.timeout(requestTimeout);
 
                         // assuming all queries belonging to an index use the same timestamp field.
                         eventSearchSourceBuilder.fetchField(query.get().getTimestampField());
@@ -225,7 +244,7 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                         int idx = 0;
                         for (MultiSearchResponse.Item response : responses) {
                             if (response.isFailure()) {
-                                log.error("error:", response.getFailure());
+                                log.error("error when preparing rules for correlations:", response.getFailure());
                                 // suppress exception
                                 continue;
                             }
@@ -257,6 +276,11 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                                 public void onResponse(SearchResponse response) {
                                     if (response.isTimedOut()) {
                                         onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                                        return;
+                                    }
+                                    if (response.status() == RestStatus.TOO_MANY_REQUESTS) {
+                                        onFailures(new OpenSearchStatusException(response.toString(), RestStatus.TOO_MANY_REQUESTS));
+                                        return;
                                     }
                                     SearchHits searchHits = response.getHits();
                                     if (searchHits.getTotalHits().value == 1) {
@@ -340,6 +364,26 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
 
                 // assuming all queries belonging to an index use the same timestamp field.
                 String timestampField = correlationQueries.get(0).getTimestampField();
+                boolean validEntry = true;
+                for (CorrelationQuery correlationQuery : correlationQueries) {
+                    if (!correlationQuery.getTimestampField().equals(timestampField)) {
+                        validEntry = false;
+                        break;
+                    }
+                }
+                if (!validEntry) {
+                    onFailures(
+                        new OpenSearchStatusException(
+                            String.format(
+                                Locale.ROOT,
+                                "all queries belonging to index {} does not use the same timestamp field {}",
+                                index,
+                                timestampField
+                            ),
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                }
 
                 BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
                     .filter(
@@ -359,6 +403,7 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                 SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
                 searchSourceBuilder.query(queryBuilder);
                 searchSourceBuilder.fetchSource(false);
+                searchSourceBuilder.timeout(requestTimeout);
 
                 SearchRequest searchRequest = new SearchRequest();
                 searchRequest.indices(index);
@@ -376,6 +421,7 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
 
                         for (MultiSearchResponse.Item response : responses) {
                             if (response.isFailure()) {
+                                log.error("error when generating correlated events:", response.getFailure());
                                 // suppress exception
                                 continue;
                             }

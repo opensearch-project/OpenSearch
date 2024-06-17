@@ -13,19 +13,24 @@ import org.opensearch.Version;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.correlation.events.action.SearchCorrelatedEventsRequest;
 import org.opensearch.plugin.correlation.events.action.SearchCorrelatedEventsResponse;
 import org.opensearch.plugin.correlation.events.model.EventWithScore;
+import org.opensearch.plugin.correlation.settings.EventsCorrelationSettings;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -44,6 +49,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -75,7 +81,15 @@ public class TransportSearchCorrelatedEventsActionTests extends OpenSearchTestCa
             DiscoveryNodeRole.BUILT_IN_ROLES,
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
         );
-        clusterService = createClusterService(threadPool, discoveryNode);
+        Settings settings = Settings.builder()
+            .put(EventsCorrelationSettings.CORRELATION_TIME_WINDOW.getKey(), new TimeValue(5, TimeUnit.MINUTES))
+            .put(EventsCorrelationSettings.REQUEST_TIMEOUT.getKey(), new TimeValue(10, TimeUnit.SECONDS))
+            .build();
+        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.add(EventsCorrelationSettings.CORRELATION_TIME_WINDOW);
+        settingSet.add(EventsCorrelationSettings.REQUEST_TIMEOUT);
+        ClusterSettings clusterSettings = new ClusterSettings(settings, settingSet);
+        clusterService = createClusterService(threadPool, discoveryNode, clusterSettings);
     }
 
     public void tearDown() throws Exception {
@@ -139,14 +153,14 @@ public class TransportSearchCorrelatedEventsActionTests extends OpenSearchTestCa
                         1,
                         0,
                         20L,
-                        null,
+                        ShardSearchFailure.EMPTY_ARRAY,
                         null
                     )
                 );
             }
         };
 
-        return new TransportSearchCorrelatedEventsAction(transportService, client, actionFilters);
+        return new TransportSearchCorrelatedEventsAction(transportService, client, actionFilters, clusterService);
     }
 
     public void testDoExecute() {

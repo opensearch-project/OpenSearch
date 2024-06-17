@@ -51,7 +51,7 @@ public class EventsCorrelationSettingsTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put("index.correlation", true).build();
         Assert.assertEquals(EventsCorrelationSettings.IS_CORRELATION_INDEX_SETTING.get(settings), true);
         settings = Settings.builder()
-            .put("plugins.security_analytics.correlation_time_window", new TimeValue(10, TimeUnit.MINUTES))
+            .put("plugins.events_correlation.correlation_time_window", new TimeValue(10, TimeUnit.MINUTES))
             .build();
         Assert.assertEquals(EventsCorrelationSettings.CORRELATION_TIME_WINDOW.get(settings), new TimeValue(10, TimeUnit.MINUTES));
     }
