@@ -10,9 +10,12 @@ package org.opensearch.gateway.remote;
 
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.DiffableUtils;
+import org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
+import org.opensearch.cluster.metadata.Metadata.XContentContext;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
@@ -39,11 +42,12 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_FORMAT;
 
@@ -276,29 +280,37 @@ public class RemoteGlobalMetadataManager {
         }
     }
 
-    Map<String, Metadata.Custom> getUpdatedCustoms(ClusterState currentState, ClusterState previousState) {
-        if (Metadata.isCustomMetadataEqual(previousState.metadata(), currentState.metadata())) {
-            return new HashMap<>();
+    DiffableUtils.MapDiff<String, Metadata.Custom, Map<String, Metadata.Custom>> getCustomsDiff(
+        ClusterState currentState,
+        ClusterState previousState,
+        boolean firstUploadForSplitGlobalMetadata,
+        boolean isRemotePublicationEnabled
+    ) {
+        if (firstUploadForSplitGlobalMetadata) {
+            // For first split global metadata upload, we want to upload all customs
+            return DiffableUtils.diff(
+                Collections.emptyMap(),
+                filterCustoms(currentState.metadata().customs(), isRemotePublicationEnabled),
+                DiffableUtils.getStringKeySerializer(),
+                NonDiffableValueSerializer.getAbstractInstance()
+            );
         }
-        Map<String, Metadata.Custom> updatedCustom = new HashMap<>();
-        Set<String> currentCustoms = new HashSet<>(currentState.metadata().customs().keySet());
-        for (Map.Entry<String, Metadata.Custom> cursor : previousState.metadata().customs().entrySet()) {
-            if (cursor.getValue().context().contains(Metadata.XContentContext.GATEWAY)) {
-                if (currentCustoms.contains(cursor.getKey())
-                    && !cursor.getValue().equals(currentState.metadata().custom(cursor.getKey()))) {
-                    // If the custom metadata is updated, we need to upload the new version.
-                    updatedCustom.put(cursor.getKey(), currentState.metadata().custom(cursor.getKey()));
-                }
-                currentCustoms.remove(cursor.getKey());
-            }
+        return DiffableUtils.diff(
+            filterCustoms(previousState.metadata().customs(), isRemotePublicationEnabled),
+            filterCustoms(currentState.metadata().customs(), isRemotePublicationEnabled),
+            DiffableUtils.getStringKeySerializer(),
+            NonDiffableValueSerializer.getAbstractInstance()
+        );
+    }
+
+    public static Map<String, Metadata.Custom> filterCustoms(Map<String, Metadata.Custom> customs, boolean isRemotePublicationEnabled) {
+        if (isRemotePublicationEnabled) {
+            return customs;
         }
-        for (String custom : currentCustoms) {
-            Metadata.Custom cursor = currentState.metadata().custom(custom);
-            if (cursor.context().contains(Metadata.XContentContext.GATEWAY)) {
-                updatedCustom.put(custom, cursor);
-            }
-        }
-        return updatedCustom;
+        return customs.entrySet()
+            .stream()
+            .filter(e -> e.getValue().context().contains(XContentContext.GATEWAY))
+            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
     boolean isGlobalMetadataEqual(ClusterMetadataManifest first, ClusterMetadataManifest second, String clusterName) {
