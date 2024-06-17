@@ -110,12 +110,11 @@ public class TaskResourceUsageTrackers {
         /**
          * Method to get taskCancellations due to this tracker for the given {@link CancellableTask} tasks
          * @param tasks
-         * @param cancellationCallback
          * @return
          */
-        public List<TaskCancellation> getTaskCancellations(List<CancellableTask> tasks, Runnable cancellationCallback) {
+        public List<TaskCancellation> getTaskCancellations(List<CancellableTask> tasks) {
             return tasks.stream()
-                .map(task -> this.getTaskCancellation(task, List.of(cancellationCallback, this::incrementCancellations)))
+                .map(task -> this.getTaskCancellation(task, List.of(this::incrementCancellations)))
                 .filter(TaskCancellation::isEligibleForCancellation)
                 .collect(Collectors.toList());
         }
