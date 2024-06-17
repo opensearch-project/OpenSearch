@@ -104,7 +104,7 @@ public class FeatureFlags {
      * Gates the functionality of star tree index, which improves the performance of search
      * aggregations.
      */
-    public static final String STAR_TREE_INDEX = "opensearch.experimental.feature.composite.star_tree.enabled";
+    public static final String STAR_TREE_INDEX = "opensearch.experimental.feature.composite_index.star_tree.enabled";
     public static final Setting<Boolean> STAR_TREE_INDEX_SETTING = Setting.boolSetting(STAR_TREE_INDEX, false, Property.NodeScope);
 
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(

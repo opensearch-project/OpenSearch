@@ -22,7 +22,7 @@ import org.opensearch.common.util.FeatureFlags;
 @ExperimentalApi
 public class CompositeIndexSettings {
     public static final Setting<Boolean> STAR_TREE_INDEX_ENABLED_SETTING = Setting.boolSetting(
-        "indices.composite.star_tree.enabled",
+        "indices.composite_index.star_tree.enabled",
         false,
         value -> {
             if (FeatureFlags.isEnabled(FeatureFlags.STAR_TREE_INDEX_SETTING) == false && value == true) {
@@ -51,5 +51,17 @@ public class CompositeIndexSettings {
 
     public boolean isStarTreeIndexCreationEnabled() {
         return starTreeIndexCreationEnabled;
+    }
+
+    /**
+     * Utility to provide a {@link CompositeIndexSettings} instance containing all defaults
+     */
+    public static class DefaultCompositeIndexSettings {
+        private DefaultCompositeIndexSettings() {}
+
+        public static final CompositeIndexSettings INSTANCE = new CompositeIndexSettings(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
     }
 }

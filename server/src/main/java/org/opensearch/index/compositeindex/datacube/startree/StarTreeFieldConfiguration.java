@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex.startree;
+package org.opensearch.index.compositeindex.datacube.startree;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.ToXContent;
@@ -15,6 +15,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -23,13 +24,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class StarTreeFieldSpec implements ToXContent {
+public class StarTreeFieldConfiguration implements ToXContent {
 
     private final AtomicInteger maxLeafDocs = new AtomicInteger();
     private final List<String> skipStarNodeCreationInDims;
     private final StarTreeBuildMode buildMode;
 
-    public StarTreeFieldSpec(int maxLeafDocs, List<String> skipStarNodeCreationInDims, StarTreeBuildMode buildMode) {
+    public StarTreeFieldConfiguration(int maxLeafDocs, List<String> skipStarNodeCreationInDims, StarTreeBuildMode buildMode) {
         this.maxLeafDocs.set(maxLeafDocs);
         this.skipStarNodeCreationInDims = skipStarNodeCreationInDims;
         this.buildMode = buildMode;
@@ -54,6 +55,7 @@ public class StarTreeFieldSpec implements ToXContent {
      */
     @ExperimentalApi
     public enum StarTreeBuildMode {
+        // TODO : remove onheap support unless this proves useful
         ON_HEAP("onheap"),
         OFF_HEAP("offheap");
 
@@ -77,11 +79,6 @@ public class StarTreeFieldSpec implements ToXContent {
         }
     }
 
-    @Override
-    public String toString() {
-        return buildMode.getTypeName();
-    }
-
     public int maxLeafDocs() {
         return maxLeafDocs.get();
     }
@@ -92,5 +89,20 @@ public class StarTreeFieldSpec implements ToXContent {
 
     public List<String> getSkipStarNodeCreationInDims() {
         return skipStarNodeCreationInDims;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StarTreeFieldConfiguration that = (StarTreeFieldConfiguration) o;
+        return Objects.equals(maxLeafDocs.get(), that.maxLeafDocs.get())
+            && Objects.equals(skipStarNodeCreationInDims, that.skipStarNodeCreationInDims)
+            && buildMode == that.buildMode;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(maxLeafDocs.get(), skipStarNodeCreationInDims, buildMode);
     }
 }

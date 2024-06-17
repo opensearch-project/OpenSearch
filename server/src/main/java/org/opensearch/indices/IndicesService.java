@@ -2036,4 +2036,8 @@ public class IndicesService extends AbstractLifecycleComponent
     public RemoteStoreSettings getRemoteStoreSettings() {
         return this.remoteStoreSettings;
     }
+
+    public CompositeIndexSettings getCompositeIndexSettings() {
+        return this.compositeIndexSettings;
+    }
 }

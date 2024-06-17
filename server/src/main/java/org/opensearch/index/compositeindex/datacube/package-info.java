@@ -6,6 +6,6 @@
  * compatible open source license.
  */
 /**
- * Core classes for handling star tree index.
+ * Core classes for handling data cube indices such as star tree index.
  */
-package org.opensearch.index.compositeindex.startree;
+package org.opensearch.index.compositeindex.datacube;

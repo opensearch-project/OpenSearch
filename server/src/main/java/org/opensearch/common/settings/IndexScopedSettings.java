@@ -51,7 +51,7 @@ import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.SearchSlowLog;
 import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
-import org.opensearch.index.compositeindex.startree.StarTreeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.FieldMapper;
@@ -246,6 +246,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING,
                 StarTreeIndexSettings.DEFAULT_METRICS_LIST,
                 StarTreeIndexSettings.DEFAULT_DATE_INTERVALS,
+                StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {

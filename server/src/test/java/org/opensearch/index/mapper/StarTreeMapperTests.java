@@ -13,9 +13,9 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.compositeindex.DateDimension;
-import org.opensearch.index.compositeindex.MetricType;
-import org.opensearch.index.compositeindex.startree.StarTreeFieldSpec;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.junit.After;
 import org.junit.Before;
 
@@ -57,11 +57,11 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(expectedTimeUnits, dateDim.getIntervals());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
-            List<MetricType> expectedMetrics = Arrays.asList(MetricType.SUM, MetricType.AVG);
+            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.SUM, MetricStat.AVG);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
-            assertEquals(100, starTreeFieldType.getStarTreeFieldSpec().maxLeafDocs());
-            assertEquals(StarTreeFieldSpec.StarTreeBuildMode.ON_HEAP, starTreeFieldType.getStarTreeFieldSpec().getBuildMode());
-            assertEquals(Arrays.asList("@timestamp", "status"), starTreeFieldType.getStarTreeFieldSpec().getSkipStarNodeCreationInDims());
+            assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
+            assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
+            assertEquals(Arrays.asList("@timestamp", "status"), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
         }
     }
 
@@ -80,17 +80,17 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(expectedTimeUnits, dateDim.getIntervals());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
-            List<MetricType> expectedMetrics = Arrays.asList(
-                MetricType.AVG,
-                MetricType.COUNT,
-                MetricType.SUM,
-                MetricType.MAX,
-                MetricType.MIN
+            List<MetricStat> expectedMetrics = Arrays.asList(
+                MetricStat.AVG,
+                MetricStat.COUNT,
+                MetricStat.SUM,
+                MetricStat.MAX,
+                MetricStat.MIN
             );
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
-            assertEquals(10000, starTreeFieldType.getStarTreeFieldSpec().maxLeafDocs());
-            assertEquals(StarTreeFieldSpec.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeFieldSpec().getBuildMode());
-            assertEquals(Collections.emptyList(), starTreeFieldType.getStarTreeFieldSpec().getSkipStarNodeCreationInDims());
+            assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
+            assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
+            assertEquals(Collections.emptyList(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
         }
     }
 
@@ -118,6 +118,17 @@ public class StarTreeMapperTests extends MapperTestCase {
         assertThat(
             ex.getMessage(),
             containsString("Failed to parse mapping [_doc]: metrics section is required for star tree field [startree]")
+        );
+    }
+
+    public void testInvalidParam() {
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(getInvalidMapping(false, false, false, false, true))
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: Star tree mapping definition has unsupported parameters:  [invalid : {invalid=invalid}]",
+            ex.getMessage()
         );
     }
 
@@ -206,24 +217,27 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.value("status");
             }
             b.endArray();
-            b.startObject("ordered_dimensions");
-            b.startObject("@timestamp");
-            b.startArray("calendar_interval");
+            b.startArray("ordered_dimensions");
+            b.startObject();
+            b.field("name", "@timestamp");
+            b.startArray("calendar_intervals");
             b.value("day");
             b.value("month");
             b.endArray();
             b.endObject();
-            b.startObject(dim);
+            b.startObject();
+            b.field("name", dim);
             b.endObject();
-            b.endObject();
-            b.startObject("metrics");
-            b.startObject(metric);
+            b.endArray();
             b.startArray("metrics");
+            b.startObject();
+            b.field("name", metric);
+            b.startArray("stats");
             b.value("sum");
             b.value("avg");
             b.endArray();
             b.endObject();
-            b.endObject();
+            b.endArray();
             b.endObject();
             b.endObject();
             b.endObject();
@@ -253,20 +267,24 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.field("type", "star_tree");
             b.startObject("config");
             if (!isEmptyDims) {
-                b.startObject("ordered_dimensions");
-                b.startObject("@timestamp");
+                b.startArray("ordered_dimensions");
+                b.startObject();
+                b.field("name", "@timestamp");
                 b.endObject();
-                b.startObject("status");
+                b.startObject();
+                b.field("name", "status");
                 b.endObject();
-                b.endObject();
+                b.endArray();
             }
             if (!isEmptyMetrics) {
-                b.startObject("metrics");
-                b.startObject("status");
+                b.startArray("metrics");
+                b.startObject();
+                b.field("name", "status");
                 b.endObject();
-                b.startObject("metric_field");
+                b.startObject();
+                b.field("name", "metric_field");
                 b.endObject();
-                b.endObject();
+                b.endArray();
             }
             b.endObject();
             b.endObject();
@@ -289,8 +307,13 @@ public class StarTreeMapperTests extends MapperTestCase {
         });
     }
 
-    private XContentBuilder getInvalidMapping(boolean singleDim, boolean invalidSkipDims, boolean invalidDimType, boolean invalidMetricType)
-        throws IOException {
+    private XContentBuilder getInvalidMapping(
+        boolean singleDim,
+        boolean invalidSkipDims,
+        boolean invalidDimType,
+        boolean invalidMetricType,
+        boolean invalidParam
+    ) throws IOException {
         return topMapping(b -> {
             b.startObject("composite");
             b.startObject("startree");
@@ -305,20 +328,29 @@ public class StarTreeMapperTests extends MapperTestCase {
                 b.value("status");
             }
             b.endArray();
-            b.startObject("ordered_dimensions");
-            if (!singleDim) {
-                b.startObject("@timestamp");
+            if (invalidParam) {
+                b.startObject("invalid");
+                b.field("invalid", "invalid");
                 b.endObject();
             }
-            b.startObject("status");
+            b.startArray("ordered_dimensions");
+            if (!singleDim) {
+                b.startObject();
+                b.field("name", "@timestamp");
+                b.endObject();
+            }
+            b.startObject();
+            b.field("name", "status");
             b.endObject();
+            b.endArray();
+            b.startArray("metrics");
+            b.startObject();
+            b.field("name", "status");
             b.endObject();
-            b.startObject("metrics");
-            b.startObject("status");
+            b.startObject();
+            b.field("name", "metric_field");
             b.endObject();
-            b.startObject("metric_field");
-            b.endObject();
-            b.endObject();
+            b.endArray();
             b.endObject();
             b.endObject();
             b.endObject();
@@ -343,6 +375,11 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         });
+    }
+
+    private XContentBuilder getInvalidMapping(boolean singleDim, boolean invalidSkipDims, boolean invalidDimType, boolean invalidMetricType)
+        throws IOException {
+        return getInvalidMapping(singleDim, invalidSkipDims, invalidDimType, invalidMetricType, false);
     }
 
     protected boolean supportsOrIgnoresBoost() {
@@ -402,16 +439,19 @@ public class StarTreeMapperTests extends MapperTestCase {
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "star_tree");
         b.startObject("config");
-        b.startObject("ordered_dimensions");
-        b.startObject("size");
+        b.startArray("ordered_dimensions");
+        b.startObject();
+        b.field("name", "size");
         b.endObject();
-        b.startObject("status");
+        b.startObject();
+        b.field("name", "status");
         b.endObject();
+        b.endArray();
+        b.startArray("metrics");
+        b.startObject();
+        b.field("name", "status");
         b.endObject();
-        b.startObject("metrics");
-        b.startObject("status");
-        b.endObject();
-        b.endObject();
+        b.endArray();
         b.endObject();
     }
 

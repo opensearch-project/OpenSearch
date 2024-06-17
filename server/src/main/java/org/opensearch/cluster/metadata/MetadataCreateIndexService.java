@@ -1320,7 +1320,7 @@ public class MetadataCreateIndexService {
         }
 
         if (mapperService.isCompositeIndexPresent()) {
-            CompositeIndexValidator.validate(mapperService, indexService.getCompositeIndexSettings());
+            CompositeIndexValidator.validate(mapperService, indexService.getCompositeIndexSettings(), indexService.getIndexSettings());
         }
 
         if (sourceMetadata == null) {

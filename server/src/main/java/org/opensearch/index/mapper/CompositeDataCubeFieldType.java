@@ -9,8 +9,8 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.compositeindex.Dimension;
-import org.opensearch.index.compositeindex.Metric;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.Metric;
 
 import java.util.ArrayList;
 import java.util.HashSet;

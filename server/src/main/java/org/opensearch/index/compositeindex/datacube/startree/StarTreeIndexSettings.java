@@ -6,18 +6,19 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex.startree;
+package org.opensearch.index.compositeindex.datacube.startree;
 
 import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.index.compositeindex.MetricType;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 
 import java.util.Arrays;
 import java.util.List;
 
 /**
- * Index settings for star tree fields
+ * Index settings for star tree fields. The settings are final as right now
+ * there is no support for update of star tree mapping.
  *
  * @opensearch.experimental
  */
@@ -27,7 +28,7 @@ public class StarTreeIndexSettings {
      * star tree field, we will generate associated star tree index.
      */
     public static final Setting<Integer> STAR_TREE_MAX_FIELDS_SETTING = Setting.intSetting(
-        "index.composite.star_tree.max_fields",
+        "index.composite_index.star_tree.max_fields",
         1,
         1,
         1,
@@ -40,10 +41,22 @@ public class StarTreeIndexSettings {
      * dimensions and associated cardinality has direct effect of star tree index size and query performance.
      */
     public static final Setting<Integer> STAR_TREE_MAX_DIMENSIONS_SETTING = Setting.intSetting(
-        "index.composite.star_tree.field.max_dimensions",
+        "index.composite_index.star_tree.field.max_dimensions",
         10,
         2,
         10,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
+
+    /**
+     * This setting determines the max number of date intervals that can be part of star tree date field.
+     */
+    public static final Setting<Integer> STAR_TREE_MAX_DATE_INTERVALS_SETTING = Setting.intSetting(
+        "index.composite_index.star_tree.field.max_date_intervals",
+        3,
+        1,
+        3,
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -57,7 +70,7 @@ public class StarTreeIndexSettings {
      * @opensearch.experimental
      */
     public static final Setting<Integer> STAR_TREE_DEFAULT_MAX_LEAF_DOCS = Setting.intSetting(
-        "index.composite.star_tree.default.max_leaf_docs",
+        "index.composite_index.star_tree.default.max_leaf_docs",
         10000,
         1,
         Setting.Property.IndexScope,
@@ -68,7 +81,7 @@ public class StarTreeIndexSettings {
      * Default intervals for date dimension as part of star tree fields
      */
     public static final Setting<List<Rounding.DateTimeUnit>> DEFAULT_DATE_INTERVALS = Setting.listSetting(
-        "index.composite.star_tree.field.default.date_intervals",
+        "index.composite_index.star_tree.field.default.date_intervals",
         Arrays.asList(Rounding.DateTimeUnit.MINUTES_OF_HOUR.shortName(), Rounding.DateTimeUnit.HOUR_OF_DAY.shortName()),
         StarTreeIndexSettings::getTimeUnit,
         Setting.Property.IndexScope,
@@ -78,23 +91,23 @@ public class StarTreeIndexSettings {
     /**
      * Default metrics for metrics as part of star tree fields
      */
-    public static final Setting<List<MetricType>> DEFAULT_METRICS_LIST = Setting.listSetting(
-        "index.composite.star_tree.field.default.metrics",
+    public static final Setting<List<MetricStat>> DEFAULT_METRICS_LIST = Setting.listSetting(
+        "index.composite_index.star_tree.field.default.metrics",
         Arrays.asList(
-            MetricType.AVG.toString(),
-            MetricType.COUNT.toString(),
-            MetricType.SUM.toString(),
-            MetricType.MAX.toString(),
-            MetricType.MIN.toString()
+            MetricStat.AVG.toString(),
+            MetricStat.COUNT.toString(),
+            MetricStat.SUM.toString(),
+            MetricStat.MAX.toString(),
+            MetricStat.MIN.toString()
         ),
-        MetricType::fromTypeName,
+        MetricStat::fromTypeName,
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
 
     public static Rounding.DateTimeUnit getTimeUnit(String expression) {
         if (!DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(expression)) {
-            throw new IllegalArgumentException("unknown calendar interval specified in star tree index config");
+            throw new IllegalArgumentException("unknown calendar intervals specified in star tree index mapping");
         }
         return DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expression);
     }

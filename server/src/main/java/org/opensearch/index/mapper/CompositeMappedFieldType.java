@@ -47,7 +47,26 @@ public abstract class CompositeMappedFieldType extends MappedFieldType {
      * Supported composite field types
      */
     public enum CompositeFieldType {
-        STAR_TREE
+        STAR_TREE("star_tree");
+
+        private final String name;
+
+        CompositeFieldType(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public static CompositeFieldType fromName(String name) {
+            for (CompositeFieldType metric : CompositeFieldType.values()) {
+                if (metric.getName().equalsIgnoreCase(name)) {
+                    return metric;
+                }
+            }
+            throw new IllegalArgumentException("Invalid metric stat: " + name);
+        }
     }
 
     public List<String> fields() {

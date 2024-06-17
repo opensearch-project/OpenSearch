@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex;
+package org.opensearch.index.compositeindex.datacube;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
@@ -16,7 +16,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public enum MetricType {
+public enum MetricStat {
     COUNT("count"),
     AVG("avg"),
     SUM("sum"),
@@ -25,7 +25,7 @@ public enum MetricType {
 
     private final String typeName;
 
-    MetricType(String typeName) {
+    MetricStat(String typeName) {
         this.typeName = typeName;
     }
 
@@ -33,12 +33,12 @@ public enum MetricType {
         return typeName;
     }
 
-    public static MetricType fromTypeName(String typeName) {
-        for (MetricType metric : MetricType.values()) {
+    public static MetricStat fromTypeName(String typeName) {
+        for (MetricStat metric : MetricStat.values()) {
             if (metric.getTypeName().equalsIgnoreCase(typeName)) {
                 return metric;
             }
         }
-        throw new IllegalArgumentException("Invalid metric type: " + typeName);
+        throw new IllegalArgumentException("Invalid metric stat: " + typeName);
     }
 }

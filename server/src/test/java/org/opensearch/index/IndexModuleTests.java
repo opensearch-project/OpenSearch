@@ -80,6 +80,7 @@ import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.cache.query.IndexQueryCache;
 import org.opensearch.index.cache.query.QueryCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -99,7 +100,6 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
-import org.opensearch.indices.DefaultCompositeIndexSettings;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
@@ -266,7 +266,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
             DefaultRecoverySettings.INSTANCE,
             DefaultRemoteStoreSettings.INSTANCE,
-            DefaultCompositeIndexSettings.INSTANCE
+            CompositeIndexSettings.DefaultCompositeIndexSettings.INSTANCE
         );
     }
 

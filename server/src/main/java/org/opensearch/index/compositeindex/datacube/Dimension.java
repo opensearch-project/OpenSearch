@@ -6,13 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex;
+package org.opensearch.index.compositeindex.datacube;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.mapper.StarTreeMapper;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Composite index dimension base class
@@ -21,6 +23,7 @@ import java.io.IOException;
  */
 @ExperimentalApi
 public class Dimension implements ToXContent {
+    public static final String NUMERIC = "numeric";
     private final String field;
 
     public Dimension(String field) {
@@ -33,9 +36,23 @@ public class Dimension implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(field);
-        builder.field("type", "numeric");
+        builder.startObject();
+        builder.field(StarTreeMapper.NAME, field);
+        builder.field(StarTreeMapper.TYPE, NUMERIC);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Dimension dimension = (Dimension) o;
+        return Objects.equals(field, dimension.field);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field);
     }
 }

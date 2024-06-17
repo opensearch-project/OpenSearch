@@ -11,19 +11,18 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.index.compositeindex.DateDimension;
-import org.opensearch.index.compositeindex.Dimension;
-import org.opensearch.index.compositeindex.Metric;
-import org.opensearch.index.compositeindex.MetricType;
-import org.opensearch.index.compositeindex.startree.StarTreeField;
-import org.opensearch.index.compositeindex.startree.StarTreeFieldSpec;
-import org.opensearch.index.compositeindex.startree.StarTreeIndexSettings;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.Metric;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -41,6 +40,15 @@ import java.util.stream.Collectors;
 @ExperimentalApi
 public class StarTreeMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "star_tree";
+    public static final String CONFIG = "config";
+    public static final String MAX_LEAF_DOCS = "max_leaf_docs";
+    public static final String SKIP_STAR_NODE_IN_DIMS = "skip_star_node_creation_for_dimensions";
+    public static final String BUILD_MODE = "build_mode";
+    public static final String ORDERED_DIMENSIONS = "ordered_dimensions";
+    public static final String METRICS = "metrics";
+    public static final String NAME = "name";
+    public static final String TYPE = "type";
+    public static final String STATS = "stats";
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
@@ -62,31 +70,37 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
         private static final Set<Class<? extends Mapper.Builder>> ALLOWED_METRIC_MAPPER_BUILDERS = Set.of(NumberFieldMapper.Builder.class);
 
         @SuppressWarnings("unchecked")
-        private final Parameter<StarTreeField> config = new Parameter<>("config", false, () -> null, (name, context, nodeObj) -> {
+        private final Parameter<StarTreeField> config = new Parameter<>(CONFIG, false, () -> null, (name, context, nodeObj) -> {
             if (nodeObj instanceof Map<?, ?>) {
                 Map<String, Object> paramMap = (Map<String, Object>) nodeObj;
                 int maxLeafDocs = XContentMapValues.nodeIntegerValue(
-                    paramMap.get("max_leaf_docs"),
+                    paramMap.get(MAX_LEAF_DOCS),
                     StarTreeIndexSettings.STAR_TREE_DEFAULT_MAX_LEAF_DOCS.get(context.getSettings())
                 );
                 if (maxLeafDocs < 1) {
                     throw new IllegalArgumentException(
-                        String.format(Locale.ROOT, "max_leaf_docs [%s] must be greater than 0", maxLeafDocs)
+                        String.format(Locale.ROOT, "%s [%s] must be greater than 0", MAX_LEAF_DOCS, maxLeafDocs)
                     );
                 }
+                paramMap.remove(MAX_LEAF_DOCS);
                 List<String> skipStarInDims = Arrays.asList(
-                    XContentMapValues.nodeStringArrayValue(
-                        paramMap.getOrDefault("skip_star_node_creation_for_dimensions", new ArrayList<String>())
-                    )
+                    XContentMapValues.nodeStringArrayValue(paramMap.getOrDefault(SKIP_STAR_NODE_IN_DIMS, new ArrayList<String>()))
                 );
-                StarTreeFieldSpec.StarTreeBuildMode buildMode = StarTreeFieldSpec.StarTreeBuildMode.fromTypeName(
+                paramMap.remove(SKIP_STAR_NODE_IN_DIMS);
+                StarTreeFieldConfiguration.StarTreeBuildMode buildMode = StarTreeFieldConfiguration.StarTreeBuildMode.fromTypeName(
                     XContentMapValues.nodeStringValue(
-                        paramMap.get("build_mode"),
-                        StarTreeFieldSpec.StarTreeBuildMode.OFF_HEAP.getTypeName()
+                        paramMap.get(BUILD_MODE),
+                        StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP.getTypeName()
                     )
                 );
-                List<Dimension> dimensions = buildDimensions(paramMap, context);
-                List<Metric> metrics = buildMetrics(paramMap, context);
+                paramMap.remove(BUILD_MODE);
+                List<Dimension> dimensions = buildDimensions(name, paramMap, context);
+                paramMap.remove(ORDERED_DIMENSIONS);
+                List<Metric> metrics = buildMetrics(name, paramMap, context);
+                paramMap.remove(METRICS);
+                if (paramMap.containsKey(NAME)) {
+                    paramMap.remove(NAME);
+                }
                 for (String dim : skipStarInDims) {
                     if (dimensions.stream().filter(d -> d.getField().equals(dim)).findAny().isEmpty()) {
                         throw new IllegalArgumentException(
@@ -98,7 +112,12 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                         );
                     }
                 }
-                StarTreeFieldSpec spec = new StarTreeFieldSpec(maxLeafDocs, skipStarInDims, buildMode);
+                StarTreeFieldConfiguration spec = new StarTreeFieldConfiguration(maxLeafDocs, skipStarInDims, buildMode);
+                DocumentMapperParser.checkNoRemainingFields(
+                    paramMap,
+                    context.indexVersionCreated(),
+                    "Star tree mapping definition has unsupported parameters: "
+                );
                 return new StarTreeField(this.name, dimensions, metrics, spec);
 
             } else {
@@ -112,101 +131,106 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
          * Build dimensions from mapping
          */
         @SuppressWarnings("unchecked")
-        private List<Dimension> buildDimensions(Map<String, Object> map, Mapper.TypeParser.ParserContext context) {
+        private List<Dimension> buildDimensions(String fieldName, Map<String, Object> map, Mapper.TypeParser.ParserContext context) {
             Object dims = XContentMapValues.extractValue("ordered_dimensions", map);
             if (dims == null) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "ordered_dimensions is required for star tree field [%s]", this.name)
+                    String.format(Locale.ROOT, "ordered_dimensions is required for star tree field [%s]", fieldName)
                 );
             }
             List<Dimension> dimensions = new LinkedList<>();
-            if (dims instanceof LinkedHashMap<?, ?>) {
-                if (((LinkedHashMap<?, ?>) dims).size() > context.getSettings()
-                    .getAsInt(StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(), 10)) {
+            if (dims instanceof List<?>) {
+                List<Object> dimList = (List<Object>) dims;
+                if (dimList.size() > context.getSettings().getAsInt(StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(), 10)) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
                             "ordered_dimensions cannot have more than %s dimensions for star tree field [%s]",
                             context.getSettings().getAsInt(StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(), 10),
-                            this.name
+                            fieldName
                         )
                     );
                 }
-                if (((LinkedHashMap<?, ?>) dims).size() < 2) {
+                if (dimList.size() < 2) {
                     throw new IllegalArgumentException(
-                        String.format(Locale.ROOT, "Atleast two dimensions are required to build star tree index field [%s]", this.name)
+                        String.format(Locale.ROOT, "Atleast two dimensions are required to build star tree index field [%s]", fieldName)
                     );
                 }
-                for (Map.Entry<String, Object> dim : ((LinkedHashMap<String, Object>) dims).entrySet()) {
-                    if (this.objbuilder == null || this.objbuilder.mappersBuilders == null) {
-                        if (dim.getValue() instanceof Map<?, ?>) {
-                            Map<String, Object> dimObj = ((Map<String, Object>) dim.getValue());
-                            String type = XContentMapValues.nodeStringValue(dimObj.get("type"));
-                            dimensions.add(getDimension(type, dim, context));
-                        } else {
-                            throw new MapperParsingException(
-                                String.format(Locale.ROOT, "unable to parse ordered_dimensions for star tree field [%s]", this.name)
-                            );
-                        }
-                    } else {
-                        Optional<Mapper.Builder> dimBuilder = findMapperBuilderByName(dim.getKey(), this.objbuilder.mappersBuilders);
-                        if (dimBuilder.isEmpty()) {
-                            throw new IllegalArgumentException(String.format(Locale.ROOT, "unknown dimension field [%s]", dim.getKey()));
-                        }
-                        if (!isBuilderAllowedForDimension(dimBuilder.get())) {
-                            throw new IllegalArgumentException(
-                                String.format(
-                                    Locale.ROOT,
-                                    "unsupported field type associated with dimension [%s] as part of star tree field [%s]",
-                                    dim.getKey(),
-                                    name
-                                )
-                            );
-                        }
-                        dimensions.add(getDimension(dimBuilder.get(), dim, context));
-                    }
+                for (Object dim : dimList) {
+                    dimensions.add(getDimension(fieldName, dim, context));
                 }
             } else {
                 throw new MapperParsingException(
-                    String.format(Locale.ROOT, "unable to parse ordered_dimensions for star tree field [%s]", this.name)
+                    String.format(Locale.ROOT, "unable to parse ordered_dimensions for star tree field [%s]", fieldName)
                 );
             }
             return dimensions;
         }
 
         /**
-         * Get dimension instance based on the builder type
+         * Get dimension based on mapping
          */
-        private Dimension getDimension(Mapper.Builder builder, Map.Entry<String, Object> dim, Mapper.TypeParser.ParserContext context) {
-            String name = dim.getKey();
+        @SuppressWarnings("unchecked")
+        private Dimension getDimension(String fieldName, Object dimensionMapping, Mapper.TypeParser.ParserContext context) {
             Dimension dimension;
-            if (builder instanceof DateFieldMapper.Builder) {
-                dimension = new DateDimension(dim, context);
-            }
-            // Numeric dimension - default
-            else if (builder instanceof NumberFieldMapper.Builder) {
-                dimension = new Dimension(name);
+            Map<String, Object> dimensionMap = (Map<String, Object>) dimensionMapping;
+            String name = (String) XContentMapValues.extractValue(NAME, dimensionMap);
+            dimensionMap.remove(NAME);
+            if (this.objbuilder == null || this.objbuilder.mappersBuilders == null) {
+                String type = (String) XContentMapValues.extractValue(TYPE, dimensionMap);
+                dimensionMap.remove(TYPE);
+                if (type == null) {
+                    throw new MapperParsingException(
+                        String.format(Locale.ROOT, "unable to parse ordered_dimensions for star tree field [%s]", fieldName)
+                    );
+                }
+                if (type.equals(DateDimension.DATE)) {
+                    dimension = new DateDimension(name, dimensionMap, context);
+                } else if (type.equals(Dimension.NUMERIC)) {
+                    dimension = new Dimension(name);
+                } else {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "unsupported field type associated with dimension [%s] as part of star tree field [%s]",
+                            name,
+                            fieldName
+                        )
+                    );
+                }
+                return dimension;
             } else {
-                throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
-                );
+                Optional<Mapper.Builder> dimBuilder = findMapperBuilderByName(name, this.objbuilder.mappersBuilders);
+                if (dimBuilder.isEmpty()) {
+                    throw new IllegalArgumentException(String.format(Locale.ROOT, "unknown dimension field [%s]", name));
+                }
+                if (!isBuilderAllowedForDimension(dimBuilder.get())) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "unsupported field type associated with dimension [%s] as part of star tree field [%s]",
+                            name,
+                            fieldName
+                        )
+                    );
+                }
+                if (dimBuilder.get() instanceof DateFieldMapper.Builder) {
+                    dimension = new DateDimension(name, dimensionMap, context);
+                }
+                // Numeric dimension - default
+                else if (dimBuilder.get() instanceof NumberFieldMapper.Builder) {
+                    dimension = new Dimension(name);
+                } else {
+                    throw new IllegalArgumentException(
+                        String.format(Locale.ROOT, "unsupported field type associated with star tree dimension [%s]", name)
+                    );
+                }
             }
-            return dimension;
-        }
-
-        /**
-         * Get dimension based on field type
-         */
-        private Dimension getDimension(String type, Map.Entry<String, Object> dim, Mapper.TypeParser.ParserContext c) {
-            String name = dim.getKey();
-            Dimension dimension;
-            if (type.equals("date")) {
-                dimension = new DateDimension(dim, c);
-            }
-            // Numeric dimension - default
-            else {
-                dimension = new Dimension(name);
-            }
+            DocumentMapperParser.checkNoRemainingFields(
+                dimensionMap,
+                context.indexVersionCreated(),
+                "Star tree mapping definition has unsupported parameters: "
+            );
             return dimension;
         }
 
@@ -214,29 +238,38 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
          * Build metrics from mapping
          */
         @SuppressWarnings("unchecked")
-        private List<Metric> buildMetrics(Map<String, Object> map, Mapper.TypeParser.ParserContext context) {
+        private List<Metric> buildMetrics(String fieldName, Map<String, Object> map, Mapper.TypeParser.ParserContext context) {
             List<Metric> metrics = new LinkedList<>();
-            Object metricsFromInput = XContentMapValues.extractValue("metrics", map);
+            Object metricsFromInput = XContentMapValues.extractValue(METRICS, map);
             if (metricsFromInput == null) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "metrics section is required for star tree field [%s]", this.name)
+                    String.format(Locale.ROOT, "metrics section is required for star tree field [%s]", fieldName)
                 );
             }
-            if (metricsFromInput instanceof LinkedHashMap<?, ?>) {
-                for (Map.Entry<String, Object> metric : ((LinkedHashMap<String, Object>) metricsFromInput).entrySet()) {
+            if (metricsFromInput instanceof List<?>) {
+                List<?> metricsList = (List<?>) metricsFromInput;
+                for (Object metric : metricsList) {
+                    Map<String, Object> metricMap = (Map<String, Object>) metric;
+                    String name = (String) XContentMapValues.extractValue(NAME, metricMap);
+                    metricMap.remove(NAME);
                     if (objbuilder == null || objbuilder.mappersBuilders == null) {
-                        metrics.add(getMetric(metric, context));
+                        metrics.add(getMetric(name, metricMap, context));
                     } else {
-                        Optional<Mapper.Builder> meticBuilder = findMapperBuilderByName(metric.getKey(), this.objbuilder.mappersBuilders);
+                        Optional<Mapper.Builder> meticBuilder = findMapperBuilderByName(name, this.objbuilder.mappersBuilders);
                         if (meticBuilder.isEmpty()) {
-                            throw new IllegalArgumentException(String.format(Locale.ROOT, "unknown metric field [%s]", metric.getKey()));
+                            throw new IllegalArgumentException(String.format(Locale.ROOT, "unknown metric field [%s]", name));
                         }
                         if (!isBuilderAllowedForMetric(meticBuilder.get())) {
                             throw new IllegalArgumentException(
                                 String.format(Locale.ROOT, "non-numeric field type is associated with star tree metric [%s]", this.name)
                             );
                         }
-                        metrics.add(getMetric(metric, context));
+                        metrics.add(getMetric(name, metricMap, context));
+                        DocumentMapperParser.checkNoRemainingFields(
+                            metricMap,
+                            context.indexVersionCreated(),
+                            "Star tree mapping definition has unsupported parameters: "
+                        );
                     }
                 }
             } else {
@@ -247,20 +280,19 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
         }
 
         @SuppressWarnings("unchecked")
-        private Metric getMetric(Map.Entry<String, Object> map, Mapper.TypeParser.ParserContext context) {
-            String name = map.getKey();
-            List<MetricType> metricTypes;
-            List<String> metricStrings = XContentMapValues.extractRawValues("metrics", (Map<String, Object>) map.getValue())
+        private Metric getMetric(String name, Map<String, Object> metric, Mapper.TypeParser.ParserContext context) {
+            List<MetricStat> metricTypes;
+            List<String> metricStrings = XContentMapValues.extractRawValues(STATS, metric)
                 .stream()
                 .map(Object::toString)
                 .collect(Collectors.toList());
-
+            metric.remove(STATS);
             if (metricStrings.isEmpty()) {
                 metricTypes = new ArrayList<>(StarTreeIndexSettings.DEFAULT_METRICS_LIST.get(context.getSettings()));
             } else {
-                Set<MetricType> metricSet = new LinkedHashSet<>();
+                Set<MetricStat> metricSet = new LinkedHashSet<>();
                 for (String metricString : metricStrings) {
-                    metricSet.add(MetricType.fromTypeName(metricString));
+                    metricSet.add(MetricStat.fromTypeName(metricString));
                 }
                 metricTypes = new ArrayList<>(metricSet);
             }
@@ -367,15 +399,15 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
     @ExperimentalApi
     public static final class StarTreeFieldType extends CompositeDataCubeFieldType {
 
-        private final StarTreeFieldSpec starTreeFieldSpec;
+        private final StarTreeFieldConfiguration starTreeConfig;
 
         public StarTreeFieldType(String name, StarTreeField starTreeField) {
             super(name, starTreeField.getDimensionsOrder(), starTreeField.getMetrics(), CompositeFieldType.STAR_TREE);
-            this.starTreeFieldSpec = starTreeField.getSpec();
+            this.starTreeConfig = starTreeField.getStarTreeConfig();
         }
 
-        public StarTreeFieldSpec getStarTreeFieldSpec() {
-            return starTreeFieldSpec;
+        public StarTreeFieldConfiguration getStarTreeConfig() {
+            return starTreeConfig;
         }
 
         @Override

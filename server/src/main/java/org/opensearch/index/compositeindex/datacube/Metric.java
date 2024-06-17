@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex;
+package org.opensearch.index.compositeindex.datacube;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.xcontent.ToXContent;
@@ -14,6 +14,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Holds details of metrics field as part of composite field
@@ -21,9 +22,9 @@ import java.util.List;
 @ExperimentalApi
 public class Metric implements ToXContent {
     private final String field;
-    private final List<MetricType> metrics;
+    private final List<MetricStat> metrics;
 
-    public Metric(String field, List<MetricType> metrics) {
+    public Metric(String field, List<MetricStat> metrics) {
         this.field = field;
         this.metrics = metrics;
     }
@@ -32,19 +33,33 @@ public class Metric implements ToXContent {
         return field;
     }
 
-    public List<MetricType> getMetrics() {
+    public List<MetricStat> getMetrics() {
         return metrics;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(field);
-        builder.startArray("metrics");
-        for (MetricType metricType : metrics) {
+        builder.startObject();
+        builder.field("name", field);
+        builder.startArray("stats");
+        for (MetricStat metricType : metrics) {
             builder.value(metricType.getTypeName());
         }
         builder.endArray();
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Metric metric = (Metric) o;
+        return Objects.equals(field, metric.field) && Objects.equals(metrics, metric.metrics);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field, metrics);
     }
 }

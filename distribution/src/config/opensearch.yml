@@ -128,4 +128,4 @@ ${path.logs}
 #
 # Gates the functionality of star tree index, which improves the performance of search aggregations.
 #
-#opensearch.experimental.feature.composite.star_tree.enabled: true
+#opensearch.experimental.feature.composite_index.star_tree.enabled: true
