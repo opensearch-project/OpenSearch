@@ -101,7 +101,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -491,7 +490,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             indexShard.hashCode()
         );
         // test the mapping
-        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager
+            .getCleanupKeyToCountMap();
         // shard id should exist
         assertTrue(cleanupKeyToCountMap.containsKey(shardId));
         // reader CacheKeyId should NOT exist
@@ -554,7 +554,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         );
 
         // test the mapping
-        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager
+            .getCleanupKeyToCountMap();
         // shard id should exist
         assertTrue(cleanupKeyToCountMap.containsKey(shardId));
         // reader CacheKeyId should NOT exist
@@ -722,7 +723,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
         assertEquals(1, cache.count());
         // test the mappings
-        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager
+            .getCleanupKeyToCountMap();
         assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(getReaderCacheKeyId(reader)));
 
         cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
