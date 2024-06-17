@@ -130,11 +130,11 @@ public class RemoteClusterStateAttributesManager {
     public DiffableUtils.MapDiff<String, ClusterState.Custom, Map<String, ClusterState.Custom>> getUpdatedCustoms(
         ClusterState clusterState,
         ClusterState previousClusterState,
-        boolean isWriteFull,
-        boolean firstUploadForEphemeralMetadata
+        boolean isRemotePublicationEnabled,
+        boolean isFirstUpload
     ) {
-        if (!isWriteFull) {
-            // When isWriteFull is false, we do not want store any custom objects
+        if (!isRemotePublicationEnabled) {
+            // When isRemotePublicationEnabled is false, we do not want store any custom objects
             return DiffableUtils.diff(
                 Collections.emptyMap(),
                 Collections.emptyMap(),
@@ -142,7 +142,7 @@ public class RemoteClusterStateAttributesManager {
                 NonDiffableValueSerializer.getAbstractInstance()
             );
         }
-        if (firstUploadForEphemeralMetadata) {
+        if (isFirstUpload) {
             // For first upload of ephemeral metadata, we want to upload all customs
             return DiffableUtils.diff(
                 Collections.emptyMap(),
