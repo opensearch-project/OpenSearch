@@ -69,8 +69,10 @@ import org.opensearch.gateway.PersistedClusterStateService.Writer;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.gateway.remote.RemotePersistenceStats;
+import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.recovery.RemoteStoreRestoreService.RemoteRestoreResult;
+import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.fs.FsRepository;
@@ -461,9 +463,7 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             });
             when(transportService.getThreadPool()).thenReturn(threadPool);
             ClusterService clusterService = mock(ClusterService.class);
-            when(clusterService.getClusterSettings()).thenReturn(
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
+            when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
                 nodeEnvironment,
                 xContentRegistry(),
@@ -473,20 +473,24 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             );
             Supplier<RemoteClusterStateService> remoteClusterStateServiceSupplier = () -> {
                 if (isRemoteStoreClusterStateEnabled(settings)) {
+                    Supplier<RepositoriesService> repositoriesServiceSupplier = () -> new RepositoriesService(
+                        settings,
+                        clusterService,
+                        transportService,
+                        Collections.emptyMap(),
+                        Collections.emptyMap(),
+                        transportService.getThreadPool()
+                    );
+                    ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                     return new RemoteClusterStateService(
                         nodeEnvironment.nodeId(),
-                        () -> new RepositoriesService(
-                            settings,
-                            clusterService,
-                            transportService,
-                            Collections.emptyMap(),
-                            Collections.emptyMap(),
-                            transportService.getThreadPool()
-                        ),
+                        repositoriesServiceSupplier,
                         settings,
-                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                        clusterService,
                         () -> 0L,
-                        threadPool
+                        threadPool,
+                        List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+                        writableRegistry()
                     );
                 } else {
                     return null;
@@ -721,9 +725,11 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         final RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
         final ClusterMetadataManifest manifest = ClusterMetadataManifest.builder().clusterTerm(1L).stateVersion(5L).build();
         final String previousClusterUUID = "prev-cluster-uuid";
-        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any())).thenReturn(manifest);
+        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any()))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
 
-        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(manifest);
+        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
         CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(remoteClusterStateService, previousClusterUUID);
 
         assertThat(remotePersistedState.getLastAcceptedState(), nullValue());
@@ -752,6 +758,9 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
         assertThat(remotePersistedState.getLastAcceptedState(), equalTo(secondClusterState));
         assertThat(remotePersistedState.getCurrentTerm(), equalTo(clusterTerm));
 
+        when(remoteClusterStateService.markLastStateAsCommitted(Mockito.any(), Mockito.any())).thenReturn(
+            new RemoteClusterStateManifestInfo(manifest, "path/to/manifest")
+        );
         remotePersistedState.markLastAcceptedStateAsCommitted();
         Mockito.verify(remoteClusterStateService, times(1)).markLastStateAsCommitted(Mockito.any(), Mockito.any());
 
@@ -777,9 +786,11 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
             .build();
         Mockito.when(remoteClusterStateService.getLatestClusterMetadataManifest(Mockito.any(), Mockito.any()))
             .thenReturn(Optional.of(manifest));
-        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any())).thenReturn(manifest);
+        Mockito.when(remoteClusterStateService.writeFullMetadata(Mockito.any(), Mockito.any()))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
 
-        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(manifest);
+        Mockito.when(remoteClusterStateService.writeIncrementalMetadata(Mockito.any(), Mockito.any(), Mockito.any()))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
         CoordinationState.PersistedState remotePersistedState = new RemotePersistedState(
             remoteClusterStateService,
             ClusterState.UNKNOWN_UUID

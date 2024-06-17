@@ -89,7 +89,7 @@ dependencies {
   api "org.apache.poi:poi:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:5.2.0'
+  api 'org.apache.xmlbeans:xmlbeans:5.2.1'
   api 'org.apache.commons:commons-collections4:4.4'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"

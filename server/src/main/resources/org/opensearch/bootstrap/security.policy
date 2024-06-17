@@ -85,6 +85,11 @@ grant codeBase "${codebase.zstd-jni}" {
   permission java.lang.RuntimePermission "loadLibrary.*";
 };
 
+// repository-azure plugin and server side streaming
+grant codeBase "${codebase.reactor-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+};
+
 //// Everything else:
 
 grant {
