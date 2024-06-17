@@ -843,7 +843,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         });
 
         executorService.shutdown();
-        executorService.awaitTermination(60, TimeUnit.SECONDS);
+        assertTrue(executorService.awaitTermination(60, TimeUnit.SECONDS));
         assertFalse(exceptionDetected.get());
     }
 
