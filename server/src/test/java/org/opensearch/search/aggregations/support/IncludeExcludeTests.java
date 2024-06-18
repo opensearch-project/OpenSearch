@@ -51,6 +51,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.LongAdder;
 
 public class IncludeExcludeTests extends OpenSearchTestCase {
 
@@ -297,4 +298,112 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
         }
     }
 
+    private static BytesRef[] toBytesRefArray(String... values) {
+        BytesRef[] bytesRefs = new BytesRef[values.length];
+        for (int i = 0; i < values.length; i++) {
+            bytesRefs[i] = new BytesRef(values[i]);
+        }
+        return bytesRefs;
+    }
+
+    public void testPrefixOrds() throws IOException {
+        IncludeExclude includeExclude = new IncludeExclude("(a|c|e).*", "abc.*");
+
+        OrdinalsFilter ordinalsFilter = includeExclude.convertToOrdinalsFilter(DocValueFormat.RAW);
+
+        // Which of the following match the filter or not?
+        BytesRef[] bytesRefs = toBytesRefArray(
+            "a", // true
+            "ab", // true
+            "abc", // false (excluded)
+            "abcd", // false (excluded)
+            "b", // false
+            "ba", // false
+            "bac", // false
+            "c", // true
+            "cd", // true
+            "ce", // true
+            "d", // false
+            "de", // false
+            "def", // false
+            "e", // true
+            "ef", // true
+            "efg", // true
+            "f", // false
+            "fg", // false
+            "fgh" // false
+        );
+        boolean[] expectedFilter = new boolean[] {
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            true,
+            true,
+            false,
+            false,
+            false,
+            true,
+            true,
+            true,
+            false,
+            false,
+            false };
+
+        LongAdder lookupCount = new LongAdder();
+        SortedSetDocValues sortedSetDocValues = new AbstractSortedSetDocValues() {
+            @Override
+            public boolean advanceExact(int target) {
+                return false;
+            }
+
+            @Override
+            public long nextOrd() {
+                return 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+
+            @Override
+            public BytesRef lookupOrd(long ord) {
+                lookupCount.increment();
+                int ordIndex = Math.toIntExact(ord);
+                return bytesRefs[ordIndex];
+            }
+
+            @Override
+            public long getValueCount() {
+                return bytesRefs.length;
+            }
+        };
+
+        LongBitSet acceptedOrds = ordinalsFilter.acceptedGlobalOrdinals(sortedSetDocValues);
+        long prefixLookupCount = lookupCount.longValue();
+        assertEquals(expectedFilter.length, acceptedOrds.length());
+        for (int i = 0; i < expectedFilter.length; i++) {
+            assertEquals(expectedFilter[i], acceptedOrds.get(i));
+        }
+
+        // Now repeat, but this time, the prefix optimization won't work (because of the .+ on the exclude filter)
+        includeExclude = new IncludeExclude("(a|c|e).*", "ab.+");
+        ordinalsFilter = includeExclude.convertToOrdinalsFilter(DocValueFormat.RAW);
+        acceptedOrds = ordinalsFilter.acceptedGlobalOrdinals(sortedSetDocValues);
+        long regexpLookupCount = lookupCount.longValue() - prefixLookupCount;
+
+        // The filter should be functionally the same
+        assertEquals(expectedFilter.length, acceptedOrds.length());
+        for (int i = 0; i < expectedFilter.length; i++) {
+            assertEquals(expectedFilter[i], acceptedOrds.get(i));
+        }
+
+        // But the full regexp requires more lookups
+        assertTrue(regexpLookupCount > prefixLookupCount);
+    }
 }
