@@ -8,15 +8,12 @@
 
 package org.opensearch.remotemigration;
 
-import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -83,16 +80,8 @@ public class RemoteReplicaRecoveryIT extends MigrationBaseTestCase {
             .add(new MoveAllocationCommand("test", 0, primaryNode, remoteNode))
             .execute()
             .actionGet();
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setTimeout(TimeValue.timeValueSeconds(60))
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNoRelocatingShards(true)
-            .execute()
-            .actionGet();
 
-        assertEquals(0, clusterHealthResponse.getRelocatingShards());
+        waitForRelocation();
         logger.info("-->  relocation of primary from docrep to remote  complete");
 
         logger.info("--> getting up the new replicas now to doc rep node as well as remote node ");
@@ -109,17 +98,7 @@ public class RemoteReplicaRecoveryIT extends MigrationBaseTestCase {
             )
             .get();
 
-        client().admin()
-            .cluster()
-            .prepareHealth()
-            .setTimeout(TimeValue.timeValueSeconds(60))
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForGreenStatus()
-            .execute()
-            .actionGet();
-        logger.info("-->  replica  is up now on another docrep now as well as remote node");
-
-        assertEquals(0, clusterHealthResponse.getRelocatingShards());
+        waitForRelocation();
         asyncIndexingService.stopIndexing();
         refresh("test");
 

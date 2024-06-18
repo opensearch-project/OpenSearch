@@ -136,7 +136,7 @@ public class RemoteClusterBlocksTests extends OpenSearchTestCase {
         }
     }
 
-    static ClusterBlocks randomClusterBlocks() {
+    public static ClusterBlocks randomClusterBlocks() {
         ClusterBlocks.Builder builder = ClusterBlocks.builder();
         int randomGlobalBlocks = randomIntBetween(1, 10);
         for (int i = 0; i < randomGlobalBlocks; i++) {

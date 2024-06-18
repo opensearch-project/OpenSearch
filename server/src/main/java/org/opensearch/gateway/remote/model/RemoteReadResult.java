@@ -8,24 +8,22 @@
 
 package org.opensearch.gateway.remote.model;
 
-import org.opensearch.core.xcontent.ToXContent;
-
 /**
  * Container class for entity read from remote store
  */
 public class RemoteReadResult {
 
-    ToXContent obj;
+    Object obj;
     String component;
     String componentName;
 
-    public RemoteReadResult(ToXContent obj, String component, String componentName) {
+    public RemoteReadResult(Object obj, String component, String componentName) {
         this.obj = obj;
         this.component = component;
         this.componentName = componentName;
     }
 
-    public ToXContent getObj() {
+    public Object getObj() {
         return obj;
     }
 
