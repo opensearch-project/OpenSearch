@@ -858,12 +858,12 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         int iterations = 10;
         int numberOfKeys = 20;
         List<ICacheKey<String>> iCacheKeyList = new ArrayList<>();
-        for (int i = 0; i< numberOfKeys; i++) {
+        for (int i = 0; i < numberOfKeys; i++) {
             ICacheKey<String> key = getICacheKey(UUID.randomUUID().toString());
             iCacheKeyList.add(key);
         }
         ExecutorService executorService = Executors.newFixedThreadPool(8);
-        CountDownLatch countDownLatch = new CountDownLatch(iterations*numberOfKeys); // To wait for all threads to finish.
+        CountDownLatch countDownLatch = new CountDownLatch(iterations * numberOfKeys); // To wait for all threads to finish.
 
         List<LoadAwareCacheLoader<ICacheKey<String>, String>> loadAwareCacheLoaderList = new CopyOnWriteArrayList<>();
 
@@ -907,8 +907,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertEquals(numberOfKeys, numberOfTimesKeyLoaded); // It should be loaded only once.
         // We should see only one heap miss, and the rest hits
         assertEquals(numberOfKeys, getMissesForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
-        assertEquals((iterations * numberOfKeys) - numberOfKeys, getHitsForTier(tieredSpilloverCache,
-            TIER_DIMENSION_VALUE_ON_HEAP));
+        assertEquals((iterations * numberOfKeys) - numberOfKeys, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(0, tieredSpilloverCache.completableFutureMap.size());
         executorService.shutdownNow();
     }

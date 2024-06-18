@@ -238,21 +238,18 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         CompletableFuture<Tuple<ICacheKey<K>, V>> future = completableFutureMap.putIfAbsent(key, new CompletableFuture<>());
         // Handler to handle results post processing. Takes a tuple<key, value> or exception as an input and returns
         // the value. Also before returning value, puts the value in cache.
-        BiFunction<Tuple<ICacheKey<K>, V>, Throwable, V> handler = (pair, ex) -> {
-            V value = null;
+        BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Void> handler = (pair, ex) -> {
             if (pair != null) {
                 try (ReleasableLock ignore = writeLock.acquire()) {
                     onHeapCache.put(pair.v1(), pair.v2());
                 }
-                value = pair.v2(); // Returning a value itself assuming that a next get should return the same. Should
-                // be safe to assume if we got no exception and reached here.
             } else {
                 if (ex != null) {
                     logger.warn("Exception occurred while trying to compute the value", ex);
                 }
             }
             completableFutureMap.remove(key); // Remove key from map as not needed anymore.
-            return value;
+            return null;
         };
         if (future == null) {
             V value = null;
