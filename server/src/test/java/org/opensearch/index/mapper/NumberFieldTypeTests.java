@@ -675,8 +675,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 MOCK_QSC
             );
             assertThat(query, Matchers.either(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
-            IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
-            assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
+            if (query instanceof IndexOrDocValuesQuery) {
+                IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
+                assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
+            }
         }
         reader.close();
         dir.close();
