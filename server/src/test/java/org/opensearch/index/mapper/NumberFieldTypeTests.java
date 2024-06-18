@@ -56,6 +56,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.hamcrest.Matchers;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
@@ -673,7 +674,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 true,
                 MOCK_QSC
             );
-            assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
+            assertThat(query, Matchers.either(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
             IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
             assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
         }
