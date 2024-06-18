@@ -40,6 +40,7 @@ import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.reactor.IOReactorStatus;
 import org.opensearch.client.RestClient.NodeTuple;
+import org.opensearch.client.streaming.StreamingRequest;
 
 import java.io.IOException;
 import java.net.URI;
@@ -56,12 +57,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import reactor.core.publisher.Mono;
+
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
@@ -416,6 +420,16 @@ public class RestClientTests extends RestClientTestCase {
 
         when(client.getStatus()).thenReturn(IOReactorStatus.INACTIVE);
         assertFalse(restClient.isRunning());
+    }
+
+    public void testStreamWithUnsupportedMethod() throws Exception {
+        try (RestClient restClient = createRestClient()) {
+            final UnsupportedOperationException ex = assertThrows(
+                UnsupportedOperationException.class,
+                () -> restClient.streamRequest(new StreamingRequest<>("unsupported", randomAsciiLettersOfLength(5), Mono.empty()))
+            );
+            assertEquals("http method not supported: unsupported", ex.getMessage());
+        }
     }
 
     private static void assertNodes(NodeTuple<List<Node>> nodeTuple, AtomicInteger lastNodeIndex, int runs) throws IOException {

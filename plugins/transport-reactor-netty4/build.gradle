@@ -80,6 +80,10 @@ javaRestTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
 
+testClusters.javaRestTest {
+  setting 'http.type', 'reactor-netty4'
+}
+
 thirdPartyAudit {
   ignoreMissingClasses(
     'com.aayushatharva.brotli4j.Brotli4jLoader',
