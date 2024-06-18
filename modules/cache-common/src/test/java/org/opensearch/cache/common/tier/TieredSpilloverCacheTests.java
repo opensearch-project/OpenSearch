@@ -807,7 +807,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     };
                     loadAwareCacheLoaderList.add(loadAwareCacheLoader);
                     phaser.arriveAndAwaitAdvance();
-                    tieredSpilloverCache.computeIfAbsent(key, loadAwareCacheLoader);
+                    assertEquals(value, tieredSpilloverCache.computeIfAbsent(key, loadAwareCacheLoader));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
