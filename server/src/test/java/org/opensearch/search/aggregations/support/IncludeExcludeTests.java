@@ -307,31 +307,31 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
     }
 
     public void testPrefixOrds() throws IOException {
-        IncludeExclude includeExclude = new IncludeExclude("(a|c|e).*", "abc.*");
+        IncludeExclude includeExclude = new IncludeExclude("(color|length|size):.*", "color:g.*");
 
         OrdinalsFilter ordinalsFilter = includeExclude.convertToOrdinalsFilter(DocValueFormat.RAW);
 
         // Which of the following match the filter or not?
         BytesRef[] bytesRefs = toBytesRefArray(
-            "a", // true
-            "ab", // true
-            "abc", // false (excluded)
-            "abcd", // false (excluded)
-            "b", // false
-            "ba", // false
-            "bac", // false
-            "c", // true
-            "cd", // true
-            "ce", // true
-            "d", // false
-            "de", // false
-            "def", // false
-            "e", // true
-            "ef", // true
-            "efg", // true
-            "f", // false
-            "fg", // false
-            "fgh" // false
+            "color:blue", // true
+            "color:crimson", // true
+            "color:green", // false (excluded)
+            "color:gray", // false (excluded)
+            "depth:10in", // false
+            "depth:12in", // false
+            "depth:17in", // false
+            "length:long", // true
+            "length:medium", // true
+            "length:short", // true
+            "material:cotton", // false
+            "material:linen", // false
+            "material:polyester", // false
+            "size:large", // true
+            "size:medium", // true
+            "size:small", // true
+            "width:13in", // false
+            "width:27in", // false
+            "width:55in" // false
         );
         boolean[] expectedFilter = new boolean[] {
             true,
@@ -355,6 +355,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             false };
 
         LongAdder lookupCount = new LongAdder();
+        LongAdder termsEnumAcceptCount = new LongAdder();
         SortedSetDocValues sortedSetDocValues = new AbstractSortedSetDocValues() {
             @Override
             public boolean advanceExact(int target) {
@@ -390,9 +391,10 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
         for (int i = 0; i < expectedFilter.length; i++) {
             assertEquals(expectedFilter[i], acceptedOrds.get(i));
         }
+        assertEquals(0, termsEnumAcceptCount.longValue());
 
         // Now repeat, but this time, the prefix optimization won't work (because of the .+ on the exclude filter)
-        includeExclude = new IncludeExclude("(a|c|e).*", "ab.+");
+        includeExclude = new IncludeExclude("(color|length|size):.*", "color:g.+");
         ordinalsFilter = includeExclude.convertToOrdinalsFilter(DocValueFormat.RAW);
         acceptedOrds = ordinalsFilter.acceptedGlobalOrdinals(sortedSetDocValues);
         long regexpLookupCount = lookupCount.longValue() - prefixLookupCount;
