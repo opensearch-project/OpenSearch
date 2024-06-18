@@ -2956,6 +2956,14 @@ public class IndexShardTests extends IndexShardTestCase {
             )
         );
 
+        // Make sure to drain refreshes from the shard. Otherwise, if the refresh is in-progress, it overlaps with
+        // deletion of segment files in the subsequent code block.
+        for (ReferenceManager.RefreshListener refreshListener : target.getEngine().config().getInternalRefreshListener()) {
+            if (refreshListener instanceof ReleasableRetryableRefreshListener) {
+                ((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes();
+            }
+        }
+
         // Delete files in store directory to restore from remote directory
         Directory storeDirectory = target.store().directory();
 
