@@ -56,7 +56,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.hamcrest.Matchers;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
@@ -74,6 +73,7 @@ import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.MultiValueMode;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
