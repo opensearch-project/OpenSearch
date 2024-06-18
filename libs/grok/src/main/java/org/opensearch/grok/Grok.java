@@ -162,24 +162,24 @@ public final class Grok {
      * check for a circular reference.
      */
     private void validatePatternBank(String initialPatternName) {
-        Deque<Frame> queue = new ArrayDeque<>();
+        Deque<Frame> stack = new ArrayDeque<>();
         Set<String> visitedPatterns = new HashSet<>();
         Map<String, List<String>> pathMap = new HashMap<>();
 
         List<String> initialPath = new ArrayList<>();
         initialPath.add(initialPatternName);
         pathMap.put(initialPatternName, initialPath);
-        queue.push(new Frame(initialPatternName, initialPath, 0));
+        stack.push(new Frame(initialPatternName, initialPath, 0));
 
-        while (!queue.isEmpty()) {
-            Frame frame = queue.peek();
+        while (!stack.isEmpty()) {
+            Frame frame = stack.peek();
             String patternName = frame.patternName;
             List<String> path = frame.path;
             int startIndex = frame.startIndex;
             String pattern = patternBank.get(patternName);
 
             if (visitedPatterns.contains(patternName)) {
-                queue.pop();
+                stack.pop();
                 continue;
             }
 
@@ -211,7 +211,7 @@ public final class Grok {
                     newPath.add(dependsOnPattern);
                     pathMap.put(dependsOnPattern, newPath);
 
-                    queue.push(new Frame(dependsOnPattern, newPath, 0));
+                    stack.push(new Frame(dependsOnPattern, newPath, 0));
                     frame.startIndex = i + 1;
                     foundDependency = true;
                     break;
@@ -220,10 +220,10 @@ public final class Grok {
 
             if (!foundDependency) {
                 pathMap.remove(patternName);
-                queue.pop();
+                stack.pop();
             }
 
-            if (queue.size() > MAX_PATTERN_DEPTH_SIZE) {
+            if (stack.size() > MAX_PATTERN_DEPTH_SIZE) {
                 throw new IllegalArgumentException("Pattern references exceeded maximum depth of " + MAX_PATTERN_DEPTH_SIZE);
             }
         }
