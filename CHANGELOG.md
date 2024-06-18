@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 - Fix handling of Short and Byte data types in ScriptProcessor ingest pipeline ([#14379](https://github.com/opensearch-project/OpenSearch/issues/14379))
+- Fixed RestClient URI path handling to ensure a leading forward-slash is always present ([#14423](https://github.com/opensearch-project/OpenSearch/pull/14423))
 
 ### Security
 
