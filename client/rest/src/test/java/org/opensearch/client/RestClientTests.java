@@ -145,11 +145,11 @@ public class RestClientTests extends RestClientTestCase {
         }
         {
             URI uri = RestClient.buildUri(null, "*", emptyMap);
-            assertEquals("*", uri.getPath());
+            assertEquals("/*", uri.getPath());
         }
         {
             URI uri = RestClient.buildUri("", "*", emptyMap);
-            assertEquals("*", uri.getPath());
+            assertEquals("/*", uri.getPath());
         }
         {
             URI uri = RestClient.buildUri(null, "/*", emptyMap);
