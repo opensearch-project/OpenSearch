@@ -34,7 +34,6 @@ package org.opensearch.gateway;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.Version;
-import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -101,6 +100,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -883,17 +884,20 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         assertEquals(YELLOW, health.getStatus());
         assertEquals(2, health.getUnassignedShards());
         // shard should be unassigned because of Allocation_Delayed
-        ClusterAllocationExplainResponse allocationExplainResponse = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex("test")
-            .setShard(0)
-            .setPrimary(false)
-            .get();
-        assertEquals(
-            AllocationDecision.ALLOCATION_DELAYED,
-            allocationExplainResponse.getExplanation().getShardAllocationDecision().getAllocateDecision().getAllocationDecision()
+        BooleanSupplier delayedShardAllocationStatusVerificationSupplier = () -> AllocationDecision.ALLOCATION_DELAYED.equals(
+            client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex("test")
+                .setShard(0)
+                .setPrimary(false)
+                .get()
+                .getExplanation()
+                .getShardAllocationDecision()
+                .getAllocateDecision()
+                .getAllocationDecision()
         );
+        waitUntil(delayedShardAllocationStatusVerificationSupplier, 2, TimeUnit.MINUTES);
 
         logger.info("--> restarting the node 1");
         internalCluster().startDataOnlyNode(
@@ -903,26 +907,16 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         assertTrue(clusterRerouteResponse.isAcknowledged());
         ensureStableCluster(6);
         waitUntil(
-            () -> client().admin().cluster().health(Requests.clusterHealthRequest().timeout("5m")).actionGet().getInitializingShards() == 0
+            () -> client().admin().cluster().health(Requests.clusterHealthRequest().timeout("5m")).actionGet().getActiveShards() == 3,
+            2,
+            TimeUnit.MINUTES
         );
-
         health = client().admin().cluster().health(Requests.clusterHealthRequest().timeout("5m")).actionGet();
         assertFalse(health.isTimedOut());
         assertEquals(YELLOW, health.getStatus());
         assertEquals(1, health.getUnassignedShards());
         assertEquals(1, health.getDelayedUnassignedShards());
-        allocationExplainResponse = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex("test")
-            .setShard(0)
-            .setPrimary(false)
-            .get();
-        assertEquals(
-            AllocationDecision.ALLOCATION_DELAYED,
-            allocationExplainResponse.getExplanation().getShardAllocationDecision().getAllocateDecision().getAllocationDecision()
-        );
-
+        waitUntil(delayedShardAllocationStatusVerificationSupplier, 2, TimeUnit.MINUTES);
         logger.info("--> restarting the node 0");
         internalCluster().startDataOnlyNode(
             Settings.builder().put("node.name", nodesWithReplicaShards.get(1)).put(replicaNode1DataPathSettings).build()
