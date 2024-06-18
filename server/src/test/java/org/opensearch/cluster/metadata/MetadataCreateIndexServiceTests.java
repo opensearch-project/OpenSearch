@@ -1742,6 +1742,43 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
     }
 
+    public void testBuildAndValidateTemporaryIndexMetadata() {
+        int routingShards = 3;
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesServices,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
+                null,
+                null,
+                threadPool,
+                null,
+                new SystemIndices(Collections.emptyMap()),
+                false,
+                new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings()),
+                DefaultRemoteStoreSettings.INSTANCE,
+                repositoriesServiceSupplier
+            );
+
+            Settings indexSettings = Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), routingShards)
+                .build();
+
+            CreateIndexClusterStateUpdateRequest request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+
+            IndexMetadata indexMetadata = checkerService.buildAndValidateTemporaryIndexMetadata(indexSettings, request, routingShards);
+
+            assertEquals(indexMetadata.getSettings(), indexSettings);
+            assertEquals(indexMetadata.getRoutingNumShards(), routingShards);
+        }));
+    }
+
     private IndexMetadata testRemoteCustomData(boolean remoteStoreEnabled, PathType pathType) {
         Settings.Builder settingsBuilder = Settings.builder();
         if (remoteStoreEnabled) {
