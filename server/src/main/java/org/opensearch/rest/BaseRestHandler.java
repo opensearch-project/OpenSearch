@@ -40,6 +40,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -201,6 +202,16 @@ public abstract class BaseRestHandler implements RestHandler {
     protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**
+     * Streaming REST requests are handled by preparing a streaming channel consumer that represents the execution of
+     * the request against a channel.
+     *
+     * @opensearch.experimental
+     */
+    @FunctionalInterface
+    @ExperimentalApi
+    protected interface StreamingRestChannelConsumer extends CheckedConsumer<StreamingRestChannel, Exception> {}
+
+    /**
      * Prepare the request for execution. Implementations should consume all request params before
      * returning the runnable for actual execution. Unconsumed params will immediately terminate
      * execution of the request. However, some params are only used in processing the response;
@@ -316,6 +327,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         public boolean allowSystemIndexAccessByDefault() {
             return delegate.allowSystemIndexAccessByDefault();
+        }
+
+        @Override
+        public boolean supportsStreaming() {
+            return delegate.supportsStreaming();
         }
     }
 

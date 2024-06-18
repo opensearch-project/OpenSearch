@@ -138,6 +138,7 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
+import org.opensearch.gateway.remote.RemoteClusterStateCleanupManager;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
@@ -154,6 +155,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
+import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -751,6 +753,7 @@ public class Node implements Closeable {
                 threadPool::relativeTimeInMillis
             );
             final RemoteClusterStateService remoteClusterStateService;
+            final RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
             final RemoteIndexPathUploader remoteIndexPathUploader;
             if (isRemoteStoreClusterStateEnabled(settings)) {
                 remoteIndexPathUploader = new RemoteIndexPathUploader(
@@ -763,14 +766,17 @@ public class Node implements Closeable {
                     nodeEnvironment.nodeId(),
                     repositoriesServiceReference::get,
                     settings,
-                    clusterService.getClusterSettings(),
+                    clusterService,
                     threadPool::preciseRelativeTimeInNanos,
                     threadPool,
-                    List.of(remoteIndexPathUploader)
+                    List.of(remoteIndexPathUploader),
+                    namedWriteableRegistry
                 );
+                remoteClusterStateCleanupManager = remoteClusterStateService.getCleanupManager();
             } else {
                 remoteClusterStateService = null;
                 remoteIndexPathUploader = null;
+                remoteClusterStateCleanupManager = null;
             }
 
             // collect engine factory providers from plugins
@@ -1155,7 +1161,8 @@ public class Node implements Closeable {
                 metadataIndexUpgradeService,
                 shardLimitValidator,
                 indicesService,
-                clusterInfoService::getClusterInfo
+                clusterInfoService::getClusterInfo,
+                new FileCacheSettings(settings, clusterService.getClusterSettings())::getRemoteDataRatio
             );
 
             RemoteStoreRestoreService remoteStoreRestoreService = new RemoteStoreRestoreService(
@@ -1193,7 +1200,9 @@ public class Node implements Closeable {
                 rerouteService,
                 fsHealthService,
                 persistedStateRegistry,
-                remoteStoreNodeService
+                remoteStoreNodeService,
+                clusterManagerMetrics,
+                remoteClusterStateService
             );
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
                 clusterService,
@@ -1254,7 +1263,8 @@ public class Node implements Closeable {
                 searchModule.getFetchPhase(),
                 responseCollectorService,
                 circuitBreakerService,
-                searchModule.getIndexSearcherExecutor(threadPool)
+                searchModule.getIndexSearcherExecutor(threadPool),
+                taskResourceTrackingService
             );
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
@@ -1331,7 +1341,6 @@ public class Node implements Closeable {
                 b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
                 b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                 {
-                    processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
                     b.bind(PeerRecoverySourceService.class)
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
                     b.bind(PeerRecoveryTargetService.class)
@@ -1374,6 +1383,7 @@ public class Node implements Closeable {
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(RemoteIndexPathUploader.class).toProvider(() -> remoteIndexPathUploader);
+                b.bind(RemoteClusterStateCleanupManager.class).toProvider(() -> remoteClusterStateCleanupManager);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
                 b.bind(SearchRequestOperationsCompositeListenerFactory.class).toInstance(searchRequestOperationsCompositeListenerFactory);
@@ -1436,10 +1446,6 @@ public class Node implements Closeable {
         Tracer tracer
     ) {
         return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders, tracer);
-    }
-
-    protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
-        // Noop in production, overridden by tests
     }
 
     /**
@@ -1897,7 +1903,8 @@ public class Node implements Closeable {
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        Executor indexSearcherExecutor
+        Executor indexSearcherExecutor,
+        TaskResourceTrackingService taskResourceTrackingService
     ) {
         return new SearchService(
             clusterService,
@@ -1909,7 +1916,8 @@ public class Node implements Closeable {
             fetchPhase,
             responseCollectorService,
             circuitBreakerService,
-            indexSearcherExecutor
+            indexSearcherExecutor,
+            taskResourceTrackingService
         );
     }
 

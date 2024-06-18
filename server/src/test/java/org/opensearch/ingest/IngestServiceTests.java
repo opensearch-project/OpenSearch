@@ -81,6 +81,7 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -88,6 +89,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1894,7 +1896,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         verify(mockCompoundProcessor, never()).execute(any(), any());
     }
 
-    public void testExecuteBulkRequestInBatchWithExceptionInCallback() {
+    public void testExecuteBulkRequestInBatchWithExceptionAndDropInCallback() {
         CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
         IngestService ingestService = createWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
@@ -1906,11 +1908,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
-        bulkRequest.batchSize(2);
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest3);
+        bulkRequest.batchSize(3);
 
         List<IngestDocumentWrapper> results = Arrays.asList(
             new IngestDocumentWrapper(0, IngestService.toIngestDocument(indexRequest1), null),
-            new IngestDocumentWrapper(1, null, new RuntimeException())
+            new IngestDocumentWrapper(1, null, new RuntimeException()),
+            new IngestDocumentWrapper(2, null, null)
         );
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
@@ -1919,21 +1924,21 @@ public class IngestServiceTests extends OpenSearchTestCase {
             return null;
         }).when(mockCompoundProcessor).batchExecute(any(), any());
 
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        final List<Integer> dropHandler = new ArrayList<>();
         ingestService.executeBulkRequest(
-            2,
+            3,
             bulkRequest.requests(),
-            failureHandler,
-            completionHandler,
-            indexReq -> {},
+            failureHandler::put,
+            completionHandler::put,
+            dropHandler::add,
             Names.WRITE,
             bulkRequest
         );
-        verify(failureHandler, times(1)).accept(any(), any());
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        assertEquals(Set.of(1), failureHandler.keySet());
+        assertEquals(List.of(2), dropHandler);
+        assertEquals(Set.of(Thread.currentThread()), completionHandler.keySet());
         verify(mockCompoundProcessor, times(1)).batchExecute(any(), any());
         verify(mockCompoundProcessor, never()).execute(any(), any());
     }

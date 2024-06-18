@@ -58,6 +58,7 @@ public final class MessageDigests {
     private static final ThreadLocal<MessageDigest> MD5_DIGEST = createThreadLocalMessageDigest("MD5");
     private static final ThreadLocal<MessageDigest> SHA_1_DIGEST = createThreadLocalMessageDigest("SHA-1");
     private static final ThreadLocal<MessageDigest> SHA_256_DIGEST = createThreadLocalMessageDigest("SHA-256");
+    private static final ThreadLocal<MessageDigest> SHA3_256_DIGEST = createThreadLocalMessageDigest("SHA3-256");
 
     /**
      * Returns a {@link MessageDigest} instance for MD5 digests; note
@@ -93,6 +94,18 @@ public final class MessageDigests {
      */
     public static MessageDigest sha256() {
         return get(SHA_256_DIGEST);
+    }
+
+    /**
+     * Returns a {@link MessageDigest} instance for SHA3-256 digests;
+     * note that the instance returned is thread local and must not be
+     * shared amongst threads.
+     *
+     * @return a thread local {@link MessageDigest} instance that
+     * provides SHA3-256 message digest functionality.
+     */
+    public static MessageDigest sha3256() {
+        return get(SHA3_256_DIGEST);
     }
 
     private static MessageDigest get(ThreadLocal<MessageDigest> messageDigest) {

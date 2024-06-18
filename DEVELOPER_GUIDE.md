@@ -62,6 +62,7 @@
     - [LineLint](#linelint)
     - [Lucene Snapshots](#lucene-snapshots)
     - [Flaky Tests](#flaky-tests)
+    - [Gradle Check Metrics Dashboard](#gradle-check-metrics-dashboard)
 
 # Developer Guide
 
@@ -650,13 +651,19 @@ Note that these snapshots do not follow the Maven [naming convention](https://ma
 
 ### Flaky Tests
 
-OpenSearch has a very large test suite with long running, often failing (flaky), integration tests. Such individual tests are labelled as [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22). Your help is wanted fixing these!
+If you encounter a test failure locally or in CI that is seemingly unrelated to the change in your pull request, it may be a known flaky test or a new test failure. OpenSearch has a very large test suite with long running, often failing (flaky), integration tests. Such individual tests are labelled as [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22). Your help is wanted fixing these!
 
-If you encounter a build/test failure in CI that is unrelated to the change in your pull request, it may be a known flaky test, or a new test failure.
+The automation [gradle-check-flaky-test-detector](https://build.ci.opensearch.org/job/gradle-check-flaky-test-detector/), which runs in OpenSearch public Jenkins, identifies failing flaky issues that are part of post-merge actions. Once a flaky test is identified, the automation creates an issue with detailed report that includes links to all relevant commits, the Gradle check build log, the test report, and pull requests that are impacted with the flaky test failures. This automation leverages data from the [OpenSearch Metrics Project](https://github.com/opensearch-project/opensearch-metrics) to establish a baseline for creating the issue and updating the flaky test report. For all flaky test issues created by automation, visit this [link](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%3Etest-failure+author%3Aopensearch-ci-bot).
 
-1. Follow failed CI links, and locate the failing test(s).
-2. Copy-paste the failure into a comment of your PR.
-3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) using the name of the failed test for whether this is a known flaky test.
-4. If an existing issue is found, paste a link to the known issue in a comment to your PR.
-5. If no existing issue is found, open one.
-6. Retry CI via the GitHub UX or by pushing an update to your PR.
+If you still see a failing test that is not part of the post merge actions, please do:
+
+* Follow failed CI links, and locate the failing test(s) or use the [Gradle Check Metrics Dashboard](#gradle-check-metrics-dashboard).
+* Copy-paste the failure into a comment of your PR.
+* Search through issues using the name of the failed test for whether this is a known flaky test.
+* If no existing issue is found, open one.
+* Retry CI via the GitHub UX or by pushing an update to your PR.
+
+
+### Gradle Check Metrics Dashboard
+
+To get the comprehensive insights and analysis of the Gradle Check test failures, visit the [OpenSearch Gradle Check Metrics Dashboard](https://metrics.opensearch.org/_dashboards/app/dashboards#/view/e5e64d40-ed31-11ee-be99-69d1dbc75083). This dashboard is part of the [OpenSearch Metrics Project](https://github.com/opensearch-project/opensearch-metrics) initiative. The dashboard contains multiple data points that can help investigate and resolve flaky failures. Additionally, this dashboard can be used to drill down, slice, and dice the data using multiple supported filters, which further aids in troubleshooting and resolving issues.

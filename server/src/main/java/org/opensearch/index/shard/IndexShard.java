@@ -523,7 +523,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Function<String, Boolean> isShardOnRemoteEnabledNode = nodeId -> {
         DiscoveryNode node = discoveryNodes.get(nodeId);
         if (node != null) {
-            logger.trace("Node {} has remote_enabled as {}", nodeId, node.isRemoteStoreNode());
             return node.isRemoteStoreNode();
         }
         return false;
@@ -2147,7 +2146,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentUploadeCount = directory.getSegmentsUploadedToRemoteStore().size();
                     }
                     try {
-                        Thread.sleep(TimeValue.timeValueSeconds(30).seconds());
+                        Thread.sleep(TimeValue.timeValueSeconds(30).millis());
                     } catch (InterruptedException ie) {
                         throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
                     }

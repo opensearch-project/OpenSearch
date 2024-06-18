@@ -104,6 +104,10 @@ public class ResourceUsageInfo {
             return endValue.get() - startValue;
         }
 
+        public long getStartValue() {
+            return startValue;
+        }
+
         @Override
         public String toString() {
             return String.valueOf(getTotalValue());

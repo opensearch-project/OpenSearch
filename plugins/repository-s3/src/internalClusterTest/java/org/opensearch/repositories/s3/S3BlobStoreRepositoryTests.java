@@ -73,7 +73,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.StreamSupport;
 
 import fixture.s3.S3HttpHandler;
@@ -206,7 +205,12 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             } catch (RepositoryMissingException e) {
                 return null;
             }
-        }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
+        }).filter(b -> {
+            if (b instanceof BlobStoreRepository) {
+                return ((BlobStoreRepository) b).blobStore() != null;
+            }
+            return false;
+        }).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
         Map<BlobStore.Metric, Map<String, Long>> extendedStats = repositoryStats.extendedStats;
         Map<String, Long> aggregatedStats = new HashMap<>();
