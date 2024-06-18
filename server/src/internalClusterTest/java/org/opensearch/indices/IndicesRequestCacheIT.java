@@ -139,6 +139,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
             client.prepareIndex(index).setSource("f", "2014-03-10T00:00:00.000Z"),
             client.prepareIndex(index).setSource("f", "2014-05-13T00:00:00.000Z")
         );
+        ensureSearchable(index);
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         forceMerge(client, index);
 
@@ -222,7 +223,6 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         );
         ensureSearchable(index);
         assertCacheState(client, index, 0, 0);
-
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         forceMerge(client, index);
 
@@ -653,6 +653,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
                 .get()
         );
         indexRandom(true, client.prepareIndex(index).setSource("k", "hello"));
+        ensureSearchable(index);
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         forceMerge(client, index);
 
@@ -699,6 +700,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
                 .get()
         );
         indexRandom(true, client.prepareIndex(index).setSource("k", "hello"));
+        ensureSearchable(index);
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         forceMerge(client, index);
         SearchResponse resp = client.prepareSearch(index).setRequestCache(true).setQuery(QueryBuilders.termQuery("k", "hello")).get();
@@ -1260,6 +1262,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         logger.info("Writing few docs and searching those which will cache items in RequestCache");
         indexRandom(true, client.prepareIndex(indexName).setSource("k", "hello"));
         indexRandom(true, client.prepareIndex(indexName).setSource("y", "hello again"));
+        ensureSearchable(indexName);
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         forceMerge(client, indexName);
         SearchResponse resp = client.prepareSearch(indexName).setRequestCache(true).setQuery(QueryBuilders.termQuery("k", "hello")).get();
@@ -1359,13 +1362,14 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
 
         indexRandom(true, client.prepareIndex(index).setSource("k", "hello"));
         indexRandom(true, client.prepareIndex(index).setSource("k", "there"));
+        ensureSearchable(index);
+        forceMerge(client, index);
     }
 
     private void forceMerge(Client client, String index) {
         ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge(index).setFlush(true).get();
         OpenSearchAssertions.assertAllSuccessful(forceMergeResponse);
         refreshAndWaitForReplication();
-        ensureSearchable(index);
     }
 
     private void createCacheEntry(Client client, String index, String value) {
