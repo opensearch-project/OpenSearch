@@ -674,19 +674,7 @@ public class RestClient implements Closeable {
     static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
         Objects.requireNonNull(path, "path must not be null");
         try {
-            String fullPath;
-            if (pathPrefix != null && pathPrefix.isEmpty() == false) {
-                if (pathPrefix.endsWith("/") && path.startsWith("/")) {
-                    fullPath = pathPrefix.substring(0, pathPrefix.length() - 1) + path;
-                } else if (pathPrefix.endsWith("/") || path.startsWith("/")) {
-                    fullPath = pathPrefix + path;
-                } else {
-                    fullPath = pathPrefix + "/" + path;
-                }
-            } else {
-                fullPath = path;
-            }
-
+            String fullPath = buildUriPath(pathPrefix, path);
             URIBuilder uriBuilder = new URIBuilder(fullPath);
             for (Map.Entry<String, String> param : params.entrySet()) {
                 uriBuilder.addParameter(param.getKey(), param.getValue());
@@ -700,6 +688,28 @@ public class RestClient implements Closeable {
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
+    }
+
+    private static String buildUriPath(String pathPrefix, String path) {
+        pathPrefix = pathPrefix != null ? trimSlashes(pathPrefix) : "";
+        path = path != null ? trimSlashes(path) : "";
+
+        if (!pathPrefix.isEmpty()) {
+            if (!path.isEmpty()) {
+                return "/" + pathPrefix + "/" + path;
+            }
+            return "/" + pathPrefix;
+        }
+
+        return "/" + path;
+    }
+
+    private static String trimSlashes(String str) {
+        int start = 0;
+        int end = str.length();
+        while (start < end && str.charAt(start) == '/') ++start;
+        while (end > start && str.charAt(end - 1) == '/') --end;
+        return str.substring(start, end);
     }
 
     /**
