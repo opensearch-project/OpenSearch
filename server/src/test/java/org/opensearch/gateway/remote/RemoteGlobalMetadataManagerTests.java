@@ -20,7 +20,6 @@ import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.XContentContext;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
@@ -54,14 +53,14 @@ import java.io.InputStream;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 import java.util.stream.Stream;
-
-import org.mockito.ArgumentCaptor;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.Metadata.isGlobalStateEquals;
 import static org.opensearch.common.blobstore.stream.write.WritePriority.URGENT;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CUSTOM_DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.FORMAT_PARAMS;
@@ -92,8 +91,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
@@ -171,19 +168,20 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             COORDINATION_METADATA_FORMAT.serialize(coordinationMetadata, fileName, compressor, FORMAT_PARAMS).streamInput()
         );
-        LatchedActionListener<RemoteReadResult> listener = mock(LatchedActionListener.class);
+        RemoteStateTestUtil.TestCapturingListener<RemoteReadResult> listener = new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
 
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+        remoteGlobalMetadataManager.getAsyncMetadataReadAction(
             coordinationMetadataForDownload,
             COORDINATION_METADATA,
-            listener
-        );
-        runnable.run();
-        ArgumentCaptor<RemoteReadResult> savedResult = ArgumentCaptor.forClass(RemoteReadResult.class);
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        assertEquals(coordinationMetadata, savedResult.getValue().getObj());
-        assertEquals(COORDINATION_METADATA, savedResult.getValue().getComponent());
-        assertEquals(COORDINATION_METADATA, savedResult.getValue().getComponentName());
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        assertEquals(coordinationMetadata, listener.result.getObj());
+        assertEquals(COORDINATION_METADATA, listener.result.getComponent());
+        assertEquals(COORDINATION_METADATA, listener.result.getComponentName());
     }
 
     public void testGetAsyncMetadataWriteAction_CoordinationMetadata() throws Exception {
@@ -200,27 +198,22 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             return null;
         }).when(blobStoreTransferService)
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
+        RemoteStateTestUtil.TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener =
+            new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
 
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
-            remoteCoordinationMetadata,
-            listener
-        );
-        runnable.run();
-
-        ArgumentCaptor<ClusterMetadataManifest.UploadedMetadata> savedResult = ArgumentCaptor.forClass(
-            ClusterMetadataManifest.UploadedMetadata.class
-        );
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-
-        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = savedResult.getValue();
-        assertNotNull(uploadedMetadata);
+        remoteGlobalMetadataManager.getAsyncMetadataWriteAction(remoteCoordinationMetadata, new LatchedActionListener<>(listener, latch))
+            .run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.result;
         assertEquals(COORDINATION_METADATA, uploadedMetadata.getComponent());
         String uploadedFileName = uploadedMetadata.getUploadedFilename();
         String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
         assertEquals(5, pathTokens.length);
         assertEquals(RemoteClusterStateUtils.encodeString(CLUSTER_NAME), pathTokens[0]);
-        assertEquals("cluster-state", pathTokens[1]);
+        assertEquals(CLUSTER_STATE_PATH_TOKEN, pathTokens[1]);
         assertEquals(CLUSTER_UUID, pathTokens[2]);
         assertEquals(GLOBAL_METADATA_PATH_TOKEN, pathTokens[3]);
         String[] splitFileName = pathTokens[4].split(DELIMITER);
@@ -243,19 +236,20 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             RemotePersistentSettingsMetadata.SETTINGS_METADATA_FORMAT.serialize(settingsMetadata, fileName, compressor, FORMAT_PARAMS)
                 .streamInput()
         );
-        LatchedActionListener<RemoteReadResult> listener = mock(LatchedActionListener.class);
+        RemoteStateTestUtil.TestCapturingListener<RemoteReadResult> listener = new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
 
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+        remoteGlobalMetadataManager.getAsyncMetadataReadAction(
             persistentSettings,
             SETTING_METADATA,
-            listener
-        );
-        runnable.run();
-        ArgumentCaptor<RemoteReadResult> savedResult = ArgumentCaptor.forClass(RemoteReadResult.class);
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        assertEquals(settingsMetadata, savedResult.getValue().getObj());
-        assertEquals(SETTING_METADATA, savedResult.getValue().getComponent());
-        assertEquals(SETTING_METADATA, savedResult.getValue().getComponentName());
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        assertEquals(settingsMetadata, listener.result.getObj());
+        assertEquals(SETTING_METADATA, listener.result.getComponent());
+        assertEquals(SETTING_METADATA, listener.result.getComponentName());
     }
 
     public void testGetAsyncMetadataWriteAction_PersistentSettings() throws Exception {
@@ -272,23 +266,21 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             return null;
         }).when(blobStoreTransferService)
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataWriteAction(persistentSettings, listener);
-        runnable.run();
+        RemoteStateTestUtil.TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener =
+            new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataWriteAction(persistentSettings, new LatchedActionListener<>(listener, latch)).run();
 
-        ArgumentCaptor<ClusterMetadataManifest.UploadedMetadata> savedResult = ArgumentCaptor.forClass(
-            ClusterMetadataManifest.UploadedMetadata.class
-        );
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-
-        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = savedResult.getValue();
-        assertNotNull(uploadedMetadata);
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.result;
         assertEquals(SETTING_METADATA, uploadedMetadata.getComponent());
         String uploadedFileName = uploadedMetadata.getUploadedFilename();
         String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
         assertEquals(5, pathTokens.length);
         assertEquals(RemoteClusterStateUtils.encodeString(CLUSTER_NAME), pathTokens[0]);
-        assertEquals("cluster-state", pathTokens[1]);
+        assertEquals(CLUSTER_STATE_PATH_TOKEN, pathTokens[1]);
         assertEquals(CLUSTER_UUID, pathTokens[2]);
         assertEquals(GLOBAL_METADATA_PATH_TOKEN, pathTokens[3]);
         String[] splitFileName = pathTokens[4].split(DELIMITER);
@@ -311,19 +303,20 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             RemoteTransientSettingsMetadata.SETTINGS_METADATA_FORMAT.serialize(settingsMetadata, fileName, compressor, FORMAT_PARAMS)
                 .streamInput()
         );
-        LatchedActionListener<RemoteReadResult> listener = mock(LatchedActionListener.class);
+        RemoteStateTestUtil.TestCapturingListener<RemoteReadResult> listener = new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
 
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+        remoteGlobalMetadataManager.getAsyncMetadataReadAction(
             transientSettings,
             TRANSIENT_SETTING_METADATA,
-            listener
-        );
-        runnable.run();
-        ArgumentCaptor<RemoteReadResult> savedResult = ArgumentCaptor.forClass(RemoteReadResult.class);
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        assertEquals(settingsMetadata, savedResult.getValue().getObj());
-        assertEquals(TRANSIENT_SETTING_METADATA, savedResult.getValue().getComponent());
-        assertEquals(TRANSIENT_SETTING_METADATA, savedResult.getValue().getComponentName());
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        assertEquals(settingsMetadata, listener.result.getObj());
+        assertEquals(TRANSIENT_SETTING_METADATA, listener.result.getComponent());
+        assertEquals(TRANSIENT_SETTING_METADATA, listener.result.getComponentName());
     }
 
     public void testGetAsyncMetadataWriteAction_TransientSettings() throws Exception {
@@ -340,22 +333,20 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             return null;
         }).when(blobStoreTransferService)
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataWriteAction(transientSettings, listener);
-        runnable.run();
-
-        ArgumentCaptor<ClusterMetadataManifest.UploadedMetadata> savedResult = ArgumentCaptor.forClass(
-            ClusterMetadataManifest.UploadedMetadata.class
-        );
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = savedResult.getValue();
-        assertNotNull(uploadedMetadata);
+        RemoteStateTestUtil.TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener =
+            new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataWriteAction(transientSettings, new LatchedActionListener<>(listener, latch)).run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.result;
         assertEquals(TRANSIENT_SETTING_METADATA, uploadedMetadata.getComponent());
         String uploadedFileName = uploadedMetadata.getUploadedFilename();
         String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
         assertEquals(5, pathTokens.length);
         assertEquals(RemoteClusterStateUtils.encodeString(CLUSTER_NAME), pathTokens[0]);
-        assertEquals("cluster-state", pathTokens[1]);
+        assertEquals(CLUSTER_STATE_PATH_TOKEN, pathTokens[1]);
         assertEquals(CLUSTER_UUID, pathTokens[2]);
         assertEquals(GLOBAL_METADATA_PATH_TOKEN, pathTokens[3]);
         String[] splitFileName = pathTokens[4].split(DELIMITER);
@@ -376,19 +367,20 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(hashesOfConsistentSettings, fileName, compressor).streamInput()
         );
-        LatchedActionListener<RemoteReadResult> listener = mock(LatchedActionListener.class);
+        RemoteStateTestUtil.TestCapturingListener<RemoteReadResult> listener = new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
 
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+        remoteGlobalMetadataManager.getAsyncMetadataReadAction(
             hashesOfConsistentSettingsForDownload,
             HASHES_OF_CONSISTENT_SETTINGS,
-            listener
-        );
-        runnable.run();
-        ArgumentCaptor<RemoteReadResult> savedResult = ArgumentCaptor.forClass(RemoteReadResult.class);
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        assertEquals(hashesOfConsistentSettings, savedResult.getValue().getObj());
-        assertEquals(HASHES_OF_CONSISTENT_SETTINGS, savedResult.getValue().getComponent());
-        assertEquals(HASHES_OF_CONSISTENT_SETTINGS, savedResult.getValue().getComponentName());
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        assertEquals(hashesOfConsistentSettings, listener.result.getObj());
+        assertEquals(HASHES_OF_CONSISTENT_SETTINGS, listener.result.getComponent());
+        assertEquals(HASHES_OF_CONSISTENT_SETTINGS, listener.result.getComponentName());
     }
 
     public void testGetAsyncMetadataWriteAction_HashesOfConsistentSettings() throws Exception {
@@ -404,25 +396,23 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             return null;
         }).when(blobStoreTransferService)
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
+        RemoteStateTestUtil.TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener =
+            new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
             hashesOfConsistentSettingsForUpload,
-            listener
-        );
-        runnable.run();
-
-        ArgumentCaptor<ClusterMetadataManifest.UploadedMetadata> savedResult = ArgumentCaptor.forClass(
-            ClusterMetadataManifest.UploadedMetadata.class
-        );
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = savedResult.getValue();
-        assertNotNull(uploadedMetadata);
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.result;
         assertEquals(HASHES_OF_CONSISTENT_SETTINGS, uploadedMetadata.getComponent());
         String uploadedFileName = uploadedMetadata.getUploadedFilename();
         String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
         assertEquals(5, pathTokens.length);
         assertEquals(RemoteClusterStateUtils.encodeString(CLUSTER_NAME), pathTokens[0]);
-        assertEquals("cluster-state", pathTokens[1]);
+        assertEquals(CLUSTER_STATE_PATH_TOKEN, pathTokens[1]);
         assertEquals(CLUSTER_UUID, pathTokens[2]);
         assertEquals(GLOBAL_METADATA_PATH_TOKEN, pathTokens[3]);
         String[] splitFileName = pathTokens[4].split(DELIMITER);
@@ -444,19 +434,19 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             TEMPLATES_METADATA_FORMAT.serialize(templatesMetadata, fileName, compressor, FORMAT_PARAMS).streamInput()
         );
-        LatchedActionListener<RemoteReadResult> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+        RemoteStateTestUtil.TestCapturingListener<RemoteReadResult> listener = new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataReadAction(
             templatesMetadataForDownload,
             TEMPLATES_METADATA,
-            listener
-        );
-        runnable.run();
-
-        ArgumentCaptor<RemoteReadResult> savedResult = ArgumentCaptor.forClass(RemoteReadResult.class);
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        assertEquals(templatesMetadata, savedResult.getValue().getObj());
-        assertEquals(TEMPLATES_METADATA, savedResult.getValue().getComponent());
-        assertEquals(TEMPLATES_METADATA, savedResult.getValue().getComponentName());
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        assertEquals(templatesMetadata, listener.result.getObj());
+        assertEquals(TEMPLATES_METADATA, listener.result.getComponent());
+        assertEquals(TEMPLATES_METADATA, listener.result.getComponentName());
     }
 
     public void testGetAsyncMetadataWriteAction_TemplatesMetadata() throws Exception {
@@ -473,25 +463,21 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             return null;
         }).when(blobStoreTransferService)
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
-            templateMetadataForUpload,
-            listener
-        );
-        runnable.run();
-
-        ArgumentCaptor<ClusterMetadataManifest.UploadedMetadata> savedResult = ArgumentCaptor.forClass(
-            ClusterMetadataManifest.UploadedMetadata.class
-        );
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = savedResult.getValue();
-        assertNotNull(uploadedMetadata);
+        RemoteStateTestUtil.TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener =
+            new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataWriteAction(templateMetadataForUpload, new LatchedActionListener<>(listener, latch))
+            .run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.result;
         assertEquals(TEMPLATES_METADATA, uploadedMetadata.getComponent());
         String uploadedFileName = uploadedMetadata.getUploadedFilename();
         String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
         assertEquals(5, pathTokens.length);
         assertEquals(RemoteClusterStateUtils.encodeString(CLUSTER_NAME), pathTokens[0]);
-        assertEquals("cluster-state", pathTokens[1]);
+        assertEquals(CLUSTER_STATE_PATH_TOKEN, pathTokens[1]);
         assertEquals(CLUSTER_UUID, pathTokens[2]);
         assertEquals(GLOBAL_METADATA_PATH_TOKEN, pathTokens[3]);
         String[] splitFileName = pathTokens[4].split(DELIMITER);
@@ -514,19 +500,19 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             customMetadataForDownload.customBlobStoreFormat.serialize(customMetadata, fileName, compressor).streamInput()
         );
-        LatchedActionListener<RemoteReadResult> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+        RemoteStateTestUtil.TestCapturingListener<RemoteReadResult> listener = new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataReadAction(
             customMetadataForDownload,
             IndexGraveyard.TYPE,
-            listener
-        );
-        runnable.run();
-
-        ArgumentCaptor<RemoteReadResult> savedResult = ArgumentCaptor.forClass(RemoteReadResult.class);
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        assertEquals(customMetadata, savedResult.getValue().getObj());
-        assertEquals(CUSTOM_METADATA, savedResult.getValue().getComponent());
-        assertEquals(IndexGraveyard.TYPE, savedResult.getValue().getComponentName());
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        assertEquals(customMetadata, listener.result.getObj());
+        assertEquals(CUSTOM_METADATA, listener.result.getComponent());
+        assertEquals(IndexGraveyard.TYPE, listener.result.getComponentName());
     }
 
     public void testGetAsyncMetadataWriteAction_CustomMetadata() throws Exception {
@@ -544,22 +530,21 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             return null;
         }).when(blobStoreTransferService)
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataWriteAction(customMetadataForUpload, listener);
-        runnable.run();
-
-        ArgumentCaptor<ClusterMetadataManifest.UploadedMetadata> savedResult = ArgumentCaptor.forClass(
-            ClusterMetadataManifest.UploadedMetadata.class
-        );
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = savedResult.getValue();
-        assertNotNull(uploadedMetadata);
+        RemoteStateTestUtil.TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener =
+            new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataWriteAction(customMetadataForUpload, new LatchedActionListener<>(listener, latch))
+            .run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.result;
         assertEquals(String.join(CUSTOM_DELIMITER, CUSTOM_METADATA, IndexGraveyard.TYPE), uploadedMetadata.getComponent());
         String uploadedFileName = uploadedMetadata.getUploadedFilename();
         String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
         assertEquals(5, pathTokens.length);
         assertEquals(RemoteClusterStateUtils.encodeString(CLUSTER_NAME), pathTokens[0]);
-        assertEquals("cluster-state", pathTokens[1]);
+        assertEquals(CLUSTER_STATE_PATH_TOKEN, pathTokens[1]);
         assertEquals(CLUSTER_UUID, pathTokens[2]);
         assertEquals(GLOBAL_METADATA_PATH_TOKEN, pathTokens[3]);
         String[] splitFileName = pathTokens[4].split(DELIMITER);
@@ -576,19 +561,19 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
             GLOBAL_METADATA_FORMAT.serialize(metadata, fileName, compressor, FORMAT_PARAMS).streamInput()
         );
-        LatchedActionListener<RemoteReadResult> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+        RemoteStateTestUtil.TestCapturingListener<RemoteReadResult> listener = new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataReadAction(
             globalMetadataForDownload,
             GLOBAL_METADATA,
-            listener
-        );
-        runnable.run();
-
-        ArgumentCaptor<RemoteReadResult> savedResult = ArgumentCaptor.forClass(RemoteReadResult.class);
-        assertBusy(() -> verify(listener, times(1)).onResponse(savedResult.capture()));
-        assertTrue(isGlobalStateEquals(metadata, (Metadata) savedResult.getValue().getObj()));
-        assertEquals(GLOBAL_METADATA, savedResult.getValue().getComponent());
-        assertEquals(GLOBAL_METADATA, savedResult.getValue().getComponentName());
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.failure);
+        assertNotNull(listener.result);
+        assertTrue(isGlobalStateEquals(metadata, (Metadata) listener.result.getObj()));
+        assertEquals(GLOBAL_METADATA, listener.result.getComponent());
+        assertEquals(GLOBAL_METADATA, listener.result.getComponentName());
     }
 
     public void testGetReadMetadataAsyncAction_IOException() throws Exception {
@@ -601,16 +586,17 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         );
         IOException ioException = new IOException("mock test exception");
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenThrow(ioException);
-        LatchedActionListener<RemoteReadResult> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+        RemoteStateTestUtil.TestCapturingListener<RemoteReadResult> listener = new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataReadAction(
             coordinationMetadataForDownload,
             COORDINATION_METADATA,
-            listener
-        );
-        runnable.run();
-        ArgumentCaptor<Exception> savedException = ArgumentCaptor.forClass(Exception.class);
-        assertBusy(() -> verify(listener, times(1)).onFailure(savedException.capture()));
-        assertEquals(ioException, savedException.getValue());
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.result);
+        assertNotNull(listener.failure);
+        assertEquals(ioException, listener.failure);
     }
 
     public void testGetAsyncMetadataWriteAction_IOException() throws Exception {
@@ -622,22 +608,22 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             compressor,
             xContentRegistry
         );
+        IOException ioException = new IOException("mock test exception");
         doAnswer(invocationOnMock -> {
-            invocationOnMock.getArgument(4, ActionListener.class).onFailure(new IOException("mock test exception"));
+            invocationOnMock.getArgument(4, ActionListener.class).onFailure(ioException);
             return null;
         }).when(blobStoreTransferService)
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
 
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        CheckedRunnable<IOException> runnable = remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
-            remoteCoordinationMetadata,
-            listener
-        );
-        runnable.run();
-
-        ArgumentCaptor<Exception> savedException = ArgumentCaptor.forClass(Exception.class);
-        assertBusy(() -> verify(listener, times(1)).onFailure(savedException.capture()));
-        assertTrue(savedException.getValue() instanceof RemoteStateTransferException);
+        RemoteStateTestUtil.TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener =
+            new RemoteStateTestUtil.TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        remoteGlobalMetadataManager.getAsyncMetadataWriteAction(remoteCoordinationMetadata, new LatchedActionListener<>(listener, latch))
+            .run();
+        assertNull(listener.result);
+        assertNotNull(listener.failure);
+        assertTrue(listener.failure instanceof RemoteStateTransferException);
+        assertEquals(ioException, listener.failure.getCause());
     }
 
     public void testGetUpdatedCustoms() {
