@@ -164,17 +164,17 @@ public final class Grok {
     private void validatePatternBank(String initialPatternName) {
         Deque<Frame> queue = new ArrayDeque<>();
         Set<String> visitedPatterns = new HashSet<>();
-        Map<String, Deque<String>> pathMap = new HashMap<>();
+        Map<String, List<String>> pathMap = new HashMap<>();
 
-        Deque<String> initialPath = new ArrayDeque<>();
-        initialPath.push(initialPatternName);
+        List<String> initialPath = new ArrayList<>();
+        initialPath.add(initialPatternName);
         pathMap.put(initialPatternName, initialPath);
         queue.push(new Frame(initialPatternName, initialPath, 0));
 
         while (!queue.isEmpty()) {
             Frame frame = queue.peek();
             String patternName = frame.patternName;
-            Deque<String> path = frame.path;
+            List<String> path = frame.path;
             int startIndex = frame.startIndex;
             String pattern = patternBank.get(patternName);
 
@@ -204,12 +204,11 @@ public final class Grok {
                     }
 
                     if (pathMap.containsKey(dependsOnPattern)) {
-                        path.removeFirst();
-                        throwExceptionForCircularReference(patternName, pattern, dependsOnPattern, path);
+                        throwExceptionForCircularReference(patternName, pattern, dependsOnPattern, path.subList(0, path.size() - 1));
                     }
 
-                    Deque<String> newPath = new ArrayDeque<>(path);
-                    newPath.push(dependsOnPattern);
+                    List<String> newPath = new ArrayList<>(path);
+                    newPath.add(dependsOnPattern);
                     pathMap.put(dependsOnPattern, newPath);
 
                     queue.push(new Frame(dependsOnPattern, newPath, 0));
@@ -232,10 +231,10 @@ public final class Grok {
 
     private static class Frame {
         String patternName;
-        Deque<String> path;
+        List<String> path;
         int startIndex;
 
-        Frame(String patternName, Deque<String> path, int startIndex) {
+        Frame(String patternName, List<String> path, int startIndex) {
             this.patternName = patternName;
             this.path = path;
             this.startIndex = startIndex;
@@ -246,24 +245,14 @@ public final class Grok {
         throwExceptionForCircularReference(patternName, pattern, null, null);
     }
 
-    private static void throwExceptionForCircularReference(
-        String patternName,
-        String pattern,
-        String originPatterName,
-        Deque<String> path
-    ) {
+    private static void throwExceptionForCircularReference(String patternName, String pattern, String originPatterName, List<String> path) {
         StringBuilder message = new StringBuilder("circular reference in pattern [");
         message.append(patternName).append("][").append(pattern).append("]");
         if (originPatterName != null) {
             message.append(" back to pattern [").append(originPatterName).append("]");
         }
         if (path != null && path.size() > 1) {
-            Iterator<String> pathIter = path.descendingIterator();
-            message.append(" via patterns [").append(pathIter.next());
-            while (pathIter.hasNext()) {
-                message.append("=>").append(pathIter.next());
-            }
-            message.append("]");
+            message.append(" via patterns [").append(String.join("=>", path)).append("]");
         }
         throw new IllegalArgumentException(message.toString());
     }
