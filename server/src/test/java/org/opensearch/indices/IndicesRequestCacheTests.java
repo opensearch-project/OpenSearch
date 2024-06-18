@@ -101,7 +101,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -491,7 +490,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
             indexShard.hashCode()
         );
         // test the mapping
-        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager
+            .getCleanupKeyToCountMap();
         // shard id should exist
         assertTrue(cleanupKeyToCountMap.containsKey(shardId));
         // reader CacheKeyId should NOT exist
@@ -554,7 +554,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         );
 
         // test the mapping
-        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager
+            .getCleanupKeyToCountMap();
         // shard id should exist
         assertTrue(cleanupKeyToCountMap.containsKey(shardId));
         // reader CacheKeyId should NOT exist
@@ -722,7 +723,8 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         cache.getOrCompute(getEntity(indexShard), getLoader(reader), reader, getTermBytes());
         assertEquals(1, cache.count());
         // test the mappings
-        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager.getCleanupKeyToCountMap();
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap = cache.cacheCleanupManager
+            .getCleanupKeyToCountMap();
         assertEquals(1, (int) cleanupKeyToCountMap.get(shardId).get(getReaderCacheKeyId(reader)));
 
         cache.getOrCompute(getEntity(indexShard), getLoader(secondReader), secondReader, getTermBytes());
@@ -796,7 +798,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     // test adding to cleanupKeyToCountMap with multiple threads
-    public void testAddToCleanupKeyToCountMap() throws Exception {
+    public void testAddingToCleanupKeyToCountMapWorksAppropriatelyWithMultipleThreads() throws Exception {
         threadPool = getThreadPool();
         Settings settings = Settings.builder().put(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING.getKey(), "51%").build();
         cache = getIndicesRequestCache(settings);
@@ -804,7 +806,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
         int numberOfThreads = 10;
         int numberOfIterations = 1000;
         Phaser phaser = new Phaser(numberOfThreads + 1); // +1 for the main thread
-        AtomicBoolean exceptionDetected = new AtomicBoolean(false);
+        AtomicBoolean concurrentModificationExceptionDetected = new AtomicBoolean(false);
 
         ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
 
@@ -817,7 +819,7 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                     }
                 } catch (ConcurrentModificationException e) {
                     logger.error("ConcurrentModificationException detected in thread : " + e.getMessage());
-                    exceptionDetected.set(true); // Set flag if exception is detected
+                    concurrentModificationExceptionDetected.set(true); // Set flag if exception is detected
                 }
             });
         }
@@ -836,13 +838,17 @@ public class IndicesRequestCacheTests extends OpenSearchSingleNodeTestCase {
                 }
             } catch (ConcurrentModificationException e) {
                 logger.error("ConcurrentModificationException detected in main thread : " + e.getMessage());
-                exceptionDetected.set(true); // Set flag if exception is detected
+                concurrentModificationExceptionDetected.set(true); // Set flag if exception is detected
             }
         });
 
         executorService.shutdown();
-        executorService.awaitTermination(60, TimeUnit.SECONDS);
-        assertFalse(exceptionDetected.get());
+        assertTrue(executorService.awaitTermination(60, TimeUnit.SECONDS));
+        assertEquals(
+            numberOfThreads * numberOfIterations,
+            cache.cacheCleanupManager.getCleanupKeyToCountMap().get(indexShard.shardId()).size()
+        );
+        assertFalse(concurrentModificationExceptionDetected.get());
     }
 
     private IndicesRequestCache getIndicesRequestCache(Settings settings) {
