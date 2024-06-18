@@ -132,7 +132,7 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
-    public void testBuildUriLeavesPathUntouched() {
+    public void testBuildUriCorrectlyNormalizesPath() {
         final Map<String, String> emptyMap = Collections.emptyMap();
         {
             URI uri = RestClient.buildUri("/foo$bar", "/index/type/id", emptyMap);
@@ -148,11 +148,11 @@ public class RestClientTests extends RestClientTestCase {
         }
         {
             URI uri = RestClient.buildUri(null, "*", emptyMap);
-            assertEquals("*", uri.getPath());
+            assertEquals("/*", uri.getPath());
         }
         {
             URI uri = RestClient.buildUri("", "*", emptyMap);
-            assertEquals("*", uri.getPath());
+            assertEquals("/*", uri.getPath());
         }
         {
             URI uri = RestClient.buildUri(null, "/*", emptyMap);
@@ -166,6 +166,26 @@ public class RestClientTests extends RestClientTestCase {
             URI uri = RestClient.buildUri(null, "/index/type/id", Collections.singletonMap("foo$bar", "x/y/z"));
             assertEquals("/index/type/id", uri.getPath());
             assertEquals("foo$bar=x/y/z", uri.getQuery());
+        }
+        {
+            URI uri = RestClient.buildUri("/foo/", "/bar/", emptyMap);
+            assertEquals("/foo/bar", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("", "", emptyMap);
+            assertEquals("", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("////", "/foobar", emptyMap);
+            assertEquals("/foobar", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("///", "///", emptyMap);
+            assertEquals("", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("/foo/", "/bar//baz/", emptyMap);
+            assertEquals("/foo/bar//baz", uri.getPath());
         }
     }
 
