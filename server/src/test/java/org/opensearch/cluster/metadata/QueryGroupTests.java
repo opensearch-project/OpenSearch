@@ -141,7 +141,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         assertNotNull(queryGroup.getResourceLimits());
         assertFalse(queryGroup.getResourceLimits().isEmpty());
         assertEquals(1, queryGroup.getResourceLimits().size());
-        assertTrue(allowedModes.contains(queryGroup.getMode()));
+        assertTrue(allowedModes.contains(queryGroup.getResiliencyMode()));
         assertEquals(1717187289, queryGroup.getUpdatedAtInMillis());
     }
 }

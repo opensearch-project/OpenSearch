@@ -30,7 +30,7 @@ import java.util.Objects;
  * {
  *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga",
  *              "jvm": 0.4,
- *              "mode": "enforced",
+ *              "resiliency_mode": "enforced",
  *              "name": "analytics",
  *              "updatedAt": 4513232415
  * }
@@ -41,7 +41,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     public static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
     private final String name;
     private final String _id;
-    private final QueryGroupMode mode;
+    private final QueryGroupMode resiliencyMode;
     // It is an epoch in millis
     private final long updatedAtInMillis;
     private final Map<String, Object> resourceLimits;
@@ -49,10 +49,10 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     // list of resources that are allowed to be present in the QueryGroup schema
     public static final List<String> ALLOWED_RESOURCES = List.of("jvm", "cpu");
 
-    public QueryGroup(String name, String _id, QueryGroupMode mode, Map<String, Object> resourceLimits, long updatedAt) {
+    public QueryGroup(String name, String _id, QueryGroupMode resiliencyMode, Map<String, Object> resourceLimits, long updatedAt) {
         Objects.requireNonNull(name, "QueryGroup.name can't be null");
         Objects.requireNonNull(resourceLimits, "QueryGroup.resourceLimits can't be null");
-        Objects.requireNonNull(mode, "QueryGroup.mode can't be null");
+        Objects.requireNonNull(resiliencyMode, "QueryGroup.resiliencyMode can't be null");
         Objects.requireNonNull(_id, "QueryGroup._id can't be null");
 
         if (name.length() > MAX_CHARS_ALLOWED_IN_NAME) {
@@ -69,7 +69,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
 
         this.name = name;
         this._id = _id;
-        this.mode = mode;
+        this.resiliencyMode = resiliencyMode;
         this.resourceLimits = resourceLimits;
         this.updatedAtInMillis = updatedAt;
     }
@@ -97,7 +97,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(_id);
-        out.writeString(mode.getName());
+        out.writeString(resiliencyMode.getName());
         out.writeMap(resourceLimits);
         out.writeLong(updatedAtInMillis);
     }
@@ -133,7 +133,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
 //        builder.startObject(this._id);
         builder.field("_id", _id);
         builder.field("name", name);
-        builder.field("mode", mode.getName());
+        builder.field("resiliency_mode", resiliencyMode.getName());
         builder.field("updatedAt", updatedAtInMillis);
         builder.mapContents(resourceLimits);
 //        builder.endObject();
@@ -165,7 +165,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
                   builder._id(parser.text());
                 } else if (fieldName.equals("name")) {
                     builder.name(parser.text());
-                } else if (fieldName.equals("mode")) {
+                } else if (fieldName.equals("resiliency_mode")) {
                     builder.mode(parser.text());
                 } else if (fieldName.equals("updatedAt")) {
                     builder.updatedAt(parser.longValue());
@@ -201,8 +201,8 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         return name;
     }
 
-    public QueryGroupMode getMode() {
-        return mode;
+    public QueryGroupMode getResiliencyMode() {
+        return resiliencyMode;
     }
 
     public Map<String, Object> getResourceLimits() {
@@ -261,7 +261,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     public static class Builder {
         private String name;
         private String _id;
-        private QueryGroupMode mode;
+        private QueryGroupMode resiliencyMode;
         private long updatedAt;
         private Map<String, Object> resourceLimits;
 
@@ -278,7 +278,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         }
 
         public Builder mode(String mode) {
-            this.mode = QueryGroupMode.fromName(mode);
+            this.resiliencyMode = QueryGroupMode.fromName(mode);
             return this;
         }
 
@@ -293,7 +293,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         }
 
         public QueryGroup build() {
-            return new QueryGroup(name, _id, mode, resourceLimits, updatedAt);
+            return new QueryGroup(name, _id, resiliencyMode, resourceLimits, updatedAt);
         }
 
     }
