@@ -605,7 +605,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parent = parent;
-            setAnalyzer(parent.indexAnalyzer().name(), parent.indexAnalyzer());
+            setAnalyzer(parent.indexAnalyzer());
         }
 
         @Override
@@ -615,12 +615,13 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
-        void setAnalyzer(String name, NamedAnalyzer delegate) {
+        void setAnalyzer(NamedAnalyzer delegate) {
+            String analyzerName = delegate.name();
             setIndexAnalyzer(
                 new NamedAnalyzer(
-                    name,
+                    analyzerName,
                     AnalyzerScope.INDEX,
-                    new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars, delegate.getPositionIncrementGap(name))
+                    new PrefixWrappedAnalyzer(delegate.analyzer(), minChars, maxChars, delegate.getPositionIncrementGap(analyzerName))
                 )
             );
         }
