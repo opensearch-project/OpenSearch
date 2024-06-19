@@ -64,6 +64,8 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
+    private TimeValue cancelAfterTimeInterval;
+
     public ClusterStateRequest() {}
 
     public ClusterStateRequest(StreamInput in) throws IOException {
@@ -116,6 +118,14 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
         customs = false;
         indices = Strings.EMPTY_ARRAY;
         return this;
+    }
+
+    public void setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
+        this.cancelAfterTimeInterval = cancelAfterTimeInterval;
+    }
+
+    public TimeValue getCancelAfterTimeInterval() {
+        return cancelAfterTimeInterval;
     }
 
     public boolean routingTable() {
