@@ -220,9 +220,16 @@ public interface Repository extends LifecycleComponent {
     long getRestoreThrottleTimeInNanos();
 
     /**
-     * Returns restore throttle time in nanoseconds
+     * Returns upload throttle time in nanoseconds
      */
     long getRemoteUploadThrottleTimeInNanos();
+
+    /**
+     * Returns low priority upload throttle time in nanoseconds
+     */
+    default long getLowPriorityRemoteUploadThrottleTimeInNanos() {
+        return 0;
+    }
 
     /**
      * Returns restore throttle time in nanoseconds

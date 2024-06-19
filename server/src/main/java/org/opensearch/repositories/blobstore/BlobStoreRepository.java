@@ -317,6 +317,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private volatile RateLimiter remoteUploadRateLimiter;
 
+    private volatile RateLimiter remoteUploadLowPriorityRateLimiter;
+
     private volatile RateLimiter remoteDownloadRateLimiter;
 
     private final CounterMetric snapshotRateLimitingTimeInNanos = new CounterMetric();
@@ -326,6 +328,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final CounterMetric remoteDownloadRateLimitingTimeInNanos = new CounterMetric();
 
     private final CounterMetric remoteUploadRateLimitingTimeInNanos = new CounterMetric();
+
+    private final CounterMetric remoteUploadLowPriorityRateLimitingTimeInNanos = new CounterMetric();
 
     public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "metadata",
@@ -449,6 +453,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         remoteUploadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_upload_bytes_per_sec", ByteSizeValue.ZERO);
+        remoteUploadLowPriorityRateLimiter = getRateLimiter(
+            metadata.settings(),
+            "max_remote_low_priority_upload_bytes_per_sec",
+            ByteSizeValue.ZERO
+        );
         remoteDownloadRateLimiter = getRateLimiter(metadata.settings(), "max_remote_download_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = READONLY_SETTING.get(metadata.settings());
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
@@ -1969,6 +1978,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
+    public long getLowPriorityRemoteUploadThrottleTimeInNanos() {
+        return remoteUploadLowPriorityRateLimitingTimeInNanos.count();
+    }
+
+    @Override
     public long getRemoteDownloadThrottleTimeInNanos() {
         return remoteDownloadRateLimitingTimeInNanos.count();
     }
@@ -3311,6 +3325,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             offsetRangeInputStream,
             () -> remoteUploadRateLimiter,
             remoteUploadRateLimitingTimeInNanos,
+            BlobStoreTransferContext.REMOTE_UPLOAD
+        );
+    }
+
+    public OffsetRangeInputStream maybeRateLimitLowPriorityRemoteUploadTransfers(OffsetRangeInputStream offsetRangeInputStream) {
+        return maybeRateLimitRemoteTransfers(
+            maybeRateLimitRemoteTransfers(
+                offsetRangeInputStream,
+                () -> remoteUploadRateLimiter,
+                remoteUploadRateLimitingTimeInNanos,
+                BlobStoreTransferContext.REMOTE_UPLOAD
+            ),
+            () -> remoteUploadLowPriorityRateLimiter,
+            remoteUploadLowPriorityRateLimitingTimeInNanos,
             BlobStoreTransferContext.REMOTE_UPLOAD
         );
     }
