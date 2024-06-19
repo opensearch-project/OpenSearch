@@ -72,7 +72,17 @@ public class FsProbeTests extends OpenSearchTestCase {
     public void testFsInfo() throws IOException {
 
         try (NodeEnvironment env = newNodeEnvironment()) {
-            FsProbe probe = new FsProbe(env, null);
+            // Question: Shall we expose a public method in FileCacheTests to enable creation of FileCache
+            // so that it can be used by other testing classes?
+            int CONCURRENCY_LEVEL = 16; // not important
+            int CAPACITY = 1 * 1024; // not important
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
+                CAPACITY,
+                CONCURRENCY_LEVEL,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+            );
+            // We need to pass a real FileCache object to FsProbe ctor to have it safeguard "path.fileCacheUtilized" values properly!
+            FsProbe probe = new FsProbe(env, fileCache);
 
             FsInfo stats = probe.stats(null);
             assertNotNull(stats);
@@ -110,6 +120,16 @@ public class FsProbeTests extends OpenSearchTestCase {
             assertThat(total.total, greaterThan(0L));
             assertThat(total.free, greaterThan(0L));
             assertThat(total.available, greaterThan(0L));
+
+            // The convention for "total" Path object is that some fields are not set
+            // which means they will not be included in output of toXContent method.
+            assertNull(total.path);
+            assertNull(total.mount);
+            assertNull(total.type);
+
+            // Total file cache (sum over all "paths"):
+            assertEquals(total.getFileCacheReserved().getBytes(), 0);
+            assertEquals(total.getFileCacheUtilized().getBytes(), 0);
 
             for (FsInfo.Path path : stats) {
                 assertNotNull(path);

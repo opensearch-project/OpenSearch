@@ -75,7 +75,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         long free = -1;
         long available = -1;
         long fileCacheReserved = -1;
-        long fileCacheUtilized = 0;
+        long fileCacheUtilized = -1;
 
         public Path() {}
 
