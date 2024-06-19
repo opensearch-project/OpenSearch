@@ -77,12 +77,4 @@ public class CreateQueryGroupResponse extends ActionResponse implements ToXConte
     public RestStatus getRestStatus() {
         return restStatus;
     }
-
-    /**
-     * restStatus setter
-     * @param restStatus - A {@link RestStatus} object
-     */
-    public void setRestStatus(RestStatus restStatus) {
-        this.restStatus = restStatus;
-    }
 }

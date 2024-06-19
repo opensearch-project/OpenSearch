@@ -10,10 +10,6 @@ package org.opensearch.plugin.wlm.service;
 
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.CreateQueryGroupResponse;
-import org.opensearch.plugin.wlm.DeleteQueryGroupResponse;
-import org.opensearch.plugin.wlm.GetQueryGroupResponse;
-import org.opensearch.plugin.wlm.UpdateQueryGroupRequest;
-import org.opensearch.plugin.wlm.UpdateQueryGroupResponse;
 
 /**
  * This interface defines the key APIs for implementing QueruGroup persistence
@@ -26,25 +22,4 @@ public interface Persistable<T> {
      * @param listener
      */
     void persist(T queryGroup, ActionListener<CreateQueryGroupResponse> listener);
-
-    /**
-     * update the QueryGroup in a durable storage
-     * @param updateQueryGroupRequest
-     * @param listener
-     */
-    void update(UpdateQueryGroupRequest updateQueryGroupRequest, ActionListener<UpdateQueryGroupResponse> listener);
-
-    /**
-     * fetch the QueryGroup in a durable storage
-     * @param name
-     * @param listener
-     */
-    void get(String name, ActionListener<GetQueryGroupResponse> listener);
-
-    /**
-     * delete the QueryGroup in a durable storage
-     * @param name
-     * @param listener
-     */
-    void delete(String name, ActionListener<DeleteQueryGroupResponse> listener);
 }

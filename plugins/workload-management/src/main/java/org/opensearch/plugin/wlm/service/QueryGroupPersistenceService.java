@@ -14,7 +14,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
-import org.opensearch.cluster.metadata.QueryGroup.QueryGroupMode;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler.ThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -24,14 +23,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.CreateQueryGroupResponse;
-import org.opensearch.plugin.wlm.DeleteQueryGroupResponse;
-import org.opensearch.plugin.wlm.GetQueryGroupResponse;
-import org.opensearch.plugin.wlm.UpdateQueryGroupRequest;
-import org.opensearch.plugin.wlm.UpdateQueryGroupResponse;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -96,30 +90,6 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
     @Override
     public void persist(QueryGroup queryGroup, ActionListener<CreateQueryGroupResponse> listener) {
         persistInClusterStateMetadata(queryGroup, listener);
-    }
-
-    @Override
-    public void update(UpdateQueryGroupRequest updateQueryGroupRequest, ActionListener<UpdateQueryGroupResponse> listener) {
-        updateInClusterStateMetadata(updateQueryGroupRequest, listener);
-    }
-
-    @Override
-    public void get(String name, ActionListener<GetQueryGroupResponse> listener) {
-        ClusterState currentState = clusterService.state();
-        List<QueryGroup> resultGroups = getFromClusterStateMetadata(name, currentState);
-        if (resultGroups.isEmpty() && name != null && !name.isEmpty()) {
-            logger.warn("No QueryGroup exists with the provided name: {}", name);
-            Exception e = new RuntimeException("No QueryGroup exists with the provided name: " + name);
-            listener.onFailure(e);
-            return;
-        }
-        GetQueryGroupResponse response = new GetQueryGroupResponse(resultGroups, RestStatus.OK);
-        listener.onResponse(response);
-    }
-
-    @Override
-    public void delete(String name, ActionListener<DeleteQueryGroupResponse> listener) {
-        deleteInClusterStateMetadata(name, listener);
     }
 
     /**
@@ -235,166 +205,6 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
             }
         }
         return existingUsage;
-    }
-
-    /**
-     * Modify cluster state to update the QueryGroup
-     * @param toUpdateGroup {@link QueryGroup} - the QueryGroup that we want to update
-     */
-    void updateInClusterStateMetadata(UpdateQueryGroupRequest toUpdateGroup, ActionListener<UpdateQueryGroupResponse> listener) {
-        clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return updateQueryGroupInClusterState(toUpdateGroup, currentState);
-            }
-
-            @Override
-            public ThrottlingKey getClusterManagerThrottlingKey() {
-                return updateQueryGroupThrottlingKey;
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                restoreInflightValues(toUpdateGroup.getResourceLimits());
-                logger.warn("Failed to update QueryGroup due to error: {}, for source: {}", e.getMessage(), source);
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                restoreInflightValues(toUpdateGroup.getResourceLimits());
-                String name = toUpdateGroup.getName();
-                Optional<QueryGroup> findUpdatedGroup = newState.metadata()
-                    .queryGroups()
-                    .stream()
-                    .filter(group -> group.getName().equals(name))
-                    .findFirst();
-                assert findUpdatedGroup.isPresent();
-                QueryGroup updatedGroup = findUpdatedGroup.get();
-                UpdateQueryGroupResponse response = new UpdateQueryGroupResponse(updatedGroup, RestStatus.OK);
-                listener.onResponse(response);
-            }
-        });
-    }
-
-    /**
-     * Modify cluster state to update the existing QueryGroup
-     * @param updateQueryGroupRequest {@link QueryGroup} - the QueryGroup that we want to update
-     * @param currentState - current cluster state
-     */
-    public ClusterState updateQueryGroupInClusterState(UpdateQueryGroupRequest updateQueryGroupRequest, ClusterState currentState) {
-        final Metadata metadata = currentState.metadata();
-        Set<QueryGroup> existingGroups = currentState.metadata().queryGroups();
-        String name = updateQueryGroupRequest.getName();
-        String resourceNameWithThresholdExceeded = "";
-
-        // check if there's any resource allocation that exceed limit of 1.0
-        if (updateQueryGroupRequest.getResourceLimits() != null) {
-            for (String resourceName : updateQueryGroupRequest.getResourceLimits().keySet()) {
-                double existingUsage = calculateExistingUsage(resourceName, existingGroups, name);
-                double newGroupUsage = getResourceLimitValue(resourceName, updateQueryGroupRequest.getResourceLimits());
-                inflightResourceLimitValues.computeIfAbsent(resourceName, k -> new DoubleAdder()).add(newGroupUsage);
-                double totalUsage = existingUsage + inflightResourceLimitValues.get(resourceName).doubleValue();
-                if (totalUsage > 1) {
-                    resourceNameWithThresholdExceeded = resourceName;
-                }
-            }
-        }
-
-        Optional<QueryGroup> findExistingGroup = existingGroups.stream().filter(group -> group.getName().equals(name)).findFirst();
-
-        if (findExistingGroup.isEmpty()) {
-            logger.warn("No QueryGroup exists with the provided name: {}", name);
-            throw new RuntimeException("No QueryGroup exists with the provided name: " + name);
-        }
-        if (!resourceNameWithThresholdExceeded.isEmpty()) {
-            logger.error("Total resource allocation for {} will go above the max limit of 1.0", resourceNameWithThresholdExceeded);
-            throw new RuntimeException(
-                "Total resource allocation for " + resourceNameWithThresholdExceeded + " will go above the max limit of 1.0"
-            );
-        }
-
-        // build the QueryGroup with updated fields
-        QueryGroup existingGroup = findExistingGroup.get();
-        String _id = existingGroup.get_id();
-        long updatedAtInMillis = updateQueryGroupRequest.getUpdatedAtInMillis();
-        Map<String, Object> existingResourceLimits = existingGroup.getResourceLimits();
-        Map<String, Object> updatedResourceLimits = new HashMap<>();
-        if (existingResourceLimits != null) {
-            updatedResourceLimits.putAll(existingResourceLimits);
-        }
-        if (updateQueryGroupRequest.getResourceLimits() != null) {
-            updatedResourceLimits.putAll(updateQueryGroupRequest.getResourceLimits());
-        }
-        QueryGroupMode mode = updateQueryGroupRequest.getMode() == null ? existingGroup.getMode() : updateQueryGroupRequest.getMode();
-
-        QueryGroup updatedGroup = new QueryGroup(name, _id, mode, updatedResourceLimits, updatedAtInMillis);
-        return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(metadata).remove(existingGroup).put(updatedGroup).build())
-            .build();
-    }
-
-    /**
-     * Modify cluster state to delete the QueryGroup
-     * @param name - the name for QueryGroup to be deleted
-     */
-    void deleteInClusterStateMetadata(String name, ActionListener<DeleteQueryGroupResponse> listener) {
-        clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return deleteQueryGroupInClusterState(name, currentState);
-            }
-
-            @Override
-            public ThrottlingKey getClusterManagerThrottlingKey() {
-                return deleteQueryGroupThrottlingKey;
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.warn("Failed to delete QueryGroup due to error: {}, for source: {}", e.getMessage(), source);
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                final Set<QueryGroup> oldGroupsMap = oldState.metadata().queryGroups();
-                final Set<QueryGroup> newGroupsMap = newState.metadata().queryGroups();
-                List<QueryGroup> deletedGroups = new ArrayList<>();
-                for (QueryGroup group : oldGroupsMap) {
-                    if (!newGroupsMap.contains(group)) {
-                        deletedGroups.add(group);
-                    }
-                }
-                DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(deletedGroups, RestStatus.OK);
-                listener.onResponse(response);
-            }
-        });
-    }
-
-    /**
-     * Modify cluster state to delete the QueryGroup
-     * @param name - the name for QueryGroup to be deleted
-     * @param currentClusterState - current cluster state
-     */
-    ClusterState deleteQueryGroupInClusterState(final String name, final ClusterState currentClusterState) {
-        final Metadata metadata = currentClusterState.metadata();
-        final Set<QueryGroup> previousGroups = metadata.queryGroups();
-
-        if (name == null || name.isEmpty()) { // delete all
-            return ClusterState.builder(currentClusterState)
-                .metadata(Metadata.builder(metadata).queryGroups(new HashSet<>()).build())
-                .build();
-        } else {
-            Optional<QueryGroup> findExistingGroup = previousGroups.stream().filter(group -> group.getName().equals(name)).findFirst();
-            if (findExistingGroup.isEmpty()) {
-                logger.error("The QueryGroup with provided name {} doesn't exist", name);
-                throw new RuntimeException("No QueryGroup exists with the provided name: " + name);
-            }
-            return ClusterState.builder(currentClusterState)
-                .metadata(Metadata.builder(metadata).remove(findExistingGroup.get()).build())
-                .build();
-        }
     }
 
     List<QueryGroup> getFromClusterStateMetadata(String name, ClusterState currentState) {
