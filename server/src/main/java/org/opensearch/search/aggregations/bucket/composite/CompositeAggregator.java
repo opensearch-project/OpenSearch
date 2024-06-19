@@ -73,8 +73,9 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
-import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
-import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper.AbstractDateHistogramAggregationType;
+import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregationFunctionProvider;
+import org.opensearch.search.optimization.ranges.OptimizationContext;
+import org.opensearch.search.optimization.ranges.Helper;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
@@ -118,7 +119,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     private boolean earlyTerminated;
 
-    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
+    private final OptimizationContext optimizationContext;
     private LongKeyedBucketOrds bucketOrds = null;
     private Rounding.Prepared preparedRounding = null;
 
@@ -166,27 +167,27 @@ public final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
-        if (!FastFilterRewriteHelper.isCompositeAggRewriteable(sourceConfigs)) {
+        optimizationContext = new OptimizationContext(context);
+        if (!Helper.isCompositeAggRewriteable(sourceConfigs)) {
             return;
         }
-        fastFilterContext.setAggregationType(new CompositeAggregationType());
-        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+        optimizationContext.setAggregationType(new CompositeAggAggregationFunctionProvider());
+        if (optimizationContext.isRewriteable(parent, subAggregators.length)) {
             // bucketOrds is used for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
-            preparedRounding = ((CompositeAggregationType) fastFilterContext.getAggregationType()).getRoundingPrepared();
-            fastFilterContext.buildRanges(sourceConfigs[0].fieldType());
+            preparedRounding = ((CompositeAggAggregationFunctionProvider) optimizationContext.getAggregationType()).getRoundingPrepared();
+            optimizationContext.buildRanges(sourceConfigs[0].fieldType());
         }
     }
 
     /**
      * Currently the filter rewrite is only supported for date histograms
      */
-    public class CompositeAggregationType extends AbstractDateHistogramAggregationType {
+    public class CompositeAggAggregationFunctionProvider extends AbstractDateHistogramAggAggregationFunctionProvider {
         private final RoundingValuesSource valuesSource;
         private long afterKey = -1L;
 
-        public CompositeAggregationType() {
+        public CompositeAggAggregationFunctionProvider() {
             super(sourceConfigs[0].fieldType(), sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript());
             this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
             if (rawAfterKey != null) {
@@ -551,7 +552,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = fastFilterContext.tryFastFilterAggregation(
+        boolean optimized = optimizationContext.tryFastFilterAggregation(
             ctx,
             this::incrementBucketDocCount,
             (key) -> bucketOrds.add(0, preparedRounding.round((long) key))
@@ -709,11 +710,11 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
-        if (fastFilterContext.optimizedSegments > 0) {
-            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
-            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
-            add.accept("leaf_visited", fastFilterContext.leaf);
-            add.accept("inner_visited", fastFilterContext.inner);
+        if (optimizationContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", optimizationContext.optimizedSegments);
+            add.accept("unoptimized_segments", optimizationContext.segments - optimizationContext.optimizedSegments);
+            add.accept("leaf_visited", optimizationContext.leaf);
+            add.accept("inner_visited", optimizationContext.inner);
         }
     }
 }

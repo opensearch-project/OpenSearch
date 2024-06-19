@@ -55,10 +55,11 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
-import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
+import org.opensearch.search.optimization.ranges.OptimizationContext;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.optimization.ranges.RangeAggregationFunctionProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -249,7 +250,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     final double[] maxTo;
 
-    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
+    private final OptimizationContext optimizationContext;
 
     public RangeAggregator(
         String name,
@@ -279,12 +280,12 @@ public class RangeAggregator extends BucketsAggregator {
             maxTo[i] = Math.max(this.ranges[i].to, maxTo[i - 1]);
         }
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
+        optimizationContext = new OptimizationContext(
             context,
-            new FastFilterRewriteHelper.RangeAggregationType(config, ranges)
+            new RangeAggregationFunctionProvider(config, ranges)
         );
-        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildRanges(Objects.requireNonNull(config.fieldType()));
+        if (optimizationContext.isRewriteable(parent, subAggregators.length)) {
+            optimizationContext.buildRanges(Objects.requireNonNull(config.fieldType()));
         }
     }
 
@@ -298,7 +299,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = fastFilterContext.tryFastFilterAggregation(
+        boolean optimized = optimizationContext.tryFastFilterAggregation(
             ctx,
             this::incrementBucketDocCount,
             (activeIndex) -> subBucketOrdinal(0, (int) activeIndex)
@@ -452,11 +453,11 @@ public class RangeAggregator extends BucketsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        if (fastFilterContext.optimizedSegments > 0) {
-            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
-            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
-            add.accept("leaf_visited", fastFilterContext.leaf);
-            add.accept("inner_visited", fastFilterContext.inner);
+        if (optimizationContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", optimizationContext.optimizedSegments);
+            add.accept("unoptimized_segments", optimizationContext.segments - optimizationContext.optimizedSegments);
+            add.accept("leaf_visited", optimizationContext.leaf);
+            add.accept("inner_visited", optimizationContext.inner);
         }
     }
 }

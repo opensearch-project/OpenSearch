@@ -49,7 +49,8 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
-import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
+import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregationFunctionProvider;
+import org.opensearch.search.optimization.ranges.OptimizationContext;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -84,7 +85,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final LongBounds hardBounds;
     private final LongKeyedBucketOrds bucketOrds;
 
-    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
+    private final OptimizationContext optimizationContext;
 
     DateHistogramAggregator(
         String name,
@@ -117,23 +118,23 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
+        optimizationContext = new OptimizationContext(
             context,
-            new DateHistogramAggregationType(
+            new DateHistogramAggAggregationFunctionProvider(
                 valuesSourceConfig.fieldType(),
                 valuesSourceConfig.missing() != null,
                 valuesSourceConfig.script() != null,
                 hardBounds
             )
         );
-        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildRanges(Objects.requireNonNull(valuesSourceConfig.fieldType()));
+        if (optimizationContext.isRewriteable(parent, subAggregators.length)) {
+            optimizationContext.buildRanges(Objects.requireNonNull(valuesSourceConfig.fieldType()));
         }
     }
 
-    private class DateHistogramAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
+    private class DateHistogramAggAggregationFunctionProvider extends AbstractDateHistogramAggAggregationFunctionProvider {
 
-        public DateHistogramAggregationType(MappedFieldType fieldType, boolean missing, boolean hasScript, LongBounds hardBounds) {
+        public DateHistogramAggAggregationFunctionProvider(MappedFieldType fieldType, boolean missing, boolean hasScript, LongBounds hardBounds) {
             super(fieldType, missing, hasScript, hardBounds);
         }
 
@@ -162,7 +163,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = fastFilterContext.tryFastFilterAggregation(
+        boolean optimized = optimizationContext.tryFastFilterAggregation(
             ctx,
             this::incrementBucketDocCount,
             (key) -> bucketOrds.add(0, preparedRounding.round((long) key))
@@ -253,11 +254,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("total_buckets", bucketOrds.size());
-        if (fastFilterContext.optimizedSegments > 0) {
-            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
-            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
-            add.accept("leaf_visited", fastFilterContext.leaf);
-            add.accept("inner_visited", fastFilterContext.inner);
+        if (optimizationContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", optimizationContext.optimizedSegments);
+            add.accept("unoptimized_segments", optimizationContext.segments - optimizationContext.optimizedSegments);
+            add.accept("leaf_visited", optimizationContext.leaf);
+            add.accept("inner_visited", optimizationContext.inner);
         }
     }
 

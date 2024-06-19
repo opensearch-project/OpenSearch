@@ -53,7 +53,8 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
+import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregationFunctionProvider;
+import org.opensearch.search.optimization.ranges.OptimizationContext;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
@@ -135,7 +136,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected int roundingIdx;
     protected Rounding.Prepared preparedRounding;
 
-    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
+    private final OptimizationContext optimizationContext;
 
     private AutoDateHistogramAggregator(
         String name,
@@ -158,22 +159,22 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
+        optimizationContext = new OptimizationContext(
             context,
-            new AutoHistogramAggregationType(
+            new AutoHistogramAggAggregationFunctionProvider(
                 valuesSourceConfig.fieldType(),
                 valuesSourceConfig.missing() != null,
                 valuesSourceConfig.script() != null
             )
         );
-        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.buildRanges(Objects.requireNonNull(valuesSourceConfig.fieldType()));
+        if (optimizationContext.isRewriteable(parent, subAggregators.length)) {
+            optimizationContext.buildRanges(Objects.requireNonNull(valuesSourceConfig.fieldType()));
         }
     }
 
-    private class AutoHistogramAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
+    private class AutoHistogramAggAggregationFunctionProvider extends AbstractDateHistogramAggAggregationFunctionProvider {
 
-        public AutoHistogramAggregationType(MappedFieldType fieldType, boolean missing, boolean hasScript) {
+        public AutoHistogramAggAggregationFunctionProvider(MappedFieldType fieldType, boolean missing, boolean hasScript) {
             super(fieldType, missing, hasScript);
         }
 
@@ -236,7 +237,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = fastFilterContext.tryFastFilterAggregation(
+        boolean optimized = optimizationContext.tryFastFilterAggregation(
             ctx,
             this::incrementBucketDocCount,
             (key) -> getBucketOrds().add(0, preparedRounding.round((long) key))
@@ -308,11 +309,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        if (fastFilterContext.optimizedSegments > 0) {
-            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
-            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
-            add.accept("leaf_visited", fastFilterContext.leaf);
-            add.accept("inner_visited", fastFilterContext.inner);
+        if (optimizationContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", optimizationContext.optimizedSegments);
+            add.accept("unoptimized_segments", optimizationContext.segments - optimizationContext.optimizedSegments);
+            add.accept("leaf_visited", optimizationContext.leaf);
+            add.accept("inner_visited", optimizationContext.inner);
         }
     }
 
