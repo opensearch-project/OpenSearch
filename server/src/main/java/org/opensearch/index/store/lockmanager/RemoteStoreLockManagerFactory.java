@@ -56,7 +56,7 @@ public class RemoteStoreLockManagerFactory {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobPath repositoryBasePath = ((BlobStoreRepository) repository).basePath();
 
-            RemoteStorePathStrategy.PathInput lockFilesPathInput = RemoteStorePathStrategy.PathInput.builder()
+            RemoteStorePathStrategy.ShardDataPathInput lockFilesPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
                 .basePath(repositoryBasePath)
                 .indexUUID(indexUUID)
                 .shardId(shardId)

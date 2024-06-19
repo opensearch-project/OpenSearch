@@ -154,6 +154,9 @@ final class RequestConverters {
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
         parameters.withRouting(bulkRequest.routing());
+        if (bulkRequest.requireAlias() != null) {
+            parameters.withRequireAlias(bulkRequest.requireAlias());
+        }
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -231,6 +234,10 @@ final class RequestConverters {
                         if (updateRequest.fetchSource() != null) {
                             metadata.field("_source", updateRequest.fetchSource());
                         }
+                    }
+
+                    if (action.isRequireAlias()) {
+                        metadata.field("require_alias", action.isRequireAlias());
                     }
                     metadata.endObject();
                 }

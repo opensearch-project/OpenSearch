@@ -352,6 +352,25 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertEquals(1, results.length);
         assertThat(results, arrayContainingInAnyOrder(".hidden-closed"));
 
+        options = IndicesOptions.fromOptions(false, true, false, true, false, false, false, false);
+        context = new IndexNameExpressionResolver.Context(state, options, false);
+
+        results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+        assertEquals(1, results.length);
+        assertEquals("foo", results[0]);
+
+        try {
+            options = IndicesOptions.fromOptions(false, true, false, true, false, true, false, false);
+            context = new IndexNameExpressionResolver.Context(state, options, false);
+
+            results = indexNameExpressionResolver.concreteIndexNames(context, "foo*");
+            assertEquals(1, results.length);
+            assertEquals("foo", results[0]);
+        } catch (IllegalArgumentException iae) {
+            String expectedMessage = "To expand [CLOSE] wildcard, please set forbid_closed_indices to `false`";
+            assertEquals(expectedMessage, iae.getMessage());
+        }
+
         // Only open
         options = IndicesOptions.fromOptions(false, true, true, false, false);
         context = new IndexNameExpressionResolver.Context(state, options, false);

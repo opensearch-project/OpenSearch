@@ -25,7 +25,9 @@ import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.cache.serializer.ICacheKeySerializer;
 import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.stats.CacheStatsHolder;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
+import org.opensearch.common.cache.stats.NoopCacheStatsHolder;
 import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.collect.Tuple;
@@ -40,6 +42,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -162,62 +166,71 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.ehCacheEventListener = new EhCacheEventListener(builder.getRemovalListener(), builder.getWeigher());
         this.cache = buildCache(Duration.ofMillis(expireAfterAccess.getMillis()), builder);
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
-        this.cacheStatsHolder = new CacheStatsHolder(dimensionNames);
+        if (builder.getStatsTrackingEnabled()) {
+            // If this cache is being used, FeatureFlags.PLUGGABLE_CACHE is already on, so we can always use the DefaultCacheStatsHolder
+            // unless statsTrackingEnabled is explicitly set to false in CacheConfig.
+            this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME);
+        } else {
+            this.cacheStatsHolder = NoopCacheStatsHolder.getInstance();
+        }
     }
 
     @SuppressWarnings({ "rawtypes" })
     private Cache<ICacheKey, ByteArrayWrapper> buildCache(Duration expireAfterAccess, Builder<K, V> builder) {
-        try {
-            return this.cacheManager.createCache(
-                this.diskCacheAlias,
-                CacheConfigurationBuilder.newCacheConfigurationBuilder(
-                    ICacheKey.class,
-                    ByteArrayWrapper.class,
-                    ResourcePoolsBuilder.newResourcePoolsBuilder().disk(maxWeightInBytes, MemoryUnit.B)
-                ).withExpiry(new ExpiryPolicy<>() {
-                    @Override
-                    public Duration getExpiryForCreation(ICacheKey key, ByteArrayWrapper value) {
-                        return INFINITE;
-                    }
+        // Creating the cache requires permissions specified in plugin-security.policy
+        return AccessController.doPrivileged((PrivilegedAction<Cache<ICacheKey, ByteArrayWrapper>>) () -> {
+            try {
+                return this.cacheManager.createCache(
+                    this.diskCacheAlias,
+                    CacheConfigurationBuilder.newCacheConfigurationBuilder(
+                        ICacheKey.class,
+                        ByteArrayWrapper.class,
+                        ResourcePoolsBuilder.newResourcePoolsBuilder().disk(maxWeightInBytes, MemoryUnit.B)
+                    ).withExpiry(new ExpiryPolicy<>() {
+                        @Override
+                        public Duration getExpiryForCreation(ICacheKey key, ByteArrayWrapper value) {
+                            return INFINITE;
+                        }
 
-                    @Override
-                    public Duration getExpiryForAccess(ICacheKey key, Supplier<? extends ByteArrayWrapper> value) {
-                        return expireAfterAccess;
-                    }
+                        @Override
+                        public Duration getExpiryForAccess(ICacheKey key, Supplier<? extends ByteArrayWrapper> value) {
+                            return expireAfterAccess;
+                        }
 
-                    @Override
-                    public Duration getExpiryForUpdate(
-                        ICacheKey key,
-                        Supplier<? extends ByteArrayWrapper> oldValue,
-                        ByteArrayWrapper newValue
-                    ) {
-                        return INFINITE;
-                    }
-                })
-                    .withService(getListenerConfiguration(builder))
-                    .withService(
-                        new OffHeapDiskStoreConfiguration(
-                            this.threadPoolAlias,
-                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
-                                .get(DISK_WRITE_CONCURRENCY_KEY)
-                                .get(settings),
-                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings)
+                        @Override
+                        public Duration getExpiryForUpdate(
+                            ICacheKey key,
+                            Supplier<? extends ByteArrayWrapper> oldValue,
+                            ByteArrayWrapper newValue
+                        ) {
+                            return INFINITE;
+                        }
+                    })
+                        .withService(getListenerConfiguration(builder))
+                        .withService(
+                            new OffHeapDiskStoreConfiguration(
+                                this.threadPoolAlias,
+                                (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
+                                    .get(DISK_WRITE_CONCURRENCY_KEY)
+                                    .get(settings),
+                                (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType).get(DISK_SEGMENT_KEY).get(settings)
+                            )
                         )
-                    )
-                    .withKeySerializer(new KeySerializerWrapper(keySerializer))
-                    .withValueSerializer(new ByteArrayWrapperSerializer())
+                        .withKeySerializer(new KeySerializerWrapper(keySerializer))
+                        .withValueSerializer(new ByteArrayWrapperSerializer())
                 // We pass ByteArrayWrapperSerializer as ehcache's value serializer. If V is an interface, and we pass its
                 // serializer directly to ehcache, ehcache requires the classes match exactly before/after serialization.
                 // This is not always feasible or necessary, like for BytesReference. So, we handle the value serialization
                 // before V hits ehcache.
-            );
-        } catch (IllegalArgumentException ex) {
-            logger.error("Ehcache disk cache initialization failed due to illegal argument: {}", ex.getMessage());
-            throw ex;
-        } catch (IllegalStateException ex) {
-            logger.error("Ehcache disk cache initialization failed: {}", ex.getMessage());
-            throw ex;
-        }
+                );
+            } catch (IllegalArgumentException ex) {
+                logger.error("Ehcache disk cache initialization failed due to illegal argument: {}", ex.getMessage());
+                throw ex;
+            } catch (IllegalStateException ex) {
+                logger.error("Ehcache disk cache initialization failed: {}", ex.getMessage());
+                throw ex;
+            }
+        });
     }
 
     private CacheEventListenerConfigurationBuilder getListenerConfiguration(Builder<K, V> builder) {
@@ -244,25 +257,28 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @SuppressForbidden(reason = "Ehcache uses File.io")
     private PersistentCacheManager buildCacheManager() {
         // In case we use multiple ehCaches, we can define this cache manager at a global level.
-        return CacheManagerBuilder.newCacheManagerBuilder()
-            .with(CacheManagerBuilder.persistence(new File(storagePath)))
+        // Creating the cache manager also requires permissions specified in plugin-security.policy
+        return AccessController.doPrivileged((PrivilegedAction<PersistentCacheManager>) () -> {
+            return CacheManagerBuilder.newCacheManagerBuilder()
+                .with(CacheManagerBuilder.persistence(new File(storagePath)))
 
-            .using(
-                PooledExecutionServiceConfigurationBuilder.newPooledExecutionServiceConfigurationBuilder()
-                    .defaultPool(THREAD_POOL_ALIAS_PREFIX + "Default#" + UNIQUE_ID, 1, 3) // Default pool used for other tasks
-                    // like event listeners
-                    .pool(
-                        this.threadPoolAlias,
-                        (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
-                            .get(DISK_WRITE_MIN_THREADS_KEY)
-                            .get(settings),
-                        (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
-                            .get(DISK_WRITE_MAXIMUM_THREADS_KEY)
-                            .get(settings)
-                    )
-                    .build()
-            )
-            .build(true);
+                .using(
+                    PooledExecutionServiceConfigurationBuilder.newPooledExecutionServiceConfigurationBuilder()
+                        .defaultPool(THREAD_POOL_ALIAS_PREFIX + "Default#" + UNIQUE_ID, 1, 3) // Default pool used for other tasks
+                        // like event listeners
+                        .pool(
+                            this.threadPoolAlias,
+                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
+                                .get(DISK_WRITE_MIN_THREADS_KEY)
+                                .get(settings),
+                            (Integer) EhcacheDiskCacheSettings.getSettingListForCacheType(cacheType)
+                                .get(DISK_WRITE_MAXIMUM_THREADS_KEY)
+                                .get(settings)
+                        )
+                        .build()
+                )
+                .build(true);
+        });
     }
 
     @Override
@@ -412,6 +428,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
 
     /**
      * Gives the current count of keys in disk cache.
+     * If enableStatsTracking is set to false in the builder, always returns 0.
      * @return current count of keys
      */
     @Override
@@ -444,12 +461,13 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     }
 
     /**
-     * Relevant stats for this cache.
-     * @return CacheStats
+     * Relevant stats for this cache, aggregated by levels.
+     * @param levels The levels to aggregate by.
+     * @return ImmutableCacheStatsHolder
      */
     @Override
-    public ImmutableCacheStatsHolder stats() {
-        return cacheStatsHolder.getImmutableCacheStatsHolder();
+    public ImmutableCacheStatsHolder stats(String[] levels) {
+        return cacheStatsHolder.getImmutableCacheStatsHolder(levels);
     }
 
     /**
@@ -508,7 +526,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         public void onEvent(CacheEvent<? extends ICacheKey<K>, ? extends ByteArrayWrapper> event) {
             switch (event.getType()) {
                 case CREATED:
-                    cacheStatsHolder.incrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.incrementItems(event.getKey().dimensions);
                     cacheStatsHolder.incrementSizeInBytes(event.getKey().dimensions, getNewValuePairSize(event));
                     assert event.getOldValue() == null;
                     break;
@@ -516,7 +534,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EVICTED)
                     );
-                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementItems(event.getKey().dimensions);
                     cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     cacheStatsHolder.incrementEvictions(event.getKey().dimensions);
                     assert event.getNewValue() == null;
@@ -525,7 +543,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.EXPLICIT)
                     );
-                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementItems(event.getKey().dimensions);
                     cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;
@@ -533,7 +551,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                     this.removalListener.onRemoval(
                         new RemovalNotification<>(event.getKey(), deserializeValue(event.getOldValue()), RemovalReason.INVALIDATED)
                     );
-                    cacheStatsHolder.decrementEntries(event.getKey().dimensions);
+                    cacheStatsHolder.decrementItems(event.getKey().dimensions);
                     cacheStatsHolder.decrementSizeInBytes(event.getKey().dimensions, getOldValuePairSize(event));
                     assert event.getNewValue() == null;
                     break;

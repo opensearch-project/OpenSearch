@@ -29,6 +29,7 @@ import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
 
 import java.io.FileNotFoundException;
@@ -63,6 +64,8 @@ public class RemoteDirectory extends Directory {
 
     private final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
 
+    private final UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter;
+
     private final UnaryOperator<InputStream> downloadRateLimiter;
 
     /**
@@ -75,15 +78,17 @@ public class RemoteDirectory extends Directory {
     }
 
     public RemoteDirectory(BlobContainer blobContainer) {
-        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity());
+        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity());
     }
 
     public RemoteDirectory(
         BlobContainer blobContainer,
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
+        UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter,
         UnaryOperator<InputStream> downloadRateLimiter
     ) {
         this.blobContainer = blobContainer;
+        this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.uploadRateLimiter = uploadRateLimiter;
         this.downloadRateLimiter = downloadRateLimiter;
     }
@@ -323,11 +328,12 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext context,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
     ) {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
-                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener);
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -342,7 +348,8 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext ioContext,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
     ) throws Exception {
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
@@ -353,13 +360,24 @@ public class RemoteDirectory extends Directory {
         if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
             remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
         }
+        lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+        RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
+        if (lowPriorityUpload) {
+            offsetRangeInputStreamSupplier = (size, position) -> lowPriorityUploadRateLimiter.apply(
+                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
+            );
+        } else {
+            offsetRangeInputStreamSupplier = (size, position) -> uploadRateLimiter.apply(
+                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
+            );
+        }
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
             src,
             remoteFileName,
             contentLength,
             true,
-            WritePriority.NORMAL,
-            (size, position) -> uploadRateLimiter.apply(new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)),
+            lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
+            offsetRangeInputStreamSupplier,
             expectedChecksum,
             remoteIntegrityEnabled
         );
