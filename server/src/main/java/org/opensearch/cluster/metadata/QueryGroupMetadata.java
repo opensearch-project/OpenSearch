@@ -46,34 +46,41 @@ import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
  */
 @ExperimentalApi
 public class QueryGroupMetadata implements Metadata.Custom {
-    public static final String TYPE = "queryGroup";
+    public static final String TYPE = "queryGroups";
     private static final ParseField QUERY_GROUP_FIELD = new ParseField("queryGroups");
+
+    private final Map<String, QueryGroup> queryGroups;
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<QueryGroupMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "queryGroupParser",
-        args -> new QueryGroupMetadata((Set<QueryGroup>) args[0])
+        args -> new QueryGroupMetadata((Map<String, QueryGroup>) args[0])
     );
 
     static {
         PARSER.declareObjectArray(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> QueryGroup.fromXContent(p),
+            (p, c) -> {
+                Map<String, QueryGroup> queryGroupMap = new HashMap<>();
+                while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                    queryGroupMap.put(p.currentName(), QueryGroup.fromXContent(p));
+                }
+                return queryGroupMap;
+            },
             QUERY_GROUP_FIELD
         );
     }
 
-    private final Set<QueryGroup> queryGroups;
 
-    public QueryGroupMetadata(Set<QueryGroup> queryGroups) {
+    public QueryGroupMetadata(Map<String, QueryGroup> queryGroups) {
         this.queryGroups = queryGroups;
     }
 
     public QueryGroupMetadata(StreamInput in) throws IOException {
-        this.queryGroups = in.readSet(QueryGroup::new);
+        this.queryGroups = in.readMap(StreamInput::readString, QueryGroup::new);
     }
 
-    public Set<QueryGroup> queryGroups() {
+    public Map<String, QueryGroup> queryGroups() {
         return this.queryGroups;
     }
 
@@ -100,7 +107,7 @@ public class QueryGroupMetadata implements Metadata.Custom {
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(queryGroups);
+        out.writeMap(queryGroups, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
     }
 
     /**
@@ -111,9 +118,9 @@ public class QueryGroupMetadata implements Metadata.Custom {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(QUERY_GROUP_FIELD.getPreferredName(), queryGroups);
-        builder.endObject();
+        for (Map.Entry<String, QueryGroup> entry: queryGroups.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
+        }
         return builder;
     }
 
@@ -171,8 +178,8 @@ public class QueryGroupMetadata implements Metadata.Custom {
 
         QueryGroupMetadataDiff(final QueryGroupMetadata before, final QueryGroupMetadata after) {
             dataStreamDiff = DiffableUtils.diff(
-                toMap(before.queryGroups),
-                toMap(after.queryGroups),
+                before.queryGroups,
+                after.queryGroups,
                 DiffableUtils.getStringKeySerializer()
             );
         }
@@ -184,13 +191,6 @@ public class QueryGroupMetadata implements Metadata.Custom {
                 QueryGroup::new,
                 QueryGroup::readDiff
             );
-        }
-
-        private Map<String, QueryGroup> toMap(Set<QueryGroup> queryGroups) {
-            final Map<String, QueryGroup> queryGroupMap = new HashMap<>();
-
-            queryGroups.forEach(queryGroup -> queryGroupMap.put(queryGroup.getName(), queryGroup));
-            return queryGroupMap;
         }
 
         /**
@@ -219,8 +219,7 @@ public class QueryGroupMetadata implements Metadata.Custom {
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
             return new QueryGroupMetadata(
-                new HashSet<>(dataStreamDiff.apply(toMap(((QueryGroupMetadata) part).queryGroups)).values())
-            );
+                new HashMap<>(dataStreamDiff.apply(((QueryGroupMetadata) part).queryGroups)));
         }
     }
 }

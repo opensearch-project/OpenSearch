@@ -844,13 +844,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
-    public Set<QueryGroup> queryGroups() {
-        return Optional.ofNullable((QueryGroupMetadata) this.custom(QueryGroupMetadata.TYPE))
-            .map(QueryGroupMetadata::queryGroups)
-            .orElse(Collections.emptySet());
-
-    }
-
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
         return custom(DecommissionAttributeMetadata.TYPE);
     }
@@ -1374,23 +1367,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public Builder queryGroups(final Set<QueryGroup> queryGroups) {
+        public Builder queryGroups(final Map<String, QueryGroup> queryGroups) {
             this.customs.put(QueryGroupMetadata.TYPE, new QueryGroupMetadata(queryGroups));
             return this;
         }
 
         public Builder put(final QueryGroup queryGroup) {
             Objects.requireNonNull(queryGroup, "queryGroup should not be null");
-            Set<QueryGroup> existing = getQueryGroups();
-            existing.add(queryGroup);
+            Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
+            existing.put(queryGroup.get_id(), queryGroup);
             return queryGroups(existing);
         }
 
-        private Set<QueryGroup> getQueryGroups() {
+        private Map<String, QueryGroup> getQueryGroups() {
             return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
                 .map(o -> (QueryGroupMetadata) o)
                 .map(QueryGroupMetadata::queryGroups)
-                .orElse(Collections.emptySet());
+                .orElse(Collections.emptyMap());
         }
 
         private Map<String, View> getViews() {

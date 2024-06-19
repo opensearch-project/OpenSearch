@@ -12,9 +12,9 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.test.AbstractNamedWriteableTestCase;
 
 import java.util.Collections;
-import java.util.Set;
+import java.util.Map;
 
-import static org.opensearch.cluster.metadata.QueryGroupTests.createRandomResourceLimitGroup;
+import static org.opensearch.cluster.metadata.QueryGroupTests.createRandomQueryGroup;
 
 public class QueryGroupMetadataTests extends AbstractNamedWriteableTestCase<QueryGroupMetadata> {
 
@@ -38,10 +38,12 @@ public class QueryGroupMetadataTests extends AbstractNamedWriteableTestCase<Quer
 
     @Override
     protected QueryGroupMetadata createTestInstance() {
-        return new QueryGroupMetadata(getRandomResourceLimitGroups());
+        return new QueryGroupMetadata(getRandomQueryGroups());
     }
 
-    private Set<QueryGroup> getRandomResourceLimitGroups() {
-        return Set.of(createRandomResourceLimitGroup(), createRandomResourceLimitGroup());
+    private Map<String, QueryGroup> getRandomQueryGroups() {
+        QueryGroup qg1 = createRandomQueryGroup("1243gsgsdgs");
+        QueryGroup qg2 = createRandomQueryGroup("lkajga8080");
+        return Map.of(qg1.get_id(), qg1, qg2.get_id(), qg2);
     }
 }
