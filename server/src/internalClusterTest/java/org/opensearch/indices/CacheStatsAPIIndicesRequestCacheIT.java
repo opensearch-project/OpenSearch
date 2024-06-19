@@ -12,6 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.Client;
@@ -20,14 +22,16 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.service.NodeCacheStats;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
-import org.opensearch.common.cache.stats.ImmutableCacheStatsHolderTests;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.request.RequestCacheStats;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -56,6 +60,10 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         return Arrays.<Object[]>asList(new Object[] { Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE, "true").build() });
     }
 
+    /**
+     * Test aggregating by indices, indices+shards, shards, or no levels, and check the resulting stats
+     * are as we expect.
+     */
     public void testCacheStatsAPIWIthOnHeapCache() throws Exception {
         String index1Name = "index1";
         String index2Name = "index2";
@@ -73,84 +81,60 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         searchIndex(client, index2Name, "");
 
         // First, aggregate by indices only
-        Map<String, Object> xContentMap = getNodeCacheStatsXContentMap(client, List.of(IndicesRequestCache.INDEX_DIMENSION_NAME));
+        ImmutableCacheStatsHolder indicesStats = getNodeCacheStatsResult(client, List.of(IndicesRequestCache.INDEX_DIMENSION_NAME));
 
-        List<String> index1Keys = List.of(CacheType.INDICES_REQUEST_CACHE.getValue(), IndicesRequestCache.INDEX_DIMENSION_NAME, index1Name);
+        List<String> index1Dimensions = List.of(index1Name);
         // Since we searched twice, we expect to see 1 hit, 1 miss and 1 entry for index 1
         ImmutableCacheStats expectedStats = new ImmutableCacheStats(1, 1, 0, 0, 1);
-        checkCacheStatsAPIResponse(xContentMap, index1Keys, expectedStats, false, true);
+        checkCacheStatsAPIResponse(indicesStats, index1Dimensions, expectedStats, false, true);
         // Get the request size for one request, so we can reuse it for next index
-        int requestSize = (int) ((Map<String, Object>) ImmutableCacheStatsHolderTests.getValueFromNestedXContentMap(
-            xContentMap,
-            index1Keys
-        )).get(ImmutableCacheStats.Fields.SIZE_IN_BYTES);
+        long requestSize = indicesStats.getStatsForDimensionValues(List.of(index1Name)).getSizeInBytes();
         assertTrue(requestSize > 0);
 
-        List<String> index2Keys = List.of(CacheType.INDICES_REQUEST_CACHE.getValue(), IndicesRequestCache.INDEX_DIMENSION_NAME, index2Name);
+        List<String> index2Dimensions = List.of(index2Name);
         // We searched once in index 2, we expect 1 miss + 1 entry
         expectedStats = new ImmutableCacheStats(0, 1, 0, requestSize, 1);
-        checkCacheStatsAPIResponse(xContentMap, index2Keys, expectedStats, true, true);
+        checkCacheStatsAPIResponse(indicesStats, index2Dimensions, expectedStats, true, true);
 
         // The total stats for the node should be 1 hit, 2 misses, and 2 entries
         expectedStats = new ImmutableCacheStats(1, 2, 0, 2 * requestSize, 2);
-        List<String> totalStatsKeys = List.of(CacheType.INDICES_REQUEST_CACHE.getValue());
-        checkCacheStatsAPIResponse(xContentMap, totalStatsKeys, expectedStats, true, true);
+        List<String> totalStatsKeys = List.of();
+        checkCacheStatsAPIResponse(indicesStats, totalStatsKeys, expectedStats, true, true);
 
         // Aggregate by shards only
-        xContentMap = getNodeCacheStatsXContentMap(client, List.of(IndicesRequestCache.SHARD_ID_DIMENSION_NAME));
+        ImmutableCacheStatsHolder shardsStats = getNodeCacheStatsResult(client, List.of(IndicesRequestCache.SHARD_ID_DIMENSION_NAME));
 
-        List<String> index1Shard0Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getValue(),
-            IndicesRequestCache.SHARD_ID_DIMENSION_NAME,
-            "[" + index1Name + "][0]"
-        );
+        List<String> index1Shard0Dimensions = List.of("[" + index1Name + "][0]");
 
         expectedStats = new ImmutableCacheStats(1, 1, 0, requestSize, 1);
-        checkCacheStatsAPIResponse(xContentMap, index1Shard0Keys, expectedStats, true, true);
+        checkCacheStatsAPIResponse(shardsStats, index1Shard0Dimensions, expectedStats, true, true);
 
-        List<String> index2Shard0Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getValue(),
-            IndicesRequestCache.SHARD_ID_DIMENSION_NAME,
-            "[" + index2Name + "][0]"
-        );
+        List<String> index2Shard0Dimensions = List.of("[" + index2Name + "][0]");
         expectedStats = new ImmutableCacheStats(0, 1, 0, requestSize, 1);
-        checkCacheStatsAPIResponse(xContentMap, index2Shard0Keys, expectedStats, true, true);
+        checkCacheStatsAPIResponse(shardsStats, index2Shard0Dimensions, expectedStats, true, true);
 
         // Aggregate by indices and shards
-        xContentMap = getNodeCacheStatsXContentMap(
+        ImmutableCacheStatsHolder indicesAndShardsStats = getNodeCacheStatsResult(
             client,
             List.of(IndicesRequestCache.INDEX_DIMENSION_NAME, IndicesRequestCache.SHARD_ID_DIMENSION_NAME)
         );
 
-        index1Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getValue(),
-            IndicesRequestCache.INDEX_DIMENSION_NAME,
-            index1Name,
-            IndicesRequestCache.SHARD_ID_DIMENSION_NAME,
-            "[" + index1Name + "][0]"
-        );
+        index1Dimensions = List.of(index1Name, "[" + index1Name + "][0]");
 
         expectedStats = new ImmutableCacheStats(1, 1, 0, requestSize, 1);
-        checkCacheStatsAPIResponse(xContentMap, index1Keys, expectedStats, true, true);
+        checkCacheStatsAPIResponse(indicesAndShardsStats, index1Dimensions, expectedStats, true, true);
 
-        index2Keys = List.of(
-            CacheType.INDICES_REQUEST_CACHE.getValue(),
-            IndicesRequestCache.INDEX_DIMENSION_NAME,
-            index2Name,
-            IndicesRequestCache.SHARD_ID_DIMENSION_NAME,
-            "[" + index2Name + "][0]"
-        );
-
+        index2Dimensions = List.of(index2Name, "[" + index2Name + "][0]");
         expectedStats = new ImmutableCacheStats(0, 1, 0, requestSize, 1);
-        checkCacheStatsAPIResponse(xContentMap, index2Keys, expectedStats, true, true);
-
+        checkCacheStatsAPIResponse(indicesAndShardsStats, index2Dimensions, expectedStats, true, true);
     }
 
-    // TODO: Add testCacheStatsAPIWithTieredCache when TSC stats implementation PR is merged
-
+    /**
+     * Check the new stats API returns the same values as the old stats API. In particular,
+     * check that the new and old APIs are both correctly estimating memory size,
+     * using the logic that includes the overhead memory in ICacheKey.
+     */
     public void testStatsMatchOldApi() throws Exception {
-        // The main purpose of this test is to check that the new and old APIs are both correctly estimating memory size,
-        // using the logic that includes the overhead memory in ICacheKey.
         String index = "index";
         Client client = client();
         startIndex(client, index);
@@ -173,8 +157,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
             .getRequestCache();
         assertNotEquals(0, oldApiStats.getMemorySizeInBytes());
 
-        List<String> xContentMapKeys = List.of(CacheType.INDICES_REQUEST_CACHE.getValue());
-        Map<String, Object> xContentMap = getNodeCacheStatsXContentMap(client, List.of());
+        ImmutableCacheStatsHolder statsHolder = getNodeCacheStatsResult(client, List.of());
         ImmutableCacheStats expected = new ImmutableCacheStats(
             oldApiStats.getHitCount(),
             oldApiStats.getMissCount(),
@@ -183,9 +166,13 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
             0
         );
         // Don't check entries, as the old API doesn't track this
-        checkCacheStatsAPIResponse(xContentMap, xContentMapKeys, expected, true, false);
+        checkCacheStatsAPIResponse(statsHolder, List.of(), expected, true, false);
     }
 
+    /**
+     * Test the XContent in the response behaves correctly when we pass null levels.
+     * Only the total cache stats should be returned.
+     */
     public void testNullLevels() throws Exception {
         String index = "index";
         Client client = client();
@@ -194,9 +181,81 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         for (int i = 0; i < numKeys; i++) {
             searchIndex(client, index, String.valueOf(i));
         }
-        Map<String, Object> xContentMap = getNodeCacheStatsXContentMap(client, null);
+        Map<String, Object> xContentMap = getStatsXContent(getNodeCacheStatsResult(client, null));
         // Null levels should result in only the total cache stats being returned -> 6 fields inside the response.
-        assertEquals(6, ((Map<String, Object>) xContentMap.get("request_cache")).size());
+        assertEquals(6, xContentMap.size());
+    }
+
+    /**
+     * Test clearing the cache using API sets memory size and number of items to 0, but leaves other stats
+     * unaffected.
+     */
+    public void testCacheClear() throws Exception {
+        String index = "index";
+        Client client = client();
+
+        startIndex(client, index);
+
+        int expectedHits = 2;
+        int expectedMisses = 7;
+        // Search for the same doc to give hits
+        for (int i = 0; i < expectedHits + 1; i++) {
+            searchIndex(client, index, "");
+        }
+        // Search for new docs
+        for (int i = 0; i < expectedMisses - 1; i++) {
+            searchIndex(client, index, String.valueOf(i));
+        }
+
+        ImmutableCacheStats expectedTotal = new ImmutableCacheStats(expectedHits, expectedMisses, 0, 0, expectedMisses);
+        ImmutableCacheStatsHolder statsHolder = getNodeCacheStatsResult(client, List.of());
+        // Don't check the memory size, just assert it's nonzero
+        checkCacheStatsAPIResponse(statsHolder, List.of(), expectedTotal, false, true);
+        long originalMemorySize = statsHolder.getTotalSizeInBytes();
+        assertNotEquals(0, originalMemorySize);
+
+        // Clear cache
+        ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(index);
+        client.admin().indices().clearCache(clearIndicesCacheRequest).actionGet();
+
+        // Now size and items should be 0
+        expectedTotal = new ImmutableCacheStats(expectedHits, expectedMisses, 0, 0, 0);
+        statsHolder = getNodeCacheStatsResult(client, List.of());
+        checkCacheStatsAPIResponse(statsHolder, List.of(), expectedTotal, true, true);
+    }
+
+    /**
+     * Test the cache stats responses are in the expected place in XContent when we call the overall API
+     * GET /_nodes/stats. They should be at nodes.[node_id].caches.request_cache.
+     */
+    public void testNodesStatsResponse() throws Exception {
+        String index = "index";
+        Client client = client();
+
+        startIndex(client, index);
+
+        NodesStatsResponse nodeStatsResponse = client.admin()
+            .cluster()
+            .prepareNodesStats("data:true")
+            .all() // This mimics /_nodes/stats
+            .get();
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        Map<String, String> paramMap = new HashMap<>();
+        ToXContent.Params params = new ToXContent.MapParams(paramMap);
+
+        builder.startObject();
+        nodeStatsResponse.toXContent(builder, params);
+        builder.endObject();
+        Map<String, Object> xContentMap = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), builder.toString(), true);
+        // Values should be at nodes.[node_id].caches.request_cache
+        // Get the node id
+        Map<String, Object> nodesResponse = (Map<String, Object>) xContentMap.get("nodes");
+        assertEquals(1, nodesResponse.size());
+        String nodeId = nodesResponse.keySet().toArray(String[]::new)[0];
+        Map<String, Object> cachesResponse = (Map<String, Object>) ((Map<String, Object>) nodesResponse.get(nodeId)).get("caches");
+        assertNotNull(cachesResponse);
+        // Request cache should be present in the response
+        assertTrue(cachesResponse.containsKey("request_cache"));
     }
 
     private void startIndex(Client client, String indexName) throws InterruptedException {
@@ -210,10 +269,14 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
                         .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        // Disable index refreshing to avoid cache being invalidated mid-test
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(-1))
                 )
                 .get()
         );
         indexRandom(true, client.prepareIndex(indexName).setSource("k", "hello"));
+        // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
+        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge(indexName).setFlush(true).get();
         ensureSearchable(indexName);
     }
 
@@ -227,8 +290,7 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         return resp;
     }
 
-    private static Map<String, Object> getNodeCacheStatsXContentMap(Client client, List<String> aggregationLevels) throws IOException {
-
+    private static ImmutableCacheStatsHolder getNodeCacheStatsResult(Client client, List<String> aggregationLevels) throws IOException {
         CommonStatsFlags statsFlags = new CommonStatsFlags();
         statsFlags.includeAllCacheTypes();
         String[] flagsLevels;
@@ -248,16 +310,16 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
         // Can always get the first data node as there's only one in this test suite
         assertEquals(1, nodeStatsResponse.getNodes().size());
         NodeCacheStats ncs = nodeStatsResponse.getNodes().get(0).getNodeCacheStats();
+        return ncs.getStatsByCache(CacheType.INDICES_REQUEST_CACHE);
+    }
 
+    private static Map<String, Object> getStatsXContent(ImmutableCacheStatsHolder statsHolder) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         Map<String, String> paramMap = new HashMap<>();
-        if (aggregationLevels != null && !aggregationLevels.isEmpty()) {
-            paramMap.put("level", String.join(",", aggregationLevels));
-        }
         ToXContent.Params params = new ToXContent.MapParams(paramMap);
 
         builder.startObject();
-        ncs.toXContent(builder, params);
+        statsHolder.toXContent(builder, params);
         builder.endObject();
 
         String resultString = builder.toString();
@@ -265,27 +327,22 @@ public class CacheStatsAPIIndicesRequestCacheIT extends ParameterizedStaticSetti
     }
 
     private static void checkCacheStatsAPIResponse(
-        Map<String, Object> xContentMap,
-        List<String> xContentMapKeys,
+        ImmutableCacheStatsHolder statsHolder,
+        List<String> dimensionValues,
         ImmutableCacheStats expectedStats,
         boolean checkMemorySize,
         boolean checkEntries
     ) {
-        // Assumes the keys point to a level whose keys are the field values ("size_in_bytes", "evictions", etc) and whose values store
-        // those stats
-        Map<String, Object> aggregatedStatsResponse = (Map<String, Object>) ImmutableCacheStatsHolderTests.getValueFromNestedXContentMap(
-            xContentMap,
-            xContentMapKeys
-        );
+        ImmutableCacheStats aggregatedStatsResponse = statsHolder.getStatsForDimensionValues(dimensionValues);
         assertNotNull(aggregatedStatsResponse);
-        assertEquals(expectedStats.getHits(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.HIT_COUNT));
-        assertEquals(expectedStats.getMisses(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.MISS_COUNT));
-        assertEquals(expectedStats.getEvictions(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.EVICTIONS));
+        assertEquals(expectedStats.getHits(), (int) aggregatedStatsResponse.getHits());
+        assertEquals(expectedStats.getMisses(), (int) aggregatedStatsResponse.getMisses());
+        assertEquals(expectedStats.getEvictions(), (int) aggregatedStatsResponse.getEvictions());
         if (checkMemorySize) {
-            assertEquals(expectedStats.getSizeInBytes(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.SIZE_IN_BYTES));
+            assertEquals(expectedStats.getSizeInBytes(), (int) aggregatedStatsResponse.getSizeInBytes());
         }
         if (checkEntries) {
-            assertEquals(expectedStats.getItems(), (int) aggregatedStatsResponse.get(ImmutableCacheStats.Fields.ITEM_COUNT));
+            assertEquals(expectedStats.getItems(), (int) aggregatedStatsResponse.getItems());
         }
     }
 }

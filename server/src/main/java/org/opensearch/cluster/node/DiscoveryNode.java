@@ -63,7 +63,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -518,6 +520,18 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isRemoteStoreNode() {
         return this.getAttributes().keySet().stream().anyMatch(key -> key.startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX));
+    }
+
+    /**
+     * Returns whether remote cluster state publication is enabled on this node
+     * @return true if the node contains remote cluster state node attribute and remote routing table node attribute
+     */
+    public boolean isRemoteStatePublicationEnabled() {
+        return this.getAttributes()
+            .keySet()
+            .stream()
+            .anyMatch(key -> (key.equals(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)))
+            && this.getAttributes().keySet().stream().anyMatch(key -> key.equals(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
     }
 
     /**
