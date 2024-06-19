@@ -32,19 +32,31 @@
 
 package org.opensearch.rest.action.cat;
 
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.cluster.state.ShardsAction;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Table;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
@@ -57,6 +69,7 @@ import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.rest.RestRequest;
@@ -64,10 +77,13 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.Task;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
@@ -112,14 +128,68 @@ public class RestShardsAction extends AbstractCatAction {
         clusterStateRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
         );
+        clusterStateRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", TimeValue.timeValueSeconds(30)));
         parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
+//        clusterStateRequest.setParentTask();
+        GetTaskRequest getTaskRequest = new GetTaskRequest();
+        getTaskRequest.setTaskId(new TaskId("task:11"));
+        getTaskRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", TimeValue.timeValueSeconds(30)));
+        CountDownLatch latch = new CountDownLatch(1);
+        final GetTaskResponse[] response = new GetTaskResponse[1];
+        client.admin().cluster().createTask(getTaskRequest, new ActionListener<GetTaskResponse>() {
+            @Override
+            public void onResponse(GetTaskResponse getTaskResponse) {
+                response[0] = getTaskResponse;
+                latch.countDown();
+                logger.info("Task ID is: {}", getTaskResponse.getTask().getTask().getId());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+
+            }
+        });
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+
+        }
+        CancellableTask task = (CancellableTask) response[0].getNewTask();
+        ActionListener<RestResponse> listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+            client,
+            task,
+            new ActionListener<RestResponse>() {
+                @Override
+                public void onResponse(RestResponse restResponse) {
+                    logger.info("Task cancellation scheduled successfully.");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+            }
+        );
+        clusterStateRequest.setParentTask(client.getLocalNodeId(), response[0].getNewTask().getId());
+//        try {
+//            Thread.sleep(2000);
+//        } catch (InterruptedException e) {
+//            throw new RuntimeException(e);
+//        }
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                 indicesStatsRequest.all();
                 indicesStatsRequest.indices(indices);
+                indicesStatsRequest.setParentTask(client.getLocalNodeId(), response[0].getNewTask().getId());
+//                try {
+//                    Thread.sleep(2000);
+//                } catch (InterruptedException e) {
+//                    throw new RuntimeException(e);
+//                }
                 client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {

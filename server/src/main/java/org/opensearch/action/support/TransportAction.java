@@ -97,6 +97,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
         final Task task;
 
+        logger.info("Creating task for action: {}", actionName);
+
         try {
             task = taskManager.register("transport", actionName, request);
         } catch (TaskCancelledException e) {
@@ -138,6 +140,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      */
     public final Task execute(Request request, TaskListener<Response> listener) {
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
+        logger.info("Creating task for action1: {}", actionName);
         final Task task;
         try {
             task = taskManager.register("transport", actionName, request);
