@@ -151,7 +151,6 @@ import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionCo
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
-import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
@@ -541,6 +540,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.MAX_OPEN_PIT_CONTEXT,
                 SearchService.MAX_PIT_KEEPALIVE_SETTING,
                 SearchService.MAX_AGGREGATION_REWRITE_FILTERS,
+                SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING,
                 SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
@@ -591,7 +591,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ResourceWatcherService.RELOAD_INTERVAL_HIGH,
                 ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
                 ResourceWatcherService.RELOAD_INTERVAL_LOW,
-                SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
                 ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                 FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                 Node.BREAKER_TYPE_KEY,
