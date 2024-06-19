@@ -38,7 +38,7 @@ public class OptimizationContext {
     private boolean rewriteable = false;
     private boolean rangesBuiltAtShardLevel = false;
 
-    private AggregationFunctionProvider aggregationFunctionProvider;
+    private final AggregatorDataProvider aggregatorDataProvider;
     private final SearchContext context;
 
     private MappedFieldType fieldType;
@@ -50,27 +50,21 @@ public class OptimizationContext {
     public int segments;
     public int optimizedSegments;
 
-    public OptimizationContext(SearchContext context) {
+    public OptimizationContext(SearchContext context, AggregatorDataProvider aggregatorDataProvider) {
         this.context = context;
+        this.aggregatorDataProvider = aggregatorDataProvider;
     }
 
-    public OptimizationContext(SearchContext context, AggregationFunctionProvider aggregationFunctionProvider) {
-        this.context = context;
-        this.aggregationFunctionProvider = aggregationFunctionProvider;
+    public AggregatorDataProvider getAggregationType() {
+        return aggregatorDataProvider;
     }
 
-    public AggregationFunctionProvider getAggregationType() {
-        return aggregationFunctionProvider;
-    }
-
-    public void setAggregationType(AggregationFunctionProvider aggregationFunctionProvider) {
-        this.aggregationFunctionProvider = aggregationFunctionProvider;
-    }
-
-    public boolean isRewriteable(final Object parent, final int subAggLength) {
+    public boolean canOptimize(final Object parent, final int subAggLength) {
         if (context.maxAggRewriteFilters() == 0) return false;
 
-        boolean rewriteable = aggregationFunctionProvider.isRewriteable(parent, subAggLength);
+        if (parent != null || subAggLength != 0) return false;
+
+        boolean rewriteable = aggregatorDataProvider.canOptimize();
         logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
         this.rewriteable = rewriteable;
         return rewriteable;
@@ -79,7 +73,7 @@ public class OptimizationContext {
     public void buildRanges(MappedFieldType fieldType) throws IOException {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
         this.fieldType = fieldType;
-        this.ranges = this.aggregationFunctionProvider.buildRanges(context, fieldType);
+        this.ranges = this.aggregatorDataProvider.buildRanges(context, fieldType);
         if (ranges != null) {
             logger.debug("Ranges built for shard {}", context.indexShard().shardId());
             rangesBuiltAtShardLevel = true;
@@ -87,7 +81,7 @@ public class OptimizationContext {
     }
 
     private Ranges buildRanges(LeafReaderContext leaf) throws IOException {
-        Ranges ranges = this.aggregationFunctionProvider.buildRanges(leaf, context, fieldType);
+        Ranges ranges = this.aggregatorDataProvider.buildRanges(leaf, context, fieldType);
         if (ranges != null) {
             logger.debug("Ranges built for shard {} segment {}", context.indexShard().shardId(), leaf.ord);
         }
@@ -148,7 +142,7 @@ public class OptimizationContext {
             }
         }
 
-        DebugInfo debugInfo = this.aggregationFunctionProvider.tryFastFilterAggregation(values, ranges, incrementDocCount, bucketOrd);
+        DebugInfo debugInfo = this.aggregatorDataProvider.tryFastFilterAggregation(values, ranges, incrementDocCount, bucketOrd);
         this.consumeDebugInfo(debugInfo);
 
         this.optimizedSegments++;
@@ -162,7 +156,10 @@ public class OptimizationContext {
         inner += debug.inner;
     }
 
-    static class Ranges {
+    /**
+     * Internal ranges representation for the optimization
+     */
+    public static class Ranges {
         byte[][] lowers; // inclusive
         byte[][] uppers; // exclusive
         int size;
@@ -301,7 +298,12 @@ public class OptimizationContext {
             logger.debug("No ranges match the query, skip the fast filter optimization");
             return debugInfo;
         }
-        OptimizationContext.RangeCollectorForPointTree collector = new OptimizationContext.RangeCollectorForPointTree(incrementDocCount, maxNumNonZeroRanges, ranges, activeIndex);
+        OptimizationContext.RangeCollectorForPointTree collector = new OptimizationContext.RangeCollectorForPointTree(
+            incrementDocCount,
+            maxNumNonZeroRanges,
+            ranges,
+            activeIndex
+        );
         PointValues.IntersectVisitor visitor = getIntersectVisitor(collector);
         try {
             intersectWithRanges(visitor, tree, collector, debugInfo);

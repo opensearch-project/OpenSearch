@@ -14,8 +14,8 @@ import org.apache.lucene.index.PointValues;
 import org.opensearch.common.Rounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.search.aggregations.bucket.composite.CompositeAggregator;
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -28,28 +28,29 @@ import static org.opensearch.search.optimization.ranges.OptimizationContext.mult
 /**
  * For date histogram aggregation
  */
-public abstract class AbstractDateHistogramAggAggregationFunctionProvider implements AggregationFunctionProvider {
-    private final MappedFieldType fieldType;
-    private final boolean missing;
-    private final boolean hasScript;
-    private LongBounds hardBounds;
+public abstract class AbstractDateHistogramAggAggregatorDataProvider implements AggregatorDataProvider {
+    private MappedFieldType fieldType;
 
-    public AbstractDateHistogramAggAggregationFunctionProvider(MappedFieldType fieldType, boolean missing, boolean hasScript) {
-        this.fieldType = fieldType;
-        this.missing = missing;
-        this.hasScript = hasScript;
-    }
-
-    public AbstractDateHistogramAggAggregationFunctionProvider(MappedFieldType fieldType, boolean missing, boolean hasScript, LongBounds hardBounds) {
-        this(fieldType, missing, hasScript);
-        this.hardBounds = hardBounds;
-    }
-
-    @Override
-    public boolean isRewriteable(Object parent, int subAggLength) {
-        if (parent == null && subAggLength == 0 && !missing && !hasScript) {
+    public boolean canOptimize(boolean missing, boolean hasScript, MappedFieldType fieldType) {
+        if (!missing && !hasScript) {
             if (fieldType != null && fieldType instanceof DateFieldMapper.DateFieldType) {
-                return fieldType.isSearchable();
+                if (fieldType.isSearchable()) {
+                    this.fieldType = fieldType;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean canOptimize(ValuesSourceConfig config) {
+        if (config.script() == null && config.missing() == null) {
+            MappedFieldType fieldType = config.fieldType();
+            if (fieldType instanceof DateFieldMapper.DateFieldType) {
+                if (fieldType.isSearchable()) {
+                    this.fieldType = fieldType;
+                    return true;
+                }
             }
         }
         return false;
@@ -63,7 +64,8 @@ public abstract class AbstractDateHistogramAggAggregationFunctionProvider implem
     }
 
     @Override
-    public OptimizationContext.Ranges buildRanges(LeafReaderContext leaf, SearchContext context, MappedFieldType fieldType) throws IOException {
+    public OptimizationContext.Ranges buildRanges(LeafReaderContext leaf, SearchContext context, MappedFieldType fieldType)
+        throws IOException {
         long[] bounds = Helper.getSegmentBounds(leaf, fieldType.name());
         // logger.debug("Bounds are {} for shard {} segment {}", bounds, context.indexShard().shardId(), leaf.ord);
         return buildRanges(context, bounds);
@@ -84,7 +86,7 @@ public abstract class AbstractDateHistogramAggAggregationFunctionProvider implem
         final long interval = intervalOpt.getAsLong();
 
         // process the after key of composite agg
-        processAfterKey(bounds, interval);
+        bounds = processAfterKey(bounds, interval);
 
         return Helper.createRangesFromAgg(
             context,
@@ -100,10 +102,15 @@ public abstract class AbstractDateHistogramAggAggregationFunctionProvider implem
 
     protected abstract Rounding.Prepared getRoundingPrepared();
 
-    protected void processAfterKey(long[] bound, long interval) {
+    protected long[] processAfterKey(long[] bounds, long interval) {
+        return bounds;
     }
 
     protected long[] processHardBounds(long[] bounds) {
+        return processHardBounds(bounds, null);
+    }
+
+    protected long[] processHardBounds(long[] bounds, LongBounds hardBounds) {
         if (bounds != null) {
             // Update min/max limit if user specified any hard bounds
             if (hardBounds != null) {
@@ -126,6 +133,10 @@ public abstract class AbstractDateHistogramAggAggregationFunctionProvider implem
         return (DateFieldMapper.DateFieldType) fieldType;
     }
 
+    public int getSize() {
+        return Integer.MAX_VALUE;
+    }
+
     @Override
     public OptimizationContext.DebugInfo tryFastFilterAggregation(
         PointValues values,
@@ -133,10 +144,7 @@ public abstract class AbstractDateHistogramAggAggregationFunctionProvider implem
         BiConsumer<Long, Long> incrementDocCount,
         Function<Object, Long> bucketOrd
     ) throws IOException {
-        int size = Integer.MAX_VALUE;
-        if (this instanceof CompositeAggregator.CompositeAggAggregationFunctionProvider) {
-            size = ((CompositeAggregator.CompositeAggAggregationFunctionProvider) this).getSize();
-        }
+        int size = getSize();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {

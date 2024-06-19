@@ -73,12 +73,11 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
-import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregationFunctionProvider;
-import org.opensearch.search.optimization.ranges.OptimizationContext;
-import org.opensearch.search.optimization.ranges.Helper;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorDataProvider;
+import org.opensearch.search.optimization.ranges.OptimizationContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 
@@ -167,15 +166,11 @@ public final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        optimizationContext = new OptimizationContext(context);
-        if (!Helper.isCompositeAggRewriteable(sourceConfigs)) {
-            return;
-        }
-        optimizationContext.setAggregationType(new CompositeAggAggregationFunctionProvider());
-        if (optimizationContext.isRewriteable(parent, subAggregators.length)) {
+        optimizationContext = new OptimizationContext(context, new CompositeAggAggregatorDataProvider());
+        if (optimizationContext.canOptimize(parent, subAggregators.length)) {
             // bucketOrds is used for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
-            preparedRounding = ((CompositeAggAggregationFunctionProvider) optimizationContext.getAggregationType()).getRoundingPrepared();
+            preparedRounding = ((CompositeAggAggregatorDataProvider) optimizationContext.getAggregationType()).getRoundingPrepared();
             optimizationContext.buildRanges(sourceConfigs[0].fieldType());
         }
     }
@@ -183,19 +178,24 @@ public final class CompositeAggregator extends BucketsAggregator {
     /**
      * Currently the filter rewrite is only supported for date histograms
      */
-    public class CompositeAggAggregationFunctionProvider extends AbstractDateHistogramAggAggregationFunctionProvider {
-        private final RoundingValuesSource valuesSource;
+    public class CompositeAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
+        private RoundingValuesSource valuesSource;
         private long afterKey = -1L;
 
-        public CompositeAggAggregationFunctionProvider() {
-            super(sourceConfigs[0].fieldType(), sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript());
-            this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
-            if (rawAfterKey != null) {
-                assert rawAfterKey.size() == 1 && formats.size() == 1;
-                this.afterKey = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
-                    throw new IllegalArgumentException("now() is not supported in [after] key");
-                });
+        @Override
+        public boolean canOptimize() {
+            if (sourceConfigs.length != 1 || !(sourceConfigs[0].valuesSource() instanceof RoundingValuesSource)) return false;
+            if (canOptimize(sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript(), sourceConfigs[0].fieldType())) {
+                this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
+                if (rawAfterKey != null) {
+                    assert rawAfterKey.size() == 1 && formats.size() == 1;
+                    this.afterKey = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
+                        throw new IllegalArgumentException("now() is not supported in [after] key");
+                    });
+                }
+                return true;
             }
+            return false;
         }
 
         public Rounding getRounding(final long low, final long high) {
@@ -207,14 +207,16 @@ public final class CompositeAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected void processAfterKey(long[] bound, long interval) {
+        protected long[] processAfterKey(long[] bounds, long interval) {
             // afterKey is the last bucket key in previous response, and the bucket key
             // is the minimum of all values in the bucket, so need to add the interval
             if (afterKey != -1L) {
-                bound[0] = afterKey + interval;
+                bounds[0] = afterKey + interval;
             }
+            return bounds;
         }
 
+        @Override
         public int getSize() {
             return size;
         }

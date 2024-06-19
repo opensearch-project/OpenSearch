@@ -45,6 +45,7 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -55,11 +56,11 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
-import org.opensearch.search.optimization.ranges.OptimizationContext;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.RangeAggregationFunctionProvider;
+import org.opensearch.search.optimization.ranges.AbstractRangeAggregatorDataProvider;
+import org.opensearch.search.optimization.ranges.OptimizationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -251,6 +252,7 @@ public class RangeAggregator extends BucketsAggregator {
     final double[] maxTo;
 
     private final OptimizationContext optimizationContext;
+    private final ValuesSourceConfig valuesSourceConfig;
 
     public RangeAggregator(
         String name,
@@ -269,6 +271,7 @@ public class RangeAggregator extends BucketsAggregator {
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
+        this.valuesSourceConfig = config;
         this.format = format;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
@@ -280,12 +283,21 @@ public class RangeAggregator extends BucketsAggregator {
             maxTo[i] = Math.max(this.ranges[i].to, maxTo[i - 1]);
         }
 
-        optimizationContext = new OptimizationContext(
-            context,
-            new RangeAggregationFunctionProvider(config, ranges)
-        );
-        if (optimizationContext.isRewriteable(parent, subAggregators.length)) {
+        optimizationContext = new OptimizationContext(context, new RangeAggregatorDataProvider());
+        if (optimizationContext.canOptimize(parent, subAggregators.length)) {
             optimizationContext.buildRanges(Objects.requireNonNull(config.fieldType()));
+        }
+    }
+
+    class RangeAggregatorDataProvider extends AbstractRangeAggregatorDataProvider {
+        @Override
+        public boolean canOptimize() {
+            return canOptimize(valuesSourceConfig, ranges);
+        }
+
+        @Override
+        public OptimizationContext.Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) {
+            return buildRanges(fieldType, ranges);
         }
     }
 

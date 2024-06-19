@@ -42,7 +42,6 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.core.common.util.ByteArray;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -53,14 +52,14 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregationFunctionProvider;
-import org.opensearch.search.optimization.ranges.OptimizationContext;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorDataProvider;
+import org.opensearch.search.optimization.ranges.OptimizationContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -137,6 +136,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected Rounding.Prepared preparedRounding;
 
     private final OptimizationContext optimizationContext;
+    private final ValuesSourceConfig valuesSourceConfig;
 
     private AutoDateHistogramAggregator(
         String name,
@@ -154,28 +154,23 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.targetBuckets = targetBuckets;
         // TODO: Remove null usage here, by using a different aggregator for create
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        this.valuesSourceConfig = valuesSourceConfig;
         this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        optimizationContext = new OptimizationContext(
-            context,
-            new AutoHistogramAggAggregationFunctionProvider(
-                valuesSourceConfig.fieldType(),
-                valuesSourceConfig.missing() != null,
-                valuesSourceConfig.script() != null
-            )
-        );
-        if (optimizationContext.isRewriteable(parent, subAggregators.length)) {
+        optimizationContext = new OptimizationContext(context, new AutoHistogramAggAggregatorDataProvider());
+        if (optimizationContext.canOptimize(parent, subAggregators.length)) {
             optimizationContext.buildRanges(Objects.requireNonNull(valuesSourceConfig.fieldType()));
         }
     }
 
-    private class AutoHistogramAggAggregationFunctionProvider extends AbstractDateHistogramAggAggregationFunctionProvider {
+    private class AutoHistogramAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
 
-        public AutoHistogramAggAggregationFunctionProvider(MappedFieldType fieldType, boolean missing, boolean hasScript) {
-            super(fieldType, missing, hasScript);
+        @Override
+        public boolean canOptimize() {
+            return canOptimize(valuesSourceConfig);
         }
 
         @Override

@@ -26,23 +26,14 @@ import static org.opensearch.search.optimization.ranges.OptimizationContext.mult
 /**
  * For range aggregation
  */
-public class RangeAggregationFunctionProvider implements AggregationFunctionProvider {
+public abstract class AbstractRangeAggregatorDataProvider implements AggregatorDataProvider {
 
-    private final ValuesSourceConfig config;
-    private final RangeAggregator.Range[] ranges;
-
-    public RangeAggregationFunctionProvider(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
-        this.config = config;
-        this.ranges = ranges;
-    }
-
-    @Override
-    public boolean isRewriteable(Object parent, int subAggLength) {
+    public boolean canOptimize(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
         if (config.fieldType() == null) return false;
         MappedFieldType fieldType = config.fieldType();
         if (fieldType.isSearchable() == false || !(fieldType instanceof NumericPointEncoder)) return false;
 
-        if (parent == null && subAggLength == 0 && config.script() == null && config.missing() == null) {
+        if (config.script() == null && config.missing() == null) {
             if (config.getValuesSource() instanceof ValuesSource.Numeric.FieldData) {
                 // ranges are already sorted by from and then to
                 // we want ranges not overlapping with each other
@@ -59,8 +50,7 @@ public class RangeAggregationFunctionProvider implements AggregationFunctionProv
         return false;
     }
 
-    @Override
-    public OptimizationContext.Ranges buildRanges(SearchContext context, MappedFieldType fieldType) {
+    public OptimizationContext.Ranges buildRanges(MappedFieldType fieldType, RangeAggregator.Range[] ranges) {
         assert fieldType instanceof NumericPointEncoder;
         NumericPointEncoder numericPointEncoder = (NumericPointEncoder) fieldType;
         byte[][] lowers = new byte[ranges.length][];

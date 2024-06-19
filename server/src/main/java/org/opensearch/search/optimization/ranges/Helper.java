@@ -25,8 +25,6 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
-import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
-import org.opensearch.search.aggregations.bucket.composite.RoundingValuesSource;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -63,8 +61,7 @@ public final class Helper {
         queryWrappers.put(IndexOrDocValuesQuery.class, q -> ((IndexOrDocValuesQuery) q).getIndexQuery());
     }
 
-    private Helper() {
-    }
+    private Helper() {}
 
     /**
      * Recursively unwraps query into the concrete form
@@ -97,7 +94,7 @@ public final class Helper {
         if (min == Long.MAX_VALUE || max == Long.MIN_VALUE) {
             return null;
         }
-        return new long[]{min, max};
+        return new long[] { min, max };
     }
 
     /**
@@ -116,7 +113,7 @@ public final class Helper {
         if (min == Long.MAX_VALUE || max == Long.MIN_VALUE) {
             return null;
         }
-        return new long[]{min, max};
+        return new long[] { min, max };
     }
 
     /**
@@ -154,14 +151,10 @@ public final class Helper {
             if (lower > upper) {
                 return null;
             }
-            return new long[]{lower, upper};
+            return new long[] { lower, upper };
         }
 
         return null;
-    }
-
-    public static boolean isCompositeAggRewriteable(CompositeValuesSourceConfig[] sourceConfigs) {
-        return sourceConfigs.length == 1 && sourceConfigs[0].valuesSource() instanceof RoundingValuesSource;
     }
 
     static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {

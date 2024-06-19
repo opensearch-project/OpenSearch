@@ -39,7 +39,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lease.Releasables;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -49,12 +48,12 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
-import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregationFunctionProvider;
-import org.opensearch.search.optimization.ranges.OptimizationContext;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorDataProvider;
+import org.opensearch.search.optimization.ranges.OptimizationContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -86,6 +85,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final LongKeyedBucketOrds bucketOrds;
 
     private final OptimizationContext optimizationContext;
+    private final ValuesSourceConfig valuesSourceConfig;
 
     DateHistogramAggregator(
         String name,
@@ -114,28 +114,22 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.hardBounds = hardBounds;
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        this.valuesSourceConfig = valuesSourceConfig;
         this.formatter = valuesSourceConfig.format();
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        optimizationContext = new OptimizationContext(
-            context,
-            new DateHistogramAggAggregationFunctionProvider(
-                valuesSourceConfig.fieldType(),
-                valuesSourceConfig.missing() != null,
-                valuesSourceConfig.script() != null,
-                hardBounds
-            )
-        );
-        if (optimizationContext.isRewriteable(parent, subAggregators.length)) {
+        optimizationContext = new OptimizationContext(context, new DateHistogramAggAggregatorDataProvider());
+        if (optimizationContext.canOptimize(parent, subAggregators.length)) {
             optimizationContext.buildRanges(Objects.requireNonNull(valuesSourceConfig.fieldType()));
         }
     }
 
-    private class DateHistogramAggAggregationFunctionProvider extends AbstractDateHistogramAggAggregationFunctionProvider {
+    private class DateHistogramAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
 
-        public DateHistogramAggAggregationFunctionProvider(MappedFieldType fieldType, boolean missing, boolean hasScript, LongBounds hardBounds) {
-            super(fieldType, missing, hasScript, hardBounds);
+        @Override
+        public boolean canOptimize() {
+            return canOptimize(valuesSourceConfig);
         }
 
         @Override
@@ -146,6 +140,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Override
         protected Rounding.Prepared getRoundingPrepared() {
             return preparedRounding;
+        }
+
+        @Override
+        protected long[] processHardBounds(long[] bounds) {
+            return super.processHardBounds(bounds, hardBounds);
         }
     }
 

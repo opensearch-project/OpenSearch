@@ -18,10 +18,14 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
- * Different aggregations may have different pre-conditions, range building logic, etc.
+ * To do optimization, we may need access to some data from Aggregator
+ * You can implement this interface as an inner class of any aggregator to provide the data
+ * The business logic other than providing data can be put into a base abstract class
+ *
+ * @opensearch.internal
  */
-interface AggregationFunctionProvider {
-    boolean isRewriteable(Object parent, int subAggLength);
+public interface AggregatorDataProvider {
+    boolean canOptimize();
 
     OptimizationContext.Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) throws IOException;
 
