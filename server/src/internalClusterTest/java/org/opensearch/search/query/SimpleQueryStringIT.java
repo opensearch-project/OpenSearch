@@ -57,7 +57,7 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.search.SearchModule;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.BeforeClass;
@@ -79,6 +79,7 @@ import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
@@ -122,7 +123,7 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
+            .put(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
             .build();
     }
 
@@ -718,6 +719,52 @@ public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIn
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertHits(response.getHits(), "1");
+    }
+
+    public void testDynamicClauseCountUpdate() throws Exception {
+        client().prepareIndex("testdynamic").setId("1").setSource("field", "foo bar baz").get();
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT - 1))
+        );
+        refresh();
+        StringBuilder sb = new StringBuilder("foo");
+
+        // create clause_count + 1 clauses to hit error
+        for (int i = 0; i <= CLUSTER_MAX_CLAUSE_COUNT; i++) {
+            sb.append(" OR foo" + i);
+        }
+
+        QueryStringQueryBuilder qb = queryStringQuery(sb.toString()).field("field");
+
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch("testdynamic").setQuery(qb).get();
+        });
+
+        assert (e.getDetailedMessage().contains("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT - 1)));
+
+        // increase clause count by 2
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 2))
+        );
+
+        Thread.sleep(1);
+
+        SearchResponse response = client().prepareSearch("testdynamic").setQuery(qb).get();
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()))
+        );
     }
 
     private void assertHits(SearchHits hits, String... ids) {

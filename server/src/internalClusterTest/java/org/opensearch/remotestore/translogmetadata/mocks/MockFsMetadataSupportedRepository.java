@@ -16,9 +16,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.repositories.fs.ReloadableFsRepository;
 
-public class MockFsMetadataSupportedRepository extends FsRepository {
+public class MockFsMetadataSupportedRepository extends ReloadableFsRepository {
 
     public static Setting<Boolean> TRIGGER_DATA_INTEGRITY_FAILURE = Setting.boolSetting(
         "mock_fs_repository.trigger_data_integrity_failure",
