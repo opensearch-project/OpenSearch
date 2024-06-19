@@ -58,6 +58,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 
 /**
@@ -116,8 +117,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
-        fastFilterContext.setAggregationType(
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
+            context,
             new DateHistogramAggregationType(
                 valuesSourceConfig.fieldType(),
                 valuesSourceConfig.missing() != null,
@@ -126,8 +127,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             )
         );
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
-            fastFilterContext.setFieldName(valuesSourceConfig.fieldType().name());
-            fastFilterContext.buildRanges();
+            fastFilterContext.buildRanges(Objects.requireNonNull(valuesSourceConfig.fieldType()));
         }
     }
 
@@ -162,13 +162,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+        boolean optimized = fastFilterContext.tryFastFilterAggregation(
             ctx,
-            fastFilterContext,
-            (key, count) -> incrementBucketDocCount(
-                FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
-                count
-            )
+            this::incrementBucketDocCount,
+            (key) -> bucketOrds.add(0, preparedRounding.round((long) key))
         );
         if (optimized) throw new CollectionTerminatedException();
 
