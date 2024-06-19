@@ -89,13 +89,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
 /**
- * Main aggregator that aggregates docs from mulitple aggregations
+ * Main aggregator that aggregates docs from multiple aggregations
  *
  * @opensearch.internal
  */
@@ -120,7 +121,6 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     private final OptimizationContext optimizationContext;
     private LongKeyedBucketOrds bucketOrds = null;
-    private Rounding.Prepared preparedRounding = null;
 
     CompositeAggregator(
         String name,
@@ -168,9 +168,6 @@ public final class CompositeAggregator extends BucketsAggregator {
 
         optimizationContext = new OptimizationContext(context, new CompositeAggAggregatorDataProvider());
         if (optimizationContext.canOptimize(parent, subAggregators.length)) {
-            // bucketOrds is used for saving date histogram results
-            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
-            preparedRounding = ((CompositeAggAggregatorDataProvider) optimizationContext.getAggregationType()).getRoundingPrepared();
             optimizationContext.buildRanges(sourceConfigs[0].fieldType());
         }
     }
@@ -178,12 +175,12 @@ public final class CompositeAggregator extends BucketsAggregator {
     /**
      * Currently the filter rewrite is only supported for date histograms
      */
-    public class CompositeAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
+    private final class CompositeAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
         private RoundingValuesSource valuesSource;
         private long afterKey = -1L;
 
         @Override
-        public boolean canOptimize() {
+        protected boolean canOptimize() {
             if (sourceConfigs.length != 1 || !(sourceConfigs[0].valuesSource() instanceof RoundingValuesSource)) return false;
             if (canOptimize(sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript(), sourceConfigs[0].fieldType())) {
                 this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
@@ -193,16 +190,20 @@ public final class CompositeAggregator extends BucketsAggregator {
                         throw new IllegalArgumentException("now() is not supported in [after] key");
                     });
                 }
+
+                // bucketOrds is used for saving the date histogram results got from the optimization path
+                bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
+
                 return true;
             }
             return false;
         }
 
-        public Rounding getRounding(final long low, final long high) {
+        protected Rounding getRounding(final long low, final long high) {
             return valuesSource.getRounding();
         }
 
-        public Rounding.Prepared getRoundingPrepared() {
+        protected Rounding.Prepared getRoundingPrepared() {
             return valuesSource.getPreparedRounding();
         }
 
@@ -217,8 +218,13 @@ public final class CompositeAggregator extends BucketsAggregator {
         }
 
         @Override
-        public int getSize() {
+        protected int getSize() {
             return size;
+        }
+
+        @Override
+        protected Function<Object, Long> bucketOrdProducer() {
+            return (key) -> bucketOrds.add(0, getRoundingPrepared().round((long) key));
         }
     }
 
@@ -371,7 +377,7 @@ public final class CompositeAggregator extends BucketsAggregator {
                 return v2 != null && DocValues.unwrapSingleton(v2) == null;
 
             default:
-                // we have no clue whether the field is multi-valued or not so we assume it is.
+                // we have no clue whether the field is multivalued or not so we assume it is.
                 return true;
         }
     }
@@ -554,11 +560,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryFastFilterAggregation(
-            ctx,
-            this::incrementBucketDocCount,
-            (key) -> bucketOrds.add(0, preparedRounding.round((long) key))
-        );
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();

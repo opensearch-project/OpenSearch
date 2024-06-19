@@ -21,19 +21,18 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.opensearch.search.optimization.ranges.OptimizationContext.multiRangesTraverse;
 
 /**
  * For date histogram aggregation
  */
-public abstract class AbstractDateHistogramAggAggregatorDataProvider implements AggregatorDataProvider {
+public abstract class AbstractDateHistogramAggAggregatorDataProvider extends AggregatorDataProvider {
     private MappedFieldType fieldType;
 
-    public boolean canOptimize(boolean missing, boolean hasScript, MappedFieldType fieldType) {
+    protected boolean canOptimize(boolean missing, boolean hasScript, MappedFieldType fieldType) {
         if (!missing && !hasScript) {
-            if (fieldType != null && fieldType instanceof DateFieldMapper.DateFieldType) {
+            if (fieldType instanceof DateFieldMapper.DateFieldType) {
                 if (fieldType.isSearchable()) {
                     this.fieldType = fieldType;
                     return true;
@@ -43,7 +42,7 @@ public abstract class AbstractDateHistogramAggAggregatorDataProvider implements 
         return false;
     }
 
-    public boolean canOptimize(ValuesSourceConfig config) {
+    protected boolean canOptimize(ValuesSourceConfig config) {
         if (config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldType();
             if (fieldType instanceof DateFieldMapper.DateFieldType) {
@@ -57,21 +56,18 @@ public abstract class AbstractDateHistogramAggAggregatorDataProvider implements 
     }
 
     @Override
-    public OptimizationContext.Ranges buildRanges(SearchContext context, MappedFieldType fieldType) throws IOException {
+    protected void buildRanges(SearchContext context) throws IOException {
         long[] bounds = Helper.getDateHistoAggBounds(context, fieldType.name());
-        // logger.debug("Bounds are {} for shard {}", bounds, context.indexShard().shardId());
-        return buildRanges(context, bounds);
+        this.optimizationContext.setRanges(buildRanges(context, bounds));
     }
 
     @Override
-    public OptimizationContext.Ranges buildRanges(LeafReaderContext leaf, SearchContext context, MappedFieldType fieldType)
-        throws IOException {
+    protected void buildRanges(LeafReaderContext leaf, SearchContext context) throws IOException {
         long[] bounds = Helper.getSegmentBounds(leaf, fieldType.name());
-        // logger.debug("Bounds are {} for shard {} segment {}", bounds, context.indexShard().shardId(), leaf.ord);
-        return buildRanges(context, bounds);
+        this.optimizationContext.setRanges(buildRanges(context, bounds));
     }
 
-    private OptimizationContext.Ranges buildRanges(SearchContext context, long[] bounds) throws IOException {
+    private OptimizationContext.Ranges buildRanges(SearchContext context, long[] bounds) {
         bounds = processHardBounds(bounds);
         if (bounds == null) {
             return null;
@@ -89,12 +85,12 @@ public abstract class AbstractDateHistogramAggAggregatorDataProvider implements 
         bounds = processAfterKey(bounds, interval);
 
         return Helper.createRangesFromAgg(
-            context,
             (DateFieldMapper.DateFieldType) fieldType,
             interval,
             getRoundingPrepared(),
             bounds[0],
-            bounds[1]
+            bounds[1],
+            context.maxAggRewriteFilters()
         );
     }
 
@@ -128,33 +124,29 @@ public abstract class AbstractDateHistogramAggAggregatorDataProvider implements 
         return bounds;
     }
 
-    public DateFieldMapper.DateFieldType getFieldType() {
+    private DateFieldMapper.DateFieldType getFieldType() {
         assert fieldType instanceof DateFieldMapper.DateFieldType;
         return (DateFieldMapper.DateFieldType) fieldType;
     }
 
-    public int getSize() {
+    protected int getSize() {
         return Integer.MAX_VALUE;
     }
 
     @Override
-    public OptimizationContext.DebugInfo tryFastFilterAggregation(
-        PointValues values,
-        OptimizationContext.Ranges ranges,
-        BiConsumer<Long, Long> incrementDocCount,
-        Function<Object, Long> bucketOrd
-    ) throws IOException {
+    protected final void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
         int size = getSize();
+        OptimizationContext.Ranges ranges = this.optimizationContext.getRanges();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
             long rangeStart = LongPoint.decodeDimension(ranges.lowers[activeIndex], 0);
             rangeStart = fieldType.convertNanosToMillis(rangeStart);
-            long ord = getBucketOrd(bucketOrd.apply(rangeStart));
+            long ord = getBucketOrd(bucketOrdProducer().apply(rangeStart));
             incrementDocCount.accept(ord, (long) docCount);
         };
 
-        return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
+        this.optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size));
     }
 
     private static long getBucketOrd(long bucketOrd) {

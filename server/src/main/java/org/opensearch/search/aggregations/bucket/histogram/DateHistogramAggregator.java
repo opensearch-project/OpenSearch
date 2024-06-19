@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * An aggregator for date values. Every date is rounded down using a configured
@@ -125,10 +126,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         }
     }
 
-    private class DateHistogramAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
-
+    private final class DateHistogramAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
         @Override
-        public boolean canOptimize() {
+        protected boolean canOptimize() {
             return canOptimize(valuesSourceConfig);
         }
 
@@ -146,6 +146,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         protected long[] processHardBounds(long[] bounds) {
             return super.processHardBounds(bounds, hardBounds);
         }
+
+        @Override
+        protected Function<Object, Long> bucketOrdProducer() {
+            return (key) -> bucketOrds.add(0, preparedRounding.round((long) key));
+        }
     }
 
     @Override
@@ -162,11 +167,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryFastFilterAggregation(
-            ctx,
-            this::incrementBucketDocCount,
-            (key) -> bucketOrds.add(0, preparedRounding.round((long) key))
-        );
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);

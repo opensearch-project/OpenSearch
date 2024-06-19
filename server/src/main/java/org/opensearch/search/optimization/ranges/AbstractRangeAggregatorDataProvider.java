@@ -19,18 +19,20 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.opensearch.search.optimization.ranges.OptimizationContext.multiRangesTraverse;
 
 /**
  * For range aggregation
  */
-public abstract class AbstractRangeAggregatorDataProvider implements AggregatorDataProvider {
+public abstract class AbstractRangeAggregatorDataProvider extends AggregatorDataProvider {
 
-    public boolean canOptimize(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
+    private MappedFieldType fieldType;
+
+    protected boolean canOptimize(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
         if (config.fieldType() == null) return false;
         MappedFieldType fieldType = config.fieldType();
+        assert fieldType != null;
         if (fieldType.isSearchable() == false || !(fieldType instanceof NumericPointEncoder)) return false;
 
         if (config.script() == null && config.missing() == null) {
@@ -44,13 +46,14 @@ public abstract class AbstractRangeAggregatorDataProvider implements AggregatorD
                     }
                     prevTo = ranges[i].getTo();
                 }
+                this.fieldType = config.fieldType();
                 return true;
             }
         }
         return false;
     }
 
-    public OptimizationContext.Ranges buildRanges(MappedFieldType fieldType, RangeAggregator.Range[] ranges) {
+    protected void buildRanges(RangeAggregator.Range[] ranges) {
         assert fieldType instanceof NumericPointEncoder;
         NumericPointEncoder numericPointEncoder = (NumericPointEncoder) fieldType;
         byte[][] lowers = new byte[ranges.length][];
@@ -64,28 +67,25 @@ public abstract class AbstractRangeAggregatorDataProvider implements AggregatorD
             uppers[i] = upper;
         }
 
-        return new OptimizationContext.Ranges(lowers, uppers);
+        this.optimizationContext.setRanges(new OptimizationContext.Ranges(lowers, uppers));
     }
 
     @Override
-    public OptimizationContext.Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx, MappedFieldType fieldType) {
+    protected void buildRanges(LeafReaderContext leaf, SearchContext ctx) {
         throw new UnsupportedOperationException("Range aggregation should not build ranges at segment level");
     }
 
     @Override
-    public OptimizationContext.DebugInfo tryFastFilterAggregation(
-        PointValues values,
-        OptimizationContext.Ranges ranges,
-        BiConsumer<Long, Long> incrementDocCount,
-        Function<Object, Long> bucketOrd
-    ) throws IOException {
+    protected final void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
         int size = Integer.MAX_VALUE;
 
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
-            long ord = bucketOrd.apply(activeIndex);
+            long ord = bucketOrdProducer().apply(activeIndex);
             incrementDocCount.accept(ord, (long) docCount);
         };
 
-        return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
+        this.optimizationContext.consumeDebugInfo(
+            multiRangesTraverse(values.getPointTree(), this.optimizationContext.getRanges(), incrementFunc, size)
+        );
     }
 }

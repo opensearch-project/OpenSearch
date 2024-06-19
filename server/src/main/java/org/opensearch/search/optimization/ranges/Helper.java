@@ -49,7 +49,8 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
  */
 public final class Helper {
 
-    private static final Logger logger = LogManager.getLogger(Helper.class);
+    static final String loggerName = Helper.class.getPackageName();
+    private static final Logger logger = LogManager.getLogger(loggerName);
     private static final Map<Class<?>, Function<Query, Query>> queryWrappers;
 
     // Initialize the wrapper map for unwrapping the query
@@ -167,12 +168,12 @@ public final class Helper {
      * and min/max boundaries
      */
     static OptimizationContext.Ranges createRangesFromAgg(
-        final SearchContext context,
         final DateFieldMapper.DateFieldType fieldType,
         final long interval,
         final Rounding.Prepared preparedRounding,
         long low,
-        final long high
+        final long high,
+        final int maxAggRewriteFilters
     ) {
         // Calculate the number of buckets using range and interval
         long roundedLow = preparedRounding.round(fieldType.convertNanosToMillis(low));
@@ -180,9 +181,8 @@ public final class Helper {
         int bucketCount = 0;
         while (roundedLow <= fieldType.convertNanosToMillis(high)) {
             bucketCount++;
-            int maxNumFilterBuckets = context.maxAggRewriteFilters();
-            if (bucketCount > maxNumFilterBuckets) {
-                logger.debug("Max number of filters reached [{}], skip the fast filter optimization", maxNumFilterBuckets);
+            if (bucketCount > maxAggRewriteFilters) {
+                logger.debug("Max number of range filters reached [{}], skip the optimization", maxAggRewriteFilters);
                 return null;
             }
             // Below rounding is needed as the interval could return in

@@ -10,7 +10,6 @@ package org.opensearch.search.optimization.ranges;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -18,23 +17,34 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
- * To do optimization, we may need access to some data from Aggregator
- * You can implement this interface as an inner class of any aggregator to provide the data
- * The business logic other than providing data can be put into a base abstract class
+ * To do the optimization, we need access to some data from Aggregator
+ * <p>
+ * To provide access, implement this interface as an inner class of the aggregator,
+ * Any business logic other than providing data can be put into a base abstract class
  *
  * @opensearch.internal
  */
-public interface AggregatorDataProvider {
-    boolean canOptimize();
+public abstract class AggregatorDataProvider {
 
-    OptimizationContext.Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) throws IOException;
+    protected OptimizationContext optimizationContext;
 
-    OptimizationContext.Ranges buildRanges(LeafReaderContext leaf, SearchContext ctx, MappedFieldType fieldType) throws IOException;
+    /**
+     * Check whether we can optimize the aggregator
+     * If not, don't call the other methods
+     *
+     * @return result will be saved in optimization context
+     */
+    protected abstract boolean canOptimize();
 
-    OptimizationContext.DebugInfo tryFastFilterAggregation(
-        PointValues values,
-        OptimizationContext.Ranges ranges,
-        BiConsumer<Long, Long> incrementDocCount,
-        Function<Object, Long> bucketOrd
-    ) throws IOException;
+    void setOptimizationContext(OptimizationContext optimizationContext) {
+        this.optimizationContext = optimizationContext;
+    }
+
+    protected abstract void buildRanges(SearchContext ctx) throws IOException;
+
+    protected abstract void buildRanges(LeafReaderContext leaf, SearchContext ctx) throws IOException;
+
+    protected abstract void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException;
+
+    protected abstract Function<Object, Long> bucketOrdProducer();
 }

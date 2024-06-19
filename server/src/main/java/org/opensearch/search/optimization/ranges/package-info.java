@@ -12,7 +12,7 @@
  * The idea is to
  * <ul>
  * <li> figure out the "ranges" from the aggregation </li>
- * <li> leverage the range filter to get the result of range bucket quickly </li>
+ * <li> leverage the "range filter" to get the result of range bucket quickly </li>
  * </ul>
  */
 package org.opensearch.search.optimization.ranges;

@@ -24,16 +24,16 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
+import static org.opensearch.search.optimization.ranges.Helper.loggerName;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
- * Context for optimization of range-type aggregation
+ * Context for doing the optimization for range-type aggregation
  */
 public class OptimizationContext {
 
-    private static final Logger logger = LogManager.getLogger(OptimizationContext.class);
+    private static final Logger logger = LogManager.getLogger(loggerName);
 
     private boolean rewriteable = false;
     private boolean rangesBuiltAtShardLevel = false;
@@ -55,10 +55,6 @@ public class OptimizationContext {
         this.aggregatorDataProvider = aggregatorDataProvider;
     }
 
-    public AggregatorDataProvider getAggregationType() {
-        return aggregatorDataProvider;
-    }
-
     public boolean canOptimize(final Object parent, final int subAggLength) {
         if (context.maxAggRewriteFilters() == 0) return false;
 
@@ -67,13 +63,16 @@ public class OptimizationContext {
         boolean rewriteable = aggregatorDataProvider.canOptimize();
         logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
         this.rewriteable = rewriteable;
+        if (rewriteable) {
+            aggregatorDataProvider.setOptimizationContext(this);
+        }
         return rewriteable;
     }
 
     public void buildRanges(MappedFieldType fieldType) throws IOException {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
         this.fieldType = fieldType;
-        this.ranges = this.aggregatorDataProvider.buildRanges(context, fieldType);
+        this.aggregatorDataProvider.buildRanges(context);
         if (ranges != null) {
             logger.debug("Ranges built for shard {}", context.indexShard().shardId());
             rangesBuiltAtShardLevel = true;
@@ -81,11 +80,19 @@ public class OptimizationContext {
     }
 
     private Ranges buildRanges(LeafReaderContext leaf) throws IOException {
-        Ranges ranges = this.aggregatorDataProvider.buildRanges(leaf, context, fieldType);
+        this.aggregatorDataProvider.buildRanges(leaf, context);
         if (ranges != null) {
             logger.debug("Ranges built for shard {} segment {}", context.indexShard().shardId(), leaf.ord);
         }
         return ranges;
+    }
+
+    Ranges getRanges() {
+        return ranges;
+    }
+
+    void setRanges(Ranges ranges) {
+        this.ranges = ranges;
     }
 
     /**
@@ -93,39 +100,35 @@ public class OptimizationContext {
      * <p>
      * Usage: invoked at segment level — in getLeafCollector of aggregator
      *
-     * @param bucketOrd         bucket ordinal producer
      * @param incrementDocCount consume the doc_count results for certain ordinal
      */
-    public boolean tryFastFilterAggregation(
-        final LeafReaderContext ctx,
-        final BiConsumer<Long, Long> incrementDocCount,
-        final Function<Object, Long> bucketOrd
-    ) throws IOException {
+    public boolean tryFastFilterAggregation(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount)
+        throws IOException {
         this.segments++;
         if (!this.rewriteable) {
             return false;
         }
 
-        if (ctx.reader().hasDeletions()) return false;
+        if (leafCtx.reader().hasDeletions()) return false;
 
-        PointValues values = ctx.reader().getPointValues(this.fieldType.name());
+        PointValues values = leafCtx.reader().getPointValues(this.fieldType.name());
         if (values == null) return false;
         // only proceed if every document corresponds to exactly one point
         if (values.getDocCount() != values.size()) return false;
 
-        NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
+        NumericDocValues docCountValues = DocValues.getNumeric(leafCtx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
             logger.debug(
                 "Shard {} segment {} has at least one document with _doc_count field, skip fast filter optimization",
                 this.context.indexShard().shardId(),
-                ctx.ord
+                leafCtx.ord
             );
             return false;
         }
 
         // even if no ranges built at shard level, we can still perform the optimization
         // when functionally match-all at segment level
-        if (!this.rangesBuiltAtShardLevel && !Helper.segmentMatchAll(this.context, ctx)) {
+        if (!this.rangesBuiltAtShardLevel && !Helper.segmentMatchAll(this.context, leafCtx)) {
             return false;
         }
 
@@ -134,24 +137,23 @@ public class OptimizationContext {
             logger.debug(
                 "Shard {} segment {} functionally match all documents. Build the fast filter",
                 this.context.indexShard().shardId(),
-                ctx.ord
+                leafCtx.ord
             );
-            ranges = this.buildRanges(ctx);
+            ranges = this.buildRanges(leafCtx);
             if (ranges == null) {
                 return false;
             }
         }
 
-        DebugInfo debugInfo = this.aggregatorDataProvider.tryFastFilterAggregation(values, ranges, incrementDocCount, bucketOrd);
-        this.consumeDebugInfo(debugInfo);
+        this.aggregatorDataProvider.tryFastFilterAggregation(values, incrementDocCount);
 
         this.optimizedSegments++;
-        logger.debug("Fast filter optimization applied to shard {} segment {}", this.context.indexShard().shardId(), ctx.ord);
+        logger.debug("Fast filter optimization applied to shard {} segment {}", this.context.indexShard().shardId(), leafCtx.ord);
         logger.debug("crossed leaf nodes: {}, inner nodes: {}", this.leaf, this.inner);
         return true;
     }
 
-    private void consumeDebugInfo(DebugInfo debug) {
+    void consumeDebugInfo(DebugInfo debug) {
         leaf += debug.leaf;
         inner += debug.inner;
     }
@@ -159,7 +161,7 @@ public class OptimizationContext {
     /**
      * Internal ranges representation for the optimization
      */
-    public static class Ranges {
+    static class Ranges {
         byte[][] lowers; // inclusive
         byte[][] uppers; // exclusive
         int size;
@@ -202,7 +204,7 @@ public class OptimizationContext {
         }
     }
 
-    static class RangeCollectorForPointTree {
+    private static class RangeCollectorForPointTree {
         private final BiConsumer<Integer, Integer> incrementRangeDocCount;
         private int counter = 0;
 
@@ -264,22 +266,6 @@ public class OptimizationContext {
 
         private boolean withinRange(byte[] value) {
             return withinLowerBound(value) && withinUpperBound(value);
-        }
-    }
-
-    /**
-     * Contains debug info of BKD traversal to show in profile
-     */
-    static class DebugInfo {
-        private int leaf = 0; // leaf node visited
-        private int inner = 0; // inner node visited
-
-        private void visitLeaf() {
-            leaf++;
-        }
-
-        private void visitInner() {
-            inner++;
         }
     }
 
@@ -346,7 +332,7 @@ public class OptimizationContext {
     private static PointValues.IntersectVisitor getIntersectVisitor(OptimizationContext.RangeCollectorForPointTree collector) {
         return new PointValues.IntersectVisitor() {
             @Override
-            public void visit(int docID) throws IOException {
+            public void visit(int docID) {
                 // this branch should be unreachable
                 throw new UnsupportedOperationException(
                     "This IntersectVisitor does not perform any actions on a " + "docID=" + docID + " node being visited"
@@ -400,5 +386,21 @@ public class OptimizationContext {
                 return PointValues.Relation.CELL_CROSSES_QUERY;
             }
         };
+    }
+
+    /**
+     * Contains debug info of BKD traversal to show in profile
+     */
+    static class DebugInfo {
+        private int leaf = 0; // leaf node visited
+        private int inner = 0; // inner node visited
+
+        private void visitLeaf() {
+            leaf++;
+        }
+
+        private void visitInner() {
+            inner++;
+        }
     }
 }

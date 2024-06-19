@@ -166,10 +166,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
     }
 
-    private class AutoHistogramAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
+    private final class AutoHistogramAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
 
         @Override
-        public boolean canOptimize() {
+        protected boolean canOptimize() {
             return canOptimize(valuesSourceConfig);
         }
 
@@ -200,6 +200,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         @Override
         protected Prepared getRoundingPrepared() {
             return preparedRounding;
+        }
+
+        @Override
+        protected Function<Object, Long> bucketOrdProducer() {
+            return (key) -> getBucketOrds().add(0, preparedRounding.round((long) key));
         }
     }
 
@@ -232,11 +237,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryFastFilterAggregation(
-            ctx,
-            this::incrementBucketDocCount,
-            (key) -> getBucketOrds().add(0, preparedRounding.round((long) key))
-        );
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);

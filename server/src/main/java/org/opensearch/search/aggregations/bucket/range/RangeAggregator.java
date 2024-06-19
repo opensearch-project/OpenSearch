@@ -45,7 +45,6 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -68,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -289,15 +289,20 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    class RangeAggregatorDataProvider extends AbstractRangeAggregatorDataProvider {
+    private final class RangeAggregatorDataProvider extends AbstractRangeAggregatorDataProvider {
         @Override
-        public boolean canOptimize() {
+        protected boolean canOptimize() {
             return canOptimize(valuesSourceConfig, ranges);
         }
 
         @Override
-        public OptimizationContext.Ranges buildRanges(SearchContext ctx, MappedFieldType fieldType) {
-            return buildRanges(fieldType, ranges);
+        protected void buildRanges(SearchContext ctx) {
+            buildRanges(ranges);
+        }
+
+        @Override
+        protected Function<Object, Long> bucketOrdProducer() {
+            return (activeIndex) -> subBucketOrdinal(0, (int) activeIndex);
         }
     }
 
@@ -311,11 +316,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryFastFilterAggregation(
-            ctx,
-            this::incrementBucketDocCount,
-            (activeIndex) -> subBucketOrdinal(0, (int) activeIndex)
-        );
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
