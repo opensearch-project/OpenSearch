@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Class to define the ResourceLimitGroup schema
+ * Class to define the QueryGroup schema
  * {
  *     "fafjafjkaf9ag8a9ga9g7ag0aagaga" : {
  *              "jvm": 0.4,
@@ -47,25 +47,25 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     private final long updatedAtInMillis;
     private final Map<String, Object> resourceLimits;
 
-    // list of resources that are allowed to be present in the ResourceLimitGroup schema
+    // list of resources that are allowed to be present in the QueryGroup schema
     public static final List<String> ALLOWED_RESOURCES = List.of("jvm");
 
     public QueryGroup(String name, String _id, QueryGroupMode mode, Map<String, Object> resourceLimits, long updatedAt) {
-        Objects.requireNonNull(name, "ResourceLimitGroup.name can't be null");
-        Objects.requireNonNull(resourceLimits, "ResourceLimitGroup.resourceLimits can't be null");
-        Objects.requireNonNull(mode, "ResourceLimitGroup.mode can't be null");
-        Objects.requireNonNull(_id, "ResourceLimitGroup._id can't be null");
+        Objects.requireNonNull(name, "QueryGroup.name can't be null");
+        Objects.requireNonNull(resourceLimits, "QueryGroup.resourceLimits can't be null");
+        Objects.requireNonNull(mode, "QueryGroup.mode can't be null");
+        Objects.requireNonNull(_id, "QueryGroup._id can't be null");
 
         if (name.length() > MAX_CHARS_ALLOWED_IN_NAME) {
-            throw new IllegalArgumentException("ResourceLimitGroup.name shouldn't be more than 50 chars long");
+            throw new IllegalArgumentException("QueryGroup.name shouldn't be more than 50 chars long");
         }
 
         if (resourceLimits.isEmpty()) {
-            throw new IllegalArgumentException("ResourceLimitGroup.resourceLimits should at least have 1 resource limit");
+            throw new IllegalArgumentException("QueryGroup.resourceLimits should at least have 1 resource limit");
         }
         validateResourceLimits(resourceLimits);
         if (!isValid(updatedAt)) {
-            throw new IllegalArgumentException("ResourceLimitGroup.updatedAtInMillis is not a valid epoch");
+            throw new IllegalArgumentException("QueryGroup.updatedAtInMillis is not a valid epoch");
         }
 
         this.name = name;
@@ -187,7 +187,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
                 } else if (ALLOWED_RESOURCES.contains(fieldName)) {
                     resourceLimits_.put(fieldName, parser.doubleValue());
                 } else {
-                    throw new IllegalArgumentException("unrecognised [field=" + fieldName + " in ResourceLimitGroup");
+                    throw new IllegalArgumentException("unrecognised [field=" + fieldName + " in QueryGroup");
                 }
             }
         }
@@ -264,7 +264,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
                 if (mode.getName().equalsIgnoreCase(s)) return mode;
 
             }
-            throw new IllegalArgumentException("Invalid value for ResourceLimitGroupMode: " + s);
+            throw new IllegalArgumentException("Invalid value for QueryGroupMode: " + s);
         }
 
     }

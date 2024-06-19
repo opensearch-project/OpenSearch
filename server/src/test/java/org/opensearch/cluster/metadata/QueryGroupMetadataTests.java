@@ -14,7 +14,7 @@ import org.opensearch.test.AbstractNamedWriteableTestCase;
 import java.util.Collections;
 import java.util.Set;
 
-import static org.opensearch.cluster.metadata.QueryGroupTests.createRandomResourceLimitGroup;
+import static org.opensearch.cluster.metadata.QueryGroupTests.createRandomQueryGroup;
 
 public class QueryGroupMetadataTests extends AbstractNamedWriteableTestCase<QueryGroupMetadata> {
 
@@ -34,10 +34,10 @@ public class QueryGroupMetadataTests extends AbstractNamedWriteableTestCase<Quer
 
     @Override
     protected QueryGroupMetadata createTestInstance() {
-        return new QueryGroupMetadata(getRandomResourceLimitGroups());
+        return new QueryGroupMetadata(getRandomQueryGroups());
     }
 
-    private Set<QueryGroup> getRandomResourceLimitGroups() {
-        return Set.of(createRandomResourceLimitGroup(), createRandomResourceLimitGroup());
+    private Set<QueryGroup> getRandomQueryGroups() {
+        return Set.of(createRandomQueryGroup(), createRandomQueryGroup());
     }
 }

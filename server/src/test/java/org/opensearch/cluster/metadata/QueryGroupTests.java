@@ -27,7 +27,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         QueryGroup.QueryGroupMode.MONITOR
     );
 
-    static QueryGroup createRandomResourceLimitGroup() {
+    static QueryGroup createRandomQueryGroup() {
         String name = randomAlphaOfLength(10);
         Map<String, Object> resourceLimit = new HashMap<>();
         resourceLimit.put("jvm", randomDoubleBetween(0.0, 0.80, false));
@@ -63,7 +63,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
      */
     @Override
     protected QueryGroup createTestInstance() {
-        return createRandomResourceLimitGroup();
+        return createRandomQueryGroup();
     }
 
     public void testNullName() {
@@ -91,7 +91,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         );
     }
 
-    public void testIllegalResourceLimitGroupMode() {
+    public void testIllegalQueryGroupMode() {
         assertThrows(
             NullPointerException.class,
             () -> new QueryGroup("analytics", "_id", null, Map.of("jvm", (Object) 0.4), Instant.now().getMillis())
@@ -124,7 +124,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         );
     }
 
-    public void testValidResourceLimitGroup() {
+    public void testValidQueryGroup() {
         QueryGroup queryGroup = new QueryGroup(
             "analytics",
             "_id",
