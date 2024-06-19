@@ -10,9 +10,14 @@ package org.opensearch.common.util;
 
 import org.opensearch.core.action.ActionListener;
 
+/**
+ * A simple implementation of {@link ActionListener} that captures the response and failures used for testing purposes.
+ *
+ * @param <T> the result type
+ */
 public class TestCapturingListener<T> implements ActionListener<T> {
-    T result;
-    Exception failure;
+    private T result;
+    private Exception failure;
 
     @Override
     public void onResponse(T result) {
