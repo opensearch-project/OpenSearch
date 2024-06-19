@@ -73,7 +73,6 @@ import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.MultiValueMode;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -87,6 +86,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -674,7 +674,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 true,
                 MOCK_QSC
             );
-            assertThat(query, Matchers.either(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+            assertThat(query, either(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
             if (query instanceof IndexOrDocValuesQuery) {
                 IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
                 assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
