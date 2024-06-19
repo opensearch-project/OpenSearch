@@ -90,7 +90,7 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
                 )
                 .get()
         );
-        indexRandom(true, client.prepareIndex(index).setSource("k", "hello"));
+        indexRandom(false, client.prepareIndex(index).setSource("k", "hello"));
         ensureSearchable(index);
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         forceMerge(client, index);
@@ -107,6 +107,8 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         // Should expect hit as here as refresh didn't happen
         assertCacheState(client, index, 1, 1);
 
+        // assert segment counts stay the same
+        assertEquals(1, getSegmentCount(client, index));
         // Explicit refresh would invalidate cache
         refreshAndWaitForReplication();
         // Hit same query again
@@ -153,6 +155,9 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(index2);
         client.admin().indices().clearCache(clearIndicesCacheRequest).actionGet();
 
+        // assert segment counts stay the same
+        assertEquals(1, getSegmentCount(client, index1));
+        assertEquals(1, getSegmentCount(client, index2));
         // cache cleaner should have cleaned up the stale key from index 2
         assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
         // cache cleaner should NOT have cleaned from index 1
@@ -198,6 +203,9 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         forceMerge(client, index2);
         // sleep until cache cleaner would have cleaned up the stale key from index 2
         assertBusy(() -> {
+            // assert segment counts stay the same
+            assertEquals(1, getSegmentCount(client, index1));
+            assertEquals(2, getSegmentCount(client, index2));
             // cache cleaner should have cleaned up the stale key from index 2
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
             // cache cleaner should NOT have cleaned from index 1
@@ -245,6 +253,9 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         forceMerge(client, index2);
         // sleep until cache cleaner would have cleaned up the stale key from index 2
         assertBusy(() -> {
+            // assert segment counts stay the same
+            assertEquals(1, getSegmentCount(client, index1));
+            assertEquals(2, getSegmentCount(client, index2));
             // cache cleaner should have cleaned up the stale key from index 2
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
             // cache cleaner should NOT have cleaned from index 1
@@ -290,6 +301,9 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         flushAndRefresh(index2);
         // sleep until cache cleaner would have cleaned up the stale key from index 2
         assertBusy(() -> {
+            // assert segment counts stay the same
+            assertEquals(1, getSegmentCount(client, index1));
+            assertEquals(1, getSegmentCount(client, index2));
             // cache cleaner should NOT have cleaned up the stale key from index 2
             assertTrue(getRequestCacheStats(client, index2).getMemorySizeInBytes() > 0);
             // cache cleaner should NOT have cleaned from index 1
@@ -335,6 +349,9 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         forceMerge(client, index2);
         // sleep until cache cleaner would have cleaned up the stale key from index 2
         assertBusy(() -> {
+            // assert segment counts stay the same
+            assertEquals(1, getSegmentCount(client, index1));
+            assertEquals(2, getSegmentCount(client, index2));
             // cache cleaner should have cleaned up the stale key from index 2
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
             // cache cleaner should NOT have cleaned from index 1
@@ -380,25 +397,13 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         forceMerge(client, index2);
         // sleep until cache cleaner would have cleaned up the stale key from index 2
         assertBusy(() -> {
+            assertEquals(1, getSegmentCount(client, index1));
             assertEquals(2, getSegmentCount(client, index2));
             // cache cleaner should have cleaned up the stale key from index 2
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
             // cache cleaner should NOT have cleaned from index 1
             assertEquals(finalMemorySizeForIndex1, getRequestCacheStats(client, index1).getMemorySizeInBytes());
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
-    }
-
-    private int getSegmentCount(Client client, String indexName) {
-        return client.admin()
-            .indices()
-            .segments(new IndicesSegmentsRequest(indexName))
-            .actionGet()
-            .getIndices()
-            .get(indexName)
-            .getShards()
-            .get(0)
-            .getShards()[0].getSegments()
-            .size();
     }
 
     // when cache cleaner interval setting is not set, cache cleaner is configured appropriately with the fall-back setting
@@ -435,6 +440,9 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         forceMerge(client, index2);
         // sleep until cache cleaner would have cleaned up the stale key from index 2
         assertBusy(() -> {
+            // assert segment counts stay the same
+            assertEquals(1, getSegmentCount(client, index1));
+            assertEquals(2, getSegmentCount(client, index2));
             // cache cleaner should have cleaned up the stale key from index 2
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
             // cache cleaner should NOT have cleaned from index 1
@@ -490,6 +498,9 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         assertBusy(() -> {
+            // assert segment counts stay the same
+            assertEquals(1, getSegmentCount(client, index1));
+            assertEquals(2, getSegmentCount(client, index2));
             // cache cleaner should have cleaned up the stale key from index 2
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
             // cache cleaner should NOT have cleaned from index 1
@@ -631,21 +642,31 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         // invalidate the cache for index1
         indexRandom(false, client.prepareIndex(index1).setId("1").setSource("d", "hello"));
         forceMerge(client, index1);
+        // Assert cache is cleared up
+        assertBusy(
+            () -> { assertEquals(0, getRequestCacheStats(client, index1).getMemorySizeInBytes()); },
+            cacheCleanIntervalInMillis * 2,
+            TimeUnit.MILLISECONDS
+        );
+
         // invalidate the cache for index2
         indexRandom(false, client.prepareIndex(index2).setId("1").setSource("d", "hello"));
         forceMerge(client, index2);
+
         // create another cache entry in index 1 same as memorySizeForIndex1With1Entries, this should not be cleaned up.
         createCacheEntry(client, index1, "hello");
+
         // sleep until cache cleaner would have cleaned up the stale key from index2
         assertBusy(() -> {
+            // assert segment counts stay the same
+            assertEquals(2, getSegmentCount(client, index1));
+            assertEquals(2, getSegmentCount(client, index2));
             // cache cleaner should have cleaned up the stale key from index2 and hence cache should be empty
             assertEquals(0, getRequestCacheStats(client, index2).getMemorySizeInBytes());
             // cache cleaner should have only cleaned up the stale entities for index1
             long currentMemorySizeInBytesForIndex1 = getRequestCacheStats(client, index1).getMemorySizeInBytes();
             // assert the memory size of index1 to only contain 1 entry added after flushAndRefresh
             assertEquals(memorySizeForIndex1With1Entries, currentMemorySizeInBytesForIndex1);
-            // cache for index1 should not be empty since there was an item cached after flushAndRefresh
-            assertTrue(currentMemorySizeInBytesForIndex1 > 0);
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
@@ -671,6 +692,19 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
         indexRandom(false, client.prepareIndex(index).setSource("k", "there"));
         ensureSearchable(index);
         forceMerge(client, index);
+    }
+
+    private int getSegmentCount(Client client, String indexName) {
+        return client.admin()
+            .indices()
+            .segments(new IndicesSegmentsRequest(indexName))
+            .actionGet()
+            .getIndices()
+            .get(indexName)
+            .getShards()
+            .get(0)
+            .getShards()[0].getSegments()
+            .size();
     }
 
     private void forceMerge(Client client, String index) {
