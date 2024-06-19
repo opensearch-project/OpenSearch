@@ -1167,7 +1167,7 @@ public class IndicesRequestCacheIT extends ParameterizedStaticSettingsOpenSearch
         }, cacheCleanIntervalInMillis * 2, TimeUnit.MILLISECONDS);
     }
 
-    // when staleness threshold is lower than staleness, it should clean the cache from all indices having stale keys
+    // when staleness threshold is lower than staleness, it should clean cache from all indices having stale keys
     public void testStaleKeysCleanupWithMultipleIndices() throws Exception {
         int cacheCleanIntervalInMillis = 10;
         String node = internalCluster().startNode(
