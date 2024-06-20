@@ -8,7 +8,6 @@
 
 package org.opensearch.gateway.remote;
 
-import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
@@ -18,7 +17,6 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.Metadata.XContentContext;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.network.NetworkModule;
@@ -43,7 +41,6 @@ import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.TestCustomMetadata;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -51,7 +48,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -61,6 +57,11 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.Metadata.isGlobalStateEquals;
 import static org.opensearch.common.blobstore.stream.write.WritePriority.URGENT;
+import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata1;
+import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata2;
+import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata3;
+import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata4;
+import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata5;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CUSTOM_DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
@@ -699,121 +700,5 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         );
         assertThat(customsDiff.getUpserts(), is(expectedUpserts));
         assertThat(customsDiff.getDeletes(), is(List.of(CustomMetadata1.TYPE)));
-
-    }
-
-    private static class CustomMetadata1 extends TestCustomMetadata {
-        public static final String TYPE = "custom_md_1";
-
-        CustomMetadata1(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public EnumSet<XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY);
-        }
-    }
-
-    private static class CustomMetadata2 extends TestCustomMetadata {
-        public static final String TYPE = "custom_md_2";
-
-        CustomMetadata2(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY);
-        }
-    }
-
-    private static class CustomMetadata3 extends TestCustomMetadata {
-        public static final String TYPE = "custom_md_3";
-
-        CustomMetadata3(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY);
-        }
-    }
-
-    private static class CustomMetadata4 extends TestCustomMetadata {
-        public static final String TYPE = "custom_md_4";
-
-        CustomMetadata4(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY);
-        }
-    }
-
-    private static class CustomMetadata5 extends TestCustomMetadata {
-        public static final String TYPE = "custom_md_5";
-
-        CustomMetadata5(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(XContentContext.API);
-        }
     }
 }
