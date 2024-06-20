@@ -64,6 +64,8 @@ import org.opensearch.search.aggregations.pipeline.MovAvgModel;
 import org.opensearch.search.aggregations.pipeline.MovAvgPipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.externalengine.QueryEngineParser;
+import org.opensearch.search.externalengine.QueryEngine;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.query.QueryPhaseSearcher;
@@ -214,6 +216,10 @@ public interface SearchPlugin {
      */
     default Optional<ExecutorServiceProvider> getIndexSearcherExecutorProvider() {
         return Optional.empty();
+    }
+
+    default List<QueryEngineSpec<?>> getQueryEnginesSpecs() {
+       return emptyList();
     }
 
     /**
@@ -876,5 +882,47 @@ public interface SearchPlugin {
         public Map<String, Highlighter> getHighlighters() {
             return highlighters;
         }
+    }
+
+    /**
+     * Specification for a {@link SearchExtBuilder} which represents an additional section that can be
+     * parsed in a search request (within the ext element).
+     */
+    class QueryEngineSpec<T extends QueryEngine> extends SearchExtensionSpec<T, QueryEngineParser<T>> {
+        /**
+         * Specification of custom {@link SearchExtBuilder}.
+         *
+         * @param name holds the names by which this search ext might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the search ext should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.  It is an error if {@link ParseField#getPreferredName()} conflicts with
+         *        another registered name, including names from other plugins.
+         * @param reader the reader registered for this search ext's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser function that reads the search ext builder from xcontent
+         */
+        public QueryEngineSpec(
+            ParseField name,
+            Writeable.Reader<? extends T> reader,
+            QueryEngineParser<T> parser
+        ) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link SearchExtBuilder}.
+         *
+         * @param name the name by which this search ext might be parsed or deserialized. Make sure that the search ext builder returns this name for
+         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
+         *        names from other plugins.
+         * @param reader the reader registered for this search ext's builder. Typically, a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser function that reads the search ext builder from xcontent
+         */
+        public QueryEngineSpec(String name,
+                               Writeable.Reader<? extends T> reader,
+                               QueryEngineParser<T> parser) {
+            super(name, reader, parser);
+        }
+
     }
 }
