@@ -8,6 +8,9 @@
 
 package org.opensearch.search;
 
+/**
+ * Enum to hold the resource type
+ */
 public enum ResourceType {
     CPU("cpu"),
     JVM("jvm");
