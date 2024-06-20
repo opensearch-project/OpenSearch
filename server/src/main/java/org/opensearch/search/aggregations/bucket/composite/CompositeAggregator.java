@@ -74,6 +74,7 @@ import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper.AbstractDateHistogramAggregationType;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
@@ -166,21 +167,22 @@ public final class CompositeAggregator extends BucketsAggregator {
         this.rawAfterKey = rawAfterKey;
 
         fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(context);
-        if (!FastFilterRewriteHelper.isCompositeAggRewriteable(sourceConfigs)) return;
+        if (!FastFilterRewriteHelper.isCompositeAggRewriteable(sourceConfigs)) {
+            return;
+        }
         fastFilterContext.setAggregationType(new CompositeAggregationType());
         if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
             // bucketOrds is used for saving date histogram results
             bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
             preparedRounding = ((CompositeAggregationType) fastFilterContext.getAggregationType()).getRoundingPrepared();
-            fastFilterContext.setFieldName(sourceConfigs[0].fieldType().name());
-            fastFilterContext.buildRanges();
+            fastFilterContext.buildRanges(sourceConfigs[0].fieldType());
         }
     }
 
     /**
      * Currently the filter rewrite is only supported for date histograms
      */
-    public class CompositeAggregationType extends FastFilterRewriteHelper.AbstractDateHistogramAggregationType {
+    public class CompositeAggregationType extends AbstractDateHistogramAggregationType {
         private final RoundingValuesSource valuesSource;
         private long afterKey = -1L;
 
@@ -549,13 +551,10 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = FastFilterRewriteHelper.tryFastFilterAggregation(
+        boolean optimized = fastFilterContext.tryFastFilterAggregation(
             ctx,
-            fastFilterContext,
-            (key, count) -> incrementBucketDocCount(
-                FastFilterRewriteHelper.getBucketOrd(bucketOrds.add(0, preparedRounding.round(key))),
-                count
-            )
+            this::incrementBucketDocCount,
+            (key) -> bucketOrds.add(0, preparedRounding.round((long) key))
         );
         if (optimized) throw new CollectionTerminatedException();
 
