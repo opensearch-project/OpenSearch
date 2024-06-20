@@ -172,21 +172,20 @@ public final class NodeEnvironment implements Closeable {
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder().append("NodePath{")
-                .append("path=")
-                .append(path)
-                .append(", indicesPath=")
-                .append(indicesPath)
-                .append(", fileStore=")
-                .append(fileStore)
-                .append(", fileCachePath=")
-                .append(fileCachePath)
-                .append(", majorDeviceNumber=")
-                .append(majorDeviceNumber)
-                .append(", minorDeviceNumber=")
-                .append(minorDeviceNumber)
-                .append("}");
-            return sb.toString();
+            return "NodePath{"
+                + "path="
+                + path
+                + ", indicesPath="
+                + indicesPath
+                + ", fileStore="
+                + fileStore
+                + ", fileCachePath="
+                + fileCachePath
+                + ", majorDeviceNumber="
+                + majorDeviceNumber
+                + ", minorDeviceNumber="
+                + minorDeviceNumber
+                + '}';
         }
 
     }
