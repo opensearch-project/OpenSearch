@@ -231,6 +231,11 @@ public final class CompositeAggregator extends BucketsAggregator {
         protected Function<Object, Long> bucketOrdProducer() {
             return (key) -> bucketOrds.add(0, getRoundingPrepared().round((long) key));
         }
+
+        @Override
+        protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
+            return segmentMatchAll(context, leaf);
+        }
     }
 
     @Override
@@ -565,7 +570,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount, context);
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();

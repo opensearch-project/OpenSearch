@@ -155,6 +155,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         protected Function<Object, Long> bucketOrdProducer() {
             return (key) -> bucketOrds.add(0, preparedRounding.round((long) key));
         }
+
+        @Override
+        protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
+            return segmentMatchAll(context, leaf);
+        }
     }
 
     @Override
@@ -171,7 +176,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount, context);
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);

@@ -49,4 +49,8 @@ public abstract class AggregatorBridge {
     abstract void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount, Ranges ranges) throws IOException;
 
     protected abstract Function<Object, Long> bucketOrdProducer();
+
+    protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
+        return false;
+    }
 }

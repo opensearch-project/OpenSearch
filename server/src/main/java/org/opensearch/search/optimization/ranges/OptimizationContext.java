@@ -16,8 +16,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.index.mapper.DocCountFieldMapper;
@@ -65,13 +63,13 @@ public final class OptimizationContext {
         if (parent != null || subAggLength != 0) return false;
 
         boolean rewriteable = aggregatorBridge.canOptimize();
-        logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
         this.rewriteable = rewriteable;
         if (rewriteable) {
             aggregatorBridge.setOptimizationContext(this);
             this.maxAggRewriteFilters = context.maxAggRewriteFilters();
             this.shardId = context.indexShard().shardId().toString();
         }
+        logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, shardId);
         return rewriteable;
     }
 
@@ -98,11 +96,8 @@ public final class OptimizationContext {
      *
      * @param incrementDocCount consume the doc_count results for certain ordinal
      */
-    public boolean tryFastFilterAggregation(
-        final LeafReaderContext leafCtx,
-        final BiConsumer<Long, Long> incrementDocCount,
-        SearchContext context
-    ) throws IOException {
+    public boolean tryFastFilterAggregation(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount)
+        throws IOException {
         segments++;
         if (!rewriteable) {
             return false;
@@ -125,20 +120,8 @@ public final class OptimizationContext {
             return false;
         }
 
-        // even if no ranges built at shard level, we can still perform the optimization
-        // when functionally match-all at segment level
-        if (!rangesBuiltAtShardLevel && !segmentMatchAll(context, leafCtx)) {
-            return false;
-        }
-
-        Ranges ranges = this.ranges;
-        if (ranges == null) { // not built at shard level but segment match all
-            logger.debug("Shard {} segment {} functionally match all documents. Build the fast filter", shardId, leafCtx.ord);
-            ranges = buildRanges(leafCtx);
-            if (ranges == null) {
-                return false;
-            }
-        }
+        Ranges ranges = tryGetRangesFromSegment(leafCtx);
+        if (ranges == null) return false;
 
         aggregatorBridge.tryFastFilterAggregation(values, incrementDocCount, ranges);
 
@@ -148,9 +131,21 @@ public final class OptimizationContext {
         return true;
     }
 
-    public static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
-        Weight weight = ctx.query().rewrite(ctx.searcher()).createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
+    /**
+     * Even when ranges cannot be built at shard level, we can still build ranges
+     * at segment level when it's functionally match-all at segment level
+     */
+    private Ranges tryGetRangesFromSegment(LeafReaderContext leafCtx) throws IOException {
+        if (!rangesBuiltAtShardLevel && !aggregatorBridge.segmentMatchAll(leafCtx)) {
+            return null;
+        }
+
+        Ranges ranges = this.ranges;
+        if (ranges == null) { // not built at shard level but segment match all
+            logger.debug("Shard {} segment {} functionally match all documents. Build the fast filter", shardId, leafCtx.ord);
+            ranges = buildRanges(leafCtx);
+        }
+        return ranges;
     }
 
     /**

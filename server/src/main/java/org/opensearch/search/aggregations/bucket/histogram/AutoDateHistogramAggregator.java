@@ -210,6 +210,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         protected Function<Object, Long> bucketOrdProducer() {
             return (key) -> getBucketOrds().add(0, preparedRounding.round((long) key));
         }
+
+        @Override
+        protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
+            return segmentMatchAll(context, leaf);
+        }
     }
 
     protected abstract LongKeyedBucketOrds getBucketOrds();
@@ -241,7 +246,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount, context);
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);

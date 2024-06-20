@@ -11,6 +11,8 @@ package org.opensearch.search.optimization.ranges;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.opensearch.common.Rounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -153,5 +155,10 @@ public abstract class AbstractDateHistogramAggAggregatorBridge extends Aggregato
         }
 
         return bucketOrd;
+    }
+
+    protected boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
+        Weight weight = ctx.query().rewrite(ctx.searcher()).createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
     }
 }
