@@ -701,7 +701,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         closeIndex(index);
         ResponseException exception = expectThrows(
             ResponseException.class,
-            () -> client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search"))
+            () -> client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + index + "/_search"))
         );
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
         assertThat(exception.getMessage().contains(index), equalTo(true));
@@ -714,7 +714,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         );
         assertTrue(openIndexResponse.isAcknowledged());
 
-        Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search"));
+        Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + index + "/_search"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
@@ -771,7 +771,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
 
             ResponseException exception = expectThrows(
                 ResponseException.class,
-                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, indexResult.getIndex() + "/_search"))
+                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + indexResult.getIndex() + "/_search"))
             );
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
             assertThat(exception.getMessage().contains(indexResult.getIndex()), equalTo(true));
@@ -1270,7 +1270,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             assertThat(getAliasesResponse.getException(), nullValue());
         }
         createIndex(index, Settings.EMPTY);
-        client().performRequest(new Request(HttpPut.METHOD_NAME, index + "/_alias/" + alias));
+        client().performRequest(new Request(HttpPut.METHOD_NAME, "/" + index + "/_alias/" + alias));
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index, "non_existent_index");
             GetAliasesResponse getAliasesResponse = execute(
