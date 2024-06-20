@@ -171,7 +171,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public enum NumberType {
+    public enum NumberType implements NumericPointEncoder {
         HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
@@ -192,6 +192,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return HalfFloatPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[HalfFloatPoint.BYTES];
+                HalfFloatPoint.encodeDimension(value.floatValue(), point, 0);
+                return point;
             }
 
             @Override
@@ -332,6 +339,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Float.BYTES];
+                FloatPoint.encodeDimension(value.floatValue(), point, 0);
+                return point;
+            }
+
+            @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
                 validateParsed(parsed);
@@ -455,6 +469,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return DoublePoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Double.BYTES];
+                DoublePoint.encodeDimension(value.doubleValue(), point, 0);
+                return point;
             }
 
             @Override
@@ -583,6 +604,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Integer.BYTES];
+                IntPoint.encodeDimension(value.intValue(), point, 0);
+                return point;
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
@@ -655,6 +683,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Integer.BYTES];
+                IntPoint.encodeDimension(value.intValue(), point, 0);
+                return point;
+            }
+
+            @Override
             public Short parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.shortValue(coerce);
             }
@@ -720,6 +755,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return IntPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Integer.BYTES];
+                IntPoint.encodeDimension(value.intValue(), point, 0);
+                return point;
             }
 
             @Override
@@ -869,6 +911,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[Long.BYTES];
+                LongPoint.encodeDimension(value.longValue(), point, 0);
+                return point;
+            }
+
+            @Override
             public Long parse(XContentParser parser, boolean coerce) throws IOException {
                 return parser.longValue(coerce);
             }
@@ -986,6 +1035,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             public Number parsePoint(byte[] value) {
                 return BigIntegerPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public byte[] encodePoint(Number value) {
+                byte[] point = new byte[BigIntegerPoint.BYTES];
+                BigIntegerPoint.encodeDimension(objectToUnsignedLong(value, false, true), point, 0);
+                return point;
             }
 
             @Override
@@ -1215,16 +1271,30 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return Numbers.toLong(stringValue, coerce);
         }
 
-        /**
-         * Converts and Object to a {@code long} by checking it against known
-         * types and checking its range.
-         */
         public static BigInteger objectToUnsignedLong(Object value, boolean coerce) {
+            return objectToUnsignedLong(value, coerce, false);
+        }
+
+        /**
+         * Converts an Object to a {@code BigInteger} by checking it against known
+         * types and checking its range.
+         *
+         * @param lenientBound if true, use MIN or MAX if the value is out of bound
+         */
+        public static BigInteger objectToUnsignedLong(Object value, boolean coerce, boolean lenientBound) {
             if (value instanceof Long) {
                 return Numbers.toUnsignedBigInteger(((Long) value).longValue());
             }
 
             double doubleValue = objectToDouble(value);
+            if (lenientBound) {
+                if (doubleValue < Numbers.MIN_UNSIGNED_LONG_VALUE.doubleValue()) {
+                    return Numbers.MIN_UNSIGNED_LONG_VALUE;
+                }
+                if (doubleValue > Numbers.MAX_UNSIGNED_LONG_VALUE.doubleValue()) {
+                    return Numbers.MAX_UNSIGNED_LONG_VALUE;
+                }
+            }
             if (doubleValue < Numbers.MIN_UNSIGNED_LONG_VALUE.doubleValue()
                 || doubleValue > Numbers.MAX_UNSIGNED_LONG_VALUE.doubleValue()) {
                 throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned long");
@@ -1349,7 +1419,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static class NumberFieldType extends SimpleMappedFieldType {
+    public static class NumberFieldType extends SimpleMappedFieldType implements NumericPointEncoder {
 
         private final NumberType type;
         private final boolean coerce;
@@ -1392,6 +1462,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return type.name;
+        }
+
+        public NumberType numberType() {
+            return type;
         }
 
         public NumericType numericType() {
@@ -1500,6 +1574,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
+        }
+
+        @Override
+        public byte[] encodePoint(Number value) {
+            return type.encodePoint(value);
         }
     }
 
