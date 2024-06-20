@@ -52,13 +52,12 @@ import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorDataProvider;
+import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorBridge;
 import org.opensearch.search.optimization.ranges.OptimizationContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -120,16 +119,21 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        optimizationContext = new OptimizationContext(context, new DateHistogramAggAggregatorDataProvider());
-        if (optimizationContext.canOptimize(parent, subAggregators.length)) {
-            optimizationContext.buildRanges(Objects.requireNonNull(valuesSourceConfig.fieldType()));
+        optimizationContext = new OptimizationContext(new DateHistogramAggAggregatorBridge());
+        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
+            optimizationContext.buildRanges();
         }
     }
 
-    private final class DateHistogramAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
+    private final class DateHistogramAggAggregatorBridge extends AbstractDateHistogramAggAggregatorBridge {
         @Override
         protected boolean canOptimize() {
             return canOptimize(valuesSourceConfig);
+        }
+
+        @Override
+        protected void buildRanges() throws IOException {
+            buildRanges(context);
         }
 
         @Override
@@ -167,7 +171,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount, context);
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
@@ -254,12 +258,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("total_buckets", bucketOrds.size());
-        if (optimizationContext.optimizedSegments > 0) {
-            add.accept("optimized_segments", optimizationContext.optimizedSegments);
-            add.accept("unoptimized_segments", optimizationContext.segments - optimizationContext.optimizedSegments);
-            add.accept("leaf_visited", optimizationContext.leaf);
-            add.accept("inner_visited", optimizationContext.inner);
-        }
+        optimizationContext.populateDebugInfo(add);
     }
 
     /**

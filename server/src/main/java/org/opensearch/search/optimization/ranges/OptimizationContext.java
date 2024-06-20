@@ -16,10 +16,11 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.index.mapper.DocCountFieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -30,65 +31,60 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Context for doing the optimization for range-type aggregation
+ * <p>
+ * This object acts as a handle in aggregator to perform the optimization operations.
+ * This holds the common business logic and delegate aggregator-specific logic to {@link AggregatorBridge}
+ *
+ * @opensearch.internal
  */
-public class OptimizationContext {
+public final class OptimizationContext {
 
     private static final Logger logger = LogManager.getLogger(loggerName);
 
     private boolean rewriteable = false;
     private boolean rangesBuiltAtShardLevel = false;
 
-    private final AggregatorDataProvider aggregatorDataProvider;
-    private final SearchContext context;
-
-    private MappedFieldType fieldType;
+    private final AggregatorBridge aggregatorBridge;
     private Ranges ranges;
+    int maxAggRewriteFilters;
+    String shardId;
 
     // debug info related fields
-    public int leaf;
-    public int inner;
-    public int segments;
-    public int optimizedSegments;
+    private int leaf;
+    private int inner;
+    private int segments;
+    private int optimizedSegments;
 
-    public OptimizationContext(SearchContext context, AggregatorDataProvider aggregatorDataProvider) {
-        this.context = context;
-        this.aggregatorDataProvider = aggregatorDataProvider;
+    public OptimizationContext(AggregatorBridge aggregatorBridge) {
+        this.aggregatorBridge = aggregatorBridge;
     }
 
-    public boolean canOptimize(final Object parent, final int subAggLength) {
+    public boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) {
         if (context.maxAggRewriteFilters() == 0) return false;
 
         if (parent != null || subAggLength != 0) return false;
 
-        boolean rewriteable = aggregatorDataProvider.canOptimize();
+        boolean rewriteable = aggregatorBridge.canOptimize();
         logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, context.indexShard().shardId());
         this.rewriteable = rewriteable;
         if (rewriteable) {
-            aggregatorDataProvider.setOptimizationContext(this);
+            aggregatorBridge.setOptimizationContext(this);
+            this.maxAggRewriteFilters = context.maxAggRewriteFilters();
+            this.shardId = context.indexShard().shardId().toString();
         }
         return rewriteable;
     }
 
-    public void buildRanges(MappedFieldType fieldType) throws IOException {
+    public void buildRanges() throws IOException {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
-        this.fieldType = fieldType;
-        this.aggregatorDataProvider.buildRanges(context);
+        this.aggregatorBridge.buildRanges();
         if (ranges != null) {
-            logger.debug("Ranges built for shard {}", context.indexShard().shardId());
             rangesBuiltAtShardLevel = true;
         }
     }
 
     private Ranges buildRanges(LeafReaderContext leaf) throws IOException {
-        this.aggregatorDataProvider.buildRanges(leaf, context);
-        if (ranges != null) {
-            logger.debug("Ranges built for shard {} segment {}", context.indexShard().shardId(), leaf.ord);
-        }
-        return ranges;
-    }
-
-    Ranges getRanges() {
-        return ranges;
+        return this.aggregatorBridge.buildRanges(leaf);
     }
 
     void setRanges(Ranges ranges) {
@@ -102,16 +98,19 @@ public class OptimizationContext {
      *
      * @param incrementDocCount consume the doc_count results for certain ordinal
      */
-    public boolean tryFastFilterAggregation(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount)
-        throws IOException {
-        this.segments++;
-        if (!this.rewriteable) {
+    public boolean tryFastFilterAggregation(
+        final LeafReaderContext leafCtx,
+        final BiConsumer<Long, Long> incrementDocCount,
+        SearchContext context
+    ) throws IOException {
+        segments++;
+        if (!rewriteable) {
             return false;
         }
 
         if (leafCtx.reader().hasDeletions()) return false;
 
-        PointValues values = leafCtx.reader().getPointValues(this.fieldType.name());
+        PointValues values = leafCtx.reader().getPointValues(aggregatorBridge.fieldType.name());
         if (values == null) return false;
         // only proceed if every document corresponds to exactly one point
         if (values.getDocCount() != values.size()) return false;
@@ -120,7 +119,7 @@ public class OptimizationContext {
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
             logger.debug(
                 "Shard {} segment {} has at least one document with _doc_count field, skip fast filter optimization",
-                this.context.indexShard().shardId(),
+                shardId,
                 leafCtx.ord
             );
             return false;
@@ -128,40 +127,36 @@ public class OptimizationContext {
 
         // even if no ranges built at shard level, we can still perform the optimization
         // when functionally match-all at segment level
-        if (!this.rangesBuiltAtShardLevel && !Helper.segmentMatchAll(this.context, leafCtx)) {
+        if (!rangesBuiltAtShardLevel && !segmentMatchAll(context, leafCtx)) {
             return false;
         }
 
         Ranges ranges = this.ranges;
-        if (ranges == null) {
-            logger.debug(
-                "Shard {} segment {} functionally match all documents. Build the fast filter",
-                this.context.indexShard().shardId(),
-                leafCtx.ord
-            );
-            ranges = this.buildRanges(leafCtx);
+        if (ranges == null) { // not built at shard level but segment match all
+            logger.debug("Shard {} segment {} functionally match all documents. Build the fast filter", shardId, leafCtx.ord);
+            ranges = buildRanges(leafCtx);
             if (ranges == null) {
                 return false;
             }
         }
 
-        this.aggregatorDataProvider.tryFastFilterAggregation(values, incrementDocCount);
+        aggregatorBridge.tryFastFilterAggregation(values, incrementDocCount, ranges);
 
-        this.optimizedSegments++;
-        logger.debug("Fast filter optimization applied to shard {} segment {}", this.context.indexShard().shardId(), leafCtx.ord);
-        logger.debug("crossed leaf nodes: {}, inner nodes: {}", this.leaf, this.inner);
+        optimizedSegments++;
+        logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
+        logger.debug("crossed leaf nodes: {}, inner nodes: {}", leaf, inner);
         return true;
     }
 
-    void consumeDebugInfo(DebugInfo debug) {
-        leaf += debug.leaf;
-        inner += debug.inner;
+    public static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
+        Weight weight = ctx.query().rewrite(ctx.searcher()).createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
     }
 
     /**
      * Internal ranges representation for the optimization
      */
-    static class Ranges {
+    final static class Ranges {
         byte[][] lowers; // inclusive
         byte[][] uppers; // exclusive
         int size;
@@ -391,7 +386,7 @@ public class OptimizationContext {
     /**
      * Contains debug info of BKD traversal to show in profile
      */
-    static class DebugInfo {
+    private static class DebugInfo {
         private int leaf = 0; // leaf node visited
         private int inner = 0; // inner node visited
 
@@ -401,6 +396,20 @@ public class OptimizationContext {
 
         private void visitInner() {
             inner++;
+        }
+    }
+
+    void consumeDebugInfo(DebugInfo debug) {
+        leaf += debug.leaf;
+        inner += debug.inner;
+    }
+
+    public void populateDebugInfo(BiConsumer<String, Object> add) {
+        if (optimizedSegments > 0) {
+            add.accept("optimized_segments", optimizedSegments);
+            add.accept("unoptimized_segments", segments - optimizedSegments);
+            add.accept("leaf_visited", leaf);
+            add.accept("inner_visited", inner);
         }
     }
 }

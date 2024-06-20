@@ -10,23 +10,25 @@ package org.opensearch.search.optimization.ranges;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
-import org.opensearch.search.internal.SearchContext;
+import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.optimization.ranges.OptimizationContext.Ranges;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
- * To do the optimization, we need access to some data from Aggregator
+ * This class holds aggregator-specific logic and provides access to some data from Aggregator
  * <p>
- * To provide access, implement this interface as an inner class of the aggregator,
- * Any business logic other than providing data can be put into a base abstract class
+ * To provide the access to data, you can implement this interface as an inner class of the aggregator.
+ * Any business logic other than providing data access should stay in the base class of this package.
  *
  * @opensearch.internal
  */
-public abstract class AggregatorDataProvider {
+public abstract class AggregatorBridge {
 
-    protected OptimizationContext optimizationContext;
+    OptimizationContext optimizationContext;
+    MappedFieldType fieldType;
 
     /**
      * Check whether we can optimize the aggregator
@@ -40,11 +42,11 @@ public abstract class AggregatorDataProvider {
         this.optimizationContext = optimizationContext;
     }
 
-    protected abstract void buildRanges(SearchContext ctx) throws IOException;
+    protected abstract void buildRanges() throws IOException;
 
-    protected abstract void buildRanges(LeafReaderContext leaf, SearchContext ctx) throws IOException;
+    abstract Ranges buildRanges(LeafReaderContext leaf) throws IOException;
 
-    protected abstract void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException;
+    abstract void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount, Ranges ranges) throws IOException;
 
     protected abstract Function<Object, Long> bucketOrdProducer();
 }

@@ -15,7 +15,6 @@ import org.opensearch.index.mapper.NumericPointEncoder;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
-import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -25,9 +24,7 @@ import static org.opensearch.search.optimization.ranges.OptimizationContext.mult
 /**
  * For range aggregation
  */
-public abstract class AbstractRangeAggregatorDataProvider extends AggregatorDataProvider {
-
-    private MappedFieldType fieldType;
+public abstract class AbstractRangeAggregatorBridge extends AggregatorBridge {
 
     protected boolean canOptimize(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
         if (config.fieldType() == null) return false;
@@ -71,12 +68,13 @@ public abstract class AbstractRangeAggregatorDataProvider extends AggregatorData
     }
 
     @Override
-    protected void buildRanges(LeafReaderContext leaf, SearchContext ctx) {
+    OptimizationContext.Ranges buildRanges(LeafReaderContext leaf) {
         throw new UnsupportedOperationException("Range aggregation should not build ranges at segment level");
     }
 
     @Override
-    protected final void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
+    final void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount, OptimizationContext.Ranges ranges)
+        throws IOException {
         int size = Integer.MAX_VALUE;
 
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
@@ -84,8 +82,6 @@ public abstract class AbstractRangeAggregatorDataProvider extends AggregatorData
             incrementDocCount.accept(ord, (long) docCount);
         };
 
-        this.optimizationContext.consumeDebugInfo(
-            multiRangesTraverse(values.getPointTree(), this.optimizationContext.getRanges(), incrementFunc, size)
-        );
+        this.optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size));
     }
 }

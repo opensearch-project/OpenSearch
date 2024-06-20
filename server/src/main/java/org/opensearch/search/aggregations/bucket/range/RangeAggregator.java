@@ -58,7 +58,7 @@ import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.AbstractRangeAggregatorDataProvider;
+import org.opensearch.search.optimization.ranges.AbstractRangeAggregatorBridge;
 import org.opensearch.search.optimization.ranges.OptimizationContext;
 
 import java.io.IOException;
@@ -283,20 +283,20 @@ public class RangeAggregator extends BucketsAggregator {
             maxTo[i] = Math.max(this.ranges[i].to, maxTo[i - 1]);
         }
 
-        optimizationContext = new OptimizationContext(context, new RangeAggregatorDataProvider());
-        if (optimizationContext.canOptimize(parent, subAggregators.length)) {
-            optimizationContext.buildRanges(Objects.requireNonNull(config.fieldType()));
+        optimizationContext = new OptimizationContext(new RangeAggregatorBridge());
+        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
+            optimizationContext.buildRanges();
         }
     }
 
-    private final class RangeAggregatorDataProvider extends AbstractRangeAggregatorDataProvider {
+    private final class RangeAggregatorBridge extends AbstractRangeAggregatorBridge {
         @Override
         protected boolean canOptimize() {
             return canOptimize(valuesSourceConfig, ranges);
         }
 
         @Override
-        protected void buildRanges(SearchContext ctx) {
+        protected void buildRanges() {
             buildRanges(ranges);
         }
 
@@ -316,7 +316,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount, context);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
@@ -466,11 +466,6 @@ public class RangeAggregator extends BucketsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        if (optimizationContext.optimizedSegments > 0) {
-            add.accept("optimized_segments", optimizationContext.optimizedSegments);
-            add.accept("unoptimized_segments", optimizationContext.segments - optimizationContext.optimizedSegments);
-            add.accept("leaf_visited", optimizationContext.leaf);
-            add.accept("inner_visited", optimizationContext.inner);
-        }
+        optimizationContext.populateDebugInfo(add);
     }
 }

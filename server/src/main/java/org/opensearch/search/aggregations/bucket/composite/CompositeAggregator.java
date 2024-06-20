@@ -76,7 +76,7 @@ import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorDataProvider;
+import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorBridge;
 import org.opensearch.search.optimization.ranges.OptimizationContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
@@ -120,7 +120,7 @@ public final class CompositeAggregator extends BucketsAggregator {
     private boolean earlyTerminated;
 
     private final OptimizationContext optimizationContext;
-    private LongKeyedBucketOrds bucketOrds = null;
+    private LongKeyedBucketOrds bucketOrds;
 
     CompositeAggregator(
         String name,
@@ -166,16 +166,16 @@ public final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        optimizationContext = new OptimizationContext(context, new CompositeAggAggregatorDataProvider());
-        if (optimizationContext.canOptimize(parent, subAggregators.length)) {
-            optimizationContext.buildRanges(sourceConfigs[0].fieldType());
+        optimizationContext = new OptimizationContext(new CompositeAggAggregatorBridge());
+        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
+            optimizationContext.buildRanges();
         }
     }
 
     /**
      * Currently the filter rewrite is only supported for date histograms
      */
-    private final class CompositeAggAggregatorDataProvider extends AbstractDateHistogramAggAggregatorDataProvider {
+    private final class CompositeAggAggregatorBridge extends AbstractDateHistogramAggAggregatorBridge {
         private RoundingValuesSource valuesSource;
         private long afterKey = -1L;
 
@@ -197,6 +197,11 @@ public final class CompositeAggregator extends BucketsAggregator {
                 return true;
             }
             return false;
+        }
+
+        @Override
+        protected void buildRanges() throws IOException {
+            buildRanges(context);
         }
 
         protected Rounding getRounding(final long low, final long high) {
@@ -560,7 +565,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount, context);
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();
@@ -714,11 +719,6 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
-        if (optimizationContext.optimizedSegments > 0) {
-            add.accept("optimized_segments", optimizationContext.optimizedSegments);
-            add.accept("unoptimized_segments", optimizationContext.segments - optimizationContext.optimizedSegments);
-            add.accept("leaf_visited", optimizationContext.leaf);
-            add.accept("inner_visited", optimizationContext.inner);
-        }
+        optimizationContext.populateDebugInfo(add);
     }
 }

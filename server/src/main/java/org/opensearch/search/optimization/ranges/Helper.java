@@ -18,8 +18,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
@@ -36,14 +34,7 @@ import java.util.function.Function;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 
 /**
- * Utility class to help rewrite aggregations into filters.
- * Instead of aggregation collects documents one by one, filter may count all documents that match in one pass.
- * <p>
- * Currently supported rewrite:
- * <ul>
- *  <li> date histogram : date range filter.
- *   Applied: DateHistogramAggregator, AutoDateHistogramAggregator, CompositeAggregator </li>
- * </ul>
+ * Utility class to help range filters rewrite optimization
  *
  * @opensearch.internal
  */
@@ -51,6 +42,7 @@ public final class Helper {
 
     static final String loggerName = Helper.class.getPackageName();
     private static final Logger logger = LogManager.getLogger(loggerName);
+
     private static final Map<Class<?>, Function<Query, Query>> queryWrappers;
 
     // Initialize the wrapper map for unwrapping the query
@@ -81,8 +73,7 @@ public final class Helper {
      *
      * @return null if the field is empty or not indexed
      */
-    private static long[] getShardBounds(final SearchContext context, final String fieldName) throws IOException {
-        final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+    private static long[] getShardBounds(final List<LeafReaderContext> leaves, final String fieldName) throws IOException {
         long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
         for (LeafReaderContext leaf : leaves) {
             final PointValues values = leaf.reader().getPointValues(fieldName);
@@ -125,17 +116,19 @@ public final class Helper {
      */
     public static long[] getDateHistoAggBounds(final SearchContext context, final String fieldName) throws IOException {
         final Query cq = unwrapIntoConcreteQuery(context.query());
+        final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+
         if (cq instanceof PointRangeQuery) {
             final PointRangeQuery prq = (PointRangeQuery) cq;
-            final long[] indexBounds = getShardBounds(context, fieldName);
+            final long[] indexBounds = getShardBounds(leaves, fieldName);
             if (indexBounds == null) return null;
             return getBoundsWithRangeQuery(prq, fieldName, indexBounds);
         } else if (cq instanceof MatchAllDocsQuery) {
-            return getShardBounds(context, fieldName);
+            return getShardBounds(leaves, fieldName);
         } else if (cq instanceof FieldExistsQuery) {
             // when a range query covers all values of a shard, it will be rewrite field exists query
             if (((FieldExistsQuery) cq).getField().equals(fieldName)) {
-                return getShardBounds(context, fieldName);
+                return getShardBounds(leaves, fieldName);
             }
         }
 
@@ -156,11 +149,6 @@ public final class Helper {
         }
 
         return null;
-    }
-
-    static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
-        Weight weight = ctx.searcher().createWeight(ctx.query(), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
     }
 
     /**

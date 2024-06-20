@@ -27,8 +27,7 @@ import static org.opensearch.search.optimization.ranges.OptimizationContext.mult
 /**
  * For date histogram aggregation
  */
-public abstract class AbstractDateHistogramAggAggregatorDataProvider extends AggregatorDataProvider {
-    private MappedFieldType fieldType;
+public abstract class AbstractDateHistogramAggAggregatorBridge extends AggregatorBridge {
 
     protected boolean canOptimize(boolean missing, boolean hasScript, MappedFieldType fieldType) {
         if (!missing && !hasScript) {
@@ -55,19 +54,18 @@ public abstract class AbstractDateHistogramAggAggregatorDataProvider extends Agg
         return false;
     }
 
-    @Override
     protected void buildRanges(SearchContext context) throws IOException {
         long[] bounds = Helper.getDateHistoAggBounds(context, fieldType.name());
-        this.optimizationContext.setRanges(buildRanges(context, bounds));
+        this.optimizationContext.setRanges(buildRanges(bounds));
     }
 
     @Override
-    protected void buildRanges(LeafReaderContext leaf, SearchContext context) throws IOException {
+    OptimizationContext.Ranges buildRanges(LeafReaderContext leaf) throws IOException {
         long[] bounds = Helper.getSegmentBounds(leaf, fieldType.name());
-        this.optimizationContext.setRanges(buildRanges(context, bounds));
+        return buildRanges(bounds);
     }
 
-    private OptimizationContext.Ranges buildRanges(SearchContext context, long[] bounds) {
+    private OptimizationContext.Ranges buildRanges(long[] bounds) {
         bounds = processHardBounds(bounds);
         if (bounds == null) {
             return null;
@@ -90,7 +88,7 @@ public abstract class AbstractDateHistogramAggAggregatorDataProvider extends Agg
             getRoundingPrepared(),
             bounds[0],
             bounds[1],
-            context.maxAggRewriteFilters()
+            this.optimizationContext.maxAggRewriteFilters
         );
     }
 
@@ -134,9 +132,9 @@ public abstract class AbstractDateHistogramAggAggregatorDataProvider extends Agg
     }
 
     @Override
-    protected final void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
+    final void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount, OptimizationContext.Ranges ranges)
+        throws IOException {
         int size = getSize();
-        OptimizationContext.Ranges ranges = this.optimizationContext.getRanges();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
