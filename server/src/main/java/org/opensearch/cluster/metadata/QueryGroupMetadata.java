@@ -25,10 +25,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 
@@ -53,24 +51,19 @@ public class QueryGroupMetadata implements Metadata.Custom {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<QueryGroupMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "queryGroupParser",
+        "queryGroupsParser",
         args -> new QueryGroupMetadata((Map<String, QueryGroup>) args[0])
     );
 
     static {
-        PARSER.declareObjectArray(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> {
-                Map<String, QueryGroup> queryGroupMap = new HashMap<>();
-                while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                    queryGroupMap.put(p.currentName(), QueryGroup.fromXContent(p));
-                }
-                return queryGroupMap;
-            },
-            QUERY_GROUP_FIELD
-        );
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            Map<String, QueryGroup> queryGroupMap = new HashMap<>();
+            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                queryGroupMap.put(p.currentName(), QueryGroup.fromXContent(p));
+            }
+            return queryGroupMap;
+        }, QUERY_GROUP_FIELD);
     }
-
 
     public QueryGroupMetadata(Map<String, QueryGroup> queryGroups) {
         this.queryGroups = queryGroups;
@@ -118,7 +111,7 @@ public class QueryGroupMetadata implements Metadata.Custom {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (Map.Entry<String, QueryGroup> entry: queryGroups.entrySet()) {
+        for (Map.Entry<String, QueryGroup> entry : queryGroups.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         return builder;
@@ -177,11 +170,7 @@ public class QueryGroupMetadata implements Metadata.Custom {
         final Diff<Map<String, QueryGroup>> dataStreamDiff;
 
         QueryGroupMetadataDiff(final QueryGroupMetadata before, final QueryGroupMetadata after) {
-            dataStreamDiff = DiffableUtils.diff(
-                before.queryGroups,
-                after.queryGroups,
-                DiffableUtils.getStringKeySerializer()
-            );
+            dataStreamDiff = DiffableUtils.diff(before.queryGroups, after.queryGroups, DiffableUtils.getStringKeySerializer());
         }
 
         QueryGroupMetadataDiff(final StreamInput in) throws IOException {
@@ -218,8 +207,7 @@ public class QueryGroupMetadata implements Metadata.Custom {
          */
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            return new QueryGroupMetadata(
-                new HashMap<>(dataStreamDiff.apply(((QueryGroupMetadata) part).queryGroups)));
+            return new QueryGroupMetadata(new HashMap<>(dataStreamDiff.apply(((QueryGroupMetadata) part).queryGroups)));
         }
     }
 }

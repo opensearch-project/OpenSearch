@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.common.ResourceType;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
@@ -29,8 +30,8 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
 
     static QueryGroup createRandomQueryGroup(String _id) {
         String name = randomAlphaOfLength(10);
-        Map<String, Object> resourceLimit = new HashMap<>();
-        resourceLimit.put("jvm", randomDoubleBetween(0.0, 0.80, false));
+        Map<ResourceType, Object> resourceLimit = new HashMap<>();
+        resourceLimit.put(ResourceType.HEAP_ALLOCATIONS, randomDoubleBetween(0.0, 0.80, false));
         return new QueryGroup(name, _id, randomMode(), resourceLimit, Instant.now().getMillis());
     }
 
@@ -81,10 +82,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
     }
 
     public void testNullResourceLimits() {
-        assertThrows(
-            NullPointerException.class,
-            () -> new QueryGroup("analytics", "_id", randomMode(), null, Instant.now().getMillis())
-        );
+        assertThrows(NullPointerException.class, () -> new QueryGroup("analytics", "_id", randomMode(), null, Instant.now().getMillis()));
     }
 
     public void testEmptyResourceLimits() {
@@ -97,20 +95,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
     public void testIllegalQueryGroupMode() {
         assertThrows(
             NullPointerException.class,
-            () -> new QueryGroup("analytics", "_id", null, Map.of("jvm", (Object) 0.4), Instant.now().getMillis())
-        );
-    }
-
-    public void testInvalidResourceLimitWhenInvalidSystemResourceNameIsGiven() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> new QueryGroup(
-                "analytics",
-                "_id",
-                randomMode(),
-                Map.of("RequestRate", (Object) randomDoubleBetween(0.01, 0.8, false)),
-                Instant.now().getMillis()
-            )
+            () -> new QueryGroup("analytics", "_id", null, Map.of(ResourceType.HEAP_ALLOCATIONS, (Object) 0.4), Instant.now().getMillis())
         );
     }
 
@@ -121,7 +106,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
                 "analytics",
                 "_id",
                 randomMode(),
-                Map.of("RequestRate", (Object) randomDoubleBetween(1.1, 1.8, false)),
+                Map.of(ResourceType.HEAP_ALLOCATIONS, (Object) randomDoubleBetween(1.1, 1.8, false)),
                 Instant.now().getMillis()
             )
         );
@@ -132,7 +117,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
             "analytics",
             "_id",
             randomMode(),
-            Map.of("jvm", randomDoubleBetween(0.01, 0.8, false)),
+            Map.of(ResourceType.HEAP_ALLOCATIONS, randomDoubleBetween(0.01, 0.8, false)),
             Instant.ofEpochMilli(1717187289).getMillis()
         );
 

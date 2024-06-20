@@ -22,11 +22,7 @@ public class QueryGroupMetadataTests extends AbstractNamedWriteableTestCase<Quer
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Collections.singletonList(
-                new NamedWriteableRegistry.Entry(
-                    QueryGroupMetadata.class,
-                    QueryGroupMetadata.TYPE,
-                    QueryGroupMetadata::new
-                )
+                new NamedWriteableRegistry.Entry(QueryGroupMetadata.class, QueryGroupMetadata.TYPE, QueryGroupMetadata::new)
             )
         );
     }
