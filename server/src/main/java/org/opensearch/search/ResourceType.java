@@ -21,6 +21,11 @@ public enum ResourceType {
         this.name = name;
     }
 
+    /**
+     * The string match here is case-sensitive
+     * @param s
+     * @return a {@link ResourceType}
+     */
     public static ResourceType fromName(String s) {
         for (ResourceType resourceType : values()) {
             if (resourceType.getName().equals(s)) {
