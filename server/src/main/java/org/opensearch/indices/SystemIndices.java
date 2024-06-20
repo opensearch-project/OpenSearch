@@ -40,6 +40,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.core.index.Index;
@@ -64,8 +65,9 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  * node knows about. Methods for determining if an index should be a system index are also provided
  * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.16.0")
 public class SystemIndices {
     private static final Logger logger = LogManager.getLogger(SystemIndices.class);
 
@@ -76,9 +78,11 @@ public class SystemIndices {
 
     private final CharacterRunAutomaton runAutomaton;
     private final Collection<SystemIndexDescriptor> systemIndexDescriptors;
+    private final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap;
 
     public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
         final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
+        this.descriptorsMap = descriptorsMap;
         checkForOverlappingPatterns(descriptorsMap);
         this.systemIndexDescriptors = unmodifiableList(
             descriptorsMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList())
@@ -102,6 +106,10 @@ public class SystemIndices {
      */
     public boolean isSystemIndex(String indexName) {
         return runAutomaton.run(indexName);
+    }
+
+    public Map<String, Collection<SystemIndexDescriptor>> getSystemIndexDescriptors() {
+        return this.descriptorsMap;
     }
 
     /**

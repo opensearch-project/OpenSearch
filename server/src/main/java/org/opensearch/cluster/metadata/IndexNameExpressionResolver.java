@@ -53,6 +53,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.InvalidIndexNameException;
+import org.opensearch.indices.SystemIndices;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -91,9 +92,16 @@ public class IndexNameExpressionResolver {
     private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
 
     private final ThreadContext threadContext;
+    private final SystemIndices systemIndices;
 
     public IndexNameExpressionResolver(ThreadContext threadContext) {
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
+        this.systemIndices = new SystemIndices(Collections.emptyMap());
+    }
+
+    public IndexNameExpressionResolver(ThreadContext threadContext, SystemIndices systemIndices) {
+        this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
+        this.systemIndices = Objects.requireNonNullElseGet(systemIndices, () -> new SystemIndices(Collections.emptyMap()));
     }
 
     /**
@@ -110,6 +118,13 @@ public class IndexNameExpressionResolver {
             isSystemIndexAccessAllowed()
         );
         return concreteIndexNames(context, request.indices());
+    }
+
+    /**
+     * Returns the registry of system indices that have been reserved by modules and plugins
+     */
+    public SystemIndices systemIndices() {
+        return this.systemIndices;
     }
 
     /**
