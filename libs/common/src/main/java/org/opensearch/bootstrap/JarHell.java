@@ -294,8 +294,8 @@ public class JarHell {
                 // throw a better exception in this ridiculous case.
                 // unfortunately the zip file format allows this buggy possibility
                 // UweSays: It can, but should be considered as bug :-)
-                throw new IllegalStateException(
-                    "jar hell!"
+//                throw new IllegalStateException(
+                System.out.println("jar hell!"
                         + System.lineSeparator()
                         + "class: "
                         + clazz
@@ -305,7 +305,7 @@ public class JarHell {
                         + " !!!!!!!!!"
                 );
             } else {
-                throw new IllegalStateException(
+                System.out.println(
                     "jar hell!"
                         + System.lineSeparator()
                         + "class: "

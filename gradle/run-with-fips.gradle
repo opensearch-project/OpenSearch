@@ -31,7 +31,7 @@ if (java8) {
 fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
 
 bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.4')
-bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.18')
+bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19')
 
 pluginManager.withPlugin('java') {
   project.afterEvaluate {
@@ -53,8 +53,8 @@ testClusters {
     systemProperty 'java.security.properties', '=${OPENSEARCH_PATH_CONF}/fips_java.security'
     systemProperty 'java.security.policy', '=${OPENSEARCH_PATH_CONF}/fips_java.policy'
     systemProperty 'javax.net.ssl.trustStore', '${OPENSEARCH_PATH_CONF}/cacerts.bcfks'
-    systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-    systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+    systemProperty 'javax.net.ssl.trustStorePassword', 'rzg9RxrMBDU3jV^^$vNB' // password must be at least 112 bits
+    systemProperty 'javax.net.ssl.keyStorePassword', 'rzg9RxrMBDU3jV^^$vNB' // password must be at least 112 bits
     systemProperty 'javax.net.ssl.keyStoreType', 'BCFKS'
 
     if (numZones > 1) numberOfZones = numZones

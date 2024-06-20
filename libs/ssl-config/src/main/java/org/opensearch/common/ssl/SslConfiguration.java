@@ -39,6 +39,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
+import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -155,7 +156,9 @@ public class SslConfiguration {
         final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager();
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         try {
-            SSLContext sslContext = SSLContext.getInstance(contextProtocol());
+            SSLContext sslContext = SSLContext.getInstance("TLS", "BCJSSE");
+//            SSLContext sslContext = SSLContext.getInstance(contextProtocol());
+//            SSLContext sslContext = SSLContext.getInstance(contextProtocol(), new BouncyCastleJsseProvider());
             sslContext.init(new X509ExtendedKeyManager[] { keyManager }, new X509ExtendedTrustManager[] { trustManager }, null);
             return sslContext;
         } catch (GeneralSecurityException e) {

@@ -54,12 +54,11 @@ import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.security.Provider;
+import java.security.Security;
+import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.opensearch.common.settings.Setting.listSetting;
 import static org.opensearch.common.settings.Setting.simpleString;
@@ -127,6 +126,22 @@ class ReindexSslConfig {
                 return settings.getAsList(key);
             }
         };
+
+        if (org.bouncycastle.crypto.fips.FipsStatus.isReady()) {
+            var providerToCypher = Arrays.stream(Security.getProviders()).collect(Collectors.toMap(
+                Provider::getName,
+                value -> value.getServices()
+                    .stream()
+                    .filter(s -> "Cipher".equals(s.getType()))
+                    .map(Provider.Service::getAlgorithm)
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.toList())
+            ));
+
+            System.out.printf("--------> %d cyphers are available.", providerToCypher.get("BCFIPS").size());
+        }
+
         configuration = loader.load(environment.configFile());
         reload();
 
