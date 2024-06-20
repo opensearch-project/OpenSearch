@@ -72,7 +72,6 @@ public class IndicesRequestCacheCleanupIT extends OpenSearchIntegTestCase {
     }
 
     public void testCacheWithInvalidation() throws Exception {
-        
         Client client = client();
         String index = "index";
         assertAcked(
