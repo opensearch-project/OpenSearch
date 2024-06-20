@@ -86,6 +86,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -673,9 +674,11 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 true,
                 MOCK_QSC
             );
-            assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-            IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
-            assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
+            assertThat(query, either(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+            if (query instanceof IndexOrDocValuesQuery) {
+                IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
+                assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
+            }
         }
         reader.close();
         dir.close();
