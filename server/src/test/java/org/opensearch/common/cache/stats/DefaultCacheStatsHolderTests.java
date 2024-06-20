@@ -20,7 +20,6 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Phaser;
 
 public class DefaultCacheStatsHolderTests extends OpenSearchTestCase {
     private final String storeName = "dummy_store";
@@ -150,27 +149,17 @@ public class DefaultCacheStatsHolderTests extends OpenSearchTestCase {
         // and reflect only the stats for their B1 child.
 
         Thread[] threads = new Thread[numAValues + 1];
-        CountDownLatch countDownLatch = new CountDownLatch(numAValues + 1);
-        Phaser phaser = new Phaser(numAValues + 2);
         for (int i = 0; i < numAValues; i++) {
             int finalI = i;
-            threads[i] = new Thread(() -> {
-                phaser.arriveAndAwaitAdvance();
-                cacheStatsHolder.removeDimensions(List.of("A" + finalI, "B0"));
-                countDownLatch.countDown();
-            });
+            threads[i] = new Thread(() -> { cacheStatsHolder.removeDimensions(List.of("A" + finalI, "B0")); });
         }
-        threads[numAValues] = new Thread(() -> {
-            phaser.arriveAndAwaitAdvance();
-            cacheStatsHolder.removeDimensions(List.of("A0", "B1"));
-            countDownLatch.countDown();
-        });
+        threads[numAValues] = new Thread(() -> { cacheStatsHolder.removeDimensions(List.of("A0", "B1")); });
         for (Thread thread : threads) {
             thread.start();
         }
-
-        phaser.arriveAndAwaitAdvance();
-        countDownLatch.await();
+        for (Thread thread : threads) {
+            thread.join();
+        }
 
         // intermediate node for A0 should be null
         assertNull(getNode(List.of("A0"), cacheStatsHolder.getStatsRoot()));
