@@ -734,6 +734,7 @@ public final class IndexSettings {
     private final int numberOfShards;
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
+    private final boolean isStoreLocalityPartial;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
     private final String remoteStoreTranslogRepository;
     private final String remoteStoreRepository;
@@ -934,6 +935,10 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isStoreLocalityPartial = settings.get(
+            IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(),
+            IndexModule.DataLocalityType.FULL.toString()
+        ).equalsIgnoreCase(IndexModule.DataLocalityType.PARTIAL.toString());
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
@@ -1287,6 +1292,13 @@ public final class IndexSettings {
         // Today enabling remote store automatically enables remote translog as well.
         // which is why isRemoteStoreEnabled is used to represent isRemoteTranslogStoreEnabled
         return isRemoteStoreEnabled;
+    }
+
+    /**
+     * Returns true if the store locality is partial
+     */
+    public boolean isStoreLocalityPartial() {
+        return isStoreLocalityPartial;
     }
 
     /**

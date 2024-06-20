@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
@@ -48,9 +50,9 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
  */
 @PublicApi(since = "2.7.0")
 public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
+    private static final Logger logger = LogManager.getLogger(FileCache.class);
     // This constant moved, but exists here for backward compatibility
     public static final Setting<Double> DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING = FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
-
     private final SegmentedCache<Path, CachedIndexInput> theCache;
 
     private final CircuitBreaker circuitBreaker;
@@ -141,6 +143,14 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     @Override
     public CacheStats stats() {
         return theCache.stats();
+    }
+
+    // To be used only for debugging purposes
+    public void logCurrentState() {
+        logger.trace("CURRENT STATE OF FILE CACHE \n");
+        CacheUsage cacheUsage = theCache.usage();
+        logger.trace("Total Usage: " + cacheUsage.usage() + " , Active Usage: " + cacheUsage.activeUsage());
+        theCache.logCurrentState();
     }
 
     /**
