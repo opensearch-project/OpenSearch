@@ -976,7 +976,8 @@ public class RemoteClusterStateService implements Closeable {
         return getClusterStateForManifest(clusterName, clusterMetadataManifest.get(), nodeId, includeEphemeral);
     }
 
-    private ClusterState readClusterStateInParallel(
+    // package private for testing
+    ClusterState readClusterStateInParallel(
         ClusterState previousState,
         ClusterMetadataManifest manifest,
         String clusterUUID,
@@ -1233,6 +1234,8 @@ public class RemoteClusterStateService implements Closeable {
                     metadataBuilder.transientSettings((Settings) remoteReadResult.getObj());
                     break;
                 case TEMPLATES_METADATA:
+                    // we need to remove the older templates, as the templates will be refreshed from remote file
+                    metadataBuilder.removeAllTemplates();
                     metadataBuilder.templates((TemplatesMetadata) remoteReadResult.getObj());
                     break;
                 case HASHES_OF_CONSISTENT_SETTINGS:
@@ -1285,7 +1288,7 @@ public class RemoteClusterStateService implements Closeable {
                 manifest.getCustomMetadataMap(),
                 manifest.getCoordinationMetadata() != null,
                 manifest.getSettingsMetadata() != null,
-                manifest.getTransientSettingsMetadata() != null,
+                includeEphemeral && manifest.getTransientSettingsMetadata() != null,
                 manifest.getTemplatesMetadata() != null,
                 includeEphemeral && manifest.getDiscoveryNodesMetadata() != null,
                 includeEphemeral && manifest.getClusterBlocksMetadata() != null,
@@ -1321,13 +1324,9 @@ public class RemoteClusterStateService implements Closeable {
 
     }
 
-    public ClusterState getClusterStateUsingDiff(
-        String clusterName,
-        ClusterMetadataManifest manifest,
-        ClusterState previousState,
-        String localNodeId
-    ) throws IOException {
-        assert manifest.getDiffManifest() != null;
+    public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId)
+        throws IOException {
+        assert manifest.getDiffManifest() != null : "Diff manifest null which is required for downloading cluster state";
         ClusterStateDiffManifest diff = manifest.getDiffManifest();
         List<UploadedIndexMetadata> updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {
             Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = manifest.getIndices()
@@ -1584,6 +1583,19 @@ public class RemoteClusterStateService implements Closeable {
 
     private boolean isValidClusterUUID(ClusterMetadataManifest manifest) {
         return manifest.isClusterUUIDCommitted();
+    }
+
+    // package private setter which are required for injecting mock managers, these setters are not supposed to be used elsewhere
+    void setRemoteIndexMetadataManager(RemoteIndexMetadataManager remoteIndexMetadataManager) {
+        this.remoteIndexMetadataManager = remoteIndexMetadataManager;
+    }
+
+    void setRemoteGlobalMetadataManager(RemoteGlobalMetadataManager remoteGlobalMetadataManager) {
+        this.remoteGlobalMetadataManager = remoteGlobalMetadataManager;
+    }
+
+    void setRemoteClusterStateAttributesManager(RemoteClusterStateAttributesManager remoteClusterStateAttributeManager) {
+        this.remoteClusterStateAttributesManager = remoteClusterStateAttributeManager;
     }
 
     public void writeMetadataFailed() {
