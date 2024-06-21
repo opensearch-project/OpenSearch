@@ -242,6 +242,11 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             if (pair != null) {
                 try (ReleasableLock ignore = writeLock.acquire()) {
                     onHeapCache.put(pair.v1(), pair.v2());
+                } catch (Exception e) {
+                    // TODO: Catch specific exceptions to know whether this resulted from cache or underlying removal
+                    // listeners/stats. Needs better exception handling at underlying layers.For now swallowing
+                    // exception.
+                    logger.warn("Exception occurred while putting item onto heap cache", e);
                 }
             } else {
                 if (ex != null) {
@@ -251,8 +256,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             completableFutureMap.remove(key); // Remove key from map as not needed anymore.
             return null;
         };
+        V value = null;
         if (future == null) {
-            V value = null;
             future = completableFutureMap.get(key);
             future.handle(handler);
             try {
@@ -268,15 +273,12 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             } else {
                 future.complete(new Tuple<>(key, value));
             }
-        }
-        V value;
-        try {
-            value = future.get().v2();
-            if (future.isCompletedExceptionally()) {
-                throw new IllegalStateException("Future completed exceptionally but no error thrown");
+        } else {
+            try {
+                value = future.get().v2();
+            } catch (InterruptedException ex) {
+                throw new IllegalStateException(ex);
             }
-        } catch (InterruptedException ex) {
-            throw new IllegalStateException(ex);
         }
         return value;
     }
@@ -387,12 +389,22 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         ICacheKey<K> key = notification.getKey();
         boolean wasEvicted = SPILLOVER_REMOVAL_REASONS.contains(notification.getRemovalReason());
         boolean countEvictionTowardsTotal = false; // Don't count this eviction towards the cache's total if it ends up in the disk tier
-        if (caches.get(diskCache).isEnabled() && wasEvicted && evaluatePolicies(notification.getValue())) {
+        boolean exceptionOccurredOnDiskCachePut = false;
+        boolean canCacheOnDisk = caches.get(diskCache).isEnabled() && wasEvicted && evaluatePolicies(notification.getValue());
+        if (canCacheOnDisk) {
             try (ReleasableLock ignore = writeLock.acquire()) {
                 diskCache.put(key, notification.getValue()); // spill over to the disk tier and increment its stats
+            } catch (Exception ex) {
+                // TODO: Catch specific exceptions. Needs better exception handling. We are just swallowing exception
+                // in this case as it shouldn't cause upstream request to fail.
+                logger.warn("Exception occurred while putting item to disk cache", ex);
+                exceptionOccurredOnDiskCachePut = true;
             }
-            updateStatsOnPut(TIER_DIMENSION_VALUE_DISK, key, notification.getValue());
-        } else {
+            if (!exceptionOccurredOnDiskCachePut) {
+                updateStatsOnPut(TIER_DIMENSION_VALUE_DISK, key, notification.getValue());
+            }
+        }
+        if (!canCacheOnDisk || exceptionOccurredOnDiskCachePut) {
             // If the value is not going to the disk cache, send this notification to the TSC's removal listener
             // as the value is leaving the TSC entirely
             removalListener.onRemoval(notification);
