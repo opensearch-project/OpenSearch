@@ -933,6 +933,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         verifyComputeIfAbsentThrowsException(RuntimeException.class, loadAwareCacheLoader, "Testing");
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testComputeIfAbsentWithOnHeapCacheThrowingExceptionOnPut() throws Exception {
         int onHeapCacheSize = randomIntBetween(100, 300);
         int diskCacheSize = randomIntBetween(200, 400);
@@ -999,6 +1000,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertEquals(0, tieredSpilloverCache.completableFutureMap.size());
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testComputeIfAbsentWithDiskCacheThrowingExceptionOnPut() throws Exception {
         int onHeapCacheSize = 0;
         int keyValueSize = 50;
@@ -1758,6 +1760,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         return snapshot;
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private void verifyComputeIfAbsentThrowsException(
         Class<? extends Exception> expectedException,
         LoadAwareCacheLoader loader,
