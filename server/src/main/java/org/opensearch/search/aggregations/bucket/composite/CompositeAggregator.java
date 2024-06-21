@@ -183,6 +183,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
                     // bucketOrds is used for saving the date histogram results got from the optimization path
                     bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
+                    return true;
                 }
                 return false;
             }
