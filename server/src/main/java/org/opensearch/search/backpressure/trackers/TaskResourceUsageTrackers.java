@@ -111,7 +111,7 @@ public class TaskResourceUsageTrackers {
         /**
          * Method to get taskCancellations due to this tracker for the given {@link CancellableTask} tasks
          * @param tasks cancellation eligible tasks due to node duress and search traffic threshold breach
-         * @return
+         * @return the list of tasks which are breaching task level thresholds for this {@link TaskResourceUsageTracker}
          */
         public List<TaskCancellation> getTaskCancellations(List<CancellableTask> tasks) {
             return tasks.stream()

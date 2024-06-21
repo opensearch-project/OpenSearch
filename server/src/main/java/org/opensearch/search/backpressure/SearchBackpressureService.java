@@ -256,9 +256,9 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     /**
      * Had to define this method to help mock this static method to test the scenario where SearchTraffic should not be
      * penalised when not breaching the threshold
-     * @param searchTasks
-     * @param threshold
-     * @return
+     * @param searchTasks inFlight co-ordinator requests
+     * @param threshold   miniumum  jvm allocated bytes ratio w.r.t. available heap
+     * @return a boolean value based on whether the threshold is breached
      */
     boolean isHeapUsageDominatedBySearch(List<CancellableTask> searchTasks, double threshold) {
         return HeapUsageTracker.isHeapUsageDominatedBySearch(searchTasks, threshold);
@@ -299,8 +299,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
     /**
      * Method to reduce the taskCancellations into unique bunch
-     * @param taskCancellations
-     * @return
+     * @param taskCancellations all task cancellations
+     * @return unique task cancellations
      */
     private List<TaskCancellation> mergeTaskCancellations(final List<TaskCancellation> taskCancellations) {
         final Map<Long, TaskCancellation> uniqueTaskCancellations = new HashMap<>();
