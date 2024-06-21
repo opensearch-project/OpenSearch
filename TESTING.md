@@ -90,21 +90,23 @@ This will instruct all JVMs (including any that run cli tools such as creating t
 
 ## Test case filtering
 
--   `tests.class` is a class-filtering shell-like glob pattern
--   `tests.method` is a method-filtering glob pattern.
+To be able to run a single test you need to specify the module where you're running the tests from.
+
+Example: `./gradlew server:test --tests "*.ReplicaShardBatchAllocatorTests.testNoAsyncFetchData"`
 
 Run a single test case (variants)
 
-    ./gradlew test -Dtests.class=org.opensearch.package.ClassName
-    ./gradlew test "-Dtests.class=*.ClassName"
+    ./gradlew module:test --tests org.opensearch.package.ClassName
+    ./gradlew module:test --tests org.opensearch.package.ClassName.testName
+    ./gradlew module:test --tests "*.ClassName"
 
 Run all tests in a package and its sub-packages
 
-    ./gradlew test "-Dtests.class=org.opensearch.package.*"
+    ./gradlew module:test --tests "org.opensearch.package.*"
 
 Run any test methods that contain *esi* (e.g.: .r*esi*ze.)
 
-    ./gradlew test "-Dtests.method=*esi*"
+    ./gradlew module:test --tests "*esi*"
 
 Run all tests that are waiting for a bugfix (disabled by default)
 
