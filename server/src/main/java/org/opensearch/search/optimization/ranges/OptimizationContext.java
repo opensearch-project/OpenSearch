@@ -73,7 +73,7 @@ public final class OptimizationContext {
         return rewriteable;
     }
 
-    public void buildRanges() throws IOException {
+    public void prepare() throws IOException {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
         this.aggregatorBridge.buildRanges();
         if (ranges != null) {
@@ -81,7 +81,7 @@ public final class OptimizationContext {
         }
     }
 
-    private Ranges buildRanges(LeafReaderContext leaf) throws IOException {
+    private Ranges prepare(LeafReaderContext leaf) throws IOException {
         return this.aggregatorBridge.buildRanges(leaf);
     }
 
@@ -96,8 +96,7 @@ public final class OptimizationContext {
      *
      * @param incrementDocCount consume the doc_count results for certain ordinal
      */
-    public boolean tryFastFilterAggregation(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount)
-        throws IOException {
+    public boolean tryOptimize(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount) throws IOException {
         segments++;
         if (!rewriteable) {
             return false;
@@ -143,7 +142,7 @@ public final class OptimizationContext {
         Ranges ranges = this.ranges;
         if (ranges == null) { // not built at shard level but segment match all
             logger.debug("Shard {} segment {} functionally match all documents. Build the fast filter", shardId, leafCtx.ord);
-            ranges = buildRanges(leafCtx);
+            ranges = prepare(leafCtx);
         }
         return ranges;
     }

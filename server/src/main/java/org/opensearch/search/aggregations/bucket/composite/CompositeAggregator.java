@@ -168,7 +168,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
         optimizationContext = new OptimizationContext(new CompositeAggAggregatorBridge());
         if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
-            optimizationContext.buildRanges();
+            optimizationContext.prepare();
         }
     }
 
@@ -181,8 +181,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
         @Override
         protected boolean canOptimize() {
-            if (sourceConfigs.length != 1 || !(sourceConfigs[0].valuesSource() instanceof RoundingValuesSource)) return false;
-            if (canOptimize(sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript(), sourceConfigs[0].fieldType())) {
+            if (canOptimize(sourceConfigs)) {
                 this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
                 if (rawAfterKey != null) {
                     assert rawAfterKey.size() == 1 && formats.size() == 1;
@@ -193,11 +192,11 @@ public final class CompositeAggregator extends BucketsAggregator {
 
                 // bucketOrds is used for saving the date histogram results got from the optimization path
                 bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
-
-                return true;
             }
             return false;
         }
+
+
 
         @Override
         protected void buildRanges() throws IOException {
@@ -570,7 +569,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();

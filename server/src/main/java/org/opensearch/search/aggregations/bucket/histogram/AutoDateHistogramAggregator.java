@@ -161,7 +161,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         optimizationContext = new OptimizationContext(new AutoHistogramAggAggregatorBridge());
         if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
-            optimizationContext.buildRanges();
+            optimizationContext.prepare();
         }
     }
 
@@ -246,7 +246,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);

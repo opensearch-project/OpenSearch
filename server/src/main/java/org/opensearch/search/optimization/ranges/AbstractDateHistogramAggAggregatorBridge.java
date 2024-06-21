@@ -16,6 +16,8 @@ import org.apache.lucene.search.Weight;
 import org.opensearch.common.Rounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
+import org.opensearch.search.aggregations.bucket.composite.RoundingValuesSource;
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -54,6 +56,12 @@ public abstract class AbstractDateHistogramAggAggregatorBridge extends Aggregato
             }
         }
         return false;
+    }
+
+    protected boolean canOptimize(CompositeValuesSourceConfig[] sourceConfigs) {
+        if (sourceConfigs.length != 1 || !(sourceConfigs[0].valuesSource() instanceof RoundingValuesSource))
+            return false;
+        return canOptimize(sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript(), sourceConfigs[0].fieldType());
     }
 
     protected void buildRanges(SearchContext context) throws IOException {

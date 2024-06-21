@@ -285,7 +285,7 @@ public class RangeAggregator extends BucketsAggregator {
 
         optimizationContext = new OptimizationContext(new RangeAggregatorBridge());
         if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
-            optimizationContext.buildRanges();
+            optimizationContext.prepare();
         }
     }
 
@@ -316,7 +316,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);

@@ -121,7 +121,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         optimizationContext = new OptimizationContext(new DateHistogramAggAggregatorBridge());
         if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
-            optimizationContext.buildRanges();
+            optimizationContext.prepare();
         }
     }
 
@@ -176,7 +176,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryFastFilterAggregation(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount);
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
