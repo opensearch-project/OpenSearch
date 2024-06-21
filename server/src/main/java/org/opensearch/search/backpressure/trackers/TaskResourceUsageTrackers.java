@@ -35,8 +35,8 @@ public class TaskResourceUsageTrackers {
 
     /**
      * adds the tracker for the TrackerType
-     * @param tracker
-     * @param trackerType
+     * @param tracker is {@link TaskResourceUsageTracker} implementation which will be added
+     * @param trackerType is {@link TaskResourceUsageTrackerType} which depicts the implementation type
      */
     public void addTracker(final TaskResourceUsageTracker tracker, final TaskResourceUsageTrackerType trackerType) {
         all.put(trackerType, tracker);
@@ -44,7 +44,8 @@ public class TaskResourceUsageTrackers {
 
     /**
      * getter for tracker for a {@link TaskResourceUsageTrackerType}
-     * @return
+     * @param type for which the implementation is returned
+     * @return the {@link TaskResourceUsageTrackerType}
      */
     public Optional<TaskResourceUsageTracker> getTracker(TaskResourceUsageTrackerType type) {
         return Optional.ofNullable(all.get(type));
@@ -52,7 +53,7 @@ public class TaskResourceUsageTrackers {
 
     /**
      * Method to access all available {@link TaskResourceUsageTracker}
-     * @return
+     * @return all enabled and available {@link TaskResourceUsageTracker}s
      */
     public List<TaskResourceUsageTracker> all() {
         return new ArrayList<>(all.values());
@@ -71,7 +72,7 @@ public class TaskResourceUsageTrackers {
 
         /**
          * for test purposes only
-         * @param resourceUsageBreachEvaluator
+         * @param resourceUsageBreachEvaluator which suggests whether a task should be cancelled or not
          */
         public void setResourceUsageBreachEvaluator(final ResourceUsageBreachEvaluator resourceUsageBreachEvaluator) {
             this.resourceUsageBreachEvaluator = resourceUsageBreachEvaluator;
@@ -109,7 +110,7 @@ public class TaskResourceUsageTrackers {
 
         /**
          * Method to get taskCancellations due to this tracker for the given {@link CancellableTask} tasks
-         * @param tasks
+         * @param tasks cancellation eligible tasks due to node duress and search traffic threshold breach
          * @return
          */
         public List<TaskCancellation> getTaskCancellations(List<CancellableTask> tasks) {
@@ -138,7 +139,7 @@ public class TaskResourceUsageTrackers {
         public interface ResourceUsageBreachEvaluator {
             /**
              * evaluates whether the task is eligible for cancellation based on {@link TaskResourceUsageTracker} implementation
-             * @param task
+             * @param task is input to this method on which the cancellation evaluation is performed
              * @return a {@link TaskCancellation.Reason} why this task should be cancelled otherwise empty
              */
             public Optional<TaskCancellation.Reason> evaluate(final Task task);

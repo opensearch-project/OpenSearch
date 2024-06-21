@@ -23,7 +23,7 @@ public enum ResourceType {
 
     /**
      * The string match here is case-sensitive
-     * @param s
+     * @param s name matching the resource type name
      * @return a {@link ResourceType}
      */
     public static ResourceType fromName(String s) {
