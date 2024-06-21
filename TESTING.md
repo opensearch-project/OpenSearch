@@ -108,7 +108,7 @@ Run any test methods that contain *esi* (e.g.: .r*esi*ze.)
 
 Run all tests that are waiting for a bugfix (disabled by default)
 
-./gradlew test -Dtests.filter=@awaitsfix
+    ./gradlew test "-Dtests.method=*esi*"
 
 ## Seed and repetitions
 
