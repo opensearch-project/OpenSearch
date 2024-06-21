@@ -90,7 +90,7 @@ public final class Grok {
         UTF8Encoding.INSTANCE,
         Syntax.DEFAULT
     );
-    private static final int MAX_PATTERN_DEPTH_SIZE = 1_000;
+    private static final int MAX_PATTERN_DEPTH_SIZE = 500;
 
     private static final int MAX_TO_REGEX_ITERATIONS = 100_000; // sanity limit
 

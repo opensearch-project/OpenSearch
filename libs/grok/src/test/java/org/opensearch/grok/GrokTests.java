@@ -380,13 +380,13 @@ public class GrokTests extends OpenSearchTestCase {
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             Map<String, String> bank = new TreeMap<>();
-            for (int i = 1; i <= 1001; i++) {
+            for (int i = 1; i <= 501; i++) {
                 bank.put("NAME" + i, "!!!%{NAME" + (i + 1) + "}!!!");
             }
             String pattern = "%{NAME1}";
             new Grok(bank, pattern, false, logger::warn);
         });
-        assertEquals("Pattern references exceeded maximum depth of 1000", e.getMessage());
+        assertEquals("Pattern references exceeded maximum depth of 500", e.getMessage());
     }
 
     public void testMalformedPattern() {
