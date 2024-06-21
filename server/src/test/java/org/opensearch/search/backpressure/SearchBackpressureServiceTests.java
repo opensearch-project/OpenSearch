@@ -469,7 +469,6 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new SearchTaskStats(
                 5,
                 1,
-                0,
                 Map.of(
                     TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
                     new MockStats(5),
@@ -477,7 +476,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                     new MockStats(0)
                 )
             ),
-            new SearchShardTaskStats(0, 0, 0, Collections.emptyMap()),
+            new SearchShardTaskStats(0, 0, Collections.emptyMap()),
             SearchBackpressureMode.ENFORCED
         );
 
