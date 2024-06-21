@@ -276,7 +276,7 @@ Note that the REST tests, like all the integration tests, can be run against an 
 
 ## Debug REST tests
 
-Since Rest tests can be run against an external cluster. You can launch an OpenSearch cluster in debug node following [Launching and debugging from an IDE](#launching-and-debugging-from-an-ide). And connect your Rest test to this cluster.
+Since Rest tests can be run against an external cluster. You can launch an OpenSearch cluster in debug mode following [Launching and debugging from an IDE](#launching-and-debugging-from-an-ide). And connect your Rest test to this cluster.
 For example:
 
     ./gradlew :rest-api-spec:yamlRestTest \
