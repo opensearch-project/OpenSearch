@@ -53,6 +53,10 @@ public class ListPitInfo implements ToXContentFragment, Writeable {
         return creationTime;
     }
 
+    public long getKeepAlive() {
+        return keepAlive;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(pitId);
