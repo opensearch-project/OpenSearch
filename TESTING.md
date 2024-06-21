@@ -274,6 +274,14 @@ If in doubt about which command to use, simply run &lt;gradle path&gt;:check
 
 Note that the REST tests, like all the integration tests, can be run against an external cluster by specifying the `tests.cluster` property, which if present needs to contain a comma separated list of nodes to connect to (e.g. localhost:9300).
 
+## Debug REST tests
+
+Since Rest tests can be run against an external cluster. You can launch an OpenSearch cluster in debug node following [Launching and debugging from an IDE](#launching-and-debugging-from-an-ide). And connect your Rest test to this cluster.
+For example:
+
+    ./gradlew :rest-api-spec:yamlRestTest \
+      -Dtests.cluster=localhost:9200 -Dtests.rest.cluster=localhost:9200 -Dtests.clustername=runTask-0
+
 # Testing packaging
 
 The packaging tests use Vagrant virtual machines or cloud instances to verify that installing and running OpenSearch distributions works correctly on supported operating systems. These tests should really only be run on ephemeral systems because they’re destructive; that is, these tests install and remove packages and freely modify system settings, so you will probably regret it if you execute them on your development machine.
