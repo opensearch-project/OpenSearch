@@ -32,6 +32,7 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -54,7 +55,9 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.FastFilterRewriteHelper;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -62,6 +65,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -245,6 +249,8 @@ public class RangeAggregator extends BucketsAggregator {
 
     final double[] maxTo;
 
+    private final FastFilterRewriteHelper.FastFilterContext fastFilterContext;
+
     public RangeAggregator(
         String name,
         AggregatorFactories factories,
@@ -256,17 +262,16 @@ public class RangeAggregator extends BucketsAggregator {
         SearchContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        ValuesSourceConfig config
     ) throws IOException {
-
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
-
-        this.ranges = ranges;
+        this.ranges = ranges; // already sorted by the range.from and range.to
 
         maxTo = new double[this.ranges.length];
         maxTo[0] = this.ranges[0].to;
@@ -274,6 +279,13 @@ public class RangeAggregator extends BucketsAggregator {
             maxTo[i] = Math.max(this.ranges[i].to, maxTo[i - 1]);
         }
 
+        fastFilterContext = new FastFilterRewriteHelper.FastFilterContext(
+            context,
+            new FastFilterRewriteHelper.RangeAggregationType(config, ranges)
+        );
+        if (fastFilterContext.isRewriteable(parent, subAggregators.length)) {
+            fastFilterContext.buildRanges(Objects.requireNonNull(config.fieldType()));
+        }
     }
 
     @Override
@@ -286,6 +298,13 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+        boolean optimized = fastFilterContext.tryFastFilterAggregation(
+            ctx,
+            this::incrementBucketDocCount,
+            (activeIndex) -> subBucketOrdinal(0, (int) activeIndex)
+        );
+        if (optimized) throw new CollectionTerminatedException();
+
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -430,4 +449,14 @@ public class RangeAggregator extends BucketsAggregator {
         }
     }
 
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        if (fastFilterContext.optimizedSegments > 0) {
+            add.accept("optimized_segments", fastFilterContext.optimizedSegments);
+            add.accept("unoptimized_segments", fastFilterContext.segments - fastFilterContext.optimizedSegments);
+            add.accept("leaf_visited", fastFilterContext.leaf);
+            add.accept("inner_visited", fastFilterContext.inner);
+        }
+    }
 }

@@ -30,6 +30,7 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.translog.Translog;
@@ -438,6 +439,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         logger.debug("Effective new segments files to upload {}", filteredFiles);
         ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, filteredFiles.size());
+        Directory directory = ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
 
         for (String src : filteredFiles) {
             // Initializing listener here to ensure that the stats increment operations are thread-safe
@@ -445,6 +447,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             ActionListener<Void> aggregatedListener = ActionListener.wrap(resp -> {
                 statsListener.onSuccess(src);
                 batchUploadListener.onResponse(resp);
+                if (directory instanceof CompositeDirectory) {
+                    ((CompositeDirectory) directory).afterSyncToRemote(src);
+                }
             }, ex -> {
                 logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
                 if (ex instanceof CorruptIndexException) {
