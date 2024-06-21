@@ -2888,9 +2888,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             long indexIncrementalSize = 0;
             long indexTotalFileSize = 0;
             final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new LinkedBlockingQueue<>();
-            // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
-            // in the commit with files already in the repository
-            if (filesFromSegmentInfos == null) {
+            if (store.indexSettings().isRemoteSnapshot()) {
+                // If the source of the data is another remote snapshot (i.e. searchable snapshot) then no need to snapshot the shard
+                indexCommitPointFiles = List.of();
+            } else if (filesFromSegmentInfos == null) {
+                // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
+                // in the commit with files already in the repository
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
