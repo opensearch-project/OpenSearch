@@ -48,8 +48,6 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     private final long updatedAtInMillis;
     private final Map<ResourceType, Object> resourceLimits;
 
-    // list of resources that are allowed to be present in the QueryGroup schema
-    public static final List<String> ALLOWED_RESOURCES = List.of("heap_allocations", "cpu");
 
     public QueryGroup(String name, QueryGroupMode resiliencyMode, Map<ResourceType, Object> resourceLimits) {
         this(name, UUIDs.randomBase64UUID(), resiliencyMode, resourceLimits, Instant.now().getMillis());
@@ -116,19 +114,12 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
 
     private void validateResourceLimits(Map<ResourceType, Object> resourceLimits) {
         for (Map.Entry<ResourceType, Object> resource : resourceLimits.entrySet()) {
-            String resourceName = resource.getKey().getName();
             Double threshold = (Double) resource.getValue();
-            Objects.requireNonNull(resourceName, "resourceName can't be null");
-            Objects.requireNonNull(threshold, "resource limit threshold for" + resourceName + " : can't be null");
+            Objects.requireNonNull(resource.getKey(), "resourceName can't be null");
+            Objects.requireNonNull(threshold, "resource limit threshold for" + resource.getKey().getName() + " : can't be null");
 
             if (Double.compare(threshold, 1.0) > 0) {
                 throw new IllegalArgumentException("resource value should be less than 1.0");
-            }
-
-            if (!ALLOWED_RESOURCES.contains(resourceName.toLowerCase(Locale.ROOT))) {
-                throw new IllegalArgumentException(
-                    "resource has to be valid, valid resources " + ALLOWED_RESOURCES.stream().reduce((x, e) -> x + ", " + e).get()
-                );
             }
         }
     }
@@ -181,10 +172,8 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
                     builder.mode(parser.text());
                 } else if (fieldName.equals("updatedAt")) {
                     builder.updatedAt(parser.longValue());
-                } else if (ALLOWED_RESOURCES.contains(fieldName)) {
-                    resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
                 } else {
-                    throw new IllegalArgumentException("unrecognised [field=" + fieldName + "] in QueryGroup");
+                    resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
                 }
             }
         }
