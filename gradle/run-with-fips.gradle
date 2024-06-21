@@ -1,5 +1,4 @@
 import org.opensearch.gradle.testclusters.RunTask
-import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.testclusters'
 apply plugin: 'java'
@@ -8,26 +7,14 @@ def numNodes = findProperty('numNodes') as Integer ?: 1
 def numZones = findProperty('numZones') as Integer ?: 1
 
 def fipsResourcesDir = new File(project.projectDir, 'buildSrc/build-bootstrap/resources/main')
-def java8 = BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_8
-def zulu8 = java8 && BuildParams.runtimeJavaDetails.contains("Zulu")
 def fipsSecurity
 def fipsPolicy
 def fipsTrustStore
 def bcFips
 def bcTlsFips
 
-if (java8) {
-  if (zulu8) {
-    fipsSecurity = new File(fipsResourcesDir, "fips_java_bcjsse_8.security")
-    fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_8.policy")
-  } else {
-    fipsSecurity = new File(fipsResourcesDir, "fips_java_sunjsse.security")
-    fipsPolicy = new File(fipsResourcesDir, "fips_java_sunjsse.policy")
-  }
-} else {
-  fipsSecurity = new File(fipsResourcesDir, "fips_java_bcjsse_11.security")
-  fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_11.policy")
-}
+fipsSecurity = new File(fipsResourcesDir, "fips_java_bcjsse_11.security")
+fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_11.policy")
 fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
 
 bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.4')
@@ -36,9 +23,11 @@ bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19')
 pluginManager.withPlugin('java') {
   project.afterEvaluate {
     def extraFipsJars = configurations.detachedConfiguration(bcFips, bcTlsFips)
-    extraFipsJars.resolve().forEach {el -> {
-      println el.path
-    }}
+    extraFipsJars.resolve().forEach { el ->
+      {
+        println el.path
+      }
+    }
   }
 }
 
@@ -52,10 +41,11 @@ testClusters {
     extraConfigFile "cacerts.bcfks", fipsTrustStore
     systemProperty 'java.security.properties', '=${OPENSEARCH_PATH_CONF}/fips_java.security'
     systemProperty 'java.security.policy', '=${OPENSEARCH_PATH_CONF}/fips_java.policy'
-    systemProperty 'javax.net.ssl.trustStore', '${OPENSEARCH_PATH_CONF}/cacerts.bcfks'
-    systemProperty 'javax.net.ssl.trustStorePassword', 'rzg9RxrMBDU3jV^^$vNB' // password must be at least 112 bits
-    systemProperty 'javax.net.ssl.keyStorePassword', 'rzg9RxrMBDU3jV^^$vNB' // password must be at least 112 bits
-    systemProperty 'javax.net.ssl.keyStoreType', 'BCFKS'
+    systemProperty 'javax.net.ssl.trustStore', '/home/iwan/workspace/OpenSearch/certs/centST9/truststore.bks'
+    systemProperty 'javax.net.ssl.trustStorePassword', 'password' // password must be at least 112 bits
+    systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
+//    systemProperty 'javax.net.ssl.keyStorePassword', 'rzg9RxrMBDU3jV^^$vNB' // password must be at least 112 bits
+//    systemProperty 'javax.net.ssl.keyStoreType', 'BCFKS'
 
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes

@@ -1279,15 +1279,16 @@ public class OpenSearchNode implements TestClusterConfiguration {
         baseConfig.put("http.host", "192.168.33.46");
 
         // cert + key config
-//        baseConfig.put("reindex.ssl.certificate_authorities", "/home/iwan/workspace/OpenSearch/certs/centST9/root-ca.pem");
-//        baseConfig.put("reindex.ssl.certificate", "/home/iwan/workspace/OpenSearch/certs/centST9/node1.pem");
-//        baseConfig.put("reindex.ssl.key", "/home/iwan/workspace/OpenSearch/certs/centST9/node1-key.pem");
+        baseConfig.put("reindex.ssl.certificate_authorities", "/home/iwan/workspace/OpenSearch/certs/centST9/root-ca.pem");
+        baseConfig.put("reindex.ssl.certificate", "/home/iwan/workspace/OpenSearch/certs/centST9/node2-PKCS8-enc.pem");
+        baseConfig.put("reindex.ssl.key", "/home/iwan/workspace/OpenSearch/certs/centST9/node2-key-PKCS8-enc.pem");
+        baseConfig.put("reindex.ssl.key_passphrase", "password");
 
         // keystore + struststore config
-                baseConfig.put("reindex.ssl.keystore.path", "/home/iwan/workspace/OpenSearch/certs/centST9/keystore.bks");
-                baseConfig.put("reindex.ssl.keystore.password", "password");
-                baseConfig.put("reindex.ssl.truststore.path", "/home/iwan/workspace/OpenSearch/certs/centST9/truststore.bks");
-                baseConfig.put("reindex.ssl.truststore.password", "password");
+//                baseConfig.put("reindex.ssl.keystore.path", "/home/iwan/workspace/OpenSearch/certs/centST9/keystore.bks");
+//                baseConfig.put("reindex.ssl.keystore.password", "password");
+//                baseConfig.put("reindex.ssl.truststore.path", "/home/iwan/workspace/OpenSearch/certs/centST9/truststore.bks");
+//                baseConfig.put("reindex.ssl.truststore.password", "password");
 
         baseConfig.put("reindex.remote.whitelist", "node1.dns.a-record:10200");
 

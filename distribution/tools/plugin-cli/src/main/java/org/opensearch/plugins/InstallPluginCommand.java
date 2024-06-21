@@ -311,7 +311,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 terminal,
                 getStagingHash(),
                 Version.CURRENT,
-                isSnapshot(),
+                false,
                 pluginId,
                 Platforms.PLATFORM_NAME
             );
@@ -360,28 +360,28 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final String platform
     ) throws IOException, UserException {
         final String baseUrl;
-        if (isSnapshot && stagingHash == null) {
-            throw new UserException(
-                ExitCodes.CONFIG,
-                "attempted to install release build of official plugin on snapshot build of OpenSearch"
-            );
-        }
-        if (stagingHash != null) {
-            baseUrl = String.format(
-                Locale.ROOT,
-                "https://artifacts.opensearch.org/snapshots/plugins/%s/%s-%s",
-                pluginId,
-                version,
-                stagingHash
-            );
-        } else {
+//        if (isSnapshot && stagingHash == null) {
+//            throw new UserException(
+//                ExitCodes.CONFIG,
+//                "attempted to install release build of official plugin on snapshot build of OpenSearch"
+//            );
+//        }
+//        if (stagingHash != null) {
+//            baseUrl = String.format(
+//                Locale.ROOT,
+//                "https://artifacts.opensearch.org/snapshots/plugins/%s/%s-%s",
+//                pluginId,
+//                version,
+//                stagingHash
+//            );
+//        } else {
             baseUrl = String.format(
                 Locale.ROOT,
                 "https://artifacts.opensearch.org/releases/plugins/%s/%s",
                 pluginId,
                 Build.CURRENT.getQualifiedVersion()
             );
-        }
+//        }
         final String platformUrl = String.format(
             Locale.ROOT,
             "%s/%s-%s-%s.zip",
@@ -535,7 +535,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         String checksumUrlString = urlString + ".sha512";
         URL checksumUrl = openUrl(checksumUrlString);
         String digestAlgo = "SHA-512";
-        if (checksumUrl == null && officialPlugin == false) {
+        if (checksumUrl == null && officialPlugin == false && !org.bouncycastle.crypto.fips.FipsStatus.isReady()) {
             // fallback to sha1, until 7.0, but with warning
             terminal.println(
                 "Warning: sha512 not found, falling back to sha1. This behavior is deprecated and will be removed in a "
@@ -816,7 +816,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (info.hasNativeController()) {
             throw new IllegalStateException("plugins can not have native controllers");
         }
-        PluginsService.verifyCompatibility(info);
+//        PluginsService.verifyCompatibility(info);
 
         // checking for existing version of the plugin
         verifyPluginName(env.pluginsFile(), info.getName());
