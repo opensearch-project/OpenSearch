@@ -58,8 +58,8 @@ import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.AbstractRangeAggregatorBridge;
 import org.opensearch.search.optimization.ranges.OptimizationContext;
+import org.opensearch.search.optimization.ranges.RangeAggregatorBridge;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -252,7 +252,6 @@ public class RangeAggregator extends BucketsAggregator {
     final double[] maxTo;
 
     private final OptimizationContext optimizationContext;
-    private final ValuesSourceConfig valuesSourceConfig;
 
     public RangeAggregator(
         String name,
@@ -271,7 +270,6 @@ public class RangeAggregator extends BucketsAggregator {
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
-        this.valuesSourceConfig = config;
         this.format = format;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
@@ -283,26 +281,24 @@ public class RangeAggregator extends BucketsAggregator {
             maxTo[i] = Math.max(this.ranges[i].to, maxTo[i - 1]);
         }
 
-        optimizationContext = new OptimizationContext(new RangeAggregatorBridge());
+        optimizationContext = new OptimizationContext(new RangeAggregatorBridge() {
+            @Override
+            protected boolean canOptimize() {
+                return canOptimize(config, RangeAggregator.this.ranges);
+            }
+
+            @Override
+            protected void buildRanges() {
+                buildRanges(RangeAggregator.this.ranges);
+            }
+
+            @Override
+            protected Function<Object, Long> bucketOrdProducer() {
+                return (activeIndex) -> subBucketOrdinal(0, (int) activeIndex);
+            }
+        });
         if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
             optimizationContext.prepare();
-        }
-    }
-
-    private final class RangeAggregatorBridge extends AbstractRangeAggregatorBridge {
-        @Override
-        protected boolean canOptimize() {
-            return canOptimize(valuesSourceConfig, ranges);
-        }
-
-        @Override
-        protected void buildRanges() {
-            buildRanges(ranges);
-        }
-
-        @Override
-        protected Function<Object, Long> bucketOrdProducer() {
-            return (activeIndex) -> subBucketOrdinal(0, (int) activeIndex);
         }
     }
 

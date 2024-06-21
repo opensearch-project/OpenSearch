@@ -52,7 +52,7 @@ import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorBridge;
+import org.opensearch.search.optimization.ranges.DateHistogramAggregatorBridge;
 import org.opensearch.search.optimization.ranges.OptimizationContext;
 
 import java.io.IOException;
@@ -85,7 +85,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final LongKeyedBucketOrds bucketOrds;
 
     private final OptimizationContext optimizationContext;
-    private final ValuesSourceConfig valuesSourceConfig;
 
     DateHistogramAggregator(
         String name,
@@ -114,51 +113,48 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         this.hardBounds = hardBounds;
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
-        this.valuesSourceConfig = valuesSourceConfig;
         this.formatter = valuesSourceConfig.format();
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        optimizationContext = new OptimizationContext(new DateHistogramAggAggregatorBridge());
+        optimizationContext = new OptimizationContext(new DateHistogramAggregatorBridge() {
+            @Override
+            protected boolean canOptimize() {
+                return canOptimize(valuesSourceConfig);
+            }
+
+            @Override
+            protected void buildRanges() throws IOException {
+                buildRanges(context);
+            }
+
+            @Override
+            protected Rounding getRounding(long low, long high) {
+                return rounding;
+            }
+
+            @Override
+            protected Rounding.Prepared getRoundingPrepared() {
+                return preparedRounding;
+            }
+
+            @Override
+            protected long[] processHardBounds(long[] bounds) {
+                return super.processHardBounds(bounds, hardBounds);
+            }
+
+            @Override
+            protected Function<Object, Long> bucketOrdProducer() {
+                return (key) -> bucketOrds.add(0, preparedRounding.round((long) key));
+            }
+
+            @Override
+            protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
+                return segmentMatchAll(context, leaf);
+            }
+        });
         if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
             optimizationContext.prepare();
-        }
-    }
-
-    private final class DateHistogramAggAggregatorBridge extends AbstractDateHistogramAggAggregatorBridge {
-        @Override
-        protected boolean canOptimize() {
-            return canOptimize(valuesSourceConfig);
-        }
-
-        @Override
-        protected void buildRanges() throws IOException {
-            buildRanges(context);
-        }
-
-        @Override
-        protected Rounding getRounding(long low, long high) {
-            return rounding;
-        }
-
-        @Override
-        protected Rounding.Prepared getRoundingPrepared() {
-            return preparedRounding;
-        }
-
-        @Override
-        protected long[] processHardBounds(long[] bounds) {
-            return super.processHardBounds(bounds, hardBounds);
-        }
-
-        @Override
-        protected Function<Object, Long> bucketOrdProducer() {
-            return (key) -> bucketOrds.add(0, preparedRounding.round((long) key));
-        }
-
-        @Override
-        protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
-            return segmentMatchAll(context, leaf);
         }
     }
 

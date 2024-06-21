@@ -24,7 +24,7 @@ import static org.opensearch.search.optimization.ranges.OptimizationContext.mult
 /**
  * For range aggregation
  */
-public abstract class AbstractRangeAggregatorBridge extends AggregatorBridge {
+public abstract class RangeAggregatorBridge extends AggregatorBridge {
 
     protected boolean canOptimize(ValuesSourceConfig config, RangeAggregator.Range[] ranges) {
         if (config.fieldType() == null) return false;

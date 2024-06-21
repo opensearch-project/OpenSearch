@@ -58,7 +58,7 @@ import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorBridge;
+import org.opensearch.search.optimization.ranges.DateHistogramAggregatorBridge;
 import org.opensearch.search.optimization.ranges.OptimizationContext;
 
 import java.io.IOException;
@@ -135,7 +135,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected Rounding.Prepared preparedRounding;
 
     private final OptimizationContext optimizationContext;
-    private final ValuesSourceConfig valuesSourceConfig;
 
     private AutoDateHistogramAggregator(
         String name,
@@ -153,67 +152,63 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.targetBuckets = targetBuckets;
         // TODO: Remove null usage here, by using a different aggregator for create
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
-        this.valuesSourceConfig = valuesSourceConfig;
         this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        optimizationContext = new OptimizationContext(new AutoHistogramAggAggregatorBridge());
-        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
-            optimizationContext.prepare();
-        }
-    }
-
-    private final class AutoHistogramAggAggregatorBridge extends AbstractDateHistogramAggAggregatorBridge {
-
-        @Override
-        protected boolean canOptimize() {
-            return canOptimize(valuesSourceConfig);
-        }
-
-        @Override
-        protected void buildRanges() throws IOException {
-            buildRanges(context);
-        }
-
-        @Override
-        protected Rounding getRounding(final long low, final long high) {
-            // max - min / targetBuckets = bestDuration
-            // find the right innerInterval this bestDuration belongs to
-            // since we cannot exceed targetBuckets, bestDuration should go up,
-            // so the right innerInterval should be an upper bound
-            long bestDuration = (high - low) / targetBuckets;
-            // reset so this function is idempotent
-            roundingIdx = 0;
-            while (roundingIdx < roundingInfos.length - 1) {
-                final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
-                final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
-                // If the interval duration is covered by the maximum inner interval,
-                // we can start with this outer interval for creating the buckets
-                if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
-                    break;
-                }
-                roundingIdx++;
+        optimizationContext = new OptimizationContext(new DateHistogramAggregatorBridge() {
+            @Override
+            protected boolean canOptimize() {
+                return canOptimize(valuesSourceConfig);
             }
 
-            preparedRounding = prepareRounding(roundingIdx);
-            return roundingInfos[roundingIdx].rounding;
-        }
+            @Override
+            protected void buildRanges() throws IOException {
+                buildRanges(context);
+            }
 
-        @Override
-        protected Prepared getRoundingPrepared() {
-            return preparedRounding;
-        }
+            @Override
+            protected Rounding getRounding(final long low, final long high) {
+                // max - min / targetBuckets = bestDuration
+                // find the right innerInterval this bestDuration belongs to
+                // since we cannot exceed targetBuckets, bestDuration should go up,
+                // so the right innerInterval should be an upper bound
+                long bestDuration = (high - low) / targetBuckets;
+                // reset so this function is idempotent
+                roundingIdx = 0;
+                while (roundingIdx < roundingInfos.length - 1) {
+                    final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
+                    final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
+                    // If the interval duration is covered by the maximum inner interval,
+                    // we can start with this outer interval for creating the buckets
+                    if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
+                        break;
+                    }
+                    roundingIdx++;
+                }
 
-        @Override
-        protected Function<Object, Long> bucketOrdProducer() {
-            return (key) -> getBucketOrds().add(0, preparedRounding.round((long) key));
-        }
+                preparedRounding = prepareRounding(roundingIdx);
+                return roundingInfos[roundingIdx].rounding;
+            }
 
-        @Override
-        protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
-            return segmentMatchAll(context, leaf);
+            @Override
+            protected Prepared getRoundingPrepared() {
+                return preparedRounding;
+            }
+
+            @Override
+            protected Function<Object, Long> bucketOrdProducer() {
+                return (key) -> getBucketOrds().add(0, preparedRounding.round((long) key));
+            }
+
+            @Override
+            protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
+                return segmentMatchAll(context, leaf);
+            }
+        });
+        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
+            optimizationContext.prepare();
         }
     }
 

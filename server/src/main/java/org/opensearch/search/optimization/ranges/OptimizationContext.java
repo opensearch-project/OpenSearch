@@ -40,12 +40,13 @@ public final class OptimizationContext {
     private static final Logger logger = LogManager.getLogger(loggerName);
 
     private boolean rewriteable = false;
-    private boolean rangesBuiltAtShardLevel = false;
+    private boolean preparedAtShardLevel = false;
 
     private final AggregatorBridge aggregatorBridge;
-    private Ranges ranges;
     int maxAggRewriteFilters;
     String shardId;
+
+    private Ranges ranges;
 
     // debug info related fields
     private int leaf;
@@ -77,7 +78,7 @@ public final class OptimizationContext {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
         this.aggregatorBridge.buildRanges();
         if (ranges != null) {
-            rangesBuiltAtShardLevel = true;
+            preparedAtShardLevel = true;
         }
     }
 
@@ -119,7 +120,7 @@ public final class OptimizationContext {
             return false;
         }
 
-        Ranges ranges = tryGetRangesFromSegment(leafCtx);
+        Ranges ranges = prepareFromSegment(leafCtx);
         if (ranges == null) return false;
 
         aggregatorBridge.tryFastFilterAggregation(values, incrementDocCount, ranges);
@@ -134,8 +135,8 @@ public final class OptimizationContext {
      * Even when ranges cannot be built at shard level, we can still build ranges
      * at segment level when it's functionally match-all at segment level
      */
-    private Ranges tryGetRangesFromSegment(LeafReaderContext leafCtx) throws IOException {
-        if (!rangesBuiltAtShardLevel && !aggregatorBridge.segmentMatchAll(leafCtx)) {
+    private Ranges prepareFromSegment(LeafReaderContext leafCtx) throws IOException {
+        if (!preparedAtShardLevel && !aggregatorBridge.segmentMatchAll(leafCtx)) {
             return null;
         }
 

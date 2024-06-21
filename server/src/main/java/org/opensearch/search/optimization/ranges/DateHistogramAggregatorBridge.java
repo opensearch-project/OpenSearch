@@ -31,7 +31,7 @@ import static org.opensearch.search.optimization.ranges.OptimizationContext.mult
 /**
  * For date histogram aggregation
  */
-public abstract class AbstractDateHistogramAggAggregatorBridge extends AggregatorBridge {
+public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
 
     protected boolean canOptimize(boolean missing, boolean hasScript, MappedFieldType fieldType) {
         if (!missing && !hasScript) {
@@ -59,8 +59,7 @@ public abstract class AbstractDateHistogramAggAggregatorBridge extends Aggregato
     }
 
     protected boolean canOptimize(CompositeValuesSourceConfig[] sourceConfigs) {
-        if (sourceConfigs.length != 1 || !(sourceConfigs[0].valuesSource() instanceof RoundingValuesSource))
-            return false;
+        if (sourceConfigs.length != 1 || !(sourceConfigs[0].valuesSource() instanceof RoundingValuesSource)) return false;
         return canOptimize(sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript(), sourceConfigs[0].fieldType());
     }
 

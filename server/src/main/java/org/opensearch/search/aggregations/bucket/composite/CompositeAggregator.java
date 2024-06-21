@@ -76,7 +76,7 @@ import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.AbstractDateHistogramAggAggregatorBridge;
+import org.opensearch.search.optimization.ranges.DateHistogramAggregatorBridge;
 import org.opensearch.search.optimization.ranges.OptimizationContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
@@ -166,74 +166,67 @@ public final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        optimizationContext = new OptimizationContext(new CompositeAggAggregatorBridge());
+        optimizationContext = new OptimizationContext(new DateHistogramAggregatorBridge() {
+            private RoundingValuesSource valuesSource;
+            private long afterKey = -1L;
+
+            @Override
+            protected boolean canOptimize() {
+                if (canOptimize(sourceConfigs)) {
+                    this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
+                    if (rawAfterKey != null) {
+                        assert rawAfterKey.size() == 1 && formats.size() == 1;
+                        this.afterKey = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
+                            throw new IllegalArgumentException("now() is not supported in [after] key");
+                        });
+                    }
+
+                    // bucketOrds is used for saving the date histogram results got from the optimization path
+                    bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
+                }
+                return false;
+            }
+
+            @Override
+            protected void buildRanges() throws IOException {
+                buildRanges(context);
+            }
+
+            protected Rounding getRounding(final long low, final long high) {
+                return valuesSource.getRounding();
+            }
+
+            protected Rounding.Prepared getRoundingPrepared() {
+                return valuesSource.getPreparedRounding();
+            }
+
+            @Override
+            protected long[] processAfterKey(long[] bounds, long interval) {
+                // afterKey is the last bucket key in previous response, and the bucket key
+                // is the minimum of all values in the bucket, so need to add the interval
+                if (afterKey != -1L) {
+                    bounds[0] = afterKey + interval;
+                }
+                return bounds;
+            }
+
+            @Override
+            protected int getSize() {
+                return size;
+            }
+
+            @Override
+            protected Function<Object, Long> bucketOrdProducer() {
+                return (key) -> bucketOrds.add(0, getRoundingPrepared().round((long) key));
+            }
+
+            @Override
+            protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
+                return segmentMatchAll(context, leaf);
+            }
+        });
         if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
             optimizationContext.prepare();
-        }
-    }
-
-    /**
-     * Currently the filter rewrite is only supported for date histograms
-     */
-    private final class CompositeAggAggregatorBridge extends AbstractDateHistogramAggAggregatorBridge {
-        private RoundingValuesSource valuesSource;
-        private long afterKey = -1L;
-
-        @Override
-        protected boolean canOptimize() {
-            if (canOptimize(sourceConfigs)) {
-                this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
-                if (rawAfterKey != null) {
-                    assert rawAfterKey.size() == 1 && formats.size() == 1;
-                    this.afterKey = formats.get(0).parseLong(rawAfterKey.get(0).toString(), false, () -> {
-                        throw new IllegalArgumentException("now() is not supported in [after] key");
-                    });
-                }
-
-                // bucketOrds is used for saving the date histogram results got from the optimization path
-                bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.ONE);
-            }
-            return false;
-        }
-
-
-
-        @Override
-        protected void buildRanges() throws IOException {
-            buildRanges(context);
-        }
-
-        protected Rounding getRounding(final long low, final long high) {
-            return valuesSource.getRounding();
-        }
-
-        protected Rounding.Prepared getRoundingPrepared() {
-            return valuesSource.getPreparedRounding();
-        }
-
-        @Override
-        protected long[] processAfterKey(long[] bounds, long interval) {
-            // afterKey is the last bucket key in previous response, and the bucket key
-            // is the minimum of all values in the bucket, so need to add the interval
-            if (afterKey != -1L) {
-                bounds[0] = afterKey + interval;
-            }
-            return bounds;
-        }
-
-        @Override
-        protected int getSize() {
-            return size;
-        }
-
-        @Override
-        protected Function<Object, Long> bucketOrdProducer() {
-            return (key) -> bucketOrds.add(0, getRoundingPrepared().round((long) key));
-        }
-
-        @Override
-        protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
-            return segmentMatchAll(context, leaf);
         }
     }
 
