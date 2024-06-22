@@ -80,7 +80,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         try {
             prepareCreate(INDEX_NAME).setSettings(indexSettings).get();
             fail("Should have thrown Exception as setting should not be registered if Feature Flag is Disabled");
-        } catch (SettingsException ex) {
+        } catch (SettingsException | IllegalArgumentException ex) {
             assertEquals(
                 "unknown setting ["
                     + IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()
