@@ -36,7 +36,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -69,8 +68,6 @@ import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBui
  * @opensearch.internal
  */
 public class AdjacencyMatrixAggregator extends BucketsAggregator {
-
-    public static final ParseField FILTERS_FIELD = new ParseField("filters");
 
     /**
      * A keyed filter
@@ -145,6 +142,8 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
     private final String[] keys;
     private final Weight[] filters;
+
+    private final boolean showOnlyIntersecting;
     private final int totalNumKeys;
     private final int totalNumIntersections;
     private final String separator;
@@ -155,6 +154,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         String separator,
         String[] keys,
         Weight[] filters,
+        boolean showOnlyIntersecting,
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata
@@ -163,6 +163,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         this.separator = separator;
         this.keys = keys;
         this.filters = filters;
+        this.showOnlyIntersecting = showOnlyIntersecting;
         this.totalNumIntersections = ((keys.length * keys.length) - keys.length) / 2;
         this.totalNumKeys = keys.length + totalNumIntersections;
     }
@@ -177,10 +178,12 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                // Check each of the provided filters
-                for (int i = 0; i < bits.length; i++) {
-                    if (bits[i].get(doc)) {
-                        collectBucket(sub, doc, bucketOrd(bucket, i));
+                if (!showOnlyIntersecting) {
+                    // Check each of the provided filters
+                    for (int i = 0; i < bits.length; i++) {
+                        if (bits[i].get(doc)) {
+                            collectBucket(sub, doc, bucketOrd(bucket, i));
+                        }
                     }
                 }
                 // Check all the possible intersections of the provided filters
