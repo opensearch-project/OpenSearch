@@ -1482,6 +1482,48 @@ public class MetadataTests extends OpenSearchTestCase {
         assertFalse(metadata.isSegmentReplicationEnabled(indexName));
     }
 
+    public void testTemplatesMetadata() {
+        TemplatesMetadata templatesMetadata1 = TemplatesMetadata.builder()
+            .put(
+                IndexTemplateMetadata.builder("template_1")
+                    .patterns(Arrays.asList("bar-*", "foo-*"))
+                    .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
+                    .build()
+            )
+            .build();
+        Metadata metadata1 = Metadata.builder().templates(templatesMetadata1).build();
+        assertThat(metadata1.templates(), is(templatesMetadata1.getTemplates()));
+
+        TemplatesMetadata templatesMetadata2 = TemplatesMetadata.builder()
+            .put(
+                IndexTemplateMetadata.builder("template_2")
+                    .patterns(Arrays.asList("bar-*", "foo-*"))
+                    .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
+                    .build()
+            )
+            .build();
+
+        Metadata metadata2 = Metadata.builder(metadata1).templates(templatesMetadata2).build();
+
+        Map<String, IndexTemplateMetadata> allTemplates = new HashMap<>(templatesMetadata1.getTemplates());
+        allTemplates.putAll(templatesMetadata2.getTemplates());
+
+        assertThat(metadata2.templates(), is(allTemplates));
+
+        TemplatesMetadata templatesMetadata3 = TemplatesMetadata.builder()
+            .put(
+                IndexTemplateMetadata.builder("template_3")
+                    .patterns(Arrays.asList("bar-*", "foo-*"))
+                    .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
+                    .build()
+            )
+            .build();
+
+        Metadata metadata3 = Metadata.builder(metadata2).removeAllTemplates().templates(templatesMetadata3).build();
+
+        assertThat(metadata3.templates(), is(templatesMetadata3.getTemplates()));
+    }
+
     public static Metadata randomMetadata() {
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
