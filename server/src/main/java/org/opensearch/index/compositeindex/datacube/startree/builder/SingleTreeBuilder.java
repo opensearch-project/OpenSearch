@@ -22,12 +22,4 @@ public interface SingleTreeBuilder extends Closeable {
      * @throws IOException when we are unable to build star-tree
      */
     void build() throws Exception;
-
-    /**
-     * Builds the star tree using star-tree document values during segment merges
-     * @param starTreeValues star-tree document values
-     * @throws IOException when we are unable to build star-tree
-     */
-    // void build(List<StarTreeValues> starTreeValues) throws IOException;
-
 }

@@ -38,8 +38,10 @@ public enum StarTreeNumericType {
                 return StarTreeNumericType.FLOAT;
             case LONG:
                 return StarTreeNumericType.LONG;
-            default:
+            case DOUBLE:
                 return StarTreeNumericType.DOUBLE;
+            default:
+                throw new UnsupportedOperationException("Unknown numeric type [" + numericType + "]");
         }
     }
 }

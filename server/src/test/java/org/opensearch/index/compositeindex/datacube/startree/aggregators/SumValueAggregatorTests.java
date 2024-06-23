@@ -40,8 +40,8 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
         assertEquals(7.28, aggregator.applyAggregatedValue(3.14, 4.14), 0.0000001);
     }
 
-    public void testCloneAggregatedValue() {
-        assertEquals(3.14, aggregator.cloneAggregatedValue(3.14), 0.0);
+    public void testGetAggregatedValue() {
+        assertEquals(3.14, aggregator.getAggregatedValue(3.14), 0.0);
     }
 
     public void testGetMaxAggregatedValueByteSize() {

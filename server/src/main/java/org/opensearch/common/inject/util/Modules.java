@@ -202,13 +202,12 @@ public final class Modules {
                             if (!overriddenKeys.remove(binding.getKey())) {
                                 super.visit(binding);
 
-                                // record when a scope instance is used in a binding
+                                // Record when a scope instance is used in a binding
                                 Scope scope = getScopeInstanceOrNull(binding);
                                 if (scope != null) {
                                     scopeInstancesInUse.put(scope, binding.getSource());
                                 }
                             }
-
                             return null;
                         }
 

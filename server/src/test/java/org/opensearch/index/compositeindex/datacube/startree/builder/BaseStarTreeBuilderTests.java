@@ -11,7 +11,7 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
-import org.apache.lucene.index.BaseSingleStarTreeBuilder;
+import org.apache.lucene.index.BaseStarTreeBuilder;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -52,9 +52,9 @@ import java.util.UUID;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BaseSingleStarTreeBuilderTests extends OpenSearchTestCase {
+public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
 
-    private static BaseSingleStarTreeBuilder builder;
+    private static BaseStarTreeBuilder builder;
     private static MapperService mapperService;
     private static List<Dimension> dimensionsOrder;
     private static List<String> fields = List.of(
@@ -153,7 +153,7 @@ public class BaseSingleStarTreeBuilderTests extends OpenSearchTestCase {
         );
         when(documentMapper.mappers()).thenReturn(fieldMappers);
 
-        builder = new BaseSingleStarTreeBuilder(compositeField, docValuesProducer, docValuesConsumer, state, mapperService) {
+        builder = new BaseStarTreeBuilder(compositeField, docValuesProducer, docValuesConsumer, state, mapperService) {
             @Override
             public void appendStarTreeDocument(StarTreeDocument starTreeDocument) throws IOException {}
 
@@ -178,7 +178,7 @@ public class BaseSingleStarTreeBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public Iterator<StarTreeDocument> generateStarTreeForStarNode(int startDocId, int endDocId, int dimensionId)
+            public Iterator<StarTreeDocument> generateStarTreeDocumentsForStarNode(int startDocId, int endDocId, int dimensionId)
                 throws IOException {
                 return null;
             }
@@ -194,12 +194,12 @@ public class BaseSingleStarTreeBuilderTests extends OpenSearchTestCase {
         assertEquals(metricStatFieldPairs, expectedMetricStatFieldPairs);
     }
 
-    public void test_aggregateStarTreeDocument() {
+    public void test_aggregateDocuments() {
         StarTreeDocument starTreeDocument1 = new StarTreeDocument(new long[] { 1, 3, 5, 8 }, new Double[] { 4.0, 8.0 });
         StarTreeDocument starTreeDocument2 = new StarTreeDocument(new long[] { 1, 3, 5, 8 }, new Double[] { 10.0, 6.0 });
 
         StarTreeDocument expectedeMergedStarTreeDocument = new StarTreeDocument(new long[] { 1, 3, 5, 8 }, new Double[] { 14.0, 14.0 });
-        StarTreeDocument mergedStarTreeDocument = builder.aggregateStarTreeDocument(starTreeDocument1, starTreeDocument2);
+        StarTreeDocument mergedStarTreeDocument = builder.aggregateDocuments(starTreeDocument1, starTreeDocument2);
 
         assertEquals(mergedStarTreeDocument.metrics[0], expectedeMergedStarTreeDocument.metrics[0]);
         assertEquals(mergedStarTreeDocument.metrics[1], expectedeMergedStarTreeDocument.metrics[1]);

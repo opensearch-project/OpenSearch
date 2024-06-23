@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-public class MultipleTreesBuilder implements Closeable {
+public class StarTreesBuilder implements Closeable {
 
-    private static final Logger logger = LogManager.getLogger(MultipleTreesBuilder.class);
+    private static final Logger logger = LogManager.getLogger(StarTreesBuilder.class);
 
     private final List<StarTreeField> starTreeFields;
     private final StarTreeFieldConfiguration.StarTreeBuildMode buildMode;
@@ -33,7 +33,7 @@ public class MultipleTreesBuilder implements Closeable {
     private final DocValuesProducer docValuesProducer;
     private final MapperService mapperService;
 
-    public MultipleTreesBuilder(
+    public StarTreesBuilder(
         List<StarTreeField> starTreeFields,
         StarTreeFieldConfiguration.StarTreeBuildMode buildMode,
         DocValuesProducer docValuesProducer,
@@ -58,7 +58,7 @@ public class MultipleTreesBuilder implements Closeable {
     public void build() throws Exception {
         long startTime = System.currentTimeMillis();
         int numStarTrees = starTreeFields.size();
-        logger.info("Starting building {} star-trees with configs: {} using {} builder", numStarTrees, starTreeFields, buildMode);
+        logger.debug("Starting building {} star-trees with configs: {} using {} builder", numStarTrees, starTreeFields, buildMode);
 
         // Build all star-trees
         for (int i = 0; i < numStarTrees; i++) {
@@ -76,7 +76,7 @@ public class MultipleTreesBuilder implements Closeable {
                 singleTreeBuilder.build();
             }
         }
-        logger.info(
+        logger.debug(
             "Took {} ms to building {} star-trees with configs: {} using {} builder",
             System.currentTimeMillis() - startTime,
             numStarTrees,

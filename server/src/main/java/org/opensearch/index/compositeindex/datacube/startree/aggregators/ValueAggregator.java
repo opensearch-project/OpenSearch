@@ -45,7 +45,7 @@ public interface ValueAggregator<A> {
     /**
      * Clones an aggregated value.
      */
-    A cloneAggregatedValue(A value);
+    A getAggregatedValue(A value);
 
     /**
      * Returns the maximum size in bytes of the aggregated values seen so far.

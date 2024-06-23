@@ -53,7 +53,7 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     }
 
     @Override
-    public Double cloneAggregatedValue(Double value) {
+    public Double getAggregatedValue(Double value) {
         return value;
     }
 

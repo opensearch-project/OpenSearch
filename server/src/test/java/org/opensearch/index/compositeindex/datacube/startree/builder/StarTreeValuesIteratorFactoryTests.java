@@ -29,12 +29,12 @@ import static org.mockito.Mockito.when;
 
 public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
 
-    private static StarTreeDocValuesIteratorFactory factory;
+    private static StarTreeDocValuesIteratorAdapter factory;
     private static FieldInfo mockFieldInfo;
 
     @BeforeClass
     public static void setup() {
-        factory = new StarTreeDocValuesIteratorFactory();
+        factory = new StarTreeDocValuesIteratorAdapter();
         mockFieldInfo = new FieldInfo(
             "field",
             1,
@@ -60,7 +60,7 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         DocValuesProducer producer = Mockito.mock(DocValuesProducer.class);
         SortedSetDocValues iterator = Mockito.mock(SortedSetDocValues.class);
         when(producer.getSortedSet(mockFieldInfo)).thenReturn(iterator);
-        DocIdSetIterator result = factory.createIterator(DocValuesType.SORTED_SET, mockFieldInfo, producer);
+        DocIdSetIterator result = factory.getDocValuesIterator(DocValuesType.SORTED_SET, mockFieldInfo, producer);
         assertEquals(iterator.getClass(), result.getClass());
     }
 
@@ -68,14 +68,14 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         DocValuesProducer producer = Mockito.mock(DocValuesProducer.class);
         SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
         when(producer.getSortedNumeric(mockFieldInfo)).thenReturn(iterator);
-        DocIdSetIterator result = factory.createIterator(DocValuesType.SORTED_NUMERIC, mockFieldInfo, producer);
+        DocIdSetIterator result = factory.getDocValuesIterator(DocValuesType.SORTED_NUMERIC, mockFieldInfo, producer);
         assertEquals(iterator.getClass(), result.getClass());
     }
 
     public void testCreateIterator_UnsupportedType() {
         DocValuesProducer producer = Mockito.mock(DocValuesProducer.class);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            factory.createIterator(DocValuesType.BINARY, mockFieldInfo, producer);
+            factory.getDocValuesIterator(DocValuesType.BINARY, mockFieldInfo, producer);
         });
         assertEquals("Unsupported DocValuesType: BINARY", exception.getMessage());
     }

@@ -23,7 +23,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.ValueAg
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.ValueAggregatorFactory;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.index.compositeindex.datacube.startree.builder.SingleTreeBuilder;
-import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreeDocValuesIteratorFactory;
+import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreeDocValuesIteratorAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.data.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeBuilderUtils;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -44,12 +44,9 @@ import java.util.Set;
 /**
  * Base class for star-tree builder
  */
-public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
+public abstract class BaseStarTreeBuilder implements SingleTreeBuilder {
 
-    // TODO: STAR_TREE_CODEC will be moved to CodecService once the Star Tree Codec is defined
-    public static final String STAR_TREE_CODEC = "startreecodec";
-
-    private static final Logger logger = LogManager.getLogger(BaseSingleStarTreeBuilder.class);
+    private static final Logger logger = LogManager.getLogger(BaseStarTreeBuilder.class);
 
     public static final int STAR_IN_DOC_VALUES_INDEX = -1;
 
@@ -59,15 +56,13 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
 
     protected final int numMetrics;
     protected final int numDimensions;
-    protected int numDocs;
-    protected int totalDocs;
-    protected int numNodes;
+    protected int numStarTreeDocs;
+    protected int totalSegmentDocs;
+    protected int numStarTreeNodes;
     protected final int maxLeafDocuments;
 
     protected final StarTreeBuilderUtils.TreeNode rootNode = getNewNode();
 
-    // TODO: This will be initialized with OnHeap / OffHeap Implementations (Commented it's occurrences for now)
-    // private IndexOutput indexOutput;
     protected DocIdSetIterator[] dimensionReaders;
     protected DocIdSetIterator[] metricReaders;
 
@@ -76,7 +71,7 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
     protected DocValuesConsumer docValuesConsumer;
     protected DocValuesProducer docValuesProducer;
 
-    private final StarTreeDocValuesIteratorFactory starTreeDocValuesIteratorFactory;
+    private final StarTreeDocValuesIteratorAdapter starTreeDocValuesIteratorFactory;
     private final StarTreeField starTreeField;
     private final StarTreeFieldConfiguration starTreeFieldSpec;
     private final List<MetricStatFieldPair> metricStatFieldPairs;
@@ -91,7 +86,7 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      * @param state             stores the segment state
      * @param mapperService     helps to find the original type of the field
      */
-    protected BaseSingleStarTreeBuilder(
+    protected BaseStarTreeBuilder(
         StarTreeField starTreeField,
         DocValuesProducer docValuesProducer,
         DocValuesConsumer docValuesConsumer,
@@ -99,26 +94,21 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
         MapperService mapperService
     ) throws IOException {
 
-        logger.info("Building in base star tree builder");
+        logger.debug("Building in base star tree builder");
 
-        // String docFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, "stttree");
-        // logger.info("Star tree file name : {}", docFileName);
-
-        // indexOutput = state.directory.createOutput(docFileName, state.context);
-        // CodecUtil.writeIndexHeader(indexOutput, STAR_TREE_CODEC, 0, state.segmentInfo.getId(), state.segmentSuffix);
         this.mapperService = mapperService;
         this.starTreeField = starTreeField;
         this.starTreeFieldSpec = starTreeField.getStarTreeConfig();
         this.docValuesConsumer = docValuesConsumer;
         this.docValuesProducer = docValuesProducer;
-        this.starTreeDocValuesIteratorFactory = new StarTreeDocValuesIteratorFactory();
+        this.starTreeDocValuesIteratorFactory = new StarTreeDocValuesIteratorAdapter();
 
         List<Dimension> dimensionsSplitOrder = starTreeField.getDimensionsOrder();
         this.numDimensions = dimensionsSplitOrder.size();
         this.dimensionsSplitOrder = new String[numDimensions];
 
         this.skipStarNodeCreationForDimensions = new HashSet<>();
-        this.totalDocs = state.segmentInfo.maxDoc();
+        this.totalSegmentDocs = state.segmentInfo.maxDoc();
         this.dimensionReaders = new DocIdSetIterator[numDimensions];
         Set<String> skipStarNodeCreationForDimensions = this.starTreeFieldSpec.getSkipStarNodeCreationInDims();
 
@@ -130,7 +120,7 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
             }
             FieldInfo dimensionFieldInfos = state.fieldInfos.fieldInfo(dimension);
             DocValuesType dimensionDocValuesType = state.fieldInfos.fieldInfo(dimension).getDocValuesType();
-            dimensionReaders[i] = starTreeDocValuesIteratorFactory.createIterator(
+            dimensionReaders[i] = starTreeDocValuesIteratorFactory.getDocValuesIterator(
                 dimensionDocValuesType,
                 dimensionFieldInfos,
                 docValuesProducer
@@ -160,7 +150,7 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
                 String metricName = metricStatFieldPair.getField();
                 FieldInfo metricFieldInfos = state.fieldInfos.fieldInfo(metricName);
                 DocValuesType metricDocValuesType = state.fieldInfos.fieldInfo(metricName).getDocValuesType();
-                metricReaders[index] = starTreeDocValuesIteratorFactory.createIterator(
+                metricReaders[index] = starTreeDocValuesIteratorFactory.getDocValuesIterator(
                     metricDocValuesType,
                     metricFieldInfos,
                     docValuesProducer
@@ -237,9 +227,9 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      * <ul>
      *   <li>Creates a temporary buffer for the given range of documents
      *   <li>Replaces the value for the given dimension Id to {@code STAR}
-     *   <li>Sorts the starTreeDocument inside the temporary buffer
-     *   <li>Aggregates the starTreeDocument with same dimensions
-     *   <li>Returns an iterator for the aggregated starTreeDocument
+     *   <li>Sorts the star-tree document inside the temporary buffer
+     *   <li>Aggregates the star-tree document with same dimensions
+     *   <li>Returns an iterator for the aggregated star-tree document
      * </ul>
      *
      * @param startDocId  Start document id in the star-tree
@@ -247,15 +237,15 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      * @param dimensionId Dimension id of the star-node
      * @return Iterator for the aggregated starTreeDocument
      */
-    public abstract Iterator<StarTreeDocument> generateStarTreeForStarNode(int startDocId, int endDocId, int dimensionId)
+    public abstract Iterator<StarTreeDocument> generateStarTreeDocumentsForStarNode(int startDocId, int endDocId, int dimensionId)
         throws IOException;
 
     /**
-     * Returns the next segment star-tree document
+     * Returns the segment star-tree document
      */
-    protected StarTreeDocument getNextSegmentStarTreeDocument() throws IOException {
-        long[] dimensions = getNextSegmentStarTreeDocumentDimensions();
-        Object[] metrics = getNextSegmentStarTreeDocumentMetrics();
+    protected StarTreeDocument getSegmentStarTreeDocument() throws IOException {
+        long[] dimensions = getStarTreeDimensionsFromSegment();
+        Object[] metrics = getStarTreeMetricsFromSegment();
         return new StarTreeDocument(dimensions, metrics);
     }
 
@@ -265,7 +255,7 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      * @return dimension values for each of the star-tree dimension
      * @throws IOException when we are unable to iterate to the next doc
      */
-    long[] getNextSegmentStarTreeDocumentDimensions() throws IOException {
+    long[] getStarTreeDimensionsFromSegment() throws IOException {
         long[] dimensions = new long[numDimensions];
         for (int i = 0; i < numDimensions; i++) {
             try {
@@ -292,7 +282,7 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      * @return metric values for each of the star-tree metric
      * @throws IOException when we are unable to iterate to the next doc
      */
-    private Object[] getNextSegmentStarTreeDocumentMetrics() throws IOException {
+    private Object[] getStarTreeMetricsFromSegment() throws IOException {
         Object[] metrics = new Object[numMetrics];
         for (int i = 0; i < numMetrics; i++) {
             // Ignore the column for COUNT aggregation function
@@ -314,26 +304,26 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      *
      * <p>Will create a new aggregated star-tree document if the current one is {@code null}.
      *
-     * @param aggregatedStarTreeDocument Aggregated star-tree document
-     * @param segmentStarTreeDocument    Segment star-tree document
+     * @param aggregatedSegmentDocument Aggregated star-tree document
+     * @param segmentDocument    Segment star-tree document
      * @return Merged starTreeDocument
      */
-    protected StarTreeDocument aggregateSegmentStarTreeDocument(
-        StarTreeDocument aggregatedStarTreeDocument,
-        StarTreeDocument segmentStarTreeDocument
+    protected StarTreeDocument aggregateSegmentDocuments(
+        StarTreeDocument aggregatedSegmentDocument,
+        StarTreeDocument segmentDocument
     ) {
         // TODO: HANDLE KEYWORDS LATER!
-        if (aggregatedStarTreeDocument == null) {
-            long[] dimensions = Arrays.copyOf(segmentStarTreeDocument.dimensions, numDimensions);
+        if (aggregatedSegmentDocument == null) {
+            long[] dimensions = Arrays.copyOf(segmentDocument.dimensions, numDimensions);
             Object[] metrics = new Object[numMetrics];
             for (int i = 0; i < numMetrics; i++) {
                 try {
                     StarTreeNumericType numericType = StarTreeNumericType.fromNumericType(numericTypes[i]);
-                    metrics[i] = valueAggregators[i].getInitialAggregatedValue((Long) segmentStarTreeDocument.metrics[i], numericType);
+                    metrics[i] = valueAggregators[i].getInitialAggregatedValue((Long) segmentDocument.metrics[i], numericType);
                 } catch (IllegalArgumentException | NullPointerException e) {
                     logger.error("Cannot parse initial aggregated value", e);
                     throw new IllegalArgumentException(
-                        "Cannot parse initial aggregated value [" + segmentStarTreeDocument.metrics[i] + "]"
+                        "Cannot parse initial aggregated value [" + segmentDocument.metrics[i] + "]"
                     );
                 }
             }
@@ -342,17 +332,17 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
             for (int i = 0; i < numMetrics; i++) {
                 try {
                     StarTreeNumericType numericType = StarTreeNumericType.fromNumericType(numericTypes[i]);
-                    aggregatedStarTreeDocument.metrics[i] = valueAggregators[i].applySegmentRawValue(
-                        aggregatedStarTreeDocument.metrics[i],
-                        (Long) segmentStarTreeDocument.metrics[i],
+                    aggregatedSegmentDocument.metrics[i] = valueAggregators[i].applySegmentRawValue(
+                        aggregatedSegmentDocument.metrics[i],
+                        (Long) segmentDocument.metrics[i],
                         numericType
                     );
                 } catch (IllegalArgumentException | NullPointerException e) {
                     logger.error("Cannot apply segment raw value", e);
-                    throw new IllegalArgumentException("Cannot aggregate on segment value [" + segmentStarTreeDocument.metrics[i] + "]");
+                    throw new IllegalArgumentException("Cannot aggregate on segment value [" + segmentDocument.metrics[i] + "]");
                 }
             }
-            return aggregatedStarTreeDocument;
+            return aggregatedSegmentDocument;
         }
     }
 
@@ -361,54 +351,51 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      *
      * <p>Will create a new aggregated starTreeDocument if the current one is {@code null}.
      *
-     * @param aggregatedStarTreeDocument Aggregated star-tree document
-     * @param starTreeStarTreeDocument   Star-tree document
+     * @param aggregatedDocument Aggregated star-tree document
+     * @param starTreeDocument   Star-tree document
      * @return Merged star-tree document
      */
-    public StarTreeDocument aggregateStarTreeDocument(
-        StarTreeDocument aggregatedStarTreeDocument,
-        StarTreeDocument starTreeStarTreeDocument
+    public StarTreeDocument aggregateDocuments(
+        StarTreeDocument aggregatedDocument,
+        StarTreeDocument starTreeDocument
     ) {
         // aggregate the documents
-        if (aggregatedStarTreeDocument == null) {
-            long[] dimensions = Arrays.copyOf(starTreeStarTreeDocument.dimensions, numDimensions);
+        if (aggregatedDocument == null) {
+            long[] dimensions = Arrays.copyOf(starTreeDocument.dimensions, numDimensions);
             Object[] metrics = new Object[numMetrics];
             for (int i = 0; i < numMetrics; i++) {
                 try {
-                    metrics[i] = valueAggregators[i].cloneAggregatedValue(starTreeStarTreeDocument.metrics[i]);
+                    metrics[i] = valueAggregators[i].getAggregatedValue(starTreeDocument.metrics[i]);
                 } catch (IllegalArgumentException | NullPointerException e) {
                     logger.error("Cannot clone aggregated value", e);
-                    throw new IllegalArgumentException("Cannot clone aggregated value [" + starTreeStarTreeDocument.metrics[i] + "]");
+                    throw new IllegalArgumentException("Cannot clone aggregated value [" + starTreeDocument.metrics[i] + "]");
                 }
             }
             return new StarTreeDocument(dimensions, metrics);
         } else {
             for (int i = 0; i < numMetrics; i++) {
                 try {
-                    aggregatedStarTreeDocument.metrics[i] = valueAggregators[i].applyAggregatedValue(
-                        starTreeStarTreeDocument.metrics[i],
-                        aggregatedStarTreeDocument.metrics[i]
+                    aggregatedDocument.metrics[i] = valueAggregators[i].applyAggregatedValue(
+                        starTreeDocument.metrics[i],
+                        aggregatedDocument.metrics[i]
                     );
                 } catch (IllegalArgumentException | NullPointerException e) {
                     logger.error("Cannot apply aggregated value", e);
-                    throw new IllegalArgumentException("Cannot apply aggregated value [" + starTreeStarTreeDocument.metrics[i] + "]");
+                    throw new IllegalArgumentException("Cannot apply aggregated value [" + starTreeDocument.metrics[i] + "]");
                 }
             }
-            return aggregatedStarTreeDocument;
+            return aggregatedDocument;
         }
     }
 
-    // TODO: This will be taken care in off heap implementation for merges
-    // public abstract void build(List<StarTreeValues> starTreeValues) throws IOException;
-
     public void build() throws IOException {
         long startTime = System.currentTimeMillis();
-        logger.info("Tree of Aggregations build is a go with config {}", starTreeField);
+        logger.debug("Tree of Aggregations build is a go with config {}", starTreeField);
 
-        Iterator<StarTreeDocument> starTreeDocumentIterator = processSegmentStarTreeDocuments(totalDocs);
-        logger.info("Sorting and aggregating star-tree in ms : {}", (System.currentTimeMillis() - startTime));
+        Iterator<StarTreeDocument> starTreeDocumentIterator = processSegmentStarTreeDocuments(totalSegmentDocs);
+        logger.debug("Sorting and aggregating star-tree in ms : {}", (System.currentTimeMillis() - startTime));
         build(starTreeDocumentIterator);
-        logger.info("Finished Building TOA in ms : {}", (System.currentTimeMillis() - startTime));
+        logger.debug("Finished Building star-tree in ms : {}", (System.currentTimeMillis() - startTime));
     }
 
     /**
@@ -418,41 +405,36 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      * @throws IOException when we are unable to build star-tree
      */
     public void build(Iterator<StarTreeDocument> starTreeDocumentIterator) throws IOException {
-        int numSegmentStarTreeDocument = totalDocs;
+        int numSegmentStarTreeDocument = totalSegmentDocs;
 
         while (starTreeDocumentIterator.hasNext()) {
             appendToStarTree(starTreeDocumentIterator.next());
         }
-        int numStarTreeDocument = numDocs;
-        logger.info("Generated star tree docs : [{}] from segment docs : [{}]", numStarTreeDocument, numSegmentStarTreeDocument);
+        int numStarTreeDocument = numStarTreeDocs;
+        logger.debug("Generated star tree docs : [{}] from segment docs : [{}]", numStarTreeDocument, numSegmentStarTreeDocument);
 
-        if (numDocs == 0) {
+        if (numStarTreeDocs == 0) {
             // TODO: Uncomment when segment codec is ready
             // StarTreeBuilderUtils.serializeTree(indexOutput, rootNode, dimensionsSplitOrder, numNodes);
             return;
         }
 
-        constructStarTree(rootNode, 0, numDocs);
-        int numStarTreeDocumentUnderStarNode = numDocs - numStarTreeDocument;
-        logger.info(
+        constructStarTree(rootNode, 0, numStarTreeDocs);
+        int numStarTreeDocumentUnderStarNode = numStarTreeDocs - numStarTreeDocument;
+        logger.debug(
             "Finished constructing star-tree, got [ {} ] tree nodes and [ {} ] starTreeDocument under star-node",
-            numNodes,
+            numStarTreeNodes,
             numStarTreeDocumentUnderStarNode
         );
 
         createAggregatedDocs(rootNode);
-        int numAggregatedStarTreeDocument = numDocs - numStarTreeDocument - numStarTreeDocumentUnderStarNode;
-        logger.info("Finished creating aggregated documents : {}", numAggregatedStarTreeDocument);
+        int numAggregatedStarTreeDocument = numStarTreeDocs - numStarTreeDocument - numStarTreeDocumentUnderStarNode;
+        logger.debug("Finished creating aggregated documents : {}", numAggregatedStarTreeDocument);
 
+        // TODO: When StarTree Codec is ready
         // Create doc values indices in disk
-        // TODO: Uncomment when segment codec is ready
-        // createSortedDocValuesIndices(docValuesConsumer);
-
         // Serialize and save in disk
-        // TODO: Uncomment when segment codec is ready
-        // StarTreeBuilderUtils.serializeTree(indexOutput, rootNode, dimensionsSplitOrder, numNodes);
-
-        // TODO: Write star tree metadata for off heap implementation
+        // Write star tree metadata for off heap implementation
 
     }
 
@@ -464,7 +446,7 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      */
     private void appendToStarTree(StarTreeDocument starTreeDocument) throws IOException {
         appendStarTreeDocument(starTreeDocument);
-        numDocs++;
+        numStarTreeDocs++;
     }
 
     /**
@@ -473,7 +455,7 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
      * @return return new star-tree node
      */
     private StarTreeBuilderUtils.TreeNode getNewNode() {
-        numNodes++;
+        numStarTreeNodes++;
         return new StarTreeBuilderUtils.TreeNode();
     }
 
@@ -560,12 +542,12 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
         StarTreeBuilderUtils.TreeNode starNode = getNewNode();
         starNode.dimensionId = dimensionId;
         starNode.dimensionValue = StarTreeBuilderUtils.ALL;
-        starNode.startDocId = numDocs;
-        Iterator<StarTreeDocument> starTreeDocumentIterator = generateStarTreeForStarNode(startDocId, endDocId, dimensionId);
+        starNode.startDocId = numStarTreeDocs;
+        Iterator<StarTreeDocument> starTreeDocumentIterator = generateStarTreeDocumentsForStarNode(startDocId, endDocId, dimensionId);
         while (starTreeDocumentIterator.hasNext()) {
             appendToStarTree(starTreeDocumentIterator.next());
         }
-        starNode.endDocId = numDocs;
+        starNode.endDocId = numStarTreeDocs;
         return starNode;
     }
 
@@ -588,13 +570,13 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
             } else {
                 // If it has multiple documents, aggregate all of them
                 for (int i = node.startDocId; i < node.endDocId; i++) {
-                    aggregatedStarTreeDocument = aggregateStarTreeDocument(aggregatedStarTreeDocument, getStarTreeDocument(i));
+                    aggregatedStarTreeDocument = aggregateDocuments(aggregatedStarTreeDocument, getStarTreeDocument(i));
                 }
                 assert aggregatedStarTreeDocument != null;
                 for (int i = node.dimensionId + 1; i < numDimensions; i++) {
                     aggregatedStarTreeDocument.dimensions[i] = STAR_IN_DOC_VALUES_INDEX;
                 }
-                node.aggregatedDocId = numDocs;
+                node.aggregatedDocId = numStarTreeDocs;
                 appendToStarTree(aggregatedStarTreeDocument);
             }
         } else {
@@ -612,13 +594,13 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
             } else {
                 // If no star child exists, aggregate all aggregated documents from non-star children
                 for (StarTreeBuilderUtils.TreeNode child : node.children.values()) {
-                    aggregatedStarTreeDocument = aggregateStarTreeDocument(aggregatedStarTreeDocument, createAggregatedDocs(child));
+                    aggregatedStarTreeDocument = aggregateDocuments(aggregatedStarTreeDocument, createAggregatedDocs(child));
                 }
                 assert aggregatedStarTreeDocument != null;
                 for (int i = node.dimensionId + 1; i < numDimensions; i++) {
                     aggregatedStarTreeDocument.dimensions[i] = STAR_IN_DOC_VALUES_INDEX;
                 }
-                node.aggregatedDocId = numDocs;
+                node.aggregatedDocId = numStarTreeDocs;
                 appendToStarTree(aggregatedStarTreeDocument);
             }
         }
@@ -638,23 +620,7 @@ public abstract class BaseSingleStarTreeBuilder implements SingleTreeBuilder {
     }
 
     public void close() throws IOException {
-        // boolean success = false;
-        // try {
-        // if (indexOutput != null) {
-        // indexOutput.writeInt(-1);
-        // CodecUtil.writeFooter(indexOutput); // write checksum
-        // }
-        // success = true;
-        // } catch (Exception e) {
-        // throw new RuntimeException(e);
-        // } finally {
-        // if (success) {
-        // IOUtils.close(indexOutput);
-        // } else {
-        // IOUtils.closeWhileHandlingException(indexOutput);
-        // }
-        // indexOutput = null;
-        // }
+
     }
 
 }

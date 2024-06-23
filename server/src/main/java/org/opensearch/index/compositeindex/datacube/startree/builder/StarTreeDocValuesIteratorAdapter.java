@@ -21,10 +21,10 @@ import java.io.IOException;
  * A factory class to return respective doc values iterator based on the doc volues type.
  * @opensearch.experimental
  */
-public class StarTreeDocValuesIteratorFactory implements DocValuesIteratorFactory {
+public class StarTreeDocValuesIteratorAdapter implements DocValuesIteratorAdapter {
 
     @Override
-    public DocIdSetIterator createIterator(DocValuesType type, FieldInfo field, DocValuesProducer producer) throws IOException {
+    public DocIdSetIterator getDocValuesIterator(DocValuesType type, FieldInfo field, DocValuesProducer producer) throws IOException {
         switch (type) {
             case SORTED_SET:
                 return producer.getSortedSet(field);

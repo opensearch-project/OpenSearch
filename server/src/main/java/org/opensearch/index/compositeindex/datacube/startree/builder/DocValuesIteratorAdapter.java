@@ -19,12 +19,12 @@ import java.io.IOException;
  * An interface to support iterators for various doc values types.
  * @opensearch.experimental
  */
-public interface DocValuesIteratorFactory {
+public interface DocValuesIteratorAdapter {
 
     /**
      * Creates an iterator for the given doc values type and field using the doc values producer
      */
-    DocIdSetIterator createIterator(DocValuesType type, FieldInfo field, DocValuesProducer producer) throws IOException;
+    DocIdSetIterator getDocValuesIterator(DocValuesType type, FieldInfo field, DocValuesProducer producer) throws IOException;
 
     /**
      * Returns the next value for the given iterator
