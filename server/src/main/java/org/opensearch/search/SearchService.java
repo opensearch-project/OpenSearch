@@ -83,7 +83,6 @@ import org.opensearch.index.mapper.DerivedFieldResolverFactory;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
-import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
@@ -1597,8 +1596,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private CanMatchResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         final ReaderContext readerContext = request.readerId() != null ? findReaderContext(request.readerId(), request) : null;
-        final Releasable markAsUsed = readerContext != null ? readerContext.markAsUsed(getKeepAlive(request)) : () -> {};
-        try (Releasable ignored = markAsUsed) {
+        try (Releasable ignored = readerContext != null ? readerContext.markAsUsed(getKeepAlive(request)) : () -> {}) {
             final IndexService indexService;
             final Engine.Searcher canMatchSearcher;
             final boolean hasRefreshPending;
@@ -1621,22 +1619,34 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     request.getClusterAlias()
                 );
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
-                final boolean aliasFilterCanMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-                FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-                MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                boolean canMatch;
-                if (canRewriteToMatchNone(request.source())) {
-                    QueryBuilder queryBuilder = request.source().query();
-                    canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
-                } else {
-                    // null query means match_all
-                    canMatch = aliasFilterCanMatch;
-                }
-                final FieldDoc searchAfterFieldDoc = getSearchAfterFieldDoc(request, context);
-                final Integer trackTotalHitsUpto = request.source() == null ? null : request.source().trackTotalHitsUpTo();
-                canMatch = canMatch && canMatchSearchAfter(searchAfterFieldDoc, minMax, sortBuilder, trackTotalHitsUpto);
 
-                return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
+                if (hasRefreshPending) {
+                    final FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
+                    final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+                    return new CanMatchResponse(true, minMax);
+                }
+
+                final boolean aliasFilterCanMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
+                if (aliasFilterCanMatch == false) {
+                    return new CanMatchResponse(false, null);
+                }
+
+                // null query means match_all
+                boolean canMatch = canRewriteToMatchNone(request.source()) == false
+                    || request.source().query() instanceof MatchNoneQueryBuilder == false;
+                if (canMatch == false) {
+                    return new CanMatchResponse(false, null);
+                }
+
+                final FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
+                final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+                final Object primarySearchAfterField = SearchAfterBuilder.getPrimarySearchAfterFieldOrNull(request.source());
+                if (minMax != null && primarySearchAfterField != null) {
+                    final FieldDoc searchAfterFieldDoc = getPrimarySearchAfterFieldDoc(sortBuilder, primarySearchAfterField, context);
+                    final Integer trackTotalHitsUpto = request.source() == null ? null : request.source().trackTotalHitsUpTo();
+                    canMatch = canMatchSearchAfter(searchAfterFieldDoc, minMax, sortBuilder, trackTotalHitsUpto);
+                }
+                return new CanMatchResponse(canMatch, minMax);
             }
         }
     }
@@ -1672,16 +1682,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return true;
     }
 
-    private static FieldDoc getSearchAfterFieldDoc(ShardSearchRequest request, QueryShardContext context) throws IOException {
-        if (context != null && request != null && request.source() != null && request.source().sorts() != null) {
-            final List<SortBuilder<?>> sorts = request.source().sorts();
-            final Object[] searchAfter = request.source().searchAfter();
-            final Optional<SortAndFormats> sortOpt = SortBuilder.buildSort(sorts, context);
-            if (sortOpt.isPresent() && !CollectionUtils.isEmpty(searchAfter)) {
-                return SearchAfterBuilder.buildFieldDoc(sortOpt.get(), searchAfter);
-            }
-        }
-        return null;
+    private static FieldDoc getPrimarySearchAfterFieldDoc(
+        FieldSortBuilder primarySortBuilder,
+        Object primarySearchAfter,
+        QueryShardContext context
+    ) throws IOException {
+        final Optional<SortAndFormats> sortOpt = SortBuilder.buildSort(List.of(primarySortBuilder), context);
+        return sortOpt.map(sortAndFormats -> SearchAfterBuilder.buildFieldDoc(sortAndFormats, new Object[] { primarySearchAfter }))
+            .orElse(null);
     }
 
     /**
