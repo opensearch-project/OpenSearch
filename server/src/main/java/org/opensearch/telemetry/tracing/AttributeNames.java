@@ -114,4 +114,9 @@ public final class AttributeNames {
      * Search Response Total Hits
      */
     public static final String TOTAL_HITS = "total_hits";
+
+    /**
+     * Number of Indices
+     */
+    public static final String NUM_INDICES = "num_indices";
 }
