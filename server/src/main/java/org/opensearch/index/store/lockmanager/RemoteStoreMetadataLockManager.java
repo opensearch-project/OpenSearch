@@ -18,6 +18,7 @@ import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -66,7 +67,7 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
     @Override
     public void release(LockInfo lockInfo) throws IOException {
         assert lockInfo instanceof FileLockInfo : "lockInfo should be instance of FileLockInfo";
-        String[] lockFiles = lockDirectory.listAll();
+        String[] lockFiles = getLockFiles(lockDirectory.listAll());
         try {
             String lockToRelease = ((FileLockInfo) lockInfo).getLockForAcquirer(lockFiles);
             lockDirectory.deleteFile(lockToRelease);
@@ -122,7 +123,7 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         String originalResourceId = Objects.requireNonNull(((FileLockInfo) originalLockInfo).getAcquirerId());
         String clonedResourceId = Objects.requireNonNull(((FileLockInfo) clonedLockInfo).getAcquirerId());
         assert originalResourceId != null && clonedResourceId != null : "provided resourceIds should not be null";
-        String[] lockFiles = lockDirectory.listAll();
+        String[] lockFiles = getLockFiles(lockDirectory.listAll());
         String lockNameForAcquirer = ((FileLockInfo) originalLockInfo).getLockForAcquirer(lockFiles);
         String fileToLockName = FileLockInfo.LockFileUtils.getFileToLockNameFromLock(lockNameForAcquirer);
         acquire(FileLockInfo.getLockInfoBuilder().withFileToLock(fileToLockName).withAcquirerId(clonedResourceId).build());
@@ -130,5 +131,20 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
 
     public void delete() throws IOException {
         lockDirectory.delete();
+    }
+
+    private String[] getLockFiles(String[] lockDirectoryContents) throws IOException {
+        if (lockDirectoryContents == null || lockDirectoryContents.length == 0) {
+            return new String[0];
+        }
+        // filtering lock files from lock directory contents.
+        // this is a good to have check, there is no known prod scenarios where this can happen
+        // however, during tests sometimes while creating local file directory lucene adds extraFS files.
+        return Arrays.stream(lockDirectory.listAll())
+            .filter(
+                file -> file.endsWith(RemoteStoreLockManagerUtils.LOCK_FILE_EXTENSION)
+                    || file.endsWith(RemoteStoreLockManagerUtils.PRE_OS210_LOCK_FILE_EXTENSION)
+            )
+            .toArray(String[]::new);
     }
 }
