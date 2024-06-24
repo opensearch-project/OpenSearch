@@ -106,6 +106,19 @@ public class SystemIndexDescriptor {
         return "SystemIndexDescriptor[pattern=[" + indexPattern + "], description=[" + description + "]]";
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (o == this) return true;
+        if (!(o instanceof SystemIndexDescriptor)) return false;
+        SystemIndexDescriptor descriptor = (SystemIndexDescriptor) o;
+        return descriptor.indexPattern != null && descriptor.indexPattern.equals(indexPattern);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(indexPattern);
+    }
+
     // TODO: Index settings and mapping
     // TODO: getThreadpool()
     // TODO: Upgrade handling (reindex script?)

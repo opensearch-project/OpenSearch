@@ -53,14 +53,20 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.InvalidIndexNameException;
+import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.indices.SystemIndices;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -79,6 +85,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -2520,6 +2527,30 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertThat(names, empty());
     }
 
+    public void testSystemIndexRetrieval() {
+        SystemIndexPlugin plugin1 = new SystemIndexPlugin1();
+        SystemIndexPlugin plugin2 = new SystemIndexPlugin2();
+        SystemIndices pluginSystemIndices = new SystemIndices(
+            Map.of(
+                SystemIndexPlugin1.class.getCanonicalName(),
+                plugin1.getSystemIndexDescriptors(Settings.EMPTY),
+                SystemIndexPlugin2.class.getCanonicalName(),
+                plugin2.getSystemIndexDescriptors(Settings.EMPTY)
+            )
+        );
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(threadContext, pluginSystemIndices);
+
+        SystemIndices systemIndices = resolver.systemIndices();
+        List<String> pluginClassNames = List.of(plugin1.getClass().getCanonicalName(), plugin2.getClass().getCanonicalName());
+        for (String pluginClassName : pluginClassNames) {
+            assertThat(systemIndices.getSystemIndexDescriptors(), hasKey(pluginClassName));
+            assertThat(
+                systemIndices.getSystemIndexDescriptors().get(pluginClassName),
+                equalTo(pluginSystemIndices.getSystemIndexDescriptors().get(pluginClassName))
+            );
+        }
+    }
+
     private ClusterState systemIndexTestClusterState() {
         Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()
@@ -2533,5 +2564,25 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         return Arrays.stream(indexNameExpressionResolver.concreteIndices(state, request))
             .map(i -> i.getName())
             .collect(Collectors.toList());
+    }
+
+    static final class SystemIndexPlugin1 extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_INDEX_1 = ".system-index1";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_1, "System index 1");
+            return Collections.singletonList(systemIndexDescriptor);
+        }
+    }
+
+    static final class SystemIndexPlugin2 extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_INDEX_2 = ".system-index2";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_2, "System index 2");
+            return Collections.singletonList(systemIndexDescriptor);
+        }
     }
 }

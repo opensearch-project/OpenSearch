@@ -35,6 +35,7 @@ package org.opensearch.indices;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SystemIndexDescriptorTests extends OpenSearchTestCase {
 
@@ -73,5 +74,12 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
             );
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }
+    }
+
+    public void testEquals() {
+        SystemIndexDescriptor descriptor1 = new SystemIndexDescriptor(".system-index", "Descriptor");
+        SystemIndexDescriptor descriptor2 = new SystemIndexDescriptor(".system-index", "Other Descriptor");
+
+        assertThat(descriptor1, equalTo(descriptor2));
     }
 }
