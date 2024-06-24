@@ -23,6 +23,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.NoopRemoteRoutingTableService;
@@ -805,6 +806,59 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             "test-node"
         );
         assertEquals(expectedClusterState.getClusterName(), updatedClusterState.getClusterName());
+        assertEquals(expectedClusterState.stateUUID(), updatedClusterState.stateUUID());
+        assertEquals(expectedClusterState.version(), updatedClusterState.version());
+        assertEquals(expectedClusterState.metadata().clusterUUID(), updatedClusterState.metadata().clusterUUID());
+        assertEquals(expectedClusterState.getRoutingTable().version(), updatedClusterState.getRoutingTable().version());
+        assertNotEquals(diffManifest.isClusterBlocksUpdated(), updatedClusterState.getBlocks().equals(clusterState.getBlocks()));
+        assertNotEquals(diffManifest.isDiscoveryNodesUpdated(), updatedClusterState.getNodes().equals(clusterState.getNodes()));
+        assertNotEquals(
+            diffManifest.isCoordinationMetadataUpdated(),
+            updatedClusterState.getMetadata().coordinationMetadata().equals(clusterState.getMetadata().coordinationMetadata())
+        );
+        assertNotEquals(
+            diffManifest.isTemplatesMetadataUpdated(),
+            updatedClusterState.getMetadata().templates().equals(clusterState.getMetadata().getTemplates())
+        );
+        assertNotEquals(
+            diffManifest.isSettingsMetadataUpdated(),
+            updatedClusterState.getMetadata().persistentSettings().equals(clusterState.getMetadata().persistentSettings())
+        );
+        assertNotEquals(
+            diffManifest.isTransientSettingsMetadataUpdated(),
+            updatedClusterState.getMetadata().transientSettings().equals(clusterState.getMetadata().transientSettings())
+        );
+        diffManifest.getIndicesUpdated().forEach(indexName -> {
+            IndexMetadata updatedIndexMetadata = updatedClusterState.metadata().index(indexName);
+            IndexMetadata originalIndexMetadata = clusterState.metadata().index(indexName);
+            assertNotEquals(originalIndexMetadata, updatedIndexMetadata);
+        });
+        diffManifest.getCustomMetadataUpdated().forEach(customMetadataName -> {
+            Metadata.Custom updatedCustomMetadata = updatedClusterState.metadata().custom(customMetadataName);
+            Metadata.Custom originalCustomMetadata = clusterState.metadata().custom(customMetadataName);
+            assertNotEquals(originalCustomMetadata, updatedCustomMetadata);
+        });
+        diffManifest.getClusterStateCustomUpdated().forEach(clusterStateCustomName -> {
+            ClusterState.Custom updateClusterStateCustom = updatedClusterState.customs().get(clusterStateCustomName);
+            ClusterState.Custom originalClusterStateCustom = clusterState.customs().get(clusterStateCustomName);
+            assertNotEquals(originalClusterStateCustom, updateClusterStateCustom);
+        });
+        diffManifest.getIndicesRoutingUpdated().forEach(indexName -> {
+            IndexRoutingTable updatedIndexRoutingTable = updatedClusterState.getRoutingTable().getIndicesRouting().get(indexName);
+            IndexRoutingTable originalIndexingRoutingTable = clusterState.getRoutingTable().getIndicesRouting().get(indexName);
+            assertNotEquals(originalIndexingRoutingTable, updatedIndexRoutingTable);
+        });
+        diffManifest.getIndicesDeleted()
+            .forEach(indexName -> { assertFalse(updatedClusterState.metadata().getIndices().containsKey(indexName)); });
+        diffManifest.getCustomMetadataDeleted().forEach(customMetadataName -> {
+            assertFalse(updatedClusterState.metadata().customs().containsKey(customMetadataName));
+        });
+        diffManifest.getClusterStateCustomDeleted().forEach(clusterStateCustomName -> {
+            assertFalse(updatedClusterState.customs().containsKey(clusterStateCustomName));
+        });
+        diffManifest.getIndicesRoutingDeleted().forEach(indexName -> {
+            assertFalse(updatedClusterState.getRoutingTable().getIndicesRouting().containsKey(indexName));
+        });
     }
 
     /*
