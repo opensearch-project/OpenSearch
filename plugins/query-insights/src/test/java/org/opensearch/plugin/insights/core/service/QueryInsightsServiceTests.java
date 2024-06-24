@@ -15,6 +15,8 @@ import org.opensearch.plugin.insights.QueryInsightsTestUtils;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -35,7 +37,7 @@ public class QueryInsightsServiceTests extends OpenSearchTestCase {
         Settings settings = settingsBuilder.build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         QueryInsightsTestUtils.registerAllQueryInsightsSettings(clusterSettings);
-        queryInsightsService = new QueryInsightsService(clusterSettings, threadPool, client);
+        queryInsightsService = new QueryInsightsService(clusterSettings, threadPool, client, NoopMetricsRegistry.INSTANCE);
         queryInsightsService.enableCollection(MetricType.LATENCY, true);
         queryInsightsService.enableCollection(MetricType.CPU, true);
         queryInsightsService.enableCollection(MetricType.MEMORY, true);

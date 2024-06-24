@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search;
+package org.opensearch.plugin.insights.core.categorizer;
 
 import org.apache.lucene.search.BooleanClause;
 import org.opensearch.index.query.QueryBuilder;

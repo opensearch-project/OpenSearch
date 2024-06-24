@@ -19,6 +19,7 @@ import org.opensearch.plugin.insights.rules.model.Attribute;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -74,9 +75,13 @@ final public class QueryInsightsTestUtils {
             for (int j = 0; j < countOfPhases; ++j) {
                 phaseLatencyMap.put(randomAlphaOfLengthBetween(5, 10), randomLong());
             }
+
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.size(20); // Set the size parameter as needed
+
             Map<Attribute, Object> attributes = new HashMap<>();
             attributes.put(Attribute.SEARCH_TYPE, SearchType.QUERY_THEN_FETCH.toString().toLowerCase(Locale.ROOT));
-            attributes.put(Attribute.SOURCE, "{\"size\":20}");
+            attributes.put(Attribute.SOURCE, searchSourceBuilder);
             attributes.put(Attribute.TOTAL_SHARDS, randomIntBetween(1, 100));
             attributes.put(Attribute.INDICES, randomArray(1, 3, Object[]::new, () -> randomAlphaOfLengthBetween(5, 10)));
             attributes.put(Attribute.PHASE_LATENCY_MAP, phaseLatencyMap);

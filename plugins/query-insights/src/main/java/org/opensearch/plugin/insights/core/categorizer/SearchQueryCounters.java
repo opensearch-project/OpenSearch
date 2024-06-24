@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search;
+package org.opensearch.plugin.insights.core.categorizer;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.telemetry.metrics.Counter;
@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Class contains all the Counters related to search query types.
  */
-final class SearchQueryCounters {
+public final class SearchQueryCounters {
     private static final String LEVEL_TAG = "level";
     private static final String UNIT = "1";
     private final MetricsRegistry metricsRegistry;

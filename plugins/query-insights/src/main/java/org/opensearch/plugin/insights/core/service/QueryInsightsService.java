@@ -8,16 +8,20 @@
 
 package org.opensearch.plugin.insights.core.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.client.Client;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.plugin.insights.core.categorizer.SearchQueryCategorizer;
 import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporterFactory;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -29,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import static org.opensearch.plugin.insights.settings.QueryCategorizationSettings.SEARCH_QUERY_METRICS_ENABLED_SETTING;
 import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.getExporterSettings;
 
 /**
@@ -38,6 +43,9 @@ import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.getE
  * @opensearch.internal
  */
 public class QueryInsightsService extends AbstractLifecycleComponent {
+
+    private static final Logger logger = LogManager.getLogger(QueryInsightsService.class);
+
     /**
      * The internal OpenSearch thread pool that execute async processing and exporting tasks
      */
@@ -69,6 +77,12 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
      */
     final QueryInsightsExporterFactory queryInsightsExporterFactory;
 
+    private volatile boolean searchQueryMetricsEnabled;
+
+    private SearchQueryCategorizer searchQueryCategorizer;
+
+    private MetricsRegistry metricsRegistry;
+
     /**
      * Constructor of the QueryInsightsService
      *
@@ -77,7 +91,7 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
      * @param client OS client
      */
     @Inject
-    public QueryInsightsService(final ClusterSettings clusterSettings, final ThreadPool threadPool, final Client client) {
+    public QueryInsightsService(final ClusterSettings clusterSettings, final ThreadPool threadPool, final Client client, final MetricsRegistry metricsRegistry) {
         enableCollect = new HashMap<>();
         queryRecordsQueue = new LinkedBlockingQueue<>(QueryInsightsSettings.QUERY_RECORD_QUEUE_CAPACITY);
         this.threadPool = threadPool;
@@ -94,6 +108,19 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
                 (settings -> setExporter(type, settings)),
                 (settings -> validateExporterConfig(type, settings))
             );
+        }
+
+        this.searchQueryMetricsEnabled = clusterSettings.get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
+        clusterSettings
+            .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
+
+        this.metricsRegistry = metricsRegistry;
+    }
+
+    private void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
+        this.searchQueryMetricsEnabled = searchQueryMetricsEnabled;
+        if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
+            this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
         }
     }
 
@@ -135,6 +162,15 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
                 topQueriesServices.get(metricType).consumeRecords(records);
             }
         }
+
+        if (searchQueryMetricsEnabled) {
+            try {
+                searchQueryCategorizer.consumeRecords(records);
+            } catch (Exception e) {
+                logger.error("Error while trying to categorize the queries.", e);
+            }
+        }
+
     }
 
     /**

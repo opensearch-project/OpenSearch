@@ -6,13 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search;
+package org.opensearch.plugin.insights.core.categorizer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilderVisitor;
-import org.opensearch.index.query.QueryShapeVisitor;
+import org.opensearch.plugin.insights.rules.model.Attribute;
+import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortBuilder;
@@ -26,17 +27,24 @@ import java.util.ListIterator;
  * Class to categorize the search queries based on the type and increment the relevant counters.
  * Class also logs the query shape.
  */
-final class SearchQueryCategorizer {
+public final class SearchQueryCategorizer {
 
     private static final Logger log = LogManager.getLogger(SearchQueryCategorizer.class);
 
-    final SearchQueryCounters searchQueryCounters;
+    public final SearchQueryCounters searchQueryCounters;
 
     final SearchQueryAggregationCategorizer searchQueryAggregationCategorizer;
 
     public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
         searchQueryAggregationCategorizer = new SearchQueryAggregationCategorizer(searchQueryCounters);
+    }
+
+    public void consumeRecords(List<SearchQueryRecord> records) {
+        for (SearchQueryRecord record : records) {
+            SearchSourceBuilder source = (SearchSourceBuilder) record.getAttributes().get(Attribute.SOURCE);
+            categorize(source);
+        }
     }
 
     public void categorize(SearchSourceBuilder source) {

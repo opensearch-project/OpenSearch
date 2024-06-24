@@ -9,6 +9,7 @@
 package org.opensearch.plugin.insights;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -33,10 +34,13 @@ import org.opensearch.plugin.insights.rules.transport.top_queries.TransportTopQu
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.TelemetryAwarePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
@@ -49,7 +53,7 @@ import java.util.function.Supplier;
 /**
  * Plugin class for Query Insights.
  */
-public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
+public class QueryInsightsPlugin extends Plugin implements ActionPlugin, TelemetryAwarePlugin {
     /**
      * Default constructor
      */
@@ -67,10 +71,12 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        final Tracer tracer,
+        final MetricsRegistry metricsRegistry
     ) {
         // create top n queries service
-        final QueryInsightsService queryInsightsService = new QueryInsightsService(clusterService.getClusterSettings(), threadPool, client);
+        final QueryInsightsService queryInsightsService = new QueryInsightsService(clusterService.getClusterSettings(), threadPool, client, metricsRegistry);
         return List.of(queryInsightsService, new QueryInsightsListener(clusterService, queryInsightsService));
     }
 

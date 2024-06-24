@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search;
+package org.opensearch.plugin.insights.core.categorizer;
 
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
