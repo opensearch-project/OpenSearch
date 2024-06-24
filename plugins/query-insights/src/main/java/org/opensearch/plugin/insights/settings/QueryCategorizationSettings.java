@@ -24,4 +24,9 @@ public class QueryCategorizationSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Default constructor
+     */
+    public QueryCategorizationSettings() {}
+
 }

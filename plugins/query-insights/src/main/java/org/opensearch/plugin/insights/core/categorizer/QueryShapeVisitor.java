@@ -94,4 +94,9 @@ public final class QueryShapeVisitor implements QueryBuilderVisitor {
         }
         return outputBuilder.toString();
     }
+
+    /**
+     * Default constructor
+     */
+    public QueryShapeVisitor() {}
 }
