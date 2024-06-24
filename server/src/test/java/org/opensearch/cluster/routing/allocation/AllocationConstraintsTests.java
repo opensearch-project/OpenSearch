@@ -65,7 +65,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         ShardsBalancer balancer = mock(LocalShardsBalancer.class);
         BalancedShardsAllocator.ModelNode node = mock(BalancedShardsAllocator.ModelNode.class);
         float buffer = randomFloat();
-        AllocationParameter allocationParameter = new AllocationParameter(0, 0, buffer);
+        AllocationParameter allocationParameter = new AllocationParameter(buffer, 0, 0);
         AllocationConstraints constraints = new AllocationConstraints(allocationParameter);
         constraints.updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, true);
 
@@ -150,7 +150,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
         // With buffer - Weight of 0 expected
         float buffer = .6f;
-        allocationParameter = new AllocationParameter(buffer, 0, 0);
+        allocationParameter = new AllocationParameter(0, 0, buffer);
         constraints = new AllocationConstraints(allocationParameter);
         constraints.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
         assertEquals(0, constraints.weight(balancer, node, indexName));

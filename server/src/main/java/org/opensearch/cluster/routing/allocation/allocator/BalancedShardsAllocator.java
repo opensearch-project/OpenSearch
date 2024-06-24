@@ -136,7 +136,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
 
     /**
-     * This setting governs whether primary shards balance is desired during allocation. This is used by
+     * This setting governs whether primary shards balance is desired during allocation. This is used by {@link ConstraintTypes#isPerIndexPrimaryShardsPerNodeBreached(float)}
      * and {@link ConstraintTypes#isPrimaryShardsPerNodeBreached} which is used during unassigned shard allocation
      * {@link LocalShardsBalancer#allocateUnassigned()} and shard re-balance/relocation to a different node via {@link LocalShardsBalancer#balance()} .
      */
@@ -297,9 +297,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         weightFunction = new WeightFunction(
             this.indexBalanceFactor,
             this.shardBalanceFactor,
-            this.preferPrimaryBalanceShardBuffer,
-            this.preferPrimaryBalanceIndexBuffer,
             this.shardsPerIndexBalanceBuffer,
+            this.preferPrimaryBalanceIndexBuffer,
+            this.preferPrimaryBalanceShardBuffer,
             this.preferPrimaryShardRebalanceBuffer
         );
     }
@@ -492,9 +492,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         WeightFunction(
             float indexBalance,
             float shardBalance,
-            float preferPrimaryBalanceShardBuffer,
-            float preferPrimaryBalanceIndexBuffer,
             float shardsPerIndexBalanceBuffer,
+            float preferPrimaryBalanceIndexBuffer,
+            float preferPrimaryBalanceShardBuffer,
             float preferPrimaryBalanceBuffer
         ) {
             float sum = indexBalance + shardBalance;
@@ -510,9 +510,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
             AllocationParameter allocationParameter = new AllocationParameter(
-                preferPrimaryBalanceShardBuffer,
+                shardsPerIndexBalanceBuffer,
                 preferPrimaryBalanceIndexBuffer,
-                shardsPerIndexBalanceBuffer
+                preferPrimaryBalanceShardBuffer
             );
             RebalanceParameter rebalanceParameter = new RebalanceParameter(preferPrimaryBalanceBuffer);
             this.constraints = new AllocationConstraints(allocationParameter);

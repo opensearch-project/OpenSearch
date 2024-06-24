@@ -8,6 +8,9 @@
 
 package org.opensearch.cluster.routing.allocation;
 
+/**
+ * Allocation Constraint Parameters
+ */
 public class AllocationParameter {
     private float preferPrimaryBalanceShardBuffer;
 
@@ -15,7 +18,7 @@ public class AllocationParameter {
 
     private float shardBalanceBuffer;
 
-    public AllocationParameter(float preferPrimaryBalanceShardBuffer, float preferPrimaryBalanceIndexBuffer, float shardBalanceBuffer) {
+    public AllocationParameter(float shardBalanceBuffer, float preferPrimaryBalanceIndexBuffer, float preferPrimaryBalanceShardBuffer) {
         this.preferPrimaryBalanceShardBuffer = preferPrimaryBalanceShardBuffer;
         this.preferPrimaryBalanceIndexBuffer = preferPrimaryBalanceIndexBuffer;
         this.shardBalanceBuffer = shardBalanceBuffer;
