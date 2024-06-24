@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
@@ -24,7 +23,6 @@ import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,31 +34,23 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
-public class TransferManagerTests extends OpenSearchTestCase {
-    private static final int EIGHT_MB = 1024 * 1024 * 8;
-    private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
+public abstract class TransferManagerTestCase extends OpenSearchTestCase {
+    protected static final int EIGHT_MB = 1024 * 1024 * 8;
+    protected final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
         EIGHT_MB * 2,
         1,
         new NoopCircuitBreaker(CircuitBreaker.REQUEST)
     );
-    private MMapDirectory directory;
-    private BlobContainer blobContainer;
-    private TransferManager transferManager;
+    protected MMapDirectory directory;
+    protected TransferManager transferManager;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         directory = new MMapDirectory(createTempDir(), SimpleFSLockFactory.INSTANCE);
-        blobContainer = mock(BlobContainer.class);
-        doAnswer(i -> new ByteArrayInputStream(createData())).when(blobContainer).readBlob(eq("blob"), anyLong(), anyLong());
-        transferManager = new TransferManager(blobContainer, fileCache);
+        initializeTransferManager();
     }
 
     @After
@@ -68,7 +58,7 @@ public class TransferManagerTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    private static byte[] createData() {
+    protected static byte[] createData() {
         final byte[] data = new byte[EIGHT_MB];
         data[EIGHT_MB - 1] = 7;
         return data;
@@ -162,7 +152,7 @@ public class TransferManagerTests extends OpenSearchTestCase {
     }
 
     public void testDownloadFails() throws Exception {
-        doThrow(new IOException("Expected test exception")).when(blobContainer).readBlob(eq("failure-blob"), anyLong(), anyLong());
+        mockExceptionWhileReading();
         List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
         blobParts.add(new BlobFetchRequest.BlobPart("failure-blob", 0, EIGHT_MB));
         expectThrows(
@@ -177,10 +167,7 @@ public class TransferManagerTests extends OpenSearchTestCase {
         // Mock a call for a blob that will block until the latch is released,
         // then start the fetch for that blob on a separate thread
         final CountDownLatch latch = new CountDownLatch(1);
-        doAnswer(i -> {
-            latch.await();
-            return new ByteArrayInputStream(createData());
-        }).when(blobContainer).readBlob(eq("blocking-blob"), anyLong(), anyLong());
+        mockWaitForLatchReader(latch);
         List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
         blobParts.add(new BlobFetchRequest.BlobPart("blocking-blob", 0, EIGHT_MB));
 
@@ -205,6 +192,12 @@ public class TransferManagerTests extends OpenSearchTestCase {
         blockingThread.join(5_000);
         assertFalse(blockingThread.isAlive());
     }
+
+    protected abstract void initializeTransferManager() throws IOException;
+
+    protected abstract void mockExceptionWhileReading() throws IOException;
+
+    protected abstract void mockWaitForLatchReader(CountDownLatch latch) throws IOException;
 
     private IndexInput fetchBlobWithName(String blobname) throws IOException {
         List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();

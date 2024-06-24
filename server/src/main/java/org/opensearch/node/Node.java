@@ -868,7 +868,8 @@ public class Node implements Closeable {
                 remoteStoreStatsTrackerFactory,
                 recoverySettings,
                 cacheService,
-                remoteStoreSettings
+                remoteStoreSettings,
+                fileCache
             );
 
             final IngestService ingestService = new IngestService(
@@ -1999,7 +2000,8 @@ public class Node implements Closeable {
      * Else it configures the size to 80% of available capacity for a dedicated search node, if not explicitly defined.
      */
     private void initializeFileCache(Settings settings, CircuitBreaker circuitBreaker) throws IOException {
-        if (DiscoveryNode.isSearchNode(settings)) {
+        boolean isWritableRemoteIndexEnabled = FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING);
+        if (DiscoveryNode.isSearchNode(settings) || isWritableRemoteIndexEnabled) {
             NodeEnvironment.NodePath fileCacheNodePath = nodeEnvironment.fileCacheNodePath();
             long capacity = NODE_SEARCH_CACHE_SIZE_SETTING.get(settings).getBytes();
             FsInfo.Path info = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getFSInfo(fileCacheNodePath));
@@ -2008,7 +2010,10 @@ public class Node implements Closeable {
             // Initialize default values for cache if NODE_SEARCH_CACHE_SIZE_SETTING is not set.
             if (capacity == 0) {
                 // If node is not a dedicated search node without configuration, prevent cache initialization
-                if (DiscoveryNode.getRolesFromSettings(settings).stream().anyMatch(role -> !DiscoveryNodeRole.SEARCH_ROLE.equals(role))) {
+                if (!isWritableRemoteIndexEnabled
+                    && DiscoveryNode.getRolesFromSettings(settings)
+                        .stream()
+                        .anyMatch(role -> !DiscoveryNodeRole.SEARCH_ROLE.equals(role))) {
                     throw new SettingsException(
                         "Unable to initialize the "
                             + DiscoveryNodeRole.SEARCH_ROLE.roleName()
