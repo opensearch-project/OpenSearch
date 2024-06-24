@@ -62,6 +62,11 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
 
         assertEquals("GEOMETRYCOLLECTION EMPTY", wkt.toWKT(GeometryCollection.EMPTY));
         assertEquals(GeometryCollection.EMPTY, wkt.fromWKT("GEOMETRYCOLLECTION EMPTY)"));
+
+        assertEquals(
+            new GeometryCollection<Geometry>(Arrays.asList(GeometryCollection.EMPTY)),
+            wkt.fromWKT("GEOMETRYCOLLECTION (GEOMETRYCOLLECTION EMPTY)")
+        );
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -85,5 +90,30 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
         assertEquals("found Z value [30.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
         new StandardValidator(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
+    }
+
+    public void testDeeplyNestedGeometryCollection() throws IOException, ParseException {
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
+        StringBuilder validGeometryCollectionHead = new StringBuilder("GEOMETRYCOLLECTION");
+        StringBuilder validGeometryCollectionTail = new StringBuilder(" EMPTY");
+        for (int i = 0; i < WellKnownText.MAX_DEPTH_OF_GEO_COLLECTION - 1; i++) {
+            validGeometryCollectionHead.append(" (GEOMETRYCOLLECTION");
+            validGeometryCollectionTail.append(")");
+        }
+        // Expect no exception
+        wkt.fromWKT(validGeometryCollectionHead.append(validGeometryCollectionTail).toString());
+
+        StringBuilder invalidGeometryCollectionHead = new StringBuilder("GEOMETRYCOLLECTION");
+        StringBuilder invalidGeometryCollectionTail = new StringBuilder(" EMPTY");
+        for (int i = 0; i < WellKnownText.MAX_DEPTH_OF_GEO_COLLECTION; i++) {
+            invalidGeometryCollectionHead.append(" (GEOMETRYCOLLECTION");
+            invalidGeometryCollectionTail.append(")");
+        }
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> wkt.fromWKT(invalidGeometryCollectionHead.append(invalidGeometryCollectionTail).toString())
+        );
+        assertEquals("a geometry collection with a depth greater than 1000 is not supported", ex.getMessage());
     }
 }

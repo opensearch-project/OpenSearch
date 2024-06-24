@@ -57,13 +57,13 @@ dependencies {
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation project(':modules:transport-netty4')
   api 'com.azure:azure-storage-blob:12.23.0'
-  api 'com.azure:azure-identity:1.11.4'
+  api 'com.azure:azure-identity:1.13.0'
   // Start of transitive dependencies for azure-identity
-  api 'com.microsoft.azure:msal4j-persistence-extension:1.2.0'
+  api 'com.microsoft.azure:msal4j-persistence-extension:1.3.0'
   api "net.java.dev.jna:jna-platform:${versions.jna}"
-  api 'com.microsoft.azure:msal4j:1.14.3'
+  api 'com.microsoft.azure:msal4j:1.15.1'
   api 'com.nimbusds:oauth2-oidc-sdk:11.9.1'
-  api 'com.nimbusds:nimbus-jose-jwt:9.37.3'
+  api 'com.nimbusds:nimbus-jose-jwt:9.40'
   api 'com.nimbusds:content-type:2.3'
   api 'com.nimbusds:lang-tag:1.7'
   // Both msal4j:1.14.3 and oauth2-oidc-sdk:11.9.1 has compile dependency on different versions of json-smart,
@@ -219,11 +219,6 @@ thirdPartyAudit {
     'org.bouncycastle.cert.X509CertificateHolder',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
     'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-    'org.bouncycastle.crypto.InvalidCipherTextException',
-    'org.bouncycastle.crypto.engines.AESEngine',
-    'org.bouncycastle.crypto.modes.GCMBlockCipher',
-    'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-    'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.openssl.PEMKeyPair',
     'org.bouncycastle.openssl.PEMParser',
     'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
