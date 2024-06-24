@@ -36,11 +36,11 @@ public class AllocationConstraints {
         );
         this.constraints.put(
             INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID,
-            new Constraint(isPerIndexPrimaryShardsPerNodeBreached(allocationParameter.getPreferPrimaryBalanceIndexBuffer()))
+            new Constraint(isPerIndexPrimaryShardsPerNodeBreached(allocationParameter.getPrimaryBalanceIndexBuffer()))
         );
         this.constraints.put(
             CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID,
-            new Constraint(isPrimaryShardsPerNodeBreached(allocationParameter.getPreferPrimaryBalanceShardBuffer()))
+            new Constraint(isPrimaryShardsPerNodeBreached(allocationParameter.getPrimaryBalanceShardBuffer()))
         );
     }
 
