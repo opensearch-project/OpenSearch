@@ -1614,7 +1614,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             true,
             collectCount -> assertTrue(collectCount > 0),
-            true
+            false
         );
     }
 

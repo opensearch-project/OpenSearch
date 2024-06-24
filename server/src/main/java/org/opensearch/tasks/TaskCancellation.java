@@ -42,8 +42,23 @@ public class TaskCancellation implements Comparable<TaskCancellation> {
         return reasons;
     }
 
+    public List<Runnable> getOnCancelCallbacks() {
+        return onCancelCallbacks;
+    }
+
     public String getReasonString() {
         return reasons.stream().map(Reason::getMessage).collect(Collectors.joining(", "));
+    }
+
+    public TaskCancellation merge(final TaskCancellation other) {
+        if (other == this) {
+            return this;
+        }
+        final List<Reason> newReasons = new ArrayList<>(reasons);
+        newReasons.addAll(other.getReasons());
+        final List<Runnable> newOnCancelCallbacks = new ArrayList<>(onCancelCallbacks);
+        newOnCancelCallbacks.addAll(other.onCancelCallbacks);
+        return new TaskCancellation(task, newReasons, newOnCancelCallbacks);
     }
 
     /**

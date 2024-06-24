@@ -1160,7 +1160,8 @@ public class RemoteClusterStateService implements Closeable {
         for (Map.Entry<String, UploadedMetadataAttribute> entry : clusterStateCustomToRead.entrySet()) {
             asyncMetadataReadActions.add(
                 remoteClusterStateAttributesManager.getAsyncMetadataReadAction(
-                    CLUSTER_STATE_CUSTOM,
+                    // pass component name as cluster-state-custom--<custom_name>, so that we can interpret it later
+                    String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, entry.getKey()),
                     new RemoteClusterStateCustoms(
                         entry.getValue().getUploadedFilename(),
                         entry.getValue().getAttributeName(),
