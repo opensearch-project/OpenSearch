@@ -40,6 +40,10 @@ public class Constraint implements Predicate<Constraint.ConstraintParams> {
         this.enable = enable;
     }
 
+    public boolean isEnable() {
+        return enable;
+    }
+
     static class ConstraintParams {
         private ShardsBalancer balancer;
         private BalancedShardsAllocator.ModelNode node;

@@ -28,11 +28,20 @@ import static org.opensearch.cluster.routing.allocation.ConstraintTypes.isPrimar
 public class AllocationConstraints {
     private Map<String, Constraint> constraints;
 
-    public AllocationConstraints() {
+    public AllocationConstraints(AllocationParameter allocationParameter) {
         this.constraints = new HashMap<>();
-        this.constraints.put(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, new Constraint(isIndexShardsPerNodeBreached()));
-        this.constraints.put(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, new Constraint(isPerIndexPrimaryShardsPerNodeBreached()));
-        this.constraints.put(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, new Constraint(isPrimaryShardsPerNodeBreached(0.0f)));
+        this.constraints.put(
+            INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID,
+            new Constraint(isIndexShardsPerNodeBreached(allocationParameter.getShardBalanceBuffer()))
+        );
+        this.constraints.put(
+            INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID,
+            new Constraint(isPerIndexPrimaryShardsPerNodeBreached(allocationParameter.getPreferPrimaryBalanceIndexBuffer()))
+        );
+        this.constraints.put(
+            CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID,
+            new Constraint(isPrimaryShardsPerNodeBreached(allocationParameter.getPreferPrimaryBalanceShardBuffer()))
+        );
     }
 
     public void updateAllocationConstraint(String constraint, boolean enable) {
@@ -42,5 +51,9 @@ public class AllocationConstraints {
     public long weight(ShardsBalancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
         Constraint.ConstraintParams params = new Constraint.ConstraintParams(balancer, node, index);
         return params.weight(constraints);
+    }
+
+    public Constraint getAllocationConstraint(String name) {
+        return constraints.get(name);
     }
 }

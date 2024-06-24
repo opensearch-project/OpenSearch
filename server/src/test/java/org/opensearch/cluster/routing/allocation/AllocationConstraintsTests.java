@@ -34,10 +34,12 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         float indexBalanceFactor = randomFloat();
         float shardBalance = randomFloat();
         float threshold = randomFloat();
+        boolean shardsPerIndexBalance = randomBoolean();
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalanceFactor);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), shardBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), threshold);
         settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), true);
+        settings.put(BalancedShardsAllocator.SHARDS_PER_INDEX_BALANCE.getKey(), shardsPerIndexBalance);
 
         service.applySettings(settings.build());
 
@@ -45,6 +47,10 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         assertEquals(shardBalance, allocator.getShardBalance(), 0.01);
         assertEquals(threshold, allocator.getThreshold(), 0.01);
         assertEquals(true, allocator.getPreferPrimaryBalance());
+        assertEquals(
+            shardsPerIndexBalance,
+            allocator.getAllocationParam().getAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID).isEnable()
+        );
 
         settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), false);
         service.applySettings(settings.build());
@@ -58,7 +64,9 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
     public void testIndexShardsPerNodeConstraint() {
         ShardsBalancer balancer = mock(LocalShardsBalancer.class);
         BalancedShardsAllocator.ModelNode node = mock(BalancedShardsAllocator.ModelNode.class);
-        AllocationConstraints constraints = new AllocationConstraints();
+        float buffer = randomFloat();
+        AllocationParameter allocationParameter = new AllocationParameter(0, 0, buffer);
+        AllocationConstraints constraints = new AllocationConstraints(allocationParameter);
         constraints.updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, true);
 
         int shardCount = randomIntBetween(1, 500);
@@ -68,9 +76,8 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         when(node.numShards(anyString())).thenReturn(shardCount);
         when(node.getNodeId()).thenReturn("test-node");
 
-        long expectedWeight = (shardCount >= avgShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
+        long expectedWeight = (shardCount >= (1 + buffer) * avgShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
         assertEquals(expectedWeight, constraints.weight(balancer, node, "index"));
-
     }
 
     /**
@@ -80,8 +87,11 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
     public void testPerIndexPrimaryShardsConstraint() {
         ShardsBalancer balancer = mock(LocalShardsBalancer.class);
         BalancedShardsAllocator.ModelNode node = mock(BalancedShardsAllocator.ModelNode.class);
-        AllocationConstraints constraints = new AllocationConstraints();
+        float buffer = .6f;
+        AllocationParameter allocationParameter = new AllocationParameter(0, buffer, 0);
+        AllocationConstraints constraints = new AllocationConstraints(allocationParameter);
         constraints.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
+        constraints.updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, false);
 
         final String indexName = "test-index";
         int perIndexPrimaryShardCount = 1;
@@ -95,6 +105,19 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
         perIndexPrimaryShardCount = 3;
         when(node.numPrimaryShards(anyString())).thenReturn(perIndexPrimaryShardCount);
+        assertEquals(0, constraints.weight(balancer, node, indexName));
+
+        perIndexPrimaryShardCount = 4;
+        when(node.numPrimaryShards(anyString())).thenReturn(perIndexPrimaryShardCount);
+        assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName));
+
+        perIndexPrimaryShardCount = 3;
+        when(node.numPrimaryShards(anyString())).thenReturn(perIndexPrimaryShardCount);
+        buffer = .0f;
+        allocationParameter = new AllocationParameter(0, buffer, 0);
+        constraints = new AllocationConstraints(allocationParameter);
+        constraints.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
+        constraints.updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, false);
         assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName));
 
         constraints.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, false);
@@ -107,7 +130,8 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
     public void testGlobalPrimaryShardsConstraint() {
         ShardsBalancer balancer = mock(LocalShardsBalancer.class);
         BalancedShardsAllocator.ModelNode node = mock(BalancedShardsAllocator.ModelNode.class);
-        AllocationConstraints constraints = new AllocationConstraints();
+        AllocationParameter allocationParameter = new AllocationParameter(0, 0, 0);
+        AllocationConstraints constraints = new AllocationConstraints(allocationParameter);
         constraints.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
 
         final String indexName = "test-index";
@@ -124,8 +148,17 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         when(node.numPrimaryShards()).thenReturn(primaryShardCount);
         assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName));
 
-        constraints.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, false);
+        // With buffer - Weight of 0 expected
+        float buffer = .6f;
+        allocationParameter = new AllocationParameter(buffer, 0, 0);
+        constraints = new AllocationConstraints(allocationParameter);
+        constraints.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
         assertEquals(0, constraints.weight(balancer, node, indexName));
+
+        // With buffer - Weight of CONSTRAINT_WEIGHT
+        primaryShardCount = 5;
+        when(node.numPrimaryShards()).thenReturn(primaryShardCount);
+        assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName));
     }
 
     /**
@@ -134,7 +167,8 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
     public void testPrimaryShardsConstraints() {
         ShardsBalancer balancer = mock(LocalShardsBalancer.class);
         BalancedShardsAllocator.ModelNode node = mock(BalancedShardsAllocator.ModelNode.class);
-        AllocationConstraints constraints = new AllocationConstraints();
+        AllocationParameter allocationParameter = new AllocationParameter(0, 0, 0);
+        AllocationConstraints constraints = new AllocationConstraints(allocationParameter);
         constraints.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
         constraints.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
 
@@ -175,7 +209,8 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
     public void testAllConstraints() {
         ShardsBalancer balancer = mock(LocalShardsBalancer.class);
         BalancedShardsAllocator.ModelNode node = mock(BalancedShardsAllocator.ModelNode.class);
-        AllocationConstraints constraints = new AllocationConstraints();
+        AllocationParameter allocationParameter = new AllocationParameter(0, 0, 0);
+        AllocationConstraints constraints = new AllocationConstraints(allocationParameter);
         constraints.updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, true);
         constraints.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);
         constraints.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, true);

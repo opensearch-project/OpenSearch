@@ -52,10 +52,10 @@ public class ConstraintTypes {
      * This constraint is breached when balancer attempts to allocate more than
      * average shards per index per node.
      */
-    public static Predicate<Constraint.ConstraintParams> isIndexShardsPerNodeBreached() {
+    public static Predicate<Constraint.ConstraintParams> isIndexShardsPerNodeBreached(float buffer) {
         return (params) -> {
             int currIndexShardsOnNode = params.getNode().numShards(params.getIndex());
-            int allowedIndexShardsPerNode = (int) Math.ceil(params.getBalancer().avgShardsPerNode(params.getIndex()));
+            int allowedIndexShardsPerNode = (int) Math.ceil(params.getBalancer().avgShardsPerNode(params.getIndex()) * (1 + buffer));
             return (currIndexShardsOnNode >= allowedIndexShardsPerNode);
         };
     }
@@ -66,11 +66,14 @@ public class ConstraintTypes {
      * {@link ConstraintTypes#CONSTRAINT_WEIGHT} is assigned to node resulting in lesser chances of node being selected
      * as allocation or rebalancing target
      */
-    public static Predicate<Constraint.ConstraintParams> isPerIndexPrimaryShardsPerNodeBreached() {
+    public static Predicate<Constraint.ConstraintParams> isPerIndexPrimaryShardsPerNodeBreached(float buffer) {
         return (params) -> {
             int perIndexPrimaryShardCount = params.getNode().numPrimaryShards(params.getIndex());
-            int perIndexAllowedPrimaryShardCount = (int) Math.ceil(params.getBalancer().avgPrimaryShardsPerNode(params.getIndex()));
-            return perIndexPrimaryShardCount > perIndexAllowedPrimaryShardCount;
+            int perIndexAllowedPrimaryShardCount = (int) Math.ceil(
+                params.getBalancer().avgPrimaryShardsPerNode(params.getIndex()) * (1 + buffer)
+            );
+
+            return perIndexPrimaryShardCount >= perIndexAllowedPrimaryShardCount;
         };
     }
 

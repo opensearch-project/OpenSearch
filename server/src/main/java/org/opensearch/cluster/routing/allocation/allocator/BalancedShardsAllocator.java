@@ -43,6 +43,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.AllocationConstraints;
+import org.opensearch.cluster.routing.allocation.AllocationParameter;
 import org.opensearch.cluster.routing.allocation.ConstraintTypes;
 import org.opensearch.cluster.routing.allocation.MoveDecision;
 import org.opensearch.cluster.routing.allocation.RebalanceConstraints;
@@ -135,7 +136,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
 
     /**
-     * This setting governs whether primary shards balance is desired during allocation. This is used by {@link ConstraintTypes#isPerIndexPrimaryShardsPerNodeBreached()}
+     * This setting governs whether primary shards balance is desired during allocation. This is used by
      * and {@link ConstraintTypes#isPrimaryShardsPerNodeBreached} which is used during unassigned shard allocation
      * {@link LocalShardsBalancer#allocateUnassigned()} and shard re-balance/relocation to a different node via {@link LocalShardsBalancer#balance()} .
      */
@@ -147,9 +148,40 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> SHARDS_PER_INDEX_BALANCE = Setting.boolSetting(
+        "cluster.routing.allocation.balance.constraint.shard.enable",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<Boolean> PREFER_PRIMARY_SHARD_REBALANCE = Setting.boolSetting(
         "cluster.routing.allocation.rebalance.primary.enable",
         false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Float> PREFER_PRIMARY_SHARD_BALANCE_BUFFER = Setting.floatSetting(
+        "cluster.routing.allocation.balance.primary.shard.buffer",
+        0.0f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Float> PREFER_PRIMARY_INDEX_BALANCE_BUFFER = Setting.floatSetting(
+        "cluster.routing.allocation.balance.primary.index.buffer",
+        0.0f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Float> SHARDS_PER_INDEX_BALANCE_BUFFER = Setting.floatSetting(
+        "cluster.routing.allocation.balance.constraint.shard.buffer",
+        0.0f,
+        0.0f,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -166,7 +198,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile ShardMovementStrategy shardMovementStrategy;
 
     private volatile boolean preferPrimaryShardBalance;
+
+    private volatile boolean shardsPerIndexBalance;
     private volatile boolean preferPrimaryShardRebalance;
+
+    private volatile float preferPrimaryBalanceShardBuffer;
+
+    private volatile float preferPrimaryBalanceIndexBuffer;
+
+    private volatile float shardsPerIndexBalanceBuffer;
     private volatile float preferPrimaryShardRebalanceBuffer;
     private volatile float indexBalanceFactor;
     private volatile float shardBalanceFactor;
@@ -181,17 +221,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
         setShardBalanceFactor(SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setIndexBalanceFactor(INDEX_BALANCE_FACTOR_SETTING.get(settings));
+        setPreferPrimaryBalanceShardBuffer(PREFER_PRIMARY_SHARD_BALANCE_BUFFER.get(settings));
+        setPreferPrimaryBalanceIndexBuffer(PREFER_PRIMARY_INDEX_BALANCE_BUFFER.get(settings));
+        setShardsPerIndexBalanceBuffer(SHARDS_PER_INDEX_BALANCE_BUFFER.get(settings));
         setPreferPrimaryShardRebalanceBuffer(PRIMARY_SHARD_REBALANCE_BUFFER.get(settings));
         updateWeightFunction();
         setThreshold(THRESHOLD_SETTING.get(settings));
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
         setPreferPrimaryShardRebalance(PREFER_PRIMARY_SHARD_REBALANCE.get(settings));
+        setShardsPerIndexBalance(SHARDS_PER_INDEX_BALANCE.get(settings));
         setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
+        clusterSettings.addSettingsUpdateConsumer(SHARDS_PER_INDEX_BALANCE, this::setShardsPerIndexBalance);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVEMENT_STRATEGY_SETTING, this::setShardMovementStrategy);
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, this::updateIndexBalanceFactor);
         clusterSettings.addSettingsUpdateConsumer(SHARD_BALANCE_FACTOR_SETTING, this::updateShardBalanceFactor);
+        clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE_BUFFER, this::setPreferPrimaryBalanceShardBuffer);
+        clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_INDEX_BALANCE_BUFFER, this::setPreferPrimaryBalanceIndexBuffer);
+        clusterSettings.addSettingsUpdateConsumer(SHARDS_PER_INDEX_BALANCE_BUFFER, this::setShardsPerIndexBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_SHARD_REBALANCE_BUFFER, this::updatePreferPrimaryShardBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_REBALANCE, this::setPreferPrimaryShardRebalance);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
@@ -246,7 +294,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     private void updateWeightFunction() {
-        weightFunction = new WeightFunction(this.indexBalanceFactor, this.shardBalanceFactor, this.preferPrimaryShardRebalanceBuffer);
+        weightFunction = new WeightFunction(
+            this.indexBalanceFactor,
+            this.shardBalanceFactor,
+            this.preferPrimaryBalanceShardBuffer,
+            this.preferPrimaryBalanceIndexBuffer,
+            this.shardsPerIndexBalanceBuffer,
+            this.preferPrimaryShardRebalanceBuffer
+        );
     }
 
     /**
@@ -258,6 +313,26 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.weightFunction.updateAllocationConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
         this.weightFunction.updateAllocationConstraint(CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
         this.weightFunction.updateRebalanceConstraint(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, preferPrimaryShardBalance);
+    }
+
+    private void setShardsPerIndexBalance(boolean shardsPerIndexBalance) {
+        this.shardsPerIndexBalance = shardsPerIndexBalance;
+        this.weightFunction.updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, shardsPerIndexBalance);
+    }
+
+    private void setPreferPrimaryBalanceShardBuffer(float preferPrimaryBalanceShardBuffer) {
+        this.preferPrimaryBalanceShardBuffer = preferPrimaryBalanceShardBuffer;
+        updateWeightFunction();
+    }
+
+    private void setPreferPrimaryBalanceIndexBuffer(float preferPrimaryBalanceIndexBuffer) {
+        this.preferPrimaryBalanceIndexBuffer = preferPrimaryBalanceIndexBuffer;
+        updateWeightFunction();
+    }
+
+    private void setShardsPerIndexBalanceBuffer(float shardsPerIndexBalanceBuffer) {
+        this.shardsPerIndexBalanceBuffer = shardsPerIndexBalanceBuffer;
+        updateWeightFunction();
     }
 
     private void setPreferPrimaryShardRebalance(boolean preferPrimaryShardRebalance) {
@@ -375,6 +450,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         return preferPrimaryShardBalance;
     }
 
+    public AllocationConstraints getAllocationParam() {
+        return weightFunction.constraints;
+    }
+
     /**
      * This class is the primary weight function used to create balanced over nodes and shards in the cluster.
      * Currently this function has 3 properties:
@@ -410,20 +489,34 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private AllocationConstraints constraints;
         private RebalanceConstraints rebalanceConstraints;
 
-        WeightFunction(float indexBalance, float shardBalance, float preferPrimaryBalanceBuffer) {
+        WeightFunction(
+            float indexBalance,
+            float shardBalance,
+            float preferPrimaryBalanceShardBuffer,
+            float preferPrimaryBalanceIndexBuffer,
+            float shardsPerIndexBalanceBuffer,
+            float preferPrimaryBalanceBuffer
+        ) {
             float sum = indexBalance + shardBalance;
-            if (sum <= 0.0f) {
+            if (sum > 0.0f) {
+                theta0 = shardBalance / sum;
+                theta1 = indexBalance / sum;
+            } else if (sum == 0.0f) {
+                theta0 = 0;
+                theta1 = 0;
+            } else {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
-            theta0 = shardBalance / sum;
-            theta1 = indexBalance / sum;
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
+            AllocationParameter allocationParameter = new AllocationParameter(
+                preferPrimaryBalanceShardBuffer,
+                preferPrimaryBalanceIndexBuffer,
+                shardsPerIndexBalanceBuffer
+            );
             RebalanceParameter rebalanceParameter = new RebalanceParameter(preferPrimaryBalanceBuffer);
-            this.constraints = new AllocationConstraints();
+            this.constraints = new AllocationConstraints(allocationParameter);
             this.rebalanceConstraints = new RebalanceConstraints(rebalanceParameter);
-            // Enable index shard per node breach constraint
-            updateAllocationConstraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, true);
         }
 
         public float weightWithAllocationConstraints(ShardsBalancer balancer, ModelNode node, String index) {
