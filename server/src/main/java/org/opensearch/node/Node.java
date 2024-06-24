@@ -286,7 +286,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -691,6 +690,14 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 rerouteServiceReference::get
             );
+            final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = Collections.unmodifiableMap(
+                pluginsService.filterPlugins(SystemIndexPlugin.class)
+                    .stream()
+                    .collect(
+                        Collectors.toMap(plugin -> plugin.getClass().getSimpleName(), plugin -> plugin.getSystemIndexDescriptors(settings))
+                    )
+            );
+            final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
             final ClusterModule clusterModule = new ClusterModule(
                 settings,
                 clusterService,
@@ -698,7 +705,8 @@ public class Node implements Closeable {
                 clusterInfoService,
                 snapshotsInfoService,
                 threadPool.getThreadContext(),
-                clusterManagerMetrics
+                clusterManagerMetrics,
+                systemIndices
             );
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
@@ -814,44 +822,6 @@ public class Node implements Closeable {
                 .map(IndexStorePlugin::getRecoveryStateFactories)
                 .flatMap(m -> m.entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-            List<SystemIndexPlugin> systemIndexPlugins = pluginsService.filterPlugins(SystemIndexPlugin.class);
-            final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = Collections.unmodifiableMap(
-                systemIndexPlugins.stream()
-                    .collect(
-                        Collectors.toMap(plugin -> plugin.getClass().getSimpleName(), plugin -> plugin.getSystemIndexDescriptors(settings))
-                    )
-            );
-            final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
-
-            final Map<String, Set<String>> systemIndexMap = Collections.unmodifiableMap(
-                systemIndexPlugins.stream()
-                    .collect(
-                        Collectors.toMap(
-                            plugin -> plugin.getClass().getCanonicalName(),
-                            plugin -> plugin.getSystemIndexDescriptors(settings)
-                                .stream()
-                                .map(SystemIndexDescriptor::getIndexPattern)
-                                .collect(Collectors.toSet())
-                        )
-                    )
-            );
-
-            Consumer<Map<String, Set<String>>> onSystemIndex = null;
-            for (SystemIndexPlugin plugin : systemIndexPlugins) {
-                Consumer<Map<String, Set<String>>> newOnSystemIndex = plugin.onSystemIndices();
-                if (newOnSystemIndex != null) {
-                    logger.debug("Using onSystemIndex from plugin " + plugin.getClass().getCanonicalName());
-                    if (onSystemIndex != null) {
-                        throw new IllegalArgumentException("Cannot have more than one plugin implementing onSystemIndex");
-                    }
-                    onSystemIndex = newOnSystemIndex;
-                }
-            }
-
-            if (onSystemIndex != null) {
-                onSystemIndex.accept(systemIndexMap);
-            }
 
             final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
             rerouteServiceReference.set(rerouteService);
