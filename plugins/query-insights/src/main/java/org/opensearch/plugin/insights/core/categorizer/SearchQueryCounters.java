@@ -24,12 +24,28 @@ public final class SearchQueryCounters {
     private static final String LEVEL_TAG = "level";
     private static final String UNIT = "1";
     private final MetricsRegistry metricsRegistry;
+    /**
+     * Aggregation counter
+     */
     public final Counter aggCounter;
+    /**
+     * Counter for all other query types (catch all)
+     */
     public final Counter otherQueryCounter;
+    /**
+     * Counter for sort
+     */
     public final Counter sortCounter;
     private final Map<Class<? extends QueryBuilder>, Counter> queryHandlers;
+    /**
+     * Counter name to Counter object map
+     */
     public final ConcurrentHashMap<String, Counter> nameToQueryTypeCounters;
 
+    /**
+     * Constructor
+     * @param metricsRegistry opentelemetry metrics registry
+     */
     public SearchQueryCounters(MetricsRegistry metricsRegistry) {
         this.metricsRegistry = metricsRegistry;
         this.nameToQueryTypeCounters = new ConcurrentHashMap<>();
@@ -52,6 +68,11 @@ public final class SearchQueryCounters {
 
     }
 
+    /**
+     * Increment counter
+     * @param queryBuilder query builder
+     * @param level level of query builder, 0 being highest level
+     */
     public void incrementCounter(QueryBuilder queryBuilder, int level) {
         String uniqueQueryCounterName = queryBuilder.getName();
 

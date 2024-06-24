@@ -22,10 +22,18 @@ public class SearchQueryAggregationCategorizer {
     private static final String TYPE_TAG = "type";
     private final SearchQueryCounters searchQueryCounters;
 
+    /**
+     * Constructor for SearchQueryAggregationCategorizer
+     * @param searchQueryCounters
+     */
     public SearchQueryAggregationCategorizer(SearchQueryCounters searchQueryCounters) {
         this.searchQueryCounters = searchQueryCounters;
     }
 
+    /**
+     * Increment aggregation related counters
+     * @param aggregatorFactories input aggregations
+     */
     public void incrementSearchQueryAggregationCounters(Collection<AggregationBuilder> aggregatorFactories) {
         for (AggregationBuilder aggregationBuilder : aggregatorFactories) {
             incrementCountersRecursively(aggregationBuilder);

@@ -31,15 +31,26 @@ public final class SearchQueryCategorizer {
 
     private static final Logger log = LogManager.getLogger(SearchQueryCategorizer.class);
 
+    /**
+     * Contains all the search query counters
+     */
     public final SearchQueryCounters searchQueryCounters;
 
     final SearchQueryAggregationCategorizer searchQueryAggregationCategorizer;
 
+    /**
+     * Constructor for SearchQueryCategorizor
+     * @param metricsRegistry
+     */
     public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
         searchQueryAggregationCategorizer = new SearchQueryAggregationCategorizer(searchQueryCounters);
     }
 
+    /**
+     * Consume records and increment counters for the records
+     * @param records records to consume
+     */
     public void consumeRecords(List<SearchQueryRecord> records) {
         for (SearchQueryRecord record : records) {
             SearchSourceBuilder source = (SearchSourceBuilder) record.getAttributes().get(Attribute.SOURCE);
@@ -47,6 +58,10 @@ public final class SearchQueryCategorizer {
         }
     }
 
+    /**
+     * Increment categorizations counters for the given source search query
+     * @param source search query source
+     */
     public void categorize(SearchSourceBuilder source) {
         QueryBuilder topLevelQueryBuilder = source.query();
         logQueryShape(topLevelQueryBuilder);
@@ -58,7 +73,7 @@ public final class SearchQueryCategorizer {
     private void incrementQuerySortCounters(List<SortBuilder<?>> sorts) {
         if (sorts != null && sorts.size() > 0) {
             for (ListIterator<SortBuilder<?>> it = sorts.listIterator(); it.hasNext();) {
-                SortBuilder sortBuilder = it.next();
+                SortBuilder<?> sortBuilder = it.next();
                 String sortOrder = sortBuilder.order().toString();
                 searchQueryCounters.sortCounter.add(1, Tags.create().addTag("sort_order", sortOrder));
             }

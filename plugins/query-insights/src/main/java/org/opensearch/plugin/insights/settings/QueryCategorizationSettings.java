@@ -10,7 +10,13 @@ package org.opensearch.plugin.insights.settings;
 
 import org.opensearch.common.settings.Setting;
 
+/**
+ * Settings for Query Categorization
+ */
 public class QueryCategorizationSettings {
+    /**
+     * Enabling search query metrics
+     */
     public static final Setting<Boolean> SEARCH_QUERY_METRICS_ENABLED_SETTING = Setting.boolSetting(
         "search.query.metrics.enabled",
         false,

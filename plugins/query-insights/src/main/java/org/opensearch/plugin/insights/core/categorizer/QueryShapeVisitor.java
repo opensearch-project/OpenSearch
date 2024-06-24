@@ -57,6 +57,10 @@ public final class QueryShapeVisitor implements QueryBuilderVisitor {
         return childVisitorWrapper;
     }
 
+    /**
+     * Convert query builder tree to json
+     * @return
+     */
     public String toJson() {
         StringBuilder outputBuilder = new StringBuilder("{\"type\":\"").append(queryType.get()).append("\"");
         for (Map.Entry<BooleanClause.Occur, List<QueryShapeVisitor>> entry : childVisitors.entrySet()) {
@@ -75,6 +79,11 @@ public final class QueryShapeVisitor implements QueryBuilderVisitor {
         return outputBuilder.toString();
     }
 
+    /**
+     * Pretty print the query builder tree
+     * @param indent indent size
+     * @return
+     */
     public String prettyPrintTree(String indent) {
         StringBuilder outputBuilder = new StringBuilder(indent).append(queryType.get()).append("\n");
         for (Map.Entry<BooleanClause.Occur, List<QueryShapeVisitor>> entry : childVisitors.entrySet()) {

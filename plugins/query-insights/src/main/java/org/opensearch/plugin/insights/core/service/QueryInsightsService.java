@@ -89,6 +89,7 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
      * @param clusterSettings OpenSearch cluster level settings
      * @param threadPool The OpenSearch thread pool to run async tasks
      * @param client OS client
+     * @param metricsRegistry Opentelemetry Metrics registry
      */
     @Inject
     public QueryInsightsService(final ClusterSettings clusterSettings, final ThreadPool threadPool, final Client client, final MetricsRegistry metricsRegistry) {
