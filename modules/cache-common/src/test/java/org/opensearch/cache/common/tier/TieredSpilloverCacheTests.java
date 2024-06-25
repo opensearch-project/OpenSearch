@@ -760,7 +760,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     }
 
     public void testComputeIfAbsentConcurrently() throws Exception {
-        int onHeapCacheSize = randomIntBetween(100, 300);
+        int onHeapCacheSize = randomIntBetween(500, 700);
         int diskCacheSize = randomIntBetween(200, 400);
         int keyValueSize = 50;
 
@@ -782,7 +782,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             0
         );
 
-        int numberOfSameKeys = randomIntBetween(10, onHeapCacheSize - 1);
+        int numberOfSameKeys = randomIntBetween(400, onHeapCacheSize - 1);
         ICacheKey<String> key = getICacheKey(UUID.randomUUID().toString());
         String value = UUID.randomUUID().toString();
 
