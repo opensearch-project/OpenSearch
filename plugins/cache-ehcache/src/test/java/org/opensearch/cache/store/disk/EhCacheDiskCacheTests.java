@@ -28,6 +28,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
@@ -128,7 +130,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                                 EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
                                     .get(DISK_MAX_SIZE_IN_BYTES_KEY)
                                     .getKey(),
-                                CACHE_SIZE_IN_BYTES
+                                new ByteSizeValue(CACHE_SIZE_IN_BYTES)
                             )
                             .put(
                                 EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
@@ -880,6 +882,107 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             }
             ehcacheTest.close();
         }
+    }
+
+    public void testCacheSizeSetting() throws Exception {
+        // Cache size setting should be a ByteSizeValue or parseable as bytes, not a long
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        try (NodeEnvironment env = newNodeEnvironment(Settings.EMPTY)) {
+            // First try various valid options for the cache size setting
+            List<Settings> validSettings = new ArrayList<>();
+            List<Long> expectedCacheSizes = List.of(
+                (long) CACHE_SIZE_IN_BYTES,
+                new ByteSizeValue(10, ByteSizeUnit.GB).getBytes(),
+                new ByteSizeValue(1, ByteSizeUnit.GB).getBytes(),
+                new ByteSizeValue(50000000, ByteSizeUnit.BYTES).getBytes(),
+                EhcacheDiskCacheSettings.DEFAULT_CACHE_SIZE_IN_BYTES
+            ); // The expected size of the cache produced by each of the settings in validSettings
+
+            // Should be able to pass a ByteSizeValue directly
+            validSettings.add(
+                getSettingsExceptSize(env).put(
+                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                        .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                        .getKey(),
+                    new ByteSizeValue(CACHE_SIZE_IN_BYTES)
+                ).build()
+            );
+
+            // Should also be able to pass strings which can be parsed as bytes
+            List<String> validSettingStrings = List.of("10GB", "1G", "50000000B");
+            for (String validString : validSettingStrings) {
+                validSettings.add(
+                    getSettingsExceptSize(env).put(
+                        EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                            .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                            .getKey(),
+                        validString
+                    ).build()
+                );
+            }
+
+            // Passing in settings missing a size value should give us the default
+            validSettings.add(getSettingsExceptSize(env).build());
+            assertEquals(validSettings.size(), expectedCacheSizes.size());
+
+            ICache.Factory ehcacheFactory = new EhcacheDiskCache.EhcacheDiskCacheFactory();
+
+            for (int i = 0; i < validSettings.size(); i++) {
+                ICache<String, String> ehcacheTest = ehcacheFactory.create(
+                    new CacheConfig.Builder<String, String>().setValueType(String.class)
+                        .setKeyType(String.class)
+                        .setRemovalListener(removalListener)
+                        .setKeySerializer(new StringSerializer())
+                        .setValueSerializer(new StringSerializer())
+                        .setDimensionNames(List.of(dimensionName))
+                        .setWeigher(getWeigher())
+                        .setSettings(validSettings.get(i))
+                        .build(),
+                    CacheType.INDICES_REQUEST_CACHE,
+                    Map.of()
+                );
+                assertEquals((long) expectedCacheSizes.get(i), ((EhcacheDiskCache<String, String>) ehcacheTest).getMaxWeightInBytes());
+                ehcacheTest.close();
+            }
+
+            // Next try an invalid one and show we can't construct the disk cache
+            assertThrows(IllegalArgumentException.class, () -> {
+                ICache<String, String> ehcacheTest = ehcacheFactory.create(
+                    new CacheConfig.Builder<String, String>().setValueType(String.class)
+                        .setKeyType(String.class)
+                        .setRemovalListener(removalListener)
+                        .setKeySerializer(new StringSerializer())
+                        .setValueSerializer(new StringSerializer())
+                        .setDimensionNames(List.of(dimensionName))
+                        .setWeigher(getWeigher())
+                        .setSettings(
+                            getSettingsExceptSize(env).put(
+                                EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                                    .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                                    .getKey(),
+                                "1000000"
+                            ).build()
+                        )
+                        .build(),
+                    CacheType.INDICES_REQUEST_CACHE,
+                    Map.of()
+                );
+            });
+        }
+    }
+
+    private Settings.Builder getSettingsExceptSize(NodeEnvironment env) {
+        return Settings.builder()
+            .put(
+                EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE).get(DISK_STORAGE_PATH_KEY).getKey(),
+                env.nodePaths()[0].indicesPath.toString() + "/request_cache"
+            )
+            .put(
+                EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .get(DISK_LISTENER_MODE_SYNC_KEY)
+                    .getKey(),
+                true
+            );
     }
 
     private List<String> getRandomDimensions(List<String> dimensionNames) {

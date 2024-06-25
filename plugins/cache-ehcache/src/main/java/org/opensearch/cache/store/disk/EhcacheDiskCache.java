@@ -35,6 +35,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.io.File;
 import java.io.IOException;
@@ -654,6 +655,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         return valueSerializer.deserialize(binary.value);
     }
 
+    // For testing
+    long getMaxWeightInBytes() {
+        return maxWeightInBytes;
+    }
+
     /**
      * Factory to create an ehcache disk cache.
      */
@@ -701,7 +707,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                 .setWeigher(config.getWeigher())
                 .setRemovalListener(config.getRemovalListener())
                 .setExpireAfterAccess((TimeValue) settingList.get(DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY).get(settings))
-                .setMaximumWeightInBytes((Long) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings))
+                .setMaximumWeightInBytes(((ByteSizeValue) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings)).getBytes())
                 .setSettings(settings)
                 .build();
         }

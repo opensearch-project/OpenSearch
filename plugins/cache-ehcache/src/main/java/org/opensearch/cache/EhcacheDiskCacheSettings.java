@@ -12,6 +12,7 @@ import org.opensearch.cache.store.disk.EhcacheDiskCache;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -102,9 +103,9 @@ public class EhcacheDiskCacheSettings {
     /**
      * Disk cache max size setting.
      */
-    public static final Setting.AffixSetting<Long> DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING = Setting.suffixKeySetting(
+    public static final Setting.AffixSetting<ByteSizeValue> DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING = Setting.suffixKeySetting(
         EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".max_size_in_bytes",
-        (key) -> Setting.longSetting(key, DEFAULT_CACHE_SIZE_IN_BYTES, NodeScope)
+        (key) -> Setting.memorySizeSetting(key, new ByteSizeValue(DEFAULT_CACHE_SIZE_IN_BYTES), NodeScope)
     );
 
     /**
