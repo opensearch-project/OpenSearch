@@ -32,7 +32,6 @@
 
 package org.opensearch.search.query;
 
-import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
@@ -43,18 +42,15 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
-import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.NetworkTime;
 import org.opensearch.search.profile.ProfileShardResult;
+import org.opensearch.search.query.serializer.NativeQuerySearchResultSerializer;
 import org.opensearch.search.suggest.Suggest;
 
 import java.io.IOException;
-
-import static org.opensearch.common.lucene.Lucene.readTopDocs;
-import static org.opensearch.common.lucene.Lucene.writeTopDocs;
 
 /**
  * The result of the query search
@@ -64,29 +60,7 @@ import static org.opensearch.common.lucene.Lucene.writeTopDocs;
 @PublicApi(since = "1.0.0")
 public final class QuerySearchResult extends SearchPhaseResult {
 
-    private int from;
-    private int size;
-    private TopDocsAndMaxScore topDocsAndMaxScore;
-    private boolean hasScoreDocs;
-    private TotalHits totalHits;
-    private float maxScore = Float.NaN;
-    private DocValueFormat[] sortValueFormats;
-    /**
-     * Aggregation results. We wrap them in
-     * {@linkplain DelayableWriteable} because
-     * {@link InternalAggregation} is usually made up of many small objects
-     * which have a fairly high overhead in the JVM. So we delay deserializing
-     * them until just before we need them.
-     */
-    private DelayableWriteable<InternalAggregations> aggregations;
-    private boolean hasAggs;
-    private Suggest suggest;
-    private boolean searchTimedOut;
-    private Boolean terminatedEarly = null;
-    private ProfileShardResult profileShardResults;
-    private boolean hasProfileResults;
-    private long serviceTimeEWMA = -1;
-    private int nodeQueueSize = -1;
+    private final NativeQuerySearchResultSerializer serializer;
 
     private final boolean isNull;
 
@@ -97,13 +71,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
     public QuerySearchResult(StreamInput in) throws IOException {
         super(in);
         isNull = in.readBoolean();
+        serializer = new NativeQuerySearchResultSerializer(isNull);
         if (isNull == false) {
-            ShardSearchContextId id = new ShardSearchContextId(in);
-            readFromWithId(id, in);
+            this.contextId = new ShardSearchContextId(in);
+            serializer.readQuerySearchResult(in, isNull);
+            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+            setRescoreDocIds(new RescoreDocIds(in));
         }
     }
 
     public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
+        serializer = new NativeQuerySearchResultSerializer(false);
         this.contextId = contextId;
         setSearchShardTarget(shardTarget);
         isNull = false;
@@ -112,6 +90,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private QuerySearchResult(boolean isNull) {
         this.isNull = isNull;
+        serializer = new NativeQuerySearchResultSerializer(isNull);
     }
 
     /**
@@ -119,6 +98,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     public static QuerySearchResult nullInstance() {
         return new QuerySearchResult(true);
+    }
+
+    public NativeQuerySearchResultSerializer getSerializer() {
+        return serializer;
     }
 
     /**
@@ -141,33 +124,30 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void searchTimedOut(boolean searchTimedOut) {
-        this.searchTimedOut = searchTimedOut;
+        serializer.searchTimedOut(searchTimedOut);
     }
 
     public boolean searchTimedOut() {
-        return searchTimedOut;
+        return serializer.searchTimedOut();
     }
 
     public void terminatedEarly(boolean terminatedEarly) {
-        this.terminatedEarly = terminatedEarly;
+        serializer.terminatedEarly(terminatedEarly);
     }
 
     public Boolean terminatedEarly() {
-        return this.terminatedEarly;
+        return serializer.terminatedEarly();
     }
 
     public TopDocsAndMaxScore topDocs() {
-        if (topDocsAndMaxScore == null) {
-            throw new IllegalStateException("topDocs already consumed");
-        }
-        return topDocsAndMaxScore;
+        return serializer.topDocs();
     }
 
     /**
      * Returns <code>true</code> iff the top docs have already been consumed.
      */
     public boolean hasConsumedTopDocs() {
-        return topDocsAndMaxScore == null;
+        return serializer.hasConsumedTopDocs();
     }
 
     /**
@@ -175,43 +155,22 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @throws IllegalStateException if the top docs have already been consumed.
      */
     public TopDocsAndMaxScore consumeTopDocs() {
-        TopDocsAndMaxScore topDocsAndMaxScore = this.topDocsAndMaxScore;
-        if (topDocsAndMaxScore == null) {
-            throw new IllegalStateException("topDocs already consumed");
-        }
-        this.topDocsAndMaxScore = null;
-        return topDocsAndMaxScore;
+        return serializer.consumeTopDocs();
     }
 
     public void topDocs(TopDocsAndMaxScore topDocs, DocValueFormat[] sortValueFormats) {
-        setTopDocs(topDocs);
-        if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
-            int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
-            if (numFields != sortValueFormats.length) {
-                throw new IllegalArgumentException(
-                    "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
-                );
-            }
-        }
-        this.sortValueFormats = sortValueFormats;
-    }
-
-    private void setTopDocs(TopDocsAndMaxScore topDocsAndMaxScore) {
-        this.topDocsAndMaxScore = topDocsAndMaxScore;
-        this.totalHits = topDocsAndMaxScore.topDocs.totalHits;
-        this.maxScore = topDocsAndMaxScore.maxScore;
-        this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
+        serializer.topDocs(topDocs, sortValueFormats);
     }
 
     public DocValueFormat[] sortValueFormats() {
-        return sortValueFormats;
+        return serializer.sortValueFormats();
     }
 
     /**
      * Returns <code>true</code> if this query result has unconsumed aggregations
      */
     public boolean hasAggs() {
-        return hasAggs;
+        return serializer.hasAggs();
     }
 
     /**
@@ -219,21 +178,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @throws IllegalStateException if the aggregations have already been consumed.
      */
     public DelayableWriteable<InternalAggregations> consumeAggs() {
-        if (aggregations == null) {
-            throw new IllegalStateException("aggs already consumed");
-        }
-        DelayableWriteable<InternalAggregations> aggs = aggregations;
-        aggregations = null;
-        return aggs;
+        return serializer.consumeAggs();
     }
 
     public void aggregations(InternalAggregations aggregations) {
-        this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
-        hasAggs = aggregations != null;
+        serializer.aggregations(aggregations);
     }
 
     public DelayableWriteable<InternalAggregations> aggregations() {
-        return aggregations;
+        return serializer.aggregations();
     }
 
     /**
@@ -242,33 +195,28 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @throws IllegalStateException if the profiled result has already been consumed.
      */
     public ProfileShardResult consumeProfileResult() {
-        if (profileShardResults == null) {
+        if (serializer.profileResults() == null) {
             throw new IllegalStateException("profile results already consumed");
         }
-        ProfileShardResult result = profileShardResults;
+        ProfileShardResult result = serializer.profileResults();
         NetworkTime newNetworkTime = new NetworkTime(
             this.getShardSearchRequest().getInboundNetworkTime(),
             this.getShardSearchRequest().getOutboundNetworkTime()
         );
         result.setNetworkTime(newNetworkTime);
-        profileShardResults = null;
+        serializer.profileResults(null);
         return result;
     }
 
     public boolean hasProfileResults() {
-        return hasProfileResults;
+        return serializer.hasProfileResults();
     }
 
     public void consumeAll() {
         if (hasProfileResults()) {
             consumeProfileResult();
         }
-        if (hasConsumedTopDocs() == false) {
-            consumeTopDocs();
-        }
-        if (hasAggs()) {
-            consumeAggs();
-        }
+        serializer.consumeAll();
     }
 
     /**
@@ -276,24 +224,23 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @param shardResults The finalized profile
      */
     public void profileResults(ProfileShardResult shardResults) {
-        this.profileShardResults = shardResults;
-        hasProfileResults = shardResults != null;
+        serializer.profileResults(shardResults);
     }
 
     public Suggest suggest() {
-        return suggest;
+        return serializer.suggest();
     }
 
     public void suggest(Suggest suggest) {
-        this.suggest = suggest;
+        serializer.suggest(suggest);
     }
 
     public int from() {
-        return from;
+        return serializer.from();
     }
 
     public QuerySearchResult from(int from) {
-        this.from = from;
+        serializer.from(from);
         return this;
     }
 
@@ -301,29 +248,29 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns the maximum size of this results top docs.
      */
     public int size() {
-        return size;
+        return serializer.size();
     }
 
     public QuerySearchResult size(int size) {
-        this.size = size;
+        serializer.size(size);
         return this;
     }
 
     public long serviceTimeEWMA() {
-        return this.serviceTimeEWMA;
+        return serializer.serviceTimeEWMA();
     }
 
     public QuerySearchResult serviceTimeEWMA(long serviceTimeEWMA) {
-        this.serviceTimeEWMA = serviceTimeEWMA;
+        serializer.serviceTimeEWMA(serviceTimeEWMA);
         return this;
     }
 
     public int nodeQueueSize() {
-        return this.nodeQueueSize;
+        return serializer.nodeQueueSize();
     }
 
     public QuerySearchResult nodeQueueSize(int nodeQueueSize) {
-        this.nodeQueueSize = nodeQueueSize;
+        serializer.nodeQueueSize(nodeQueueSize);
         return this;
     }
 
@@ -331,41 +278,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns <code>true</code> if this result has any suggest score docs
      */
     public boolean hasSuggestHits() {
-        return (suggest != null && suggest.hasScoreDocs());
+        return serializer.hasSuggestHits();
     }
 
     public boolean hasSearchContext() {
-        return hasScoreDocs || hasSuggestHits();
-    }
-
-    public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {
-        this.contextId = id;
-        from = in.readVInt();
-        size = in.readVInt();
-        int numSortFieldsPlus1 = in.readVInt();
-        if (numSortFieldsPlus1 == 0) {
-            sortValueFormats = null;
-        } else {
-            sortValueFormats = new DocValueFormat[numSortFieldsPlus1 - 1];
-            for (int i = 0; i < sortValueFormats.length; ++i) {
-                sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
-            }
-        }
-        setTopDocs(readTopDocs(in));
-        if (hasAggs = in.readBoolean()) {
-            aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
-        }
-        if (in.readBoolean()) {
-            suggest = new Suggest(in);
-        }
-        searchTimedOut = in.readBoolean();
-        terminatedEarly = in.readOptionalBoolean();
-        profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
-        hasProfileResults = profileShardResults != null;
-        serviceTimeEWMA = in.readZLong();
-        nodeQueueSize = in.readInt();
-        setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-        setRescoreDocIds(new RescoreDocIds(in));
+        return serializer.hasSearchContext();
     }
 
     @Override
@@ -373,48 +290,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeBoolean(isNull);
         if (isNull == false) {
             contextId.writeTo(out);
-            writeToNoId(out);
+            serializer.writeQuerySearchResult(out);
+            out.writeOptionalWriteable(getShardSearchRequest());
+            getRescoreDocIds().writeTo(out);
         }
-    }
-
-    public void writeToNoId(StreamOutput out) throws IOException {
-        out.writeVInt(from);
-        out.writeVInt(size);
-        if (sortValueFormats == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(1 + sortValueFormats.length);
-            for (int i = 0; i < sortValueFormats.length; ++i) {
-                out.writeNamedWriteable(sortValueFormats[i]);
-            }
-        }
-        writeTopDocs(out, topDocsAndMaxScore);
-        if (aggregations == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            aggregations.writeTo(out);
-        }
-        if (suggest == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            suggest.writeTo(out);
-        }
-        out.writeBoolean(searchTimedOut);
-        out.writeOptionalBoolean(terminatedEarly);
-        out.writeOptionalWriteable(profileShardResults);
-        out.writeZLong(serviceTimeEWMA);
-        out.writeInt(nodeQueueSize);
-        out.writeOptionalWriteable(getShardSearchRequest());
-        getRescoreDocIds().writeTo(out);
     }
 
     public TotalHits getTotalHits() {
-        return totalHits;
+        return serializer.getTotalHits();
     }
 
     public float getMaxScore() {
-        return maxScore;
+        return serializer.getMaxScore();
     }
 }
