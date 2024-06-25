@@ -151,7 +151,13 @@ public class RankEvalIT extends OpenSearchRestHighLevelClientTestCase {
             DiscountedCumulativeGain::new,
             () -> new ExpectedReciprocalRank(1)
         );
-        double expectedScores[] = new double[] { 0.4285714285714286, 1.0, 0.75, 1.6408962261063627, 0.4407738095238095 };
+        double expectedScores[];
+             if ((System.getProperty("os.arch").equals("ppc64le"))) {
+                  expectedScores = new double[] { 0.4285714285714286, 1.0, 0.75, 1.6408962261063629, 0.4407738095238095 };
+            } else {
+                  expectedScores = new double[] { 0.4285714285714286, 1.0, 0.75, 1.6408962261063627, 0.4407738095238095 };
+
+            }
         int i = 0;
         for (Supplier<EvaluationMetric> metricSupplier : metrics) {
             RankEvalSpec spec = new RankEvalSpec(specifications, metricSupplier.get());
