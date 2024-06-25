@@ -391,11 +391,3 @@ manage_wazuh_index:
     - "index"
   tenant_permissions: []
   static: false
-
-# ISM API permissions role
-manage_ism:
-  reserved: true
-  hidden: false
-  cluster_permissions:
-  - "manage_ism"
-  static: false

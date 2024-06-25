@@ -85,10 +85,3 @@ manage_wazuh_index:
   users:
   - "kibanaserver"
   and_backend_roles: []
-
-# ISM API permissions role mapping
-manage_ism:
-  reserved: true
-  hidden: false
-  users:
-  - "kibanaserver"

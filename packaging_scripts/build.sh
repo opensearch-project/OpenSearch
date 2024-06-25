@@ -146,22 +146,6 @@ function parse_args() {
 }
 
 # ====
-# Function to download the alerts template
-# ====
-function download_template() {
-    echo "Downloading wazuh-template.json"
-    local download_url="https://raw.githubusercontent.com/wazuh/wazuh/${BRANCH}/extensions/elasticsearch/7.x/wazuh-template.json"
-
-    if ! curl -s "${download_url}" -o distribution/src/config/wazuh-template.json; then
-        echo "Unable to download wazuh-template.json"
-        return 1
-    fi
-
-    echo "Successfully downloaded wazuh-template.json"
-    return 0
-}
-
-# ====
 # Build function
 # ====
 function build() {
@@ -192,9 +176,6 @@ function main() {
     parse_args "${@}"
 
     echo "Building OpenSearch for $PLATFORM-$DISTRIBUTION-$ARCHITECTURE"
-    if ! download_template; then
-        exit 1
-    fi
     build
 
     # Copy artifact to dist folder in bundle build output

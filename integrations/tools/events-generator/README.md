@@ -17,9 +17,7 @@ arguments, as it's configured with default values that will work in most cases d
 To know more about its capabilities and arguments, display the help menu with `-h`.
 
 As for now, this tool generates events for the `wazuh-alerts-4.x-*` and `wazuh-archives-4.x-*` indices.
-Since 4.8.0, these indices are aliased to `wazuh-alerts` and `wazuh-archives`. If you need to, run the 
-[indexer-ism-init.sh](../../../distribution/src/bin/indexer-ism-init.sh) script to create them. This is important as, by default, the tool will write to 
-the `wazuh-alerts` alias. You may also need to create an **index pattern** in _dashboards_ in order to perform
+You may also need to create an **index pattern** in _dashboards_ in order to perform
 queries to the index from the UI. To do that, go to Dashboards Management > Index Patterns > Create index pattern > wazuh-alerts-4.x-* > timestamp as Time field
 
 Newer indices, like `wazuh-states-vulnerabilities`, are ECS compliant and use a dedicated events' generator.

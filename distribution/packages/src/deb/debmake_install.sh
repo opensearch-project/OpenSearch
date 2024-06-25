@@ -90,6 +90,5 @@ for i in "${binary_files[@]}"; do
 	chmod -c 750 "$i"
 done
 
-chmod -c 660 "${buildroot}${config_dir}/wazuh-template.json"
 
 exit 0

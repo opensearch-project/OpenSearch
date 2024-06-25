@@ -117,7 +117,6 @@ set -- "$@" "%{_sysconfdir}/sysconfig/%{name}"
 set -- "$@" "%{config_dir}/log4j2.properties"
 set -- "$@" "%{config_dir}/jvm.options"
 set -- "$@" "%{config_dir}/opensearch.yml"
-set -- "$@" "%{config_dir}/wazuh-template.json"
 set -- "$@" "%{product_dir}/VERSION"
 set -- "$@" "%{product_dir}/plugins/opensearch-security/tools/.*\.sh"
 set -- "$@" "%{product_dir}/bin/.*"
@@ -262,7 +261,6 @@ exit 0
 %attr(750, %{name}, %{name}) %{product_dir}/jdk/lib/jspawnhelper
 %attr(750, %{name}, %{name}) %{product_dir}/jdk/lib/modules
 %attr(750, %{name}, %{name}) %{product_dir}/performance-analyzer-rca/bin/*
-%attr(660, %{name}, %{name}) %{config_dir}/wazuh-template.json
 
 %changelog
 * Thu Mar 28 2024 support <info@wazuh.com> - 4.9.0
