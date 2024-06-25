@@ -40,6 +40,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -57,10 +58,12 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.Function;
 
 /**
  * Base action class for transport nodes
@@ -72,6 +75,17 @@ public abstract class TransportNodesAction<
     NodesResponse extends BaseNodesResponse,
     NodeRequest extends TransportRequest,
     NodeResponse extends BaseNodeResponse> extends HandledTransportAction<NodesRequest, NodesResponse> {
+
+    public static final String OPTIMIZED_TRANSPORT_NODES_ACTIONS = "opensearch.experimental.optimization.transport_nodes_action.list";
+
+    public static final Setting<List<String>> OPTIMIZED_TRANSPORT_NODES_ACTIONS_SETTING = Setting.listSetting(
+        OPTIMIZED_TRANSPORT_NODES_ACTIONS,
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public volatile List<String> optimizedTransportActionNames;
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -114,6 +128,10 @@ public abstract class TransportNodesAction<
         this.transportNodeAction = actionName + "[n]";
         this.finalExecutor = finalExecutor;
         transportService.registerRequestHandler(transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
+
+        this.optimizedTransportActionNames = OPTIMIZED_TRANSPORT_NODES_ACTIONS_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(OPTIMIZED_TRANSPORT_NODES_ACTIONS_SETTING, this::setOptimizedTransportNodesActionsList);
     }
 
     /**
@@ -146,6 +164,10 @@ public abstract class TransportNodesAction<
             ThreadPool.Names.SAME,
             nodeResponseClass
         );
+    }
+
+    protected void setOptimizedTransportNodesActionsList(List<String> newOptimizedTransportNodesActionsList) {
+        this.optimizedTransportActionNames = newOptimizedTransportNodesActionsList;
     }
 
     @Override
@@ -210,6 +232,15 @@ public abstract class TransportNodesAction<
     }
 
     /**
+     * populate the concrete nodes from the request node ids
+     **/
+    protected DiscoveryNode[] resolveConcreteNodes(NodesRequest request, ClusterState clusterState) {
+        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
+        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
+        return Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new);
+    }
+
+    /**
      * Get a backwards compatible transport action name
      */
     protected String getTransportNodeAction(DiscoveryNode node) {
@@ -226,6 +257,7 @@ public abstract class TransportNodesAction<
         private final NodesRequest request;
         private final ActionListener<NodesResponse> listener;
         private final AtomicReferenceArray<Object> responses;
+        private final DiscoveryNode[] concreteNodes;
         private final AtomicInteger counter = new AtomicInteger();
         private final Task task;
 
@@ -234,14 +266,28 @@ public abstract class TransportNodesAction<
             this.request = request;
             this.listener = listener;
             if (request.concreteNodes() == null) {
-                resolveRequest(request, clusterService.state());
-                assert request.concreteNodes() != null;
+                if (optimizedTransportActionNames.contains(request.getClass().getSimpleName())) {
+                    this.concreteNodes = resolveConcreteNodes(request, clusterService.state());
+                    assert request.concreteNodes() == null;
+                } else {
+                    resolveRequest(request, clusterService.state());
+                    assert request.concreteNodes() != null;
+                    this.concreteNodes = null;
+                }
+            } else {
+                this.concreteNodes = null;
             }
-            this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
+            if (request.concreteNodes() == null) {
+                assert concreteNodes != null;
+                this.responses = new AtomicReferenceArray<>(concreteNodes.length);
+            } else {
+                this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
+            }
         }
 
         void start() {
-            final DiscoveryNode[] nodes = request.concreteNodes();
+            logger.info(request.getClass().getSimpleName());
+            final DiscoveryNode[] nodes = request.concreteNodes() != null ? request.concreteNodes() : concreteNodes;
             if (nodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
@@ -260,7 +306,6 @@ public abstract class TransportNodesAction<
                     if (task != null) {
                         nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }
-
                     transportService.sendRequest(
                         node,
                         getTransportNodeAction(node),
