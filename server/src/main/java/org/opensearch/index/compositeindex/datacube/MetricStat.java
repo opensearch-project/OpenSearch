@@ -21,8 +21,7 @@ public enum MetricStat {
     AVG("avg"),
     SUM("sum"),
     MIN("min"),
-    MAX("max"),
-    UNSUPPORTED("unsupported");
+    MAX("max");
 
     private final String typeName;
 

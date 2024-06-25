@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentWriteState;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.mapper.MapperService;
@@ -21,7 +22,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
+/**
+ * Builder to construct star tree based on multiple star tree configs
+ *
+ * @opensearch.experimental
+ */
+@ExperimentalApi
 public class StarTreesBuilder implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(StarTreesBuilder.class);
@@ -30,13 +38,13 @@ public class StarTreesBuilder implements Closeable {
     private final StarTreeFieldConfiguration.StarTreeBuildMode buildMode;
     private final DocValuesConsumer docValuesConsumer;
     private final SegmentWriteState state;
-    private final DocValuesProducer docValuesProducer;
+    private final Map<String, DocValuesProducer> fieldProducerMap;
     private final MapperService mapperService;
 
     public StarTreesBuilder(
         List<StarTreeField> starTreeFields,
         StarTreeFieldConfiguration.StarTreeBuildMode buildMode,
-        DocValuesProducer docValuesProducer,
+        Map<String, DocValuesProducer> fieldProducerMap,
         DocValuesConsumer docValuesConsumer,
         SegmentWriteState segmentWriteState,
         MapperService mapperService
@@ -46,7 +54,7 @@ public class StarTreesBuilder implements Closeable {
             throw new IllegalArgumentException("Must provide star-tree builder configs");
         }
         this.buildMode = buildMode;
-        this.docValuesProducer = docValuesProducer;
+        this.fieldProducerMap = fieldProducerMap;
         this.docValuesConsumer = docValuesConsumer;
         this.state = segmentWriteState;
         this.mapperService = mapperService;
@@ -67,7 +75,7 @@ public class StarTreesBuilder implements Closeable {
                 SingleTreeBuilder singleTreeBuilder = getSingleTreeBuilder(
                     starTreeField,
                     buildMode,
-                    docValuesProducer,
+                    fieldProducerMap,
                     docValuesConsumer,
                     state,
                     mapperService
@@ -93,14 +101,14 @@ public class StarTreesBuilder implements Closeable {
     private static SingleTreeBuilder getSingleTreeBuilder(
         StarTreeField starTreeField,
         StarTreeFieldConfiguration.StarTreeBuildMode buildMode,
-        DocValuesProducer docValuesProducer,
+        Map<String, DocValuesProducer> fieldProducerMap,
         DocValuesConsumer docValuesConsumer,
         SegmentWriteState state,
         MapperService mapperService
     ) throws IOException {
         switch (buildMode) {
             case ON_HEAP:
-                return new OnHeapSingleTreeBuilder(starTreeField, docValuesProducer, docValuesConsumer, state, mapperService);
+                return new OnHeapSingleTreeBuilder(starTreeField, fieldProducerMap, docValuesConsumer, state, mapperService);
             default:
                 throw new IllegalArgumentException(
                     String.format(Locale.ROOT, "No star tree implementation is available for [%s] build mode", buildMode)

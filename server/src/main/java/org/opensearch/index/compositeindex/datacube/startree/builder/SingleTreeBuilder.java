@@ -8,6 +8,8 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 import java.io.Closeable;
 import java.io.IOException;
 
@@ -15,6 +17,7 @@ import java.io.IOException;
  * A star-tree builder that builds a single star-tree.
  * @opensearch.experimental
  */
+@ExperimentalApi
 public interface SingleTreeBuilder extends Closeable {
 
     /**

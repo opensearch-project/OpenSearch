@@ -12,6 +12,10 @@ import org.opensearch.index.fielddata.IndexNumericFieldData;
 
 import java.util.function.Function;
 
+/**
+ * Enum to map Star Tree Numeric Types to Lucene's Numeric Type
+ * @opensearch.experimental
+ */
 public enum StarTreeNumericType {
     HALF_FLOAT(IndexNumericFieldData.NumericType.HALF_FLOAT, StarTreeNumericTypeConverters::halfFloatPointToDouble),
     FLOAT(IndexNumericFieldData.NumericType.FLOAT, StarTreeNumericTypeConverters::floatPointToDouble),

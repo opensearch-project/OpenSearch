@@ -10,7 +10,13 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators.numeri
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.annotation.ExperimentalApi;
 
+/**
+ * Numeric converters used during aggregations of metric values
+ * @opensearch.experimental
+ */
+@ExperimentalApi
 public class StarTreeNumericTypeConverters {
 
     public static double halfFloatPointToDouble(Long value) {

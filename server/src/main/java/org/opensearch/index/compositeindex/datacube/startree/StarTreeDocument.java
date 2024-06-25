@@ -6,13 +6,17 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex.datacube.startree.data;
+package org.opensearch.index.compositeindex.datacube.startree;
+
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.util.Arrays;
 
 /**
  * Star tree document
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class StarTreeDocument {
     public final long[] dimensions;
     public final Object[] metrics;

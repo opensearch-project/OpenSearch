@@ -14,16 +14,21 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
 
 /**
  * A factory class to return respective doc values iterator based on the doc volues type.
+ *
  * @opensearch.experimental
  */
-public class StarTreeDocValuesIteratorAdapter implements DocValuesIteratorAdapter {
+@ExperimentalApi
+public class StarTreeDocValuesIteratorAdapter {
 
-    @Override
+    /**
+     * Creates an iterator for the given doc values type and field using the doc values producer
+     */
     public DocIdSetIterator getDocValuesIterator(DocValuesType type, FieldInfo field, DocValuesProducer producer) throws IOException {
         switch (type) {
             case SORTED_SET:
@@ -35,8 +40,10 @@ public class StarTreeDocValuesIteratorAdapter implements DocValuesIteratorAdapte
         }
     }
 
-    @Override
-    public long getNextValue(DocIdSetIterator iterator) throws IOException {
+    /**
+     * Returns the next ordinal for the given iterator
+     */
+    public long getNextOrd(DocIdSetIterator iterator) throws IOException {
         if (iterator instanceof SortedSetDocValues) {
             return ((SortedSetDocValues) iterator).nextOrd();
         } else if (iterator instanceof SortedNumericDocValues) {
@@ -46,7 +53,9 @@ public class StarTreeDocValuesIteratorAdapter implements DocValuesIteratorAdapte
         }
     }
 
-    @Override
+    /**
+     * Returns the doc id  for the next document from the given iterator
+     */
     public int nextDoc(DocIdSetIterator iterator) throws IOException {
         return iterator.nextDoc();
     }

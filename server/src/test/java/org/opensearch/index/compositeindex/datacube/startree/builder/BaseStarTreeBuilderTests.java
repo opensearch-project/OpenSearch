@@ -27,10 +27,11 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricStatFieldPair;
-import org.opensearch.index.compositeindex.datacube.startree.data.StarTreeDocument;
+import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregationDescriptor;
+import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.Mapper;
@@ -46,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -72,6 +74,7 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
     private static List<Metric> metrics;
     private static Directory directory;
     private static FieldInfo[] fieldsInfo;
+    private static SegmentWriteState state;
 
     @BeforeClass
     public static void setup() throws IOException {
@@ -104,7 +107,7 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
         );
 
         fieldsInfo = new FieldInfo[fields.size()];
-
+        Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
         for (int i = 0; i < fieldsInfo.length; i++) {
             fieldsInfo[i] = new FieldInfo(
                 fields.get(i),
@@ -125,16 +128,10 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
                 false,
                 false
             );
+            fieldProducerMap.put(fields.get(i), docValuesProducer);
         }
         FieldInfos fieldInfos = new FieldInfos(fieldsInfo);
-        final SegmentWriteState state = new SegmentWriteState(
-            InfoStream.getDefault(),
-            segmentInfo.dir,
-            segmentInfo,
-            fieldInfos,
-            null,
-            newIOContext(random())
-        );
+        state = new SegmentWriteState(InfoStream.getDefault(), segmentInfo.dir, segmentInfo, fieldInfos, null, newIOContext(random()));
 
         mapperService = mock(MapperService.class);
         DocumentMapper documentMapper = mock(DocumentMapper.class);
@@ -153,7 +150,7 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
         );
         when(documentMapper.mappers()).thenReturn(fieldMappers);
 
-        builder = new BaseStarTreeBuilder(compositeField, docValuesProducer, docValuesConsumer, state, mapperService) {
+        builder = new BaseStarTreeBuilder(compositeField, fieldProducerMap, docValuesConsumer, state, mapperService) {
             @Override
             public void appendStarTreeDocument(StarTreeDocument starTreeDocument) throws IOException {}
 
@@ -173,7 +170,7 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public Iterator<StarTreeDocument> processSegmentStarTreeDocuments(int numDocs) throws IOException {
+            public Iterator<StarTreeDocument> sortMergeAndAggregateStarTreeDocument(int numDocs) throws IOException {
                 return null;
             }
 
@@ -186,20 +183,20 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
     }
 
     public void test_generateMetricStatFieldPairs() throws IOException {
-        List<MetricStatFieldPair> metricStatFieldPairs = builder.generateMetricStatFieldPairs();
-        List<MetricStatFieldPair> expectedMetricStatFieldPairs = List.of(
-            new MetricStatFieldPair(MetricStat.SUM, "field2"),
-            new MetricStatFieldPair(MetricStat.SUM, "field4")
+        List<MetricAggregationDescriptor> metricAggregationDescriptors = builder.generateMetricStatFieldPairs(mapperService, state);
+        List<MetricAggregationDescriptor> expectedMetricAggregationDescriptors = List.of(
+            new MetricAggregationDescriptor(MetricStat.SUM, "field2", IndexNumericFieldData.NumericType.DOUBLE, null),
+            new MetricAggregationDescriptor(MetricStat.SUM, "field4", IndexNumericFieldData.NumericType.DOUBLE, null)
         );
-        assertEquals(metricStatFieldPairs, expectedMetricStatFieldPairs);
+        assertEquals(metricAggregationDescriptors, expectedMetricAggregationDescriptors);
     }
 
-    public void test_aggregateDocuments() {
+    public void test_reduceStarTreeDocuments() {
         StarTreeDocument starTreeDocument1 = new StarTreeDocument(new long[] { 1, 3, 5, 8 }, new Double[] { 4.0, 8.0 });
         StarTreeDocument starTreeDocument2 = new StarTreeDocument(new long[] { 1, 3, 5, 8 }, new Double[] { 10.0, 6.0 });
 
         StarTreeDocument expectedeMergedStarTreeDocument = new StarTreeDocument(new long[] { 1, 3, 5, 8 }, new Double[] { 14.0, 14.0 });
-        StarTreeDocument mergedStarTreeDocument = builder.aggregateDocuments(starTreeDocument1, starTreeDocument2);
+        StarTreeDocument mergedStarTreeDocument = builder.reduceStarTreeDocuments(starTreeDocument1, starTreeDocument2);
 
         assertEquals(mergedStarTreeDocument.metrics[0], expectedeMergedStarTreeDocument.metrics[0]);
         assertEquals(mergedStarTreeDocument.metrics[1], expectedeMergedStarTreeDocument.metrics[1]);

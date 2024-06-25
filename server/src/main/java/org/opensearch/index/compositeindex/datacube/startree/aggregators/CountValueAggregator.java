@@ -10,20 +10,18 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
-import org.opensearch.search.aggregations.metrics.CompensatedSum;
 
 /**
- * Sum value aggregator for star tree
+ * Count value aggregator for star tree
  *
  * @opensearch.experimental
  */
-public class SumValueAggregator implements ValueAggregator<Double> {
-
+public class CountValueAggregator implements ValueAggregator<Double> {
     public static final StarTreeNumericType STAR_TREE_NUMERIC_TYPE = StarTreeNumericType.DOUBLE;
 
     @Override
     public MetricStat getAggregationType() {
-        return MetricStat.SUM;
+        return MetricStat.COUNT;
     }
 
     @Override
@@ -33,23 +31,17 @@ public class SumValueAggregator implements ValueAggregator<Double> {
 
     @Override
     public Double getInitialAggregatedValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
-        return starTreeNumericType.getDoubleValue(segmentDocValue);
+        return 1.0;
     }
 
     @Override
     public Double applySegmentRawValue(Double value, Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        kahanSummation.add(value);
-        kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
-        return kahanSummation.value();
+        return value + 1;
     }
 
     @Override
     public Double applyAggregatedValue(Double value, Double aggregatedValue) {
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        kahanSummation.add(value);
-        kahanSummation.add(aggregatedValue);
-        return kahanSummation.value();
+        return value + aggregatedValue;
     }
 
     @Override
@@ -59,7 +51,7 @@ public class SumValueAggregator implements ValueAggregator<Double> {
 
     @Override
     public int getMaxAggregatedValueByteSize() {
-        return Double.BYTES;
+        return Long.BYTES;
     }
 
     @Override

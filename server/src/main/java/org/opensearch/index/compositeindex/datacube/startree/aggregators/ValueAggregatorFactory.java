@@ -8,10 +8,11 @@
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.compositeindex.datacube.startree.data.DataType;
+import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 /**
  * Value aggregator factory for a given aggregation type
+ *
  * @opensearch.experimental
  */
 public class ValueAggregatorFactory {
@@ -28,6 +29,8 @@ public class ValueAggregatorFactory {
             // other metric types (count, min, max, avg) will be supported in the future
             case SUM:
                 return new SumValueAggregator();
+            case COUNT:
+                return new CountValueAggregator();
             default:
                 throw new IllegalStateException("Unsupported aggregation type: " + aggregationType);
         }
@@ -39,11 +42,13 @@ public class ValueAggregatorFactory {
      * @param aggregationType Aggregation type
      * @return Data type of the aggregated value
      */
-    public static DataType getAggregatedValueType(MetricStat aggregationType) {
+    public static StarTreeNumericType getAggregatedValueType(MetricStat aggregationType) {
         switch (aggregationType) {
             // other metric types (count, min, max, avg) will be supported in the future
             case SUM:
-                return SumValueAggregator.AGGREGATED_VALUE_TYPE;
+                return SumValueAggregator.STAR_TREE_NUMERIC_TYPE;
+            case COUNT:
+                return CountValueAggregator.STAR_TREE_NUMERIC_TYPE;
             default:
                 throw new IllegalStateException("Unsupported aggregation type: " + aggregationType);
         }

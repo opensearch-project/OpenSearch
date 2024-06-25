@@ -84,7 +84,7 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         SortedSetDocValues iterator = Mockito.mock(SortedSetDocValues.class);
         when(iterator.nextOrd()).thenReturn(42L);
 
-        long result = factory.getNextValue(iterator);
+        long result = factory.getNextOrd(iterator);
         assertEquals(42L, result);
     }
 
@@ -92,14 +92,14 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
         when(iterator.nextValue()).thenReturn(123L);
 
-        long result = factory.getNextValue(iterator);
+        long result = factory.getNextOrd(iterator);
         assertEquals(123L, result);
     }
 
     public void testGetNextValue_UnsupportedIterator() {
         DocIdSetIterator iterator = Mockito.mock(DocIdSetIterator.class);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { factory.getNextValue(iterator); });
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { factory.getNextOrd(iterator); });
         assertEquals("Unsupported Iterator: " + iterator.toString(), exception.getMessage());
     }
 

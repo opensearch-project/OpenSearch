@@ -9,10 +9,10 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
-import org.opensearch.index.compositeindex.datacube.startree.data.DataType;
 
 /**
  * A value aggregator that pre-aggregates on the input values for a specific type of aggregation.
+ *
  * @opensearch.experimental
  */
 public interface ValueAggregator<A> {
@@ -25,17 +25,17 @@ public interface ValueAggregator<A> {
     /**
      * Returns the data type of the aggregated value.
      */
-    DataType getAggregatedValueType();
+    StarTreeNumericType getStarTreeNumericType();
 
     /**
      * Returns the initial aggregated value.
      */
-    A getInitialAggregatedValue(Long rawValue, StarTreeNumericType starTreeNumericType);
+    A getInitialAggregatedValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType);
 
     /**
-     * Applies a raw value to the current aggregated value.
+     * Applies a segment doc value to the current aggregated value.
      */
-    A applySegmentRawValue(A value, Long rawValue, StarTreeNumericType starTreeNumericType);
+    A applySegmentRawValue(A value, Long segmentDocValue, StarTreeNumericType starTreeNumericType);
 
     /**
      * Applies an aggregated value to the current aggregated value.
@@ -55,10 +55,10 @@ public interface ValueAggregator<A> {
     /**
      * Converts an aggregated value into a Long type.
      */
-    Long convertAggregationTypeToSortableLongValue(A value);
+    Long toLongValue(A value);
 
     /**
      * Converts an aggregated value from a Long type.
      */
-    A convertSortableLongToAggregatedTypeValue(Long rawValue, StarTreeNumericType type);
+    A toStarTreeNumericTypeValue(Long rawValue, StarTreeNumericType type);
 }

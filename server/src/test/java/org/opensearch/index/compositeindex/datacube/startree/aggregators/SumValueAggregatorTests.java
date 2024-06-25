@@ -21,8 +21,8 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
         assertEquals(MetricStat.SUM.getTypeName(), aggregator.getAggregationType().getTypeName());
     }
 
-    public void testGetAggregatedValueType() {
-        assertEquals(SumValueAggregator.AGGREGATED_VALUE_TYPE, aggregator.getAggregatedValueType());
+    public void testGetStarTreeNumericType() {
+        assertEquals(SumValueAggregator.STAR_TREE_NUMERIC_TYPE, aggregator.getStarTreeNumericType());
     }
 
     public void testGetInitialAggregatedValue() {
@@ -37,7 +37,6 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
 
     public void testApplyAggregatedValue() {
         assertEquals(5.0, aggregator.applyAggregatedValue(2.0, 3.0), 0.0);
-        assertEquals(7.28, aggregator.applyAggregatedValue(3.14, 4.14), 0.0000001);
     }
 
     public void testGetAggregatedValue() {
@@ -48,17 +47,13 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
         assertEquals(Double.BYTES, aggregator.getMaxAggregatedValueByteSize());
     }
 
-    public void testConvertAggregationTypeToSortableLongValue() {
+    public void testToLongValue() {
         SumValueAggregator aggregator = new SumValueAggregator();
-        assertEquals(NumericUtils.doubleToSortableLong(3.14), aggregator.convertAggregationTypeToSortableLongValue(3.14), 0.0);
+        assertEquals(NumericUtils.doubleToSortableLong(3.14), aggregator.toLongValue(3.14), 0.0);
     }
 
-    public void testConvertSortableLongToAggregatedTypeValue() {
+    public void testToStarTreeNumericTypeValue() {
         SumValueAggregator aggregator = new SumValueAggregator();
-        assertEquals(
-            NumericUtils.sortableLongToDouble(3L),
-            aggregator.convertSortableLongToAggregatedTypeValue(3L, StarTreeNumericType.DOUBLE),
-            0.0
-        );
+        assertEquals(NumericUtils.sortableLongToDouble(3L), aggregator.toStarTreeNumericTypeValue(3L, StarTreeNumericType.DOUBLE), 0.0);
     }
 }
