@@ -359,6 +359,8 @@ function assemble_deb() {
 
     # Configure debmake to only generate binaries
     echo 'DEBUILD_DPKG_BUILDPACKAGE_OPTS="-us -uc -ui -b"' >~/.devscripts
+    # Configure debuild to skip lintian
+    echo 'DEBUILD_LINTIAN_OPTS="--no-lintian"' >>~/.devscripts
 
     # Generate final package
     debmake \
@@ -368,11 +370,11 @@ function assemble_deb() {
         --package wazuh-indexer \
         --native \
         --revision "${REVISION}" \
-        --upstreamversion "${version}"
+        --upstreamversion "${version}-${REVISION}"
 
     # Move to the root folder, copy the package and clean.
     cd ../../..
-    package_name="wazuh-indexer_${version}_${SUFFIX}.${EXT}"
+    package_name="wazuh-indexer_${version}-${REVISION}_${SUFFIX}.${EXT}"
     # debmake creates the package one level above
     cp "${TMP_DIR}/../${package_name}" "${OUTPUT}/dist/$ARTIFACT_PACKAGE_NAME"
 

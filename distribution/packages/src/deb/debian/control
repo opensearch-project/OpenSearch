@@ -8,7 +8,7 @@
 Source: wazuh-indexer
 Section: web
 Priority: optional
-Maintainer: Wazuh Indexer Team <info@wazuh.com>
+Maintainer: Wazuh, Inc <info@wazuh.com>
 Build-Depends: debhelper-compat (= 12)
 Standards-Version: 4.5.0
 Homepage: https://www.wazuh.com/
