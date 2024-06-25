@@ -134,6 +134,11 @@ setup:
           - '{"date": "2020-03-09", "v": 4}'
 
   - do:
+      indices.forcemerge:
+        index: test_profile
+        max_num_segments: 1
+
+  - do:
       search:
         index: test_profile
         body:
