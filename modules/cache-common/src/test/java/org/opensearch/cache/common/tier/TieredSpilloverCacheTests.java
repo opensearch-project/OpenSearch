@@ -1007,8 +1007,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             removalListener
         );
 
-        String value = "";
-        value = tieredSpilloverCache.computeIfAbsent(getICacheKey("test"), new LoadAwareCacheLoader<>() {
+        String response = "";
+        response = tieredSpilloverCache.computeIfAbsent(getICacheKey("test"), new LoadAwareCacheLoader<>() {
             @Override
             public boolean isLoaded() {
                 return false;
@@ -1023,7 +1023,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         assertEquals(0, diskStats.getSizeInBytes());
         assertEquals(1, removalListener.evictionsMetric.count());
-        assertEquals("test", value);
+        assertEquals("test", response);
         assertEquals(0, tieredSpilloverCache.completableFutureMap.size());
     }
 
