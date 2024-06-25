@@ -185,7 +185,6 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.analysis.AnalysisRegistry;
-import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureService;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
@@ -2079,8 +2078,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new RemoteStoreStatsTrackerFactory(clusterService, settings),
                     DefaultRecoverySettings.INSTANCE,
                     new CacheModule(new ArrayList<>(), settings).getCacheService(),
-                    DefaultRemoteStoreSettings.INSTANCE,
-                    CompositeIndexSettings.DefaultCompositeIndexSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(

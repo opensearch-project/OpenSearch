@@ -52,16 +52,4 @@ public class CompositeIndexSettings {
     public boolean isStarTreeIndexCreationEnabled() {
         return starTreeIndexCreationEnabled;
     }
-
-    /**
-     * Utility to provide a {@link CompositeIndexSettings} instance containing all defaults
-     */
-    public static class DefaultCompositeIndexSettings {
-        private DefaultCompositeIndexSettings() {}
-
-        public static final CompositeIndexSettings INSTANCE = new CompositeIndexSettings(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
-    }
 }

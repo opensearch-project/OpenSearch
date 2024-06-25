@@ -13,9 +13,9 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -27,10 +27,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class StarTreeFieldConfiguration implements ToXContent {
 
     private final AtomicInteger maxLeafDocs = new AtomicInteger();
-    private final List<String> skipStarNodeCreationInDims;
+    private final Set<String> skipStarNodeCreationInDims;
     private final StarTreeBuildMode buildMode;
 
-    public StarTreeFieldConfiguration(int maxLeafDocs, List<String> skipStarNodeCreationInDims, StarTreeBuildMode buildMode) {
+    public StarTreeFieldConfiguration(int maxLeafDocs, Set<String> skipStarNodeCreationInDims, StarTreeBuildMode buildMode) {
         this.maxLeafDocs.set(maxLeafDocs);
         this.skipStarNodeCreationInDims = skipStarNodeCreationInDims;
         this.buildMode = buildMode;
@@ -87,7 +87,7 @@ public class StarTreeFieldConfiguration implements ToXContent {
         return buildMode;
     }
 
-    public List<String> getSkipStarNodeCreationInDims() {
+    public Set<String> getSkipStarNodeCreationInDims() {
         return skipStarNodeCreationInDims;
     }
 

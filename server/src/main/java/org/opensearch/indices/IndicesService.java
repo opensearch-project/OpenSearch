@@ -944,7 +944,8 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            fileCache
+            fileCache,
+            compositeIndexSettings
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -974,8 +975,7 @@ public class IndicesService extends AbstractLifecycleComponent
             translogFactorySupplier,
             this::getClusterDefaultRefreshInterval,
             this.recoverySettings,
-            this.remoteStoreSettings,
-            this.compositeIndexSettings
+            this.remoteStoreSettings
         );
     }
 
@@ -1036,7 +1036,8 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            fileCache
+            fileCache,
+            compositeIndexSettings
         );
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);

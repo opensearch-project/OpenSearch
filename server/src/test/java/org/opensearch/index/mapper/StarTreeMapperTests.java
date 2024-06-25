@@ -22,6 +22,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -61,7 +62,10 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
-            assertEquals(Arrays.asList("@timestamp", "status"), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
+            assertEquals(
+                new HashSet<>(Arrays.asList("@timestamp", "status")),
+                starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims()
+            );
         }
     }
 
@@ -90,7 +94,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
-            assertEquals(Collections.emptyList(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
+            assertEquals(Collections.emptySet(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
         }
     }
 

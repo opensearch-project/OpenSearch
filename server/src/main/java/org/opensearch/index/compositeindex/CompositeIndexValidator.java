@@ -13,7 +13,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
-import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -57,9 +56,7 @@ public class CompositeIndexValidator {
         IndexSettings indexSettings
     ) {
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
-        if (mapperService.getCompositeFieldTypes().size() > StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING.get(
-            indexSettings.getSettings()
-        )) {
+        if (compositeFieldTypes.size() > StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING.get(indexSettings.getSettings())) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -70,7 +67,7 @@ public class CompositeIndexValidator {
         }
         for (CompositeMappedFieldType compositeFieldType : compositeFieldTypes) {
             if (!(compositeFieldType instanceof StarTreeMapper.StarTreeFieldType)) {
-                return;
+                continue;
             }
             if (!compositeIndexSettings.isStarTreeIndexCreationEnabled()) {
                 throw new IllegalArgumentException(
@@ -81,7 +78,7 @@ public class CompositeIndexValidator {
                     )
                 );
             }
-            CompositeDataCubeFieldType dataCubeFieldType = (CompositeDataCubeFieldType) compositeFieldType;
+            StarTreeMapper.StarTreeFieldType dataCubeFieldType = (StarTreeMapper.StarTreeFieldType) compositeFieldType;
             for (Dimension dim : dataCubeFieldType.getDimensions()) {
                 MappedFieldType ft = mapperService.fieldType(dim.getField());
                 if (ft == null) {
@@ -89,7 +86,7 @@ public class CompositeIndexValidator {
                         String.format(Locale.ROOT, "unknown dimension field [%s] as part of star tree field", dim.getField())
                     );
                 }
-                if (!ft.isAggregatable()) {
+                if (ft.isAggregatable() == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
@@ -107,7 +104,7 @@ public class CompositeIndexValidator {
                         String.format(Locale.ROOT, "unknown metric field [%s] as part of star tree field", metric.getField())
                     );
                 }
-                if (!ft.isAggregatable()) {
+                if (ft.isAggregatable() == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
