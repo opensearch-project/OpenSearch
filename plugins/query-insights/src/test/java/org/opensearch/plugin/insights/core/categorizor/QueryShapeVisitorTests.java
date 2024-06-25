@@ -16,8 +16,8 @@ import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.RegexpQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.plugin.insights.core.categorizer.QueryShapeVisitor;
+import org.opensearch.test.OpenSearchTestCase;
 
 public final class QueryShapeVisitorTests extends OpenSearchTestCase {
     public void testQueryShapeVisitor() {

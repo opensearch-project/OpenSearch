@@ -92,7 +92,12 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
      * @param metricsRegistry Opentelemetry Metrics registry
      */
     @Inject
-    public QueryInsightsService(final ClusterSettings clusterSettings, final ThreadPool threadPool, final Client client, final MetricsRegistry metricsRegistry) {
+    public QueryInsightsService(
+        final ClusterSettings clusterSettings,
+        final ThreadPool threadPool,
+        final Client client,
+        final MetricsRegistry metricsRegistry
+    ) {
         enableCollect = new HashMap<>();
         queryRecordsQueue = new LinkedBlockingQueue<>(QueryInsightsSettings.QUERY_RECORD_QUEUE_CAPACITY);
         this.threadPool = threadPool;
@@ -112,8 +117,7 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
         }
 
         this.searchQueryMetricsEnabled = clusterSettings.get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
-        clusterSettings
-            .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
+        clusterSettings.addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
 
         this.metricsRegistry = metricsRegistry;
     }

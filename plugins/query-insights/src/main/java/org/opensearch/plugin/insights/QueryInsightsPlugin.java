@@ -9,7 +9,6 @@
 package org.opensearch.plugin.insights;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -76,7 +75,12 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin, Telemet
         final MetricsRegistry metricsRegistry
     ) {
         // create top n queries service
-        final QueryInsightsService queryInsightsService = new QueryInsightsService(clusterService.getClusterSettings(), threadPool, client, metricsRegistry);
+        final QueryInsightsService queryInsightsService = new QueryInsightsService(
+            clusterService.getClusterSettings(),
+            threadPool,
+            client,
+            metricsRegistry
+        );
         return List.of(queryInsightsService, new QueryInsightsListener(clusterService, queryInsightsService));
     }
 
