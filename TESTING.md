@@ -17,6 +17,8 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
   - [Miscellaneous](#miscellaneous)
 - [Running verification tasks](#running-verification-tasks)
 - [Testing the REST layer](#testing-the-rest-layer)
+  - [Running REST Tests Against An External Cluster](#running-rest-tests-against-an-external-cluster)
+  - [Debugging REST Tests](#debugging-rest-tests)
 - [Testing packaging](#testing-packaging)
   - [Testing packaging on Windows](#testing-packaging-on-windows)
   - [Testing VMs are disposable](#testing-vms-are-disposable)
@@ -271,7 +273,18 @@ yamlRestTest’s and javaRestTest’s are easy to identify, since they are found
 
 If in doubt about which command to use, simply run &lt;gradle path&gt;:check
 
-Note that the REST tests, like all the integration tests, can be run against an external cluster by specifying the `tests.cluster` property, which if present needs to contain a comma separated list of nodes to connect to (e.g. localhost:9300).
+## Running REST Tests Against An External Cluster
+
+Note that the REST tests, like all the integration tests, can be run against an external cluster by specifying the following properties `tests.cluster`, `tests.rest.cluster`, `tests.clustername`. Use a comma separated list of node properties for the multi-node cluster.
+
+For example :
+
+    ./gradlew :rest-api-spec:yamlRestTest \
+      -Dtests.cluster=localhost:9200 -Dtests.rest.cluster=localhost:9200 -Dtests.clustername=opensearch
+
+## Debugging REST Tests
+
+You can launch a local OpenSearch cluster in debug mode following [Launching and debugging from an IDE](#launching-and-debugging-from-an-ide), and run your REST tests against that following [Running REST Tests Against An External Cluster](#running-rest-tests-against-an-external-cluster).
 
 # Testing packaging
 
