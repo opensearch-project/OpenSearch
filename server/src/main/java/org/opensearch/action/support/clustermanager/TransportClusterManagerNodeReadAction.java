@@ -124,4 +124,9 @@ public abstract class TransportClusterManagerNodeReadAction<
     protected final boolean localExecute(Request request) {
         return request.local();
     }
+
+    protected boolean localExecuteSupportedByAction() {
+        return true;
+    }
+
 }
