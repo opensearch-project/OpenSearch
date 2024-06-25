@@ -2015,6 +2015,7 @@ public class Node implements Closeable {
         }
 
         String capacityRaw = NODE_SEARCH_CACHE_SIZE_SETTING.get(settings);
+        logger.info("cache size [{}]", capacityRaw);
         if (capacityRaw.equals(ZERO)) {
             throw new SettingsException(
                 "Unable to initialize the "
