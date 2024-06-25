@@ -549,7 +549,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             if (isSearchable() && hasDocValues()) {
-                Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+                Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
                 Query dvQuery = super.fuzzyQuery(
                     value,
                     fuzziness,
