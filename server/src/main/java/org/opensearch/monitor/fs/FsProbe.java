@@ -82,6 +82,10 @@ public class FsProbe {
                 paths[i].fileCacheReserved = adjustForHugeFilesystems(dataLocations[i].fileCacheReservedSize.getBytes());
                 paths[i].fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage().usage());
                 paths[i].available -= (paths[i].fileCacheReserved - paths[i].fileCacheUtilized);
+                // occurs if reserved file cache space is occupied by other files, like local indices
+                if (paths[i].available < 0) {
+                    paths[i].available = 0;
+                }
             }
         }
         FsInfo.IoStats ioStats = null;
