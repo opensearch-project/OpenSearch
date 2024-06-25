@@ -165,6 +165,16 @@ public class GetSettingsActionTests extends OpenSearchTestCase {
         }, exception -> { throw new AssertionError(exception); }));
     }
 
+    public void testShouldReturnNumberOfRoutingShards() {
+        GetSettingsRequest noDefaultsRequest = new GetSettingsRequest().indices(indexName);
+        getSettingsAction.execute(null, noDefaultsRequest, ActionListener.wrap(noDefaultsResponse -> {
+            assertNotNull(
+                "index.number_of_routing_shards should be set",
+                noDefaultsResponse.getSetting(indexName, "index.number_of_routing_shards")
+            );
+        }, exception -> { throw new AssertionError(exception); }));
+    }
+
     static class Resolver extends IndexNameExpressionResolver {
         Resolver() {
             super(new ThreadContext(Settings.EMPTY));

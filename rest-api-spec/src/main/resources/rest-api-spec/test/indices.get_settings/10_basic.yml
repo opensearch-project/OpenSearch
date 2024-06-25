@@ -171,3 +171,42 @@ setup:
 
  - is_true: test_1
  - is_true: test_2
+
+---
+"Test number of routing shards returned":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0"
+
+  - do:
+      indices.create:
+        index: test_3
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+            number_of_routing_shards: 6
+
+  - do:
+      indices.get_settings: {}
+
+  - match: { test_3.settings.index.number_of_shards: "3"}
+  - match: { test_3.settings.index.number_of_replicas: "0"}
+  - match: { test_3.settings.index.number_of_routing_shards: "6"}
+
+  - do:
+      indices.get_settings:
+        index: test_3
+
+  - match: { test_3.settings.index.number_of_shards: "3"}
+  - match: { test_3.settings.index.number_of_replicas: "0"}
+  - match: { test_3.settings.index.number_of_routing_shards: "6"}
+
+  - do:
+      indices.get_settings:
+        index: test_3
+        name:  _all
+
+  - match: { test_3.settings.index.number_of_shards: "3"}
+  - match: { test_3.settings.index.number_of_replicas: "0"}
+  - match: { test_3.settings.index.number_of_routing_shards: "6"}

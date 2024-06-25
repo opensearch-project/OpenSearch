@@ -121,7 +121,12 @@ public class TransportGetSettingsAction extends TransportClusterManagerNodeReadA
                 continue;
             }
 
-            Settings indexSettings = settingsFilter.filter(indexMetadata.getSettings());
+            Settings indexSettingsWithRoutingShards = Settings.builder()
+                .put(indexMetadata.getSettings())
+                .put(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), indexMetadata.getRoutingNumShards())
+                .build();
+
+            Settings indexSettings = settingsFilter.filter(indexSettingsWithRoutingShards);
             if (request.humanReadable()) {
                 indexSettings = IndexMetadata.addHumanReadableSettings(indexSettings);
             }
