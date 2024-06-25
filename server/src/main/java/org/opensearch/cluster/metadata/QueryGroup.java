@@ -31,7 +31,9 @@ import java.util.Objects;
  * Class to define the QueryGroup schema
  * {
  *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga",
- *              "jvm": 0.4,
+ *              "resourceLimits": {
+ *                  "jvm": 0.4
+ *              },
  *              "resiliency_mode": "enforced",
  *              "name": "analytics",
  *              "updatedAt": 4513232415
@@ -137,9 +139,13 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         builder.field("name", name);
         builder.field("resiliency_mode", resiliencyMode.getName());
         builder.field("updatedAt", updatedAtInMillis);
+        // write resource limits
+        builder.startObject("resourceLimits");
         for (Map.Entry<ResourceType, Object> resourceLimit : resourceLimits.entrySet()) {
             builder.field(resourceLimit.getKey().getName(), resourceLimit.getValue());
         }
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }
@@ -173,8 +179,22 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
                 } else if (fieldName.equals("updatedAt")) {
                     builder.updatedAt(parser.longValue());
                 } else {
-                    resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
+                    throw new IllegalArgumentException(fieldName + " is not a valid field in QueryGroup");
                 }
+            } else if (token == XContentParser.Token.START_OBJECT ) {
+
+                if (!fieldName.equals("resourceLimits")) {
+                    throw new IllegalArgumentException("was expecting the { " + " but found " + token);
+                }
+
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        fieldName = parser.currentName();
+                    } else {
+                        resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
+                    }
+                }
+
             }
         }
         builder.resourceLimits(resourceLimits);
