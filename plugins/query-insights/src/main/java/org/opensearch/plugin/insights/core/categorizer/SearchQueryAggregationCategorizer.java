@@ -24,7 +24,7 @@ public class SearchQueryAggregationCategorizer {
 
     /**
      * Constructor for SearchQueryAggregationCategorizer
-     * @param searchQueryCounters
+     * @param searchQueryCounters Object containing all query counters
      */
     public SearchQueryAggregationCategorizer(SearchQueryCounters searchQueryCounters) {
         this.searchQueryCounters = searchQueryCounters;

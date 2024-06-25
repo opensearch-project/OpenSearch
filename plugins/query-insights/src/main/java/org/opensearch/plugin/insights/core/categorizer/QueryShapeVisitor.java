@@ -59,7 +59,7 @@ public final class QueryShapeVisitor implements QueryBuilderVisitor {
 
     /**
      * Convert query builder tree to json
-     * @return
+     * @return json query builder tree as a string
      */
     public String toJson() {
         StringBuilder outputBuilder = new StringBuilder("{\"type\":\"").append(queryType.get()).append("\"");
@@ -82,7 +82,7 @@ public final class QueryShapeVisitor implements QueryBuilderVisitor {
     /**
      * Pretty print the query builder tree
      * @param indent indent size
-     * @return
+     * @return Query builder tree as a pretty string
      */
     public String prettyPrintTree(String indent) {
         StringBuilder outputBuilder = new StringBuilder(indent).append(queryType.get()).append("\n");

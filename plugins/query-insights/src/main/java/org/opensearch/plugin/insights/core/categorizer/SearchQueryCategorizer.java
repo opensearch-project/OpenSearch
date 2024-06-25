@@ -40,7 +40,7 @@ public final class SearchQueryCategorizer {
 
     /**
      * Constructor for SearchQueryCategorizor
-     * @param metricsRegistry
+     * @param metricsRegistry opentelemetry metrics registry
      */
     public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
