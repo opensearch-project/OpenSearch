@@ -113,6 +113,7 @@ jobs:
         if: success()
         uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./codeCoverage.xml
 
       - name: Create Comment Success
