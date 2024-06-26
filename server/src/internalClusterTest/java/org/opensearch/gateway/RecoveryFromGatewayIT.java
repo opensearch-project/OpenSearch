@@ -847,11 +847,8 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         ensureGreen("test");
     }
 
-    public void testBatchModeDisabledWithHighIndexNodeLeftDelayedTimeoutValue() throws Exception {
-        internalCluster().startClusterManagerOnlyNodes(
-            1,
-            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), false).build()
-        );
+    public void testDelayedShardWithHighIndexNodeLeftDelayedTimeoutValue() throws Exception {
+        internalCluster().startClusterManagerOnlyNodes(1);
         internalCluster().startDataOnlyNodes(6);
         createIndex(
             "test",
