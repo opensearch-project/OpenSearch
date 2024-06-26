@@ -249,20 +249,18 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             if (pair != null) {
                 try (ReleasableLock ignore = writeLock.acquire()) {
                     onHeapCache.put(pair.v1(), pair.v2());
-                    completableFutureMap.remove(key);// Remove key from map as not needed anymore.
                 } catch (Exception e) {
                     // TODO: Catch specific exceptions to know whether this resulted from cache or underlying removal
                     // listeners/stats. Needs better exception handling at underlying layers.For now swallowing
                     // exception.
                     logger.warn("Exception occurred while putting item onto heap cache", e);
-                    completableFutureMap.remove(key);// Remove key from map as not needed anymore.
                 }
             } else {
                 if (ex != null) {
                     logger.warn("Exception occurred while trying to compute the value", ex);
                 }
-                completableFutureMap.remove(key);// Remove key from map as not needed anymore.
             }
+            completableFutureMap.remove(key);// Remove key from map as not needed anymore.
             return null;
         };
         V value = null;
