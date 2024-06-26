@@ -20,13 +20,13 @@ import java.util.function.Consumer;
  *
  * @opensearch.internal
  */
-public abstract class AbstractBatchProcessor extends AbstractProcessor {
+public abstract class AbstractBatchingProcessor extends AbstractProcessor {
 
     public static final String BATCH_SIZE_FIELD = "batch_size";
     private static final int DEFAULT_BATCH_SIZE = 1;
     protected final int batchSize;
 
-    protected AbstractBatchProcessor(String tag, String description, int batchSize) {
+    protected AbstractBatchingProcessor(String tag, String description, int batchSize) {
         super(tag, description);
         this.batchSize = batchSize;
     }
@@ -86,7 +86,7 @@ public abstract class AbstractBatchProcessor extends AbstractProcessor {
     }
 
     /**
-     * Factory class for creating {@link AbstractBatchProcessor} instances.
+     * Factory class for creating {@link AbstractBatchingProcessor} instances.
      *
      * @opensearch.internal
      */
@@ -108,7 +108,7 @@ public abstract class AbstractBatchProcessor extends AbstractProcessor {
          * @throws Exception If the processor could not be created.
          */
         @Override
-        public AbstractBatchProcessor create(
+        public AbstractBatchingProcessor create(
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
@@ -127,6 +127,6 @@ public abstract class AbstractBatchProcessor extends AbstractProcessor {
          * @param config configuration of the processor
          * @return a new batch processor instance
          */
-        protected abstract AbstractBatchProcessor newProcessor(String tag, String description, int batchSize, Map<String, Object> config);
+        protected abstract AbstractBatchingProcessor newProcessor(String tag, String description, int batchSize, Map<String, Object> config);
     }
 }

@@ -26,7 +26,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class AbstractBatchProcessorTests extends OpenSearchTestCase {
+public class AbstractBatchingProcessorTests extends OpenSearchTestCase {
 
     private static final String DESCRIPTION = "description";
     private static final String TAG = "tag";
@@ -108,7 +108,7 @@ public class AbstractBatchProcessorTests extends OpenSearchTestCase {
         verify(processor, times(3)).execute(any(IngestDocument.class));
     }
 
-    static class DummyProcessor extends AbstractBatchProcessor {
+    static class DummyProcessor extends AbstractBatchingProcessor {
 
         protected DummyProcessor(String tag, String description, int batchSize) {
             super(tag, description, batchSize);
