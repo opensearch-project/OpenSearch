@@ -245,7 +245,12 @@ public final class Grok {
         throwExceptionForCircularReference(patternName, pattern, null, null);
     }
 
-    private static void throwExceptionForCircularReference(String patternName, String pattern, String originPatternName, List<String> path) {
+    private static void throwExceptionForCircularReference(
+        String patternName,
+        String pattern,
+        String originPatternName,
+        List<String> path
+    ) {
         StringBuilder message = new StringBuilder("circular reference in pattern [");
         message.append(patternName).append("][").append(pattern).append("]");
         if (originPatternName != null) {
