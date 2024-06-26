@@ -43,10 +43,17 @@ public class ICacheKeySerializerTests extends OpenSearchTestCase {
         ICacheKeySerializer<BytesReference> serializer = new ICacheKeySerializer<>(keySer);
 
         Random rand = Randomness.get();
-        byte[] randomInput = new byte[1000];
-        rand.nextBytes(randomInput);
+        // The first thing the serializer reads is a VInt for the number of dimensions.
+        // This is an invalid input for StreamInput.readVInt(), so we are guaranteed to have an exception
+        byte[] invalidVInt = { -1, -1, -1, -1, -1 };
+        byte[] randomBytes = new byte[1000];
+        rand.nextBytes(randomBytes);
+        // Concatenate the two byte[] into the invalid input
+        byte[] invalidInput = new byte[invalidVInt.length + randomBytes.length];
+        System.arraycopy(invalidVInt, 0, invalidInput, 0, invalidVInt.length);
+        System.arraycopy(randomBytes, 0, invalidInput, invalidVInt.length, randomBytes.length);
 
-        assertThrows(OpenSearchException.class, () -> serializer.deserialize(randomInput));
+        assertThrows(OpenSearchException.class, () -> serializer.deserialize(invalidInput));
     }
 
     public void testDimNumbers() throws Exception {
