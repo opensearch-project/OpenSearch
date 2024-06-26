@@ -131,7 +131,7 @@ public enum Attribute {
         }
         return map;
     }
-    
+
     private static int readArraySize(StreamInput in) throws IOException {
         final int arraySize = in.readVInt();
         if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
