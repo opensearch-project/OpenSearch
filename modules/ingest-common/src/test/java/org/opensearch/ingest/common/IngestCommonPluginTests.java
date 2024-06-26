@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-public class IngestCommonModulePluginTests extends OpenSearchTestCase {
+public class IngestCommonPluginTests extends OpenSearchTestCase {
 
     public void testAllowlist() throws IOException {
         runAllowlistTest(List.of());
@@ -28,19 +28,17 @@ public class IngestCommonModulePluginTests extends OpenSearchTestCase {
     }
 
     private void runAllowlistTest(List<String> allowlist) throws IOException {
-        final Settings settings = Settings.builder()
-            .putList(IngestCommonModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), allowlist)
-            .build();
-        try (IngestCommonModulePlugin plugin = new IngestCommonModulePlugin()) {
+        final Settings settings = Settings.builder().putList(IngestCommonPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), allowlist).build();
+        try (IngestCommonPlugin plugin = new IngestCommonPlugin()) {
             assertEquals(Set.copyOf(allowlist), plugin.getProcessors(createParameters(settings)).keySet());
         }
     }
 
     public void testAllowlistNotSpecified() throws IOException {
         final Settings.Builder builder = Settings.builder();
-        builder.remove(IngestCommonModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey());
+        builder.remove(IngestCommonPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey());
         final Settings settings = builder.build();
-        try (IngestCommonModulePlugin plugin = new IngestCommonModulePlugin()) {
+        try (IngestCommonPlugin plugin = new IngestCommonPlugin()) {
             final Set<String> expected = Set.of(
                 "append",
                 "urldecode",
@@ -81,9 +79,9 @@ public class IngestCommonModulePluginTests extends OpenSearchTestCase {
 
     public void testAllowlistHasNonexistentProcessors() throws IOException {
         final Settings settings = Settings.builder()
-            .putList(IngestCommonModulePlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), List.of("threeve"))
+            .putList(IngestCommonPlugin.PROCESSORS_ALLOWLIST_SETTING.getKey(), List.of("threeve"))
             .build();
-        try (IngestCommonModulePlugin plugin = new IngestCommonModulePlugin()) {
+        try (IngestCommonPlugin plugin = new IngestCommonPlugin()) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> plugin.getProcessors(createParameters(settings))
