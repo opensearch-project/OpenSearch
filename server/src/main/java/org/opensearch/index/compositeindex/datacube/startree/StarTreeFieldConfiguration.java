@@ -38,8 +38,8 @@ public class StarTreeFieldConfiguration implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // build mode is internal and not part of user mappings config, hence not added as part of toXContent
         builder.field("max_leaf_docs", maxLeafDocs.get());
-        builder.field("build_mode", buildMode.getTypeName());
         builder.startArray("skip_star_node_creation_for_dimensions");
         for (String dim : skipStarNodeCreationInDims) {
             builder.value(dim);

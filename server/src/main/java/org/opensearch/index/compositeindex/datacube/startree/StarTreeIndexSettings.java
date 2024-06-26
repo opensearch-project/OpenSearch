@@ -23,6 +23,8 @@ import java.util.List;
  * @opensearch.experimental
  */
 public class StarTreeIndexSettings {
+
+    public static int STAR_TREE_MAX_DIMENSIONS_DEFAULT = 10;
     /**
      * This setting determines the max number of star tree fields that can be part of composite index mapping. For each
      * star tree field, we will generate associated star tree index.
@@ -42,7 +44,7 @@ public class StarTreeIndexSettings {
      */
     public static final Setting<Integer> STAR_TREE_MAX_DIMENSIONS_SETTING = Setting.intSetting(
         "index.composite_index.star_tree.field.max_dimensions",
-        10,
+        STAR_TREE_MAX_DIMENSIONS_DEFAULT,
         2,
         10,
         Setting.Property.IndexScope,

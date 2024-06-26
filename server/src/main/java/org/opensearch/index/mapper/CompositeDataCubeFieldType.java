@@ -24,6 +24,8 @@ import java.util.Set;
  */
 @ExperimentalApi
 public abstract class CompositeDataCubeFieldType extends CompositeMappedFieldType {
+    public static final String NAME = "name";
+    public static final String TYPE = "type";
     private final List<Dimension> dimensions;
     private final List<Metric> metrics;
 
