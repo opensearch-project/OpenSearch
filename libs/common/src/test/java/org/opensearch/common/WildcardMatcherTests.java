@@ -8,12 +8,9 @@
 
 package org.opensearch.common;
 
-import org.junit.Test;
+import org.opensearch.test.OpenSearchTestCase;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-public class WildcardMatcherTests {
+public class WildcardMatcherTests extends OpenSearchTestCase {
     static private WildcardMatcher wc(String pattern) {
         return WildcardMatcher.from(pattern);
     }
@@ -22,7 +19,6 @@ public class WildcardMatcherTests {
         return WildcardMatcher.from(pattern, false);
     }
 
-    @Test
     public void testWildcardMatcherClasses() {
         assertFalse(wc("a*?").test("a"));
         assertTrue(wc("a*?").test("aa"));
@@ -46,7 +42,6 @@ public class WildcardMatcherTests {
         assertTrue(WildcardMatcher.from(null, "abc").test("abc"));
     }
 
-    @Test
     public void testWildcardMatcherClassesCaseInsensitive() {
         assertTrue(iwc("AbC").test("abc"));
         assertTrue(iwc("abc").test("aBC"));
@@ -57,7 +52,6 @@ public class WildcardMatcherTests {
         assertTrue(iwc("/^\\w+$/").test("AbCd"));
     }
 
-    @Test
     public void testWildcardMatchers() {
         assertTrue(!WildcardMatcher.from("a*?").test("a"));
         assertTrue(WildcardMatcher.from("a*?").test("aa"));

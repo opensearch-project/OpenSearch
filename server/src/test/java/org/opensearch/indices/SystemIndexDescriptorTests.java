@@ -35,7 +35,6 @@ package org.opensearch.indices;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class SystemIndexDescriptorTests extends OpenSearchTestCase {
 
