@@ -8,9 +8,13 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.common.ResourceType;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.ResourceType;
 import org.opensearch.test.AbstractSerializingTestCase;
 import org.joda.time.Instant;
 
@@ -22,20 +26,20 @@ import java.util.Map;
 
 public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
 
-    private static final List<QueryGroup.QueryGroupMode> allowedModes = List.of(
-        QueryGroup.QueryGroupMode.SOFT,
-        QueryGroup.QueryGroupMode.ENFORCED,
-        QueryGroup.QueryGroupMode.MONITOR
+    private static final List<QueryGroup.ResiliencyMode> allowedModes = List.of(
+        QueryGroup.ResiliencyMode.SOFT,
+        QueryGroup.ResiliencyMode.ENFORCED,
+        QueryGroup.ResiliencyMode.MONITOR
     );
 
     static QueryGroup createRandomQueryGroup(String _id) {
         String name = randomAlphaOfLength(10);
         Map<ResourceType, Object> resourceLimit = new HashMap<>();
-        resourceLimit.put(ResourceType.HEAP_ALLOCATIONS, randomDoubleBetween(0.0, 0.80, false));
+        resourceLimit.put(ResourceType.MEMORY, randomDoubleBetween(0.0, 0.80, false));
         return new QueryGroup(name, _id, randomMode(), resourceLimit, Instant.now().getMillis());
     }
 
-    private static QueryGroup.QueryGroupMode randomMode() {
+    private static QueryGroup.ResiliencyMode randomMode() {
         return allowedModes.get(randomIntBetween(0, allowedModes.size() - 1));
     }
 
@@ -95,7 +99,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
     public void testIllegalQueryGroupMode() {
         assertThrows(
             NullPointerException.class,
-            () -> new QueryGroup("analytics", "_id", null, Map.of(ResourceType.HEAP_ALLOCATIONS, (Object) 0.4), Instant.now().getMillis())
+            () -> new QueryGroup("analytics", "_id", null, Map.of(ResourceType.MEMORY, (Object) 0.4), Instant.now().getMillis())
         );
     }
 
@@ -106,7 +110,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
                 "analytics",
                 "_id",
                 randomMode(),
-                Map.of(ResourceType.HEAP_ALLOCATIONS, (Object) randomDoubleBetween(1.1, 1.8, false)),
+                Map.of(ResourceType.MEMORY, (Object) randomDoubleBetween(1.1, 1.8, false)),
                 Instant.now().getMillis()
             )
         );
@@ -117,7 +121,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
             "analytics",
             "_id",
             randomMode(),
-            Map.of(ResourceType.HEAP_ALLOCATIONS, randomDoubleBetween(0.01, 0.8, false)),
+            Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false)),
             Instant.ofEpochMilli(1717187289).getMillis()
         );
 
@@ -128,5 +132,27 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         assertEquals(1, queryGroup.getResourceLimits().size());
         assertTrue(allowedModes.contains(queryGroup.getResiliencyMode()));
         assertEquals(1717187289, queryGroup.getUpdatedAtInMillis());
+    }
+
+    public void testToXContent() throws IOException {
+        long currentTimeInMillis = Instant.now().getMillis();
+        String queryGroupId = UUIDs.randomBase64UUID();
+        QueryGroup queryGroup = new QueryGroup(
+            "TestQueryGroup",
+            queryGroupId,
+            QueryGroup.ResiliencyMode.ENFORCED,
+            Map.of(ResourceType.CPU, 0.30, ResourceType.MEMORY, 0.40),
+            currentTimeInMillis
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        queryGroup.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            String.format(
+                "{\"_id\":\"%s\",\"name\":\"TestQueryGroup\",\"resiliency_mode\":\"enforced\",\"updatedAt\":%d,\"resourceLimits\":{\"cpu\":0.3,\"memory\":0.4}}",
+                queryGroupId,
+                currentTimeInMillis
+            ),
+            builder.toString()
+        );
     }
 }

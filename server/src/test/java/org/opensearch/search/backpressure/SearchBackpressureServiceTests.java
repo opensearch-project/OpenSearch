@@ -57,7 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.opensearch.search.ResourceType.CPU;
-import static org.opensearch.search.ResourceType.JVM;
+import static org.opensearch.search.ResourceType.MEMORY;
 import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.createMockTaskWithResourceStats;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -102,7 +102,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.JVM, heapUsageTracker);
+                put(ResourceType.MEMORY, heapUsageTracker);
                 put(ResourceType.CPU, cpuUsageTracker);
             }
         };
@@ -233,7 +233,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
             {
-                put(JVM, heapUsageTracker);
+                put(MEMORY, heapUsageTracker);
                 put(CPU, mockNodeDuressTracker);
             }
         };
@@ -308,7 +308,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
             {
-                put(JVM, new NodeDuressTracker(() -> false, () -> 3));
+                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
                 put(CPU, mockNodeDuressTracker);
             }
         };
@@ -401,7 +401,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
             {
-                put(JVM, new NodeDuressTracker(() -> false, () -> 3));
+                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
                 put(CPU, new NodeDuressTracker(() -> true, () -> 3));
             }
         };
@@ -495,7 +495,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
             {
-                put(JVM, new NodeDuressTracker(() -> false, () -> 3));
+                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
                 put(CPU, new NodeDuressTracker(() -> true, () -> 3));
             }
         };

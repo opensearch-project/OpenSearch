@@ -331,9 +331,10 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testQueryGroupMetadataRegister() {
         List<NamedWriteableRegistry.Entry> customEntries = ClusterModule.getNamedWriteables();
-        assertTrue(customEntries.stream().anyMatch(entry ->
-            entry.categoryClass == Metadata.Custom.class && entry.name.equals(QueryGroupMetadata.TYPE)
-        ));
+        assertTrue(
+            customEntries.stream()
+                .anyMatch(entry -> entry.categoryClass == Metadata.Custom.class && entry.name.equals(QueryGroupMetadata.TYPE))
+        );
     }
 
     private static ClusterPlugin existingShardsAllocatorPlugin(final String allocatorName) {

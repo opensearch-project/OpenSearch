@@ -12,7 +12,6 @@ import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiff;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -42,7 +41,6 @@ import static org.opensearch.cluster.metadata.Metadata.ALL_CONTEXTS;
  *     }
  * }
  */
-@ExperimentalApi
 public class QueryGroupMetadata implements Metadata.Custom {
     public static final String TYPE = "queryGroups";
     private static final ParseField QUERY_GROUP_FIELD = new ParseField("queryGroups");

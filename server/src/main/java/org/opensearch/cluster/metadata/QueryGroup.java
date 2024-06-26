@@ -10,20 +10,18 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.common.ResourceType;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.ResourceType;
 import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,23 +37,22 @@ import java.util.Objects;
  *              "updatedAt": 4513232415
  * }
  */
-@ExperimentalApi
+@PublicApi(since = "2.15")
 public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXContentObject {
 
     public static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
     private final String name;
     private final String _id;
-    private final QueryGroupMode resiliencyMode;
+    private final ResiliencyMode resiliencyMode;
     // It is an epoch in millis
     private final long updatedAtInMillis;
     private final Map<ResourceType, Object> resourceLimits;
 
-
-    public QueryGroup(String name, QueryGroupMode resiliencyMode, Map<ResourceType, Object> resourceLimits) {
+    public QueryGroup(String name, ResiliencyMode resiliencyMode, Map<ResourceType, Object> resourceLimits) {
         this(name, UUIDs.randomBase64UUID(), resiliencyMode, resourceLimits, Instant.now().getMillis());
     }
 
-    public QueryGroup(String name, String _id, QueryGroupMode resiliencyMode, Map<ResourceType, Object> resourceLimits, long updatedAt) {
+    public QueryGroup(String name, String _id, ResiliencyMode resiliencyMode, Map<ResourceType, Object> resourceLimits, long updatedAt) {
         Objects.requireNonNull(name, "QueryGroup.name can't be null");
         Objects.requireNonNull(resourceLimits, "QueryGroup.resourceLimits can't be null");
         Objects.requireNonNull(resiliencyMode, "QueryGroup.resiliencyMode can't be null");
@@ -94,7 +91,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         this(
             in.readString(),
             in.readString(),
-            QueryGroupMode.fromName(in.readString()),
+            ResiliencyMode.fromName(in.readString()),
             in.readMap((i) -> ResourceType.fromName(i.readString()), StreamInput::readGenericValue),
             in.readLong()
         );
@@ -141,8 +138,10 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         builder.field("updatedAt", updatedAtInMillis);
         // write resource limits
         builder.startObject("resourceLimits");
-        for (Map.Entry<ResourceType, Object> resourceLimit : resourceLimits.entrySet()) {
-            builder.field(resourceLimit.getKey().getName(), resourceLimit.getValue());
+        for (ResourceType resourceType : ResourceType.values()) {
+            if (resourceLimits.containsKey(resourceType)) {
+                builder.field(resourceType.getName(), resourceLimits.get(resourceType));
+            }
         }
         builder.endObject();
 
@@ -181,10 +180,12 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
                 } else {
                     throw new IllegalArgumentException(fieldName + " is not a valid field in QueryGroup");
                 }
-            } else if (token == XContentParser.Token.START_OBJECT ) {
+            } else if (token == XContentParser.Token.START_OBJECT) {
 
                 if (!fieldName.equals("resourceLimits")) {
-                    throw new IllegalArgumentException("was expecting the { " + " but found " + token);
+                    throw new IllegalArgumentException(
+                        "QueryGroup.resourceLimits is an object and expected token was { " + " but found " + token
+                    );
                 }
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -225,7 +226,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         return name;
     }
 
-    public QueryGroupMode getResiliencyMode() {
+    public ResiliencyMode getResiliencyMode() {
         return resiliencyMode;
     }
 
@@ -250,17 +251,20 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     }
 
     /**
-     * This enum models the different sandbox modes
+     * This enum models the different QueryGroup resiliency modes
+     * SOFT - means that this query group can consume more than query group resource limits if node is not in duress
+     * ENFORCED - means that it will never breach the assigned limits and will cancel as soon as the limits are breached
+     * MONITOR - it will not cause any cancellation but just log the eligible task cancellations
      */
-    @ExperimentalApi
-    public enum QueryGroupMode {
+    @PublicApi(since = "2.15")
+    public enum ResiliencyMode {
         SOFT("soft"),
         ENFORCED("enforced"),
         MONITOR("monitor");
 
         private final String name;
 
-        QueryGroupMode(String mode) {
+        ResiliencyMode(String mode) {
             this.name = mode;
         }
 
@@ -268,8 +272,8 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             return name;
         }
 
-        public static QueryGroupMode fromName(String s) {
-            for (QueryGroupMode mode : values()) {
+        public static ResiliencyMode fromName(String s) {
+            for (ResiliencyMode mode : values()) {
                 if (mode.getName().equalsIgnoreCase(s)) return mode;
 
             }
@@ -281,11 +285,11 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     /**
      * Builder class for {@link QueryGroup}
      */
-    @ExperimentalApi
+    @PublicApi(since = "2.15")
     public static class Builder {
         private String name;
         private String _id;
-        private QueryGroupMode resiliencyMode;
+        private ResiliencyMode resiliencyMode;
         private long updatedAt;
         private Map<ResourceType, Object> resourceLimits;
 
@@ -302,7 +306,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         }
 
         public Builder mode(String mode) {
-            this.resiliencyMode = QueryGroupMode.fromName(mode);
+            this.resiliencyMode = ResiliencyMode.fromName(mode);
             return this;
         }
 
