@@ -661,6 +661,7 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         synchronized void registerChildNode(DiscoveryNode node) {
+            logger.info("registerChildNode {}", banChildren);
             if (banChildren) {
                 throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
             }

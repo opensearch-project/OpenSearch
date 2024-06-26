@@ -412,6 +412,8 @@ public interface ClusterAdminClient extends OpenSearchClient {
      */
     void getTask(GetTaskRequest request, ActionListener<GetTaskResponse> listener);
 
+    void createTask(GetTaskRequest request, ActionListener<GetTaskResponse> listener);
+
     /**
      * Fetch a task by id.
      */
