@@ -57,9 +57,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Locale;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;

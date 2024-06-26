@@ -224,16 +224,19 @@ public class GetResultTests extends OpenSearchTestCase {
         );
     }
 
-
     public void testFomXContentEmbeddedFoundParsingException() throws IOException {
         String json = "{\"_index\":\"foo\",\"_id\":\"bar\"}";
-        try (XContentParser parser = JsonXContent.jsonXContent
-            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, json)) {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                json
+            )
+        ) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ParsingException parsingException = assertThrows(ParsingException.class, () -> GetResult.fromXContentEmbedded(parser));
             assertEquals("Missing required field [found]", parsingException.getMessage());
         }
-
 
     }
 
