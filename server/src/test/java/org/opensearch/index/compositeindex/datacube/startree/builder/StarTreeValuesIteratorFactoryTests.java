@@ -13,7 +13,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -56,14 +55,6 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         );
     }
 
-    public void testCreateIterator_SortedSet() throws IOException {
-        DocValuesProducer producer = Mockito.mock(DocValuesProducer.class);
-        SortedSetDocValues iterator = Mockito.mock(SortedSetDocValues.class);
-        when(producer.getSortedSet(mockFieldInfo)).thenReturn(iterator);
-        DocIdSetIterator result = factory.getDocValuesIterator(DocValuesType.SORTED_SET, mockFieldInfo, producer);
-        assertEquals(iterator.getClass(), result.getClass());
-    }
-
     public void testCreateIterator_SortedNumeric() throws IOException {
         DocValuesProducer producer = Mockito.mock(DocValuesProducer.class);
         SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
@@ -80,26 +71,18 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         assertEquals("Unsupported DocValuesType: BINARY", exception.getMessage());
     }
 
-    public void testGetNextValue_SortedSet() throws IOException {
-        SortedSetDocValues iterator = Mockito.mock(SortedSetDocValues.class);
-        when(iterator.nextOrd()).thenReturn(42L);
-
-        long result = factory.getNextOrd(iterator);
-        assertEquals(42L, result);
-    }
-
     public void testGetNextValue_SortedNumeric() throws IOException {
         SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
         when(iterator.nextValue()).thenReturn(123L);
 
-        long result = factory.getNextOrd(iterator);
+        long result = factory.getNextValue(iterator);
         assertEquals(123L, result);
     }
 
     public void testGetNextValue_UnsupportedIterator() {
         DocIdSetIterator iterator = Mockito.mock(DocIdSetIterator.class);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { factory.getNextOrd(iterator); });
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { factory.getNextValue(iterator); });
         assertEquals("Unsupported Iterator: " + iterator.toString(), exception.getMessage());
     }
 

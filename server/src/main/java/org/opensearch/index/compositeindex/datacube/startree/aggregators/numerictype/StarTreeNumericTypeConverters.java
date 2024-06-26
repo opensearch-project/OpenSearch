@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators.numeri
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
@@ -31,7 +32,20 @@ public class StarTreeNumericTypeConverters {
         return (double) value;
     }
 
+    public static double intToDouble(Long value) {
+        return (double) value;
+    }
+
+    public static double shortToDouble(Long value) {
+        return (double) value;
+    }
+
     public static Double sortableLongtoDouble(Long value) {
         return NumericUtils.sortableLongToDouble(value);
     }
+
+    public static double unsignedlongToDouble(Long value) {
+        return Numbers.unsignedLongToDouble(value);
+    }
+
 }

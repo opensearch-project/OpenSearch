@@ -20,7 +20,10 @@ public enum StarTreeNumericType {
     HALF_FLOAT(IndexNumericFieldData.NumericType.HALF_FLOAT, StarTreeNumericTypeConverters::halfFloatPointToDouble),
     FLOAT(IndexNumericFieldData.NumericType.FLOAT, StarTreeNumericTypeConverters::floatPointToDouble),
     LONG(IndexNumericFieldData.NumericType.LONG, StarTreeNumericTypeConverters::longToDouble),
-    DOUBLE(IndexNumericFieldData.NumericType.DOUBLE, StarTreeNumericTypeConverters::sortableLongtoDouble);
+    DOUBLE(IndexNumericFieldData.NumericType.DOUBLE, StarTreeNumericTypeConverters::sortableLongtoDouble),
+    INT(IndexNumericFieldData.NumericType.INT, StarTreeNumericTypeConverters::intToDouble),
+    SHORT(IndexNumericFieldData.NumericType.SHORT, StarTreeNumericTypeConverters::shortToDouble),
+    UNSIGNED_LONG(IndexNumericFieldData.NumericType.UNSIGNED_LONG, StarTreeNumericTypeConverters::unsignedlongToDouble);
 
     final IndexNumericFieldData.NumericType numericType;
     final Function<Long, Double> converter;
@@ -44,6 +47,12 @@ public enum StarTreeNumericType {
                 return StarTreeNumericType.LONG;
             case DOUBLE:
                 return StarTreeNumericType.DOUBLE;
+            case INT:
+                return StarTreeNumericType.INT;
+            case SHORT:
+                return StarTreeNumericType.SHORT;
+            case UNSIGNED_LONG:
+                return StarTreeNumericType.UNSIGNED_LONG;
             default:
                 throw new UnsupportedOperationException("Unknown numeric type [" + numericType + "]");
         }

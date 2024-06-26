@@ -7,7 +7,6 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
-import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BaseStarTreeBuilder;
 import org.apache.lucene.index.SegmentWriteState;
@@ -28,28 +27,26 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class OnHeapSingleTreeBuilder extends BaseStarTreeBuilder {
+public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
 
     private final List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
 
     /**
-     * Constructor for OnHeapSingleTreeBuilder
+     * Constructor for OnHeapStarTreeBuilder
      *
      * @param starTreeField     star-tree field
      * @param fieldProducerMap  helps with document values producer for a particular field
-     * @param docValuesConsumer document values consumer
      * @param segmentWriteState segment write state
      * @param mapperService     helps with the numeric type of field
      * @throws IOException throws an exception we are unable to construct an onheap star-tree
      */
-    public OnHeapSingleTreeBuilder(
+    public OnHeapStarTreeBuilder(
         StarTreeField starTreeField,
         Map<String, DocValuesProducer> fieldProducerMap,
-        DocValuesConsumer docValuesConsumer,
         SegmentWriteState segmentWriteState,
         MapperService mapperService
     ) throws IOException {
-        super(starTreeField, fieldProducerMap, docValuesConsumer, segmentWriteState, mapperService);
+        super(starTreeField, fieldProducerMap, segmentWriteState, mapperService);
     }
 
     @Override
@@ -63,7 +60,7 @@ public class OnHeapSingleTreeBuilder extends BaseStarTreeBuilder {
     }
 
     @Override
-    public List<StarTreeDocument> getStarTreeDocuments() throws IOException {
+    public List<StarTreeDocument> getStarTreeDocuments() {
         return starTreeDocuments;
     }
 
@@ -74,12 +71,12 @@ public class OnHeapSingleTreeBuilder extends BaseStarTreeBuilder {
     }
 
     @Override
-    public Iterator<StarTreeDocument> sortMergeAndAggregateStarTreeDocument(int numDocs) throws IOException {
+    public Iterator<StarTreeDocument> sortAndAggregateStarTreeDocument(int numDocs) throws IOException {
         StarTreeDocument[] starTreeDocuments = new StarTreeDocument[numDocs];
         for (int i = 0; i < numDocs; i++) {
             starTreeDocuments[i] = getSegmentStarTreeDocument();
         }
-        return sortMergeAndAggregateStarTreeDocument(starTreeDocuments);
+        return sortAndAggregateStarTreeDocument(starTreeDocuments);
     }
 
     /**
@@ -88,7 +85,7 @@ public class OnHeapSingleTreeBuilder extends BaseStarTreeBuilder {
      * @return iterator for star-tree documents
      * @throws IOException throws when unable to sort, merge and aggregate star-tree documents
      */
-    public Iterator<StarTreeDocument> sortMergeAndAggregateStarTreeDocument(StarTreeDocument[] starTreeDocuments) throws IOException {
+    public Iterator<StarTreeDocument> sortAndAggregateStarTreeDocument(StarTreeDocument[] starTreeDocuments) throws IOException {
 
         // sort the documents
         Arrays.sort(starTreeDocuments, (o1, o2) -> {

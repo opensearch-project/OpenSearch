@@ -17,7 +17,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  * @opensearch.experimental
  */
 public class CountValueAggregator implements ValueAggregator<Double> {
-    public static final StarTreeNumericType STAR_TREE_NUMERIC_TYPE = StarTreeNumericType.DOUBLE;
+    public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
 
     @Override
     public MetricStat getAggregationType() {
@@ -25,27 +25,27 @@ public class CountValueAggregator implements ValueAggregator<Double> {
     }
 
     @Override
-    public StarTreeNumericType getStarTreeNumericType() {
-        return STAR_TREE_NUMERIC_TYPE;
+    public StarTreeNumericType getAggregatedValueType() {
+        return VALUE_AGGREGATOR_TYPE;
     }
 
     @Override
-    public Double getInitialAggregatedValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
+    public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
         return 1.0;
     }
 
     @Override
-    public Double applySegmentRawValue(Double value, Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
+    public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
         return value + 1;
     }
 
     @Override
-    public Double applyAggregatedValue(Double value, Double aggregatedValue) {
+    public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
         return value + aggregatedValue;
     }
 
     @Override
-    public Double getAggregatedValue(Double value) {
+    public Double getInitialAggregatedValue(Double value) {
         return value;
     }
 
@@ -58,8 +58,8 @@ public class CountValueAggregator implements ValueAggregator<Double> {
     public Long toLongValue(Double value) {
         try {
             return NumericUtils.doubleToSortableLong(value);
-        } catch (IllegalArgumentException | NullPointerException | IllegalStateException e) {
-            throw new IllegalArgumentException("Cannot convert " + value + " to sortable long", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot convert " + value + " to sortable long", e);
         }
     }
 
@@ -67,8 +67,8 @@ public class CountValueAggregator implements ValueAggregator<Double> {
     public Double toStarTreeNumericTypeValue(Long value, StarTreeNumericType type) {
         try {
             return type.getDoubleValue(value);
-        } catch (IllegalArgumentException | NullPointerException | IllegalStateException e) {
-            throw new IllegalArgumentException("Cannot convert " + value + " to sortable aggregation type", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }
     }
 }

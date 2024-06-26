@@ -12,7 +12,6 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.common.annotation.ExperimentalApi;
 
@@ -31,8 +30,6 @@ public class StarTreeDocValuesIteratorAdapter {
      */
     public DocIdSetIterator getDocValuesIterator(DocValuesType type, FieldInfo field, DocValuesProducer producer) throws IOException {
         switch (type) {
-            case SORTED_SET:
-                return producer.getSortedSet(field);
             case SORTED_NUMERIC:
                 return producer.getSortedNumeric(field);
             default:
@@ -41,12 +38,10 @@ public class StarTreeDocValuesIteratorAdapter {
     }
 
     /**
-     * Returns the next ordinal for the given iterator
+     * Returns the next value for the given iterator
      */
-    public long getNextOrd(DocIdSetIterator iterator) throws IOException {
-        if (iterator instanceof SortedSetDocValues) {
-            return ((SortedSetDocValues) iterator).nextOrd();
-        } else if (iterator instanceof SortedNumericDocValues) {
+    public long getNextValue(DocIdSetIterator iterator) throws IOException {
+        if (iterator instanceof SortedNumericDocValues) {
             return ((SortedNumericDocValues) iterator).nextValue();
         } else {
             throw new IllegalArgumentException("Unsupported Iterator: " + iterator.toString());
@@ -54,7 +49,8 @@ public class StarTreeDocValuesIteratorAdapter {
     }
 
     /**
-     * Returns the doc id  for the next document from the given iterator
+     * Moves to the next doc in the iterator
+     * Returns the doc id for the next document from the given iterator
      */
     public int nextDoc(DocIdSetIterator iterator) throws IOException {
         return iterator.nextDoc();

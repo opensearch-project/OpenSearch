@@ -20,8 +20,8 @@ public class ValueAggregatorFactoryTests extends OpenSearchTestCase {
         assertEquals(SumValueAggregator.class, aggregator.getClass());
     }
 
-    public void testGetStarTreeNumericTypeForSumType() {
+    public void testGetAggregatedValueTypeForSumType() {
         StarTreeNumericType starTreeNumericType = ValueAggregatorFactory.getAggregatedValueType(MetricStat.SUM);
-        assertEquals(SumValueAggregator.STAR_TREE_NUMERIC_TYPE, starTreeNumericType);
+        assertEquals(SumValueAggregator.VALUE_AGGREGATOR_TYPE, starTreeNumericType);
     }
 }

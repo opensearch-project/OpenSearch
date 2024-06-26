@@ -208,6 +208,7 @@ public final class Modules {
                                     scopeInstancesInUse.put(scope, binding.getSource());
                                 }
                             }
+
                             return null;
                         }
 

@@ -46,9 +46,9 @@ public class ValueAggregatorFactory {
         switch (aggregationType) {
             // other metric types (count, min, max, avg) will be supported in the future
             case SUM:
-                return SumValueAggregator.STAR_TREE_NUMERIC_TYPE;
+                return SumValueAggregator.VALUE_AGGREGATOR_TYPE;
             case COUNT:
-                return CountValueAggregator.STAR_TREE_NUMERIC_TYPE;
+                return CountValueAggregator.VALUE_AGGREGATOR_TYPE;
             default:
                 throw new IllegalStateException("Unsupported aggregation type: " + aggregationType);
         }

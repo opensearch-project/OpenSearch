@@ -25,27 +25,27 @@ public interface ValueAggregator<A> {
     /**
      * Returns the data type of the aggregated value.
      */
-    StarTreeNumericType getStarTreeNumericType();
+    StarTreeNumericType getAggregatedValueType();
 
     /**
      * Returns the initial aggregated value.
      */
-    A getInitialAggregatedValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType);
+    A getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType);
 
     /**
      * Applies a segment doc value to the current aggregated value.
      */
-    A applySegmentRawValue(A value, Long segmentDocValue, StarTreeNumericType starTreeNumericType);
+    A mergeAggregatedValueAndSegmentValue(A value, Long segmentDocValue, StarTreeNumericType starTreeNumericType);
 
     /**
      * Applies an aggregated value to the current aggregated value.
      */
-    A applyAggregatedValue(A value, A aggregatedValue);
+    A mergeAggregatedValues(A value, A aggregatedValue);
 
     /**
      * Clones an aggregated value.
      */
-    A getAggregatedValue(A value);
+    A getInitialAggregatedValue(A value);
 
     /**
      * Returns the maximum size in bytes of the aggregated values seen so far.

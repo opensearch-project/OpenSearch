@@ -19,7 +19,8 @@ import org.opensearch.search.aggregations.metrics.CompensatedSum;
  */
 public class SumValueAggregator implements ValueAggregator<Double> {
 
-    public static final StarTreeNumericType STAR_TREE_NUMERIC_TYPE = StarTreeNumericType.DOUBLE;
+    public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
+    private CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
     @Override
     public MetricStat getAggregationType() {
@@ -27,34 +28,36 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     }
 
     @Override
-    public StarTreeNumericType getStarTreeNumericType() {
-        return STAR_TREE_NUMERIC_TYPE;
+    public StarTreeNumericType getAggregatedValueType() {
+        return VALUE_AGGREGATOR_TYPE;
     }
 
     @Override
-    public Double getInitialAggregatedValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
-        return starTreeNumericType.getDoubleValue(segmentDocValue);
-    }
-
-    @Override
-    public Double applySegmentRawValue(Double value, Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        kahanSummation.add(value);
+    public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
+        kahanSummation.reset(0,0);
         kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
         return kahanSummation.value();
     }
 
     @Override
-    public Double applyAggregatedValue(Double value, Double aggregatedValue) {
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        kahanSummation.add(value);
-        kahanSummation.add(aggregatedValue);
+    public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
+        assert kahanSummation.value() == value;
+        kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
         return kahanSummation.value();
     }
 
     @Override
-    public Double getAggregatedValue(Double value) {
-        return value;
+    public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
+        assert kahanSummation.value() == aggregatedValue;
+        kahanSummation.add(value);
+        return kahanSummation.value();
+    }
+
+    @Override
+    public Double getInitialAggregatedValue(Double value) {
+        kahanSummation.reset(0,0);
+        kahanSummation.add(value);
+        return kahanSummation.value();
     }
 
     @Override
@@ -66,8 +69,8 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     public Long toLongValue(Double value) {
         try {
             return NumericUtils.doubleToSortableLong(value);
-        } catch (IllegalArgumentException | NullPointerException | IllegalStateException e) {
-            throw new IllegalArgumentException("Cannot convert " + value + " to sortable long", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot convert " + value + " to sortable long", e);
         }
     }
 
@@ -75,8 +78,8 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     public Double toStarTreeNumericTypeValue(Long value, StarTreeNumericType type) {
         try {
             return type.getDoubleValue(value);
-        } catch (IllegalArgumentException | NullPointerException | IllegalStateException e) {
-            throw new IllegalArgumentException("Cannot convert " + value + " to sortable aggregation type", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }
     }
 }

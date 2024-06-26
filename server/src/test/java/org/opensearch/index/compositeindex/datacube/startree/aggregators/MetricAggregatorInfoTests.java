@@ -12,12 +12,13 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.test.OpenSearchTestCase;
 
-public class MetricAggregationDescriptorTests extends OpenSearchTestCase {
+public class MetricAggregatorInfoTests extends OpenSearchTestCase {
 
     public void testConstructor() {
-        MetricAggregationDescriptor pair = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );
@@ -26,57 +27,66 @@ public class MetricAggregationDescriptorTests extends OpenSearchTestCase {
     }
 
     public void testCountStarConstructor() {
-        MetricAggregationDescriptor pair = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair = new MetricAggregatorInfo(
             MetricStat.COUNT,
             "anything",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );
         assertEquals(MetricStat.COUNT, pair.getMetricStat());
-        assertEquals("*", pair.getField());
+        assertEquals("anything", pair.getField());
     }
 
     public void testToFieldName() {
-        MetricAggregationDescriptor pair = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column2",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );
-        assertEquals("sum__column2", pair.toFieldName());
+        assertEquals("star_tree_field_column2_sum", pair.toFieldName());
     }
 
     public void testEquals() {
-        MetricAggregationDescriptor pair1 = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair1 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );
-        MetricAggregationDescriptor pair2 = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair2 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );
         assertEquals(pair1, pair2);
         assertNotEquals(
             pair1,
-            new MetricAggregationDescriptor(MetricStat.COUNT, "column1", IndexNumericFieldData.NumericType.DOUBLE, null)
+            new MetricAggregatorInfo(MetricStat.COUNT, "column1", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE, null)
         );
-        assertNotEquals(pair1, new MetricAggregationDescriptor(MetricStat.SUM, "column2", IndexNumericFieldData.NumericType.DOUBLE, null));
+        assertNotEquals(
+            pair1,
+            new MetricAggregatorInfo(MetricStat.SUM, "column2", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE, null)
+        );
     }
 
     public void testHashCode() {
-        MetricAggregationDescriptor pair1 = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair1 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );
-        MetricAggregationDescriptor pair2 = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair2 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );
@@ -84,21 +94,24 @@ public class MetricAggregationDescriptorTests extends OpenSearchTestCase {
     }
 
     public void testCompareTo() {
-        MetricAggregationDescriptor pair1 = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair1 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );
-        MetricAggregationDescriptor pair2 = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair2 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column2",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );
-        MetricAggregationDescriptor pair3 = new MetricAggregationDescriptor(
+        MetricAggregatorInfo pair3 = new MetricAggregatorInfo(
             MetricStat.COUNT,
             "column1",
+            "star_tree_field",
             IndexNumericFieldData.NumericType.DOUBLE,
             null
         );

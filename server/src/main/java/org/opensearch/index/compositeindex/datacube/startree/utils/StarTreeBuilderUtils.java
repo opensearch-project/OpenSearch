@@ -22,15 +22,50 @@ public class StarTreeBuilderUtils {
 
     public static final int ALL = -1;
 
-    /** Tree node representation */
+    /**
+     * Represents a node in a tree data structure, specifically designed for a star-tree implementation.
+     * A star-tree node will represent both star and non-star nodes.
+     */
     public static class TreeNode {
+
+        /**
+         * The dimension id for the dimension (field) associated with this star-tree node.
+         */
         public int dimensionId = ALL;
+
+        /**
+         * The starting document id (inclusive) associated with this star-tree node.
+         */
         public int startDocId = ALL;
+
+        /**
+         * The ending document id (exclusive) associated with this star-tree node.
+         */
         public int endDocId = ALL;
+
+        /**
+         * The aggregated document id associated with this star-tree node.
+         */
         public int aggregatedDocId = ALL;
+
+        /**
+         * The child dimension identifier associated with this star-tree node.
+         */
         public int childDimensionId = ALL;
+
+        /**
+         * The value of the dimension associated with this star-tree node.
+         */
         public long dimensionValue = ALL;
+
+        /**
+         * A flag indicating whether this node is a star node (a node that represents an aggregation of all dimensions).
+         */
         public boolean isStarNode = false;
+
+        /**
+         * A map containing the child nodes of this star-tree node, keyed by their dimension id.
+         */
         public Map<Long, TreeNode> children;
     }
 

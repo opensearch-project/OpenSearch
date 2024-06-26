@@ -18,11 +18,11 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface SingleTreeBuilder extends Closeable {
+public interface StarTreeBuilder extends Closeable {
 
     /**
      * Builds the star tree based on star-tree field
      * @throws IOException when we are unable to build star-tree
      */
-    void build() throws Exception;
+    void build() throws IOException;
 }
