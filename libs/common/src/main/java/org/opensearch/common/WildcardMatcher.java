@@ -11,6 +11,7 @@ package org.opensearch.common;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -292,12 +293,12 @@ public abstract class WildcardMatcher implements Predicate<String> {
         private final WildcardMatcher inner;
 
         public CasefoldingMatcher(String pattern, Function<String, WildcardMatcher> simpleWildcardMatcher) {
-            this.inner = simpleWildcardMatcher.apply(pattern.toLowerCase());
+            this.inner = simpleWildcardMatcher.apply(pattern.toLowerCase(Locale.ROOT));
         }
 
         @Override
         public boolean test(String candidate) {
-            return inner.test(candidate.toLowerCase());
+            return inner.test(candidate.toLowerCase(Locale.ROOT));
         }
 
         @Override
