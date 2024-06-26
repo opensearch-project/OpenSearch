@@ -40,7 +40,7 @@ public class Constraint implements Predicate<Constraint.ConstraintParams> {
         this.enable = enable;
     }
 
-    public boolean isEnable() {
+    boolean isEnable() {
         return enable;
     }
 

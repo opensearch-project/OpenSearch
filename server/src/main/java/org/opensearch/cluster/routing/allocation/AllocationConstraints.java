@@ -53,7 +53,7 @@ public class AllocationConstraints {
         return params.weight(constraints);
     }
 
-    public Constraint getAllocationConstraint(String name) {
+    Constraint getAllocationConstraint(String name) {
         return constraints.get(name);
     }
 }

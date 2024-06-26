@@ -19,22 +19,22 @@ public class ConstraintTypes {
     public final static long CONSTRAINT_WEIGHT = 1000000L;
 
     /**
-     * Defines per index constraint which is breached when a node contains more than avg number of primary shards for an index
+     * Defines per index constraint which is breached when a node contains more than avg number of primary shards for an index with added buffer
      */
     public final static String INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID = "index.primary.shard.balance.constraint";
 
     /**
-     * Defines a cluster constraint which is breached when a node contains more than avg primary shards across all indices
+     * Defines a cluster constraint which is breached when a node contains more than avg primary shards across all indices with added buffer
      */
     public final static String CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID = "cluster.primary.shard.balance.constraint";
 
     /**
-     * Defines a cluster constraint which is breached when a node contains more than avg primary shards across all indices
+     * Defines a cluster constraint which is breached when a node contains more than avg primary shards across all indices with added buffer
      */
     public final static String CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID = "cluster.primary.shard.rebalance.constraint";
 
     /**
-     * Defines an index constraint which is breached when a node contains more than avg number of shards for an index
+     * Defines an index constraint which is breached when a node contains more than avg number of shards for an index with added buffer
      */
     public final static String INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID = "index.shard.count.constraint";
 
@@ -50,7 +50,7 @@ public class ConstraintTypes {
      * on one node, often resulting in a hotspot on that node.
      * <p>
      * This constraint is breached when balancer attempts to allocate more than
-     * average shards per index per node.
+     * average shards per index per node with added buffer.
      */
     public static Predicate<Constraint.ConstraintParams> isIndexShardsPerNodeBreached(float buffer) {
         return (params) -> {
@@ -62,7 +62,7 @@ public class ConstraintTypes {
 
     /**
      * Defines a predicate which returns true when specific to an index, a node contains more than average number of primary
-     * shards. This constraint is used in weight calculation during allocation and rebalancing. When breached a high weight
+     * shards with added buffer. This constraint is used in weight calculation during allocation and rebalancing. When breached a high weight
      * {@link ConstraintTypes#CONSTRAINT_WEIGHT} is assigned to node resulting in lesser chances of node being selected
      * as allocation or rebalancing target
      */
