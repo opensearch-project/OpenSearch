@@ -2548,6 +2548,38 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertThat(resolver.concreteSystemIndices(".not-exists"), equalTo(Collections.EMPTY_LIST));
     }
 
+    public void testRegisteredSystemIndexExpansion() {
+        SystemIndexPlugin plugin1 = new SystemIndexPlugin1();
+        SystemIndexPlugin plugin2 = new SystemIndexPlugin2();
+        SystemIndices pluginSystemIndices = new SystemIndices(
+            Map.of(
+                SystemIndexPlugin1.class.getCanonicalName(),
+                plugin1.getSystemIndexDescriptors(Settings.EMPTY),
+                SystemIndexPlugin2.class.getCanonicalName(),
+                plugin2.getSystemIndexDescriptors(Settings.EMPTY)
+            )
+        );
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(threadContext, pluginSystemIndices);
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder("foo"))
+            .put(indexBuilder("bar"))
+            .put(indexBuilder(SystemIndexPlugin1.SYSTEM_INDEX_1))
+            .put(indexBuilder(SystemIndexPlugin2.SYSTEM_INDEX_2));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        // Only closed
+        IndicesOptions options = IndicesOptions.strictExpand();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options, true);
+        String[] results = resolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
+        assertEquals(4, results.length);
+        assertTrue(
+            Arrays.asList(results).containsAll(List.of("foo", "bar", SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2))
+        );
+        List<String> systemIndices = resolver.concreteSystemIndices(results);
+        assertEquals(2, systemIndices.size());
+        assertTrue(systemIndices.containsAll(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2)));
+    }
+
     private ClusterState systemIndexTestClusterState() {
         Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()
