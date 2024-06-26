@@ -40,7 +40,6 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.core.index.Index;
@@ -65,9 +64,8 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  * node knows about. Methods for determining if an index should be a system index are also provided
  * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "2.16.0")
 public class SystemIndices {
     private static final Logger logger = LogManager.getLogger(SystemIndices.class);
 
