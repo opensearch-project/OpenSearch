@@ -38,6 +38,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.WildcardMatcher;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -92,16 +93,17 @@ public class IndexNameExpressionResolver {
     private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
 
     private final ThreadContext threadContext;
-    private final SystemIndices systemIndices;
+    private final WildcardMatcher systemIndexMatcher;
 
     public IndexNameExpressionResolver(ThreadContext threadContext) {
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
-        this.systemIndices = new SystemIndices(Collections.emptyMap());
+        this.systemIndexMatcher = WildcardMatcher.NONE;
     }
 
     public IndexNameExpressionResolver(ThreadContext threadContext, SystemIndices systemIndices) {
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
-        this.systemIndices = Objects.requireNonNullElseGet(systemIndices, () -> new SystemIndices(Collections.emptyMap()));
+        List<String> allSystemIndexPatterns = systemIndices.getAllSystemIndexPatterns();
+        this.systemIndexMatcher = WildcardMatcher.from(allSystemIndexPatterns);
     }
 
     /**
@@ -118,13 +120,6 @@ public class IndexNameExpressionResolver {
             isSystemIndexAccessAllowed()
         );
         return concreteIndexNames(context, request.indices());
-    }
-
-    /**
-     * Returns the registry of system indices that have been reserved by modules and plugins
-     */
-    public SystemIndices systemIndices() {
-        return this.systemIndices;
     }
 
     /**
@@ -177,6 +172,10 @@ public class IndexNameExpressionResolver {
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, IndicesRequest request) {
         Context context = new Context(state, options, false, false, request.includeDataStreams(), isSystemIndexAccessAllowed());
         return concreteIndexNames(context, request.indices());
+    }
+
+    public List<String> concreteSystemIndices(String... concreteIndices) {
+        return systemIndexMatcher.getMatchAny(concreteIndices, Collectors.toList());
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {

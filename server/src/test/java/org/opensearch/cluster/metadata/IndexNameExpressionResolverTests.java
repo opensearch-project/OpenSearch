@@ -85,7 +85,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -2527,7 +2526,7 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertThat(names, empty());
     }
 
-    public void testSystemIndexRetrieval() {
+    public void testSystemIndexMatching() {
         SystemIndexPlugin plugin1 = new SystemIndexPlugin1();
         SystemIndexPlugin plugin2 = new SystemIndexPlugin2();
         SystemIndices pluginSystemIndices = new SystemIndices(
@@ -2540,15 +2539,13 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         );
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(threadContext, pluginSystemIndices);
 
-        SystemIndices systemIndices = resolver.systemIndices();
-        List<String> pluginClassNames = List.of(plugin1.getClass().getCanonicalName(), plugin2.getClass().getCanonicalName());
-        for (String pluginClassName : pluginClassNames) {
-            assertThat(systemIndices.getSystemIndexDescriptors(), hasKey(pluginClassName));
-            assertThat(
-                systemIndices.getSystemIndexDescriptors().get(pluginClassName),
-                equalTo(pluginSystemIndices.getSystemIndexDescriptors().get(pluginClassName))
-            );
-        }
+        assertThat(
+            resolver.concreteSystemIndices(".system-index1", ".system-index2"),
+            equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2))
+        );
+        assertThat(resolver.concreteSystemIndices(".system-index1"), equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1)));
+        assertThat(resolver.concreteSystemIndices(".system-index2"), equalTo(List.of(SystemIndexPlugin2.SYSTEM_INDEX_2)));
+        assertThat(resolver.concreteSystemIndices(".not-exists"), equalTo(Collections.EMPTY_LIST));
     }
 
     private ClusterState systemIndexTestClusterState() {

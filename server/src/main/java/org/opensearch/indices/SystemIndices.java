@@ -78,11 +78,9 @@ public class SystemIndices {
 
     private final CharacterRunAutomaton runAutomaton;
     private final Collection<SystemIndexDescriptor> systemIndexDescriptors;
-    private final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap;
 
     public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
         final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
-        this.descriptorsMap = descriptorsMap;
         checkForOverlappingPatterns(descriptorsMap);
         this.systemIndexDescriptors = unmodifiableList(
             descriptorsMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList())
@@ -108,8 +106,8 @@ public class SystemIndices {
         return runAutomaton.run(indexName);
     }
 
-    public Map<String, Collection<SystemIndexDescriptor>> getSystemIndexDescriptors() {
-        return this.descriptorsMap;
+    public List<String> getAllSystemIndexPatterns() {
+        return systemIndexDescriptors.stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toList());
     }
 
     /**
