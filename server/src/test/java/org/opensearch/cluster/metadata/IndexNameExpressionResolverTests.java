@@ -2545,7 +2545,7 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         );
         assertThat(resolver.concreteSystemIndices(".system-index1"), equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1)));
         assertThat(resolver.concreteSystemIndices(".system-index2"), equalTo(List.of(SystemIndexPlugin2.SYSTEM_INDEX_2)));
-        assertThat(resolver.concreteSystemIndices(".not-exists"), equalTo(Collections.EMPTY_LIST));
+        assertThat(resolver.concreteSystemIndices(".not-exists"), equalTo(Collections.emptyList()));
     }
 
     public void testRegisteredSystemIndexExpansion() {
