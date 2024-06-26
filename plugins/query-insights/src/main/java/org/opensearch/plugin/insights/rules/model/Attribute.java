@@ -99,7 +99,7 @@ public enum Attribute {
      * @param in the streaminput to read
      * @param attribute attribute type to differentiate between Source and others
      * @return parse value
-     * @throws IOException
+     * @throws IOException IOException
      */
     public static Object readAttributeValue(StreamInput in, Attribute attribute) throws IOException {
         if (attribute == Attribute.SOURCE) {
@@ -115,7 +115,7 @@ public enum Attribute {
      *
      * @param in the streaminput to read
      * @return parsed attribute map
-     * @throws IOException
+     * @throws IOException IOException
      */
     public static Map<Attribute, Object> readAttributeMap(StreamInput in) throws IOException {
         int size = readArraySize(in);
