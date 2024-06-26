@@ -99,7 +99,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             Version.CURRENT,
             "test-node-id",
             false,
-            ClusterMetadataManifest.CODEC_V2,
+            ClusterMetadataManifest.CODEC_V3,
             null,
             Collections.singletonList(uploadedIndexMetadata),
             "prev-cluster-uuid",
@@ -123,7 +123,9 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                         "custom--weighted_routing_netadata-file"
                     )
                 )
-            ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity()))
+            ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity())),
+            1L,
+            randomUploadedIndexMetadataList()
         );
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -169,7 +171,9 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                         "custom--weighted_routing_netadata-file"
                     )
                 )
-            ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity()))
+            ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity())),
+            1L,
+            randomUploadedIndexMetadataList()
         );
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -306,6 +310,106 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                     return builder.build();
                 }
             );
+        }
+    }
+
+    public void testClusterMetadataManifestXContentV2() throws IOException {
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
+        ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
+            1L,
+            1L,
+            "test-cluster-uuid",
+            "test-state-uuid",
+            Version.CURRENT,
+            "test-node-id",
+            false,
+            ClusterMetadataManifest.CODEC_V2,
+            null,
+            Collections.singletonList(uploadedIndexMetadata),
+            "prev-cluster-uuid",
+            true,
+            uploadedMetadataAttribute,
+            uploadedMetadataAttribute,
+            uploadedMetadataAttribute,
+            Collections.unmodifiableList(
+                Arrays.asList(
+                    new UploadedMetadataAttribute(
+                        RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER + RepositoriesMetadata.TYPE,
+                        "custom--repositories-file"
+                    ),
+                    new UploadedMetadataAttribute(
+                        RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER + IndexGraveyard.TYPE,
+                        "custom--index_graveyard-file"
+                    ),
+                    new UploadedMetadataAttribute(
+                        RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
+                            + WeightedRoutingMetadata.TYPE,
+                        "custom--weighted_routing_netadata-file"
+                    )
+                )
+            ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity())),
+            0,
+            new ArrayList<>()
+        );
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContentV2(parser);
+            assertEquals(originalManifest, fromXContentManifest);
+        }
+    }
+
+    public void testClusterMetadataManifestXContentV3() throws IOException {
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
+        ClusterMetadataManifest originalManifest = new ClusterMetadataManifest(
+            1L,
+            1L,
+            "test-cluster-uuid",
+            "test-state-uuid",
+            Version.CURRENT,
+            "test-node-id",
+            false,
+            ClusterMetadataManifest.CODEC_V3,
+            null,
+            Collections.singletonList(uploadedIndexMetadata),
+            "prev-cluster-uuid",
+            true,
+            uploadedMetadataAttribute,
+            uploadedMetadataAttribute,
+            uploadedMetadataAttribute,
+            Collections.unmodifiableList(
+                Arrays.asList(
+                    new UploadedMetadataAttribute(
+                        RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER + RepositoriesMetadata.TYPE,
+                        "custom--repositories-file"
+                    ),
+                    new UploadedMetadataAttribute(
+                        RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER + IndexGraveyard.TYPE,
+                        "custom--index_graveyard-file"
+                    ),
+                    new UploadedMetadataAttribute(
+                        RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
+                            + WeightedRoutingMetadata.TYPE,
+                        "custom--weighted_routing_netadata-file"
+                    )
+                )
+            ).stream().collect(Collectors.toMap(UploadedMetadataAttribute::getAttributeName, Function.identity())),
+            1L,
+            Collections.singletonList(uploadedIndexMetadata)
+        );
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final ClusterMetadataManifest fromXContentManifest = ClusterMetadataManifest.fromXContent(parser);
+            assertEquals(originalManifest, fromXContentManifest);
         }
     }
 

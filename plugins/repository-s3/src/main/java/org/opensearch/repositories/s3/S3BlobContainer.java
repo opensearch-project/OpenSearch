@@ -78,7 +78,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
-import org.opensearch.common.blobstore.FetchBlobResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -143,9 +143,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     @ExperimentalApi
     @Override
-    public FetchBlobResult readBlobWithMetadata(String blobName) throws IOException {
+    public InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
         S3RetryingInputStream s3RetryingInputStream = new S3RetryingInputStream(blobStore, buildKey(blobName));
-        return new FetchBlobResult(s3RetryingInputStream, s3RetryingInputStream.getMetadata());
+        return new InputStreamWithMetadata(s3RetryingInputStream, s3RetryingInputStream.getMetadata());
     }
 
     @Override
