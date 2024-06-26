@@ -301,12 +301,24 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @SuppressWarnings("rawtypes")
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
-        return findTemplateBuilder(context, name, matchType, null);
+    public Mapper.Builder findTemplateBuilder(
+        ParseContext context,
+        String name,
+        XContentFieldType matchType,
+        ObjectMapper.Dynamic dynamic,
+        String fieldFullPath
+    ) {
+        return findTemplateBuilder(context, name, matchType, null, dynamic, fieldFullPath);
     }
 
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, DateFormatter dateFormatter) {
-        return findTemplateBuilder(context, name, XContentFieldType.DATE, dateFormatter);
+    public Mapper.Builder findTemplateBuilder(
+        ParseContext context,
+        String name,
+        DateFormatter dateFormatter,
+        ObjectMapper.Dynamic dynamic,
+        String fieldFullPath
+    ) {
+        return findTemplateBuilder(context, name, XContentFieldType.DATE, dateFormatter, dynamic, fieldFullPath);
     }
 
     /**
@@ -314,14 +326,26 @@ public class RootObjectMapper extends ObjectMapper {
      * @param name        the field name
      * @param matchType   the type of the field in the json document or null if unknown
      * @param dateFormat  a dateformatter to use if the type is a date, null if not a date or is using the default format
+     * @param dynamic     the type of dynamic mapping
+     * @param fieldFullPath the field's full path
      * @return a mapper builder, or null if there is no template for such a field
      */
     @SuppressWarnings("rawtypes")
-    private Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType, DateFormatter dateFormat) {
+    public Mapper.Builder findTemplateBuilder(
+        ParseContext context,
+        String name,
+        XContentFieldType matchType,
+        DateFormatter dateFormat,
+        ObjectMapper.Dynamic dynamic,
+        String fieldFullPath
+    ) {
         DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
-        if (dynamicTemplate == null) {
+        if (dynamicTemplate == null && dynamic == Dynamic.STRICT_ALLOW_TEMPLATES) {
+            throw new StrictDynamicMappingException(dynamic.toString(), fieldFullPath, name);
+        } else if (dynamicTemplate == null) {
             return null;
         }
+
         String dynamicType = matchType.defaultMappingType();
         Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(dateFormat);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
