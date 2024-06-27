@@ -52,15 +52,15 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     private final Weigher<V> weigher;
 
     public SegmentedCache(Builder<K, V> builder) {
-        this.capacity = builder.capacity;
         final int segments = ceilingNextPowerOfTwo(builder.concurrencyLevel);
         this.segmentMask = segments - 1;
         this.table = newSegmentArray(segments);
-        this.perSegmentCapacity = (capacity + (segments - 1)) / segments;
+        this.perSegmentCapacity = (builder.capacity + (segments - 1)) / segments;
         this.weigher = builder.weigher;
         for (int i = 0; i < table.length; i++) {
             table[i] = new LRUCache<>(perSegmentCapacity, builder.listener, builder.weigher);
         }
+        this.capacity = perSegmentCapacity * segments;
     }
 
     @SuppressWarnings("unchecked")
