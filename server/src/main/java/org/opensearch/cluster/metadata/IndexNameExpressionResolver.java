@@ -706,7 +706,7 @@ public class IndexNameExpressionResolver {
         if (routing != null) {
             Set<String> r = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
             Map<String, Set<String>> routings = new HashMap<>();
-            String[] concreteIndices = metadata.getConcreteAllIndices();
+            Set<String> concreteIndices = metadata.getConcreteAllIndicesList();
             for (String index : concreteIndices) {
                 routings.put(index, r);
             }
@@ -746,7 +746,7 @@ public class IndexNameExpressionResolver {
      */
     boolean isPatternMatchingAllIndices(Metadata metadata, String[] indicesOrAliases, String[] concreteIndices) {
         // if we end up matching on all indices, check, if its a wildcard parameter, or a "-something" structure
-        if (concreteIndices.length == metadata.getConcreteAllIndices().length && indicesOrAliases.length > 0) {
+        if (concreteIndices.length == metadata.getConcreteAllIndicesList().size() && indicesOrAliases.length > 0) {
 
             // we might have something like /-test1,+test1 that would identify all indices
             // or something like /-test1 with test1 index missing and IndicesOptions.lenient()
@@ -1182,17 +1182,17 @@ public class IndexNameExpressionResolver {
 
         private static List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, Metadata metadata) {
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return Arrays.asList(metadata.getConcreteAllIndices());
+                return new ArrayList<>(metadata.getConcreteAllIndicesList());
             } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                return Arrays.asList(metadata.getConcreteVisibleIndices());
+                return metadata.getConcreteVisibleIndicesList();
             } else if (options.expandWildcardsOpen() && options.expandWildcardsHidden()) {
-                return Arrays.asList(metadata.getConcreteAllOpenIndices());
+                return metadata.getConcreteAllOpenIndicesList();
             } else if (options.expandWildcardsOpen()) {
-                return Arrays.asList(metadata.getConcreteVisibleOpenIndices());
+                return metadata.getConcreteVisibleOpenIndicesList();
             } else if (options.expandWildcardsClosed() && options.expandWildcardsHidden()) {
-                return Arrays.asList(metadata.getConcreteAllClosedIndices());
+                return metadata.getConcreteAllClosedIndicesList();
             } else if (options.expandWildcardsClosed()) {
-                return Arrays.asList(metadata.getConcreteVisibleClosedIndices());
+                return metadata.getConcreteVisibleClosedIndicesList();
             } else {
                 return Collections.emptyList();
             }

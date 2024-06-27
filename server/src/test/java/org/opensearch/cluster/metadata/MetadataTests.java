@@ -1572,11 +1572,17 @@ public class MetadataTests extends OpenSearchTestCase {
         if (compareIndicesLookups == true) {
             assertEquals(previousMetadata.indices(), newMetadata.indices());
             assertEquals(previousMetadata.getConcreteAllIndices(), newMetadata.getConcreteAllIndices());
+            assertEquals(previousMetadata.getConcreteAllIndicesList(), newMetadata.getConcreteAllIndicesList());
             assertEquals(previousMetadata.getConcreteAllClosedIndices(), newMetadata.getConcreteAllClosedIndices());
+            assertEquals(previousMetadata.getConcreteAllClosedIndicesList(), newMetadata.getConcreteAllClosedIndicesList());
             assertEquals(previousMetadata.getConcreteAllOpenIndices(), newMetadata.getConcreteAllOpenIndices());
+            assertEquals(previousMetadata.getConcreteAllOpenIndicesList(), newMetadata.getConcreteAllOpenIndicesList());
             assertEquals(previousMetadata.getConcreteVisibleIndices(), newMetadata.getConcreteVisibleIndices());
+            assertEquals(previousMetadata.getConcreteVisibleIndicesList(), newMetadata.getConcreteVisibleIndicesList());
             assertEquals(previousMetadata.getConcreteVisibleClosedIndices(), newMetadata.getConcreteVisibleClosedIndices());
+            assertEquals(previousMetadata.getConcreteVisibleClosedIndicesList(), newMetadata.getConcreteVisibleClosedIndicesList());
             assertEquals(previousMetadata.getConcreteVisibleOpenIndices(), newMetadata.getConcreteVisibleOpenIndices());
+            assertEquals(previousMetadata.getConcreteVisibleOpenIndicesList(), newMetadata.getConcreteVisibleOpenIndicesList());
             assertEquals(previousMetadata.getIndicesLookup(), newMetadata.getIndicesLookup());
             assertEquals(previousMetadata.getCustoms().get(DataStreamMetadata.TYPE), newMetadata.getCustoms().get(DataStreamMetadata.TYPE));
         }
