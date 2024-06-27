@@ -138,17 +138,15 @@ public class TopQueriesService {
      * @param size the wanted top N size
      */
     public void validateTopNSize(final int size) {
-        if (size > QueryInsightsSettings.MAX_N_SIZE) {
+        if (size < 1 || size > QueryInsightsSettings.MAX_N_SIZE) {
             throw new IllegalArgumentException(
                 "Top N size setting for ["
                     + metricType
                     + "]"
-                    + " should be smaller than max top N size ["
+                    + " should be between 1 and "
                     + QueryInsightsSettings.MAX_N_SIZE
-                    + "was ("
+                    + ", was ("
                     + size
-                    + " > "
-                    + QueryInsightsSettings.MAX_N_SIZE
                     + ")"
             );
         }
