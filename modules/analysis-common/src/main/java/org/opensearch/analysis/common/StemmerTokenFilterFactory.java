@@ -258,7 +258,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             } else if ("russian".equalsIgnoreCase(language)) {
                 return new SnowballFilter(tokenStream, new RussianStemmer());
             } else if ("light_russian".equalsIgnoreCase(language) || "lightRussian".equalsIgnoreCase(language)) {
-            return new RussianLightStemFilter(tokenStream);
+                return new RussianLightStemFilter(tokenStream);
 
             } else if ("serbian".equalsIgnoreCase(language)) {
                 return new SnowballFilter(tokenStream, new SerbianStemmer());
