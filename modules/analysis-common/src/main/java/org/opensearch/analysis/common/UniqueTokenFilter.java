@@ -44,7 +44,7 @@ import java.io.IOException;
  * A token filter that generates unique tokens. Can remove unique tokens only on the same
  * position increments as well.
  */
-class UniqueTokenFilter extends TokenFilter {
+public class UniqueTokenFilter extends TokenFilter {
 
     private final CharTermAttribute termAttribute = addAttribute(CharTermAttribute.class);
     private final PositionIncrementAttribute posIncAttribute = addAttribute(PositionIncrementAttribute.class);
@@ -52,11 +52,11 @@ class UniqueTokenFilter extends TokenFilter {
     private final CharArraySet previous = new CharArraySet(8, false);
     private final boolean onlyOnSamePosition;
 
-    UniqueTokenFilter(TokenStream in) {
+    public UniqueTokenFilter(TokenStream in) {
         this(in, false);
     }
 
-    UniqueTokenFilter(TokenStream in, boolean onlyOnSamePosition) {
+    public UniqueTokenFilter(TokenStream in, boolean onlyOnSamePosition) {
         super(in);
         this.onlyOnSamePosition = onlyOnSamePosition;
     }
