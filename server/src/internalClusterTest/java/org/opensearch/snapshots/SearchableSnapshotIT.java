@@ -28,6 +28,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -35,6 +36,7 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.index.Index;
@@ -65,10 +67,13 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
+import static org.opensearch.common.util.FeatureFlags.TIERED_REMOTE_INDEX;
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
 import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
 import static org.opensearch.test.NodeRoles.dataNode;
+import static org.opensearch.test.NodeRoles.onlyRole;
+import static org.opensearch.test.NodeRoles.onlyRoles;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -1006,6 +1011,26 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .cluster()
                 .prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().putNull(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey()))
+        );
+    }
+
+    public void testStartSearchNode() throws Exception {
+        // test start dedicated search node
+        internalCluster().startNode(Settings.builder().put(onlyRole(DiscoveryNodeRole.SEARCH_ROLE)));
+        // test start node without search role
+        internalCluster().startNode(Settings.builder().put(onlyRole(DiscoveryNodeRole.DATA_ROLE)));
+        // test start non-dedicated search node with TIERED_REMOTE_INDEX feature enabled
+        internalCluster().startNode(
+            Settings.builder()
+                .put(onlyRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.DATA_ROLE)))
+                .put(TIERED_REMOTE_INDEX, true)
+        );
+        // test start non-dedicated search node
+        assertThrows(
+            SettingsException.class,
+            () -> internalCluster().startNode(
+                Settings.builder().put(onlyRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.DATA_ROLE)))
+            )
         );
     }
 
