@@ -195,7 +195,16 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         // and it only has to be loaded one time, we should report one miss and the rest hits. But, if we do stats in
         // getValueFromTieredCache(),
         // we will see all misses. Instead, handle stats in computeIfAbsent().
-        Tuple<V, String> cacheValueTuple = getValueFromTieredCache(false).apply(key);
+        Tuple<V, String> cacheValueTuple;
+        CompletableFuture<Tuple<ICacheKey<K>, V>> future = null;
+        try (ReleasableLock ignore = readLock.acquire()) {
+            cacheValueTuple = getValueFromTieredCache(false).apply(key);
+            if (cacheValueTuple == null) {
+                // Only one of the threads will succeed putting a future into map for the same key.
+                // Rest will fetch existing future and wait on that to complete.
+                future = completableFutureMap.putIfAbsent(key, new CompletableFuture<>());
+            }
+        }
         List<String> heapDimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, TIER_DIMENSION_VALUE_ON_HEAP);
         List<String> diskDimensionValues = statsHolder.getDimensionsWithTierValue(key.dimensions, TIER_DIMENSION_VALUE_DISK);
 
@@ -203,7 +212,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
             // Add the value to the onHeap cache. We are calling computeIfAbsent which does another get inside.
             // This is needed as there can be many requests for the same key at the same time and we only want to load
             // the value once.
-            V value = compute(key, loader);
+            V value = compute(key, loader, future);
             // Handle stats
             if (loader.isLoaded()) {
                 // The value was just computed and added to the cache by this thread. Register a miss for the heap cache, and the disk cache
@@ -232,10 +241,8 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
         return cacheValueTuple.v1();
     }
 
-    private V compute(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader) throws Exception {
-        // Only one of the threads will succeed putting a future into map for the same key.
-        // Rest will fetch existing future and wait on that to complete.
-        CompletableFuture<Tuple<ICacheKey<K>, V>> future = completableFutureMap.putIfAbsent(key, new CompletableFuture<>());
+    private V compute(ICacheKey<K> key, LoadAwareCacheLoader<ICacheKey<K>, V> loader, CompletableFuture<Tuple<ICacheKey<K>, V>> future)
+        throws Exception {
         // Handler to handle results post processing. Takes a tuple<key, value> or exception as an input and returns
         // the value. Also before returning value, puts the value in cache.
         BiFunction<Tuple<ICacheKey<K>, V>, Throwable, Void> handler = (pair, ex) -> {
@@ -253,7 +260,7 @@ public class TieredSpilloverCache<K, V> implements ICache<K, V> {
                     logger.warn("Exception occurred while trying to compute the value", ex);
                 }
             }
-            completableFutureMap.remove(key); // Remove key from map as not needed anymore.
+            completableFutureMap.remove(key);// Remove key from map as not needed anymore.
             return null;
         };
         V value = null;
