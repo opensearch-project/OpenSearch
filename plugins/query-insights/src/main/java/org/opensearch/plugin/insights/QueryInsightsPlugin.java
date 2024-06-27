@@ -30,6 +30,7 @@ import org.opensearch.plugin.insights.core.service.QueryInsightsService;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesAction;
 import org.opensearch.plugin.insights.rules.resthandler.top_queries.RestTopQueriesAction;
 import org.opensearch.plugin.insights.rules.transport.top_queries.TransportTopQueriesAction;
+import org.opensearch.plugin.insights.settings.QueryCategorizationSettings;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
@@ -129,7 +130,8 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin, Telemet
             QueryInsightsSettings.TOP_N_MEMORY_QUERIES_ENABLED,
             QueryInsightsSettings.TOP_N_MEMORY_QUERIES_SIZE,
             QueryInsightsSettings.TOP_N_MEMORY_QUERIES_WINDOW_SIZE,
-            QueryInsightsSettings.TOP_N_MEMORY_EXPORTER_SETTINGS
+            QueryInsightsSettings.TOP_N_MEMORY_EXPORTER_SETTINGS,
+            QueryCategorizationSettings.SEARCH_QUERY_METRICS_ENABLED_SETTING
         );
     }
 }

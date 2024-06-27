@@ -7,10 +7,6 @@
  */
 
 /**
- * Query Insights exporter
- */
-
-/**
  * Query Insights search query categorizor to collect metrics related to search queries
  */
 package org.opensearch.plugin.insights.core.categorizer;
