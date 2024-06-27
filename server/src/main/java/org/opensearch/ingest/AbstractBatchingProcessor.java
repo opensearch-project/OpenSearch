@@ -15,6 +15,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException;
+
 /**
  * Abstract base class for batch processors.
  *
@@ -37,7 +39,7 @@ public abstract class AbstractBatchingProcessor extends AbstractProcessor {
      * @param ingestDocumentWrappers {@link List} of {@link IngestDocumentWrapper} to be processed.
      * @param handler                {@link Consumer} to be called with the results of the processing.
      */
-    public abstract void internalBatchExecute(
+    protected abstract void subBatchExecute(
         List<IngestDocumentWrapper> ingestDocumentWrappers,
         Consumer<List<IngestDocumentWrapper>> handler
     );
@@ -49,15 +51,9 @@ public abstract class AbstractBatchingProcessor extends AbstractProcessor {
             return;
         }
 
-        // if batch size is 1, use default implementation in Processor to handle documents one at a time.
-        if (this.batchSize == 1) {
-            super.batchExecute(ingestDocumentWrappers, handler);
-            return;
-        }
-
         // if batch size is larger than document size, send one batch
         if (this.batchSize >= ingestDocumentWrappers.size()) {
-            internalBatchExecute(ingestDocumentWrappers, handler);
+            subBatchExecute(ingestDocumentWrappers, handler);
             return;
         }
 
@@ -67,7 +63,7 @@ public abstract class AbstractBatchingProcessor extends AbstractProcessor {
         AtomicInteger counter = new AtomicInteger(size);
         List<IngestDocumentWrapper> allResults = Collections.synchronizedList(new ArrayList<>());
         for (List<IngestDocumentWrapper> batch : batches) {
-            this.internalBatchExecute(batch, batchResults -> {
+            this.subBatchExecute(batch, batchResults -> {
                 allResults.addAll(batchResults);
                 if (counter.addAndGet(-batchResults.size()) == 0) {
                     handler.accept(allResults);
@@ -114,7 +110,15 @@ public abstract class AbstractBatchingProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config
         ) throws Exception {
-            int batchSize = ConfigurationUtils.readIntProperty(processorType, tag, config, BATCH_SIZE_FIELD, DEFAULT_BATCH_SIZE);
+            int batchSize = ConfigurationUtils.readIntProperty(this.processorType, tag, config, BATCH_SIZE_FIELD, DEFAULT_BATCH_SIZE);
+            if (batchSize < 1) {
+                throw newConfigurationException(
+                    this.processorType,
+                    tag,
+                    BATCH_SIZE_FIELD,
+                    BATCH_SIZE_FIELD + " must be a positive integer"
+                );
+            }
             return newProcessor(tag, description, batchSize, config);
         }
 
@@ -127,6 +131,11 @@ public abstract class AbstractBatchingProcessor extends AbstractProcessor {
          * @param config configuration of the processor
          * @return a new batch processor instance
          */
-        protected abstract AbstractBatchingProcessor newProcessor(String tag, String description, int batchSize, Map<String, Object> config);
+        protected abstract AbstractBatchingProcessor newProcessor(
+            String tag,
+            String description,
+            int batchSize,
+            Map<String, Object> config
+        );
     }
 }
