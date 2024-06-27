@@ -92,8 +92,8 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testGetMetadataFieldsReturnsExpectedSet() throws Throwable {
-        final MapperService mapperService = createIndex("test1").mapperService();
-        assertEquals(mapperService.getMetadataFields(), IndicesModule.getBuiltInMetadataFields());
+        final IndexService indexService = createIndex("test1");
+        assertEquals(indexService.getMetadataFields(), IndicesModule.getBuiltInMetadataFields());
     }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {

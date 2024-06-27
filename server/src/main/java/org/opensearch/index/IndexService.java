@@ -156,6 +156,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
+    private final MapperRegistry mapperRegistry;
     private final NamedXContentRegistry xContentRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
@@ -239,6 +240,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.circuitBreakerService = circuitBreakerService;
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
+        this.mapperRegistry = mapperRegistry;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
@@ -1231,6 +1233,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return getIndexSettings().getRefreshInterval();
         }
         return clusterDefaultRefreshIntervalSupplier.get();
+    }
+
+    /**
+     * Returns a set containing the registered metadata fields
+     */
+    public Set<String> getMetadataFields() {
+        return Collections.unmodifiableSet(mapperRegistry.getMetadataMapperParsers().keySet());
     }
 
     /**
