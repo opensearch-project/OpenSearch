@@ -165,7 +165,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         // Assert that no unknown processors are defined in the allowlist
         final Set<String> unknownAllowlistProcessors = allowlist.stream()
             .filter(p -> map.containsKey(p) == false)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toUnmodifiableSet());
         if (unknownAllowlistProcessors.isEmpty() == false) {
             throw new IllegalArgumentException(
                 "Processor(s) "
