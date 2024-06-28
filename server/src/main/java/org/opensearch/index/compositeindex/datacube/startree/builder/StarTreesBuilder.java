@@ -49,7 +49,14 @@ public class StarTreesBuilder implements Closeable {
         for (CompositeMappedFieldType compositeMappedFieldType : mapperService.getCompositeFieldTypes()) {
             if (compositeMappedFieldType instanceof StarTreeMapper.StarTreeFieldType) {
                 StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) compositeMappedFieldType;
-                starTreeFields.add(new StarTreeField(starTreeFieldType.name(), starTreeFieldType.getDimensions(), starTreeFieldType.getMetrics(), starTreeFieldType.getStarTreeConfig()));
+                starTreeFields.add(
+                    new StarTreeField(
+                        starTreeFieldType.name(),
+                        starTreeFieldType.getDimensions(),
+                        starTreeFieldType.getMetrics(),
+                        starTreeFieldType.getStarTreeConfig()
+                    )
+                );
             }
         }
 
@@ -78,11 +85,7 @@ public class StarTreesBuilder implements Closeable {
                 starTreeBuilder.build();
             }
         }
-        logger.debug(
-            "Took {} ms to building {} star-trees with star-tree fields",
-            System.currentTimeMillis() - startTime,
-            numStarTrees
-        );
+        logger.debug("Took {} ms to building {} star-trees with star-tree fields", System.currentTimeMillis() - startTime, numStarTrees);
     }
 
     @Override
@@ -101,7 +104,11 @@ public class StarTreesBuilder implements Closeable {
                 return new OnHeapStarTreeBuilder(starTreeField, fieldProducerMap, state, mapperService);
             default:
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "No star tree implementation is available for [%s] build mode", starTreeField.getStarTreeConfig().getBuildMode())
+                    String.format(
+                        Locale.ROOT,
+                        "No star tree implementation is available for [%s] build mode",
+                        starTreeField.getStarTreeConfig().getBuildMode()
+                    )
                 );
         }
     }

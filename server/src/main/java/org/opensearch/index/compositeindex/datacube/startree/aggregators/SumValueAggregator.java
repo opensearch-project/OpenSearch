@@ -34,7 +34,7 @@ public class SumValueAggregator implements ValueAggregator<Double> {
 
     @Override
     public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
-        kahanSummation.reset(0,0);
+        kahanSummation.reset(0, 0);
         kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
         return kahanSummation.value();
     }
@@ -55,7 +55,7 @@ public class SumValueAggregator implements ValueAggregator<Double> {
 
     @Override
     public Double getInitialAggregatedValue(Double value) {
-        kahanSummation.reset(0,0);
+        kahanSummation.reset(0, 0);
         kahanSummation.add(value);
         return kahanSummation.value();
     }

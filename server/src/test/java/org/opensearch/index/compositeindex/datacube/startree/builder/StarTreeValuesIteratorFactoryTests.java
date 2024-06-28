@@ -16,6 +16,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.opensearch.index.compositeindex.datacube.startree.utils.CoordinatedDocumentReader;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 
@@ -28,12 +29,12 @@ import static org.mockito.Mockito.when;
 
 public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
 
-    private static StarTreeDocValuesIteratorAdapter factory;
+    private static StarTreeDocValuesIteratorAdapter starTreeDocValuesIteratorAdapter;
     private static FieldInfo mockFieldInfo;
 
     @BeforeClass
     public static void setup() {
-        factory = new StarTreeDocValuesIteratorAdapter();
+        starTreeDocValuesIteratorAdapter = new StarTreeDocValuesIteratorAdapter();
         mockFieldInfo = new FieldInfo(
             "field",
             1,
@@ -59,38 +60,72 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         DocValuesProducer producer = Mockito.mock(DocValuesProducer.class);
         SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
         when(producer.getSortedNumeric(mockFieldInfo)).thenReturn(iterator);
-        DocIdSetIterator result = factory.getDocValuesIterator(DocValuesType.SORTED_NUMERIC, mockFieldInfo, producer);
-        assertEquals(iterator.getClass(), result.getClass());
+        CoordinatedDocumentReader result = starTreeDocValuesIteratorAdapter.getDocValuesIterator(
+            DocValuesType.SORTED_NUMERIC,
+            mockFieldInfo,
+            producer
+        );
+        assertEquals(iterator.getClass(), result.getDocIdSetIterator().getClass());
     }
 
     public void testCreateIterator_UnsupportedType() {
         DocValuesProducer producer = Mockito.mock(DocValuesProducer.class);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
-            factory.getDocValuesIterator(DocValuesType.BINARY, mockFieldInfo, producer);
+            starTreeDocValuesIteratorAdapter.getDocValuesIterator(DocValuesType.BINARY, mockFieldInfo, producer);
         });
         assertEquals("Unsupported DocValuesType: BINARY", exception.getMessage());
     }
 
     public void testGetNextValue_SortedNumeric() throws IOException {
         SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
+        when(iterator.nextDoc()).thenReturn(0);
         when(iterator.nextValue()).thenReturn(123L);
-
-        long result = factory.getNextValue(iterator);
+        CoordinatedDocumentReader coordinatedDocumentReader = new CoordinatedDocumentReader(iterator);
+        coordinatedDocumentReader.getDocIdSetIterator().nextDoc();
+        long result = starTreeDocValuesIteratorAdapter.getNextValue(coordinatedDocumentReader, 0);
         assertEquals(123L, result);
     }
 
     public void testGetNextValue_UnsupportedIterator() {
         DocIdSetIterator iterator = Mockito.mock(DocIdSetIterator.class);
+        CoordinatedDocumentReader coordinatedDocumentReader = new CoordinatedDocumentReader(iterator);
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> { factory.getNextValue(iterator); });
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+            starTreeDocValuesIteratorAdapter.getNextValue(coordinatedDocumentReader, 0);
+        });
         assertEquals("Unsupported Iterator: " + iterator.toString(), exception.getMessage());
     }
 
     public void testNextDoc() throws IOException {
-        DocIdSetIterator iterator = Mockito.mock(DocIdSetIterator.class);
+        SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
+        CoordinatedDocumentReader coordinatedDocumentReader = new CoordinatedDocumentReader(iterator);
         when(iterator.nextDoc()).thenReturn(5);
 
-        int result = factory.nextDoc(iterator);
+        int result = starTreeDocValuesIteratorAdapter.nextDoc(coordinatedDocumentReader, 5);
         assertEquals(5, result);
     }
+
+    public void test_multipleCoordinatedDocumentReader() throws IOException {
+        SortedNumericDocValues iterator1 = Mockito.mock(SortedNumericDocValues.class);
+        SortedNumericDocValues iterator2 = Mockito.mock(SortedNumericDocValues.class);
+
+        CoordinatedDocumentReader coordinatedDocumentReader1 = new CoordinatedDocumentReader(iterator1);
+        CoordinatedDocumentReader coordinatedDocumentReader2 = new CoordinatedDocumentReader(iterator2);
+
+        when(iterator1.nextDoc()).thenReturn(0);
+        when(iterator2.nextDoc()).thenReturn(1);
+
+        when(iterator1.nextValue()).thenReturn(9L);
+        when(iterator2.nextValue()).thenReturn(9L);
+
+        starTreeDocValuesIteratorAdapter.nextDoc(coordinatedDocumentReader1, 0);
+        starTreeDocValuesIteratorAdapter.nextDoc(coordinatedDocumentReader2, 0);
+        assertEquals(0, coordinatedDocumentReader1.getDocId());
+        assertEquals(9L, (long) coordinatedDocumentReader1.getDocValue());
+        assertNotEquals(0, coordinatedDocumentReader2.getDocId());
+        assertEquals(1, coordinatedDocumentReader2.getDocId());
+        assertEquals(9L, (long) coordinatedDocumentReader2.getDocValue());
+
+    }
+
 }

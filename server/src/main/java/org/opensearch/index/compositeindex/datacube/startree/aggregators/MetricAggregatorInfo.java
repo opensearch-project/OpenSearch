@@ -7,12 +7,13 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.index.compositeindex.datacube.startree.utils.CoordinatedDocumentReader;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 
 import java.util.Comparator;
+import java.util.Objects;
 
 /**
  * Builds aggregation function and doc values field pair to support various aggregations
@@ -27,7 +28,7 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
     private final String field;
     private final ValueAggregator valueAggregators;
     private final StarTreeNumericType starTreeNumericType;
-    private final DocIdSetIterator metricStatReader;
+    private final CoordinatedDocumentReader metricStatReader;
 
     /**
      * Constructor for MetricAggregatorInfo
@@ -37,7 +38,7 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
         String field,
         String starFieldName,
         IndexNumericFieldData.NumericType numericType,
-        DocIdSetIterator metricStatReader
+        CoordinatedDocumentReader metricStatReader
     ) {
         this.metricStat = metricStat;
         this.valueAggregators = ValueAggregatorFactory.getValueAggregator(metricStat);
@@ -86,7 +87,7 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
     /**
      * @return metric value reader iterator
      */
-    public DocIdSetIterator getMetricStatReader() {
+    public CoordinatedDocumentReader getMetricStatReader() {
         return metricStatReader;
     }
 
@@ -99,7 +100,7 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
 
     @Override
     public int hashCode() {
-        return 31 * metricStat.hashCode() + field.hashCode();
+        return Objects.hashCode(toFieldName());
     }
 
     @Override

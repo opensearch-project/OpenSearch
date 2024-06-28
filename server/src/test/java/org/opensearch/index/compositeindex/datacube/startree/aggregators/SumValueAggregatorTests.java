@@ -9,17 +9,17 @@
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.apache.lucene.util.NumericUtils;
-import org.junit.Before;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 public class SumValueAggregatorTests extends OpenSearchTestCase {
 
     private SumValueAggregator aggregator;
 
     @Before
-    public void setup(){
+    public void setup() {
         aggregator = new SumValueAggregator();
     }
 
@@ -46,10 +46,7 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
 
     public void testMergeAggregatedValueAndSegmentValue_nullSegmentDocValue() {
         aggregator.getInitialAggregatedValue(2.0);
-        assertThrows(
-            NullPointerException.class,
-            () -> aggregator.mergeAggregatedValueAndSegmentValue(2.0, null, StarTreeNumericType.LONG)
-        );
+        assertThrows(NullPointerException.class, () -> aggregator.mergeAggregatedValueAndSegmentValue(2.0, null, StarTreeNumericType.LONG));
     }
 
     public void testMergeAggregatedValues() {

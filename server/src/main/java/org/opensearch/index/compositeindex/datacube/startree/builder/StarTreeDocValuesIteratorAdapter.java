@@ -14,6 +14,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.compositeindex.datacube.startree.utils.CoordinatedDocumentReader;
 
 import java.io.IOException;
 
@@ -28,10 +29,11 @@ public class StarTreeDocValuesIteratorAdapter {
     /**
      * Creates an iterator for the given doc values type and field using the doc values producer
      */
-    public DocIdSetIterator getDocValuesIterator(DocValuesType type, FieldInfo field, DocValuesProducer producer) throws IOException {
+    public CoordinatedDocumentReader getDocValuesIterator(DocValuesType type, FieldInfo field, DocValuesProducer producer)
+        throws IOException {
         switch (type) {
             case SORTED_NUMERIC:
-                return producer.getSortedNumeric(field);
+                return new CoordinatedDocumentReader(producer.getSortedNumeric(field));
             default:
                 throw new IllegalArgumentException("Unsupported DocValuesType: " + type);
         }
@@ -40,11 +42,27 @@ public class StarTreeDocValuesIteratorAdapter {
     /**
      * Returns the next value for the given iterator
      */
-    public long getNextValue(DocIdSetIterator iterator) throws IOException {
-        if (iterator instanceof SortedNumericDocValues) {
-            return ((SortedNumericDocValues) iterator).nextValue();
+    public Long getNextValue(CoordinatedDocumentReader coordinatedDocumentReader, int currentDocId) throws IOException {
+        if (coordinatedDocumentReader.getDocIdSetIterator() instanceof SortedNumericDocValues) {
+            SortedNumericDocValues sortedNumericDocValues = (SortedNumericDocValues) coordinatedDocumentReader.getDocIdSetIterator();
+            if (coordinatedDocumentReader.getDocId() < 0 || coordinatedDocumentReader.getDocId() == DocIdSetIterator.NO_MORE_DOCS) {
+                throw new IllegalStateException("invalid doc id to fetch the next value");
+            }
+
+            if (coordinatedDocumentReader.getDocValue() == null) {
+                coordinatedDocumentReader.setDocValue(sortedNumericDocValues.nextValue());
+                return coordinatedDocumentReader.getDocValue();
+            }
+
+            if (coordinatedDocumentReader.getDocId() == currentDocId) {
+                Long nextValue = coordinatedDocumentReader.getDocValue();
+                coordinatedDocumentReader.setDocValue(null);
+                return nextValue;
+            } else {
+                return null;
+            }
         } else {
-            throw new IllegalArgumentException("Unsupported Iterator: " + iterator.toString());
+            throw new IllegalStateException("Unsupported Iterator: " + coordinatedDocumentReader.getDocIdSetIterator().toString());
         }
     }
 
@@ -52,8 +70,13 @@ public class StarTreeDocValuesIteratorAdapter {
      * Moves to the next doc in the iterator
      * Returns the doc id for the next document from the given iterator
      */
-    public int nextDoc(DocIdSetIterator iterator) throws IOException {
-        return iterator.nextDoc();
+    public int nextDoc(CoordinatedDocumentReader iterator, int currentDocId) throws IOException {
+        if (iterator.getDocValue() != null) {
+            return iterator.getDocId();
+        }
+        iterator.setDocId(iterator.getDocIdSetIterator().nextDoc());
+        iterator.setDocValue(this.getNextValue(iterator, currentDocId));
+        return iterator.getDocId();
     }
 
 }

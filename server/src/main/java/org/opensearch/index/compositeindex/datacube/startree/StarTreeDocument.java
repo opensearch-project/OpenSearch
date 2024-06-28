@@ -18,10 +18,10 @@ import java.util.Arrays;
  */
 @ExperimentalApi
 public class StarTreeDocument {
-    public final long[] dimensions;
+    public final Long[] dimensions;
     public final Object[] metrics;
 
-    public StarTreeDocument(long[] dimensions, Object[] metrics) {
+    public StarTreeDocument(Long[] dimensions, Object[] metrics) {
         this.dimensions = dimensions;
         this.metrics = metrics;
     }

@@ -73,8 +73,8 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
     @Override
     public Iterator<StarTreeDocument> sortAndAggregateStarTreeDocument(int numDocs) throws IOException {
         StarTreeDocument[] starTreeDocuments = new StarTreeDocument[numDocs];
-        for (int i = 0; i < numDocs; i++) {
-            starTreeDocuments[i] = getSegmentStarTreeDocument();
+        for (int currentDocId = 0; currentDocId < numDocs; currentDocId++) {
+            starTreeDocuments[currentDocId] = getSegmentStarTreeDocument(currentDocId);
         }
         return sortAndAggregateStarTreeDocument(starTreeDocuments);
     }
@@ -182,7 +182,7 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
             @Override
             public StarTreeDocument next() {
                 StarTreeDocument next = reduceStarTreeDocuments(null, currentStarTreeDocument);
-                next.dimensions[dimensionId] = STAR_IN_DOC_VALUES_INDEX;
+                next.dimensions[dimensionId] = Long.valueOf(STAR_IN_DOC_VALUES_INDEX);
                 while (docId < numDocs) {
                     StarTreeDocument starTreeDocument = starTreeDocuments[docId++];
                     if (!hasSameDimensions(starTreeDocument, currentStarTreeDocument)) {

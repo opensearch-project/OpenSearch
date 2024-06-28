@@ -193,10 +193,10 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
     }
 
     public void test_reduceStarTreeDocuments() {
-        StarTreeDocument starTreeDocument1 = new StarTreeDocument(new long[] { 1, 3, 5, 8 }, new Double[] { 4.0, 8.0 });
-        StarTreeDocument starTreeDocument2 = new StarTreeDocument(new long[] { 1, 3, 5, 8 }, new Double[] { 10.0, 6.0 });
+        StarTreeDocument starTreeDocument1 = new StarTreeDocument(new Long[] { 1L, 3L, 5L, 8L }, new Double[] { 4.0, 8.0 });
+        StarTreeDocument starTreeDocument2 = new StarTreeDocument(new Long[] { 1L, 3L, 5L, 8L }, new Double[] { 10.0, 6.0 });
 
-        StarTreeDocument expectedeMergedStarTreeDocument = new StarTreeDocument(new long[] { 1, 3, 5, 8 }, new Double[] { 14.0, 14.0 });
+        StarTreeDocument expectedeMergedStarTreeDocument = new StarTreeDocument(new Long[] { 1L, 3L, 5L, 8L }, new Double[] { 14.0, 14.0 });
         StarTreeDocument mergedStarTreeDocument = builder.reduceStarTreeDocuments(null, starTreeDocument1);
         StarTreeDocument resultStarTreeDocument = builder.reduceStarTreeDocuments(mergedStarTreeDocument, starTreeDocument2);
 
