@@ -19,6 +19,7 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
@@ -81,6 +82,55 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject("keyword")
                 .field("type", "keyword")
                 .field("doc_values", false)
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static XContentBuilder createMaxDimTestMapping() {
+        try {
+            return jsonBuilder().startObject()
+                .startObject("composite")
+                .startObject("startree-1")
+                .field("type", "star_tree")
+                .startObject("config")
+                .startArray("ordered_dimensions")
+                .startObject()
+                .field("name", "timestamp")
+                .startArray("calendar_intervals")
+                .value("day")
+                .value("month")
+                .endArray()
+                .endObject()
+                .startObject()
+                .field("name", "dim2")
+                .endObject()
+                .startObject()
+                .field("name", "dim3")
+                .endObject()
+                .endArray()
+                .startArray("metrics")
+                .startObject()
+                .field("name", "dim2")
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("properties")
+                .startObject("timestamp")
+                .field("type", "date")
+                .endObject()
+                .startObject("dim2")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("dim3")
+                .field("type", "integer")
+                .field("doc_values", true)
                 .endObject()
                 .endObject()
                 .endObject();
@@ -325,6 +375,32 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         );
         assertEquals(
             "Aggregations not supported for the dimension field [numeric] with field type [integer] as part of star tree field",
+            ex.getMessage()
+        );
+    }
+
+    public void testMaxDimsCompositeIndex() {
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate(TEST_INDEX).setMapping(createMaxDimTestMapping())
+                .setSettings(Settings.builder().put(StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING.getKey(), 2))
+                .get()
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: ordered_dimensions cannot have more than 2 dimensions for star tree field [startree-1]",
+            ex.getMessage()
+        );
+    }
+
+    public void testMaxCalendarIntervalsCompositeIndex() {
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate(TEST_INDEX).setMapping(createMaxDimTestMapping())
+                .setSettings(Settings.builder().put(StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING.getKey(), 1))
+                .get()
+        );
+        assertEquals(
+            "Failed to parse mapping [_doc]: At most [1] calendar intervals are allowed in dimension [timestamp]",
             ex.getMessage()
         );
     }
