@@ -91,9 +91,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 paramMap.remove(ORDERED_DIMENSIONS);
                 List<Metric> metrics = buildMetrics(name, paramMap, context);
                 paramMap.remove(METRICS);
-                if (paramMap.containsKey(CompositeDataCubeFieldType.NAME)) {
-                    paramMap.remove(CompositeDataCubeFieldType.NAME);
-                }
+                paramMap.remove(CompositeDataCubeFieldType.NAME);
                 for (String dim : skipStarInDims) {
                     if (dimensions.stream().filter(d -> d.getField().equals(dim)).findAny().isEmpty()) {
                         throw new IllegalArgumentException(

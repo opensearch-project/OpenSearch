@@ -85,3 +85,4 @@ ${error.file}
 
 # HDFS ForkJoinPool.common() support by SecurityManager
 -Djava.util.concurrent.ForkJoinPool.common.threadFactory=org.opensearch.secure_sm.SecuredForkJoinWorkerThreadFactory
+-Dopensearch.experimental.feature.composite_index.star_tree.enabled=true

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex.datacube.startree;
+package org.opensearch.index.mapper;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.Rounding;
@@ -18,9 +18,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
-import org.opensearch.index.mapper.CompositeMappedFieldType;
-import org.opensearch.index.mapper.MapperParsingException;
-import org.opensearch.index.mapper.StarTreeMapper;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
@@ -35,7 +33,10 @@ import java.util.Set;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
-public class StarTreeMappingIntegTests extends OpenSearchIntegTestCase {
+/**
+ * Integration tests for star tree mapper
+ */
+public class StarTreeMapper1IT extends OpenSearchIntegTestCase {
     private static final String TEST_INDEX = "test";
 
     private static XContentBuilder createMinimalTestMapping(boolean invalidDim, boolean invalidMetric, boolean keywordDim) {
@@ -360,5 +361,4 @@ public class StarTreeMappingIntegTests extends OpenSearchIntegTestCase {
                 .setTransientSettings(Settings.builder().putNull("*"))
         );
     }
-
 }
