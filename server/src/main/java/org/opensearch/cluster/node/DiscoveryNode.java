@@ -130,6 +130,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
     }
 
+    public static boolean isDedicatedSearchNode(Settings settings) {
+        return getRolesFromSettings(settings).stream().allMatch(DiscoveryNodeRole.SEARCH_ROLE::equals);
+    }
+
     private final String nodeName;
     private final String nodeId;
     private final String ephemeralId;
