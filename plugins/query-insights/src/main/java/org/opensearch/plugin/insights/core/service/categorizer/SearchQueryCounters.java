@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.insights.core.categorizer;
+package org.opensearch.plugin.insights.core.service.categorizer;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.telemetry.metrics.Counter;
@@ -27,20 +27,20 @@ public final class SearchQueryCounters {
     /**
      * Aggregation counter
      */
-    public final Counter aggCounter;
+    private final Counter aggCounter;
     /**
      * Counter for all other query types (catch all)
      */
-    public final Counter otherQueryCounter;
+    private final Counter otherQueryCounter;
     /**
      * Counter for sort
      */
-    public final Counter sortCounter;
+    private final Counter sortCounter;
     private final Map<Class<? extends QueryBuilder>, Counter> queryHandlers;
     /**
      * Counter name to Counter object map
      */
-    public final ConcurrentHashMap<String, Counter> nameToQueryTypeCounters;
+    private final ConcurrentHashMap<String, Counter> nameToQueryTypeCounters;
 
     /**
      * Constructor
@@ -78,6 +78,26 @@ public final class SearchQueryCounters {
 
         Counter counter = nameToQueryTypeCounters.computeIfAbsent(uniqueQueryCounterName, k -> createQueryCounter(k));
         counter.add(1, Tags.create().addTag(LEVEL_TAG, level));
+    }
+
+    public void incrementAggCounter(double value, Tags tags) {
+        aggCounter.add(value, tags);
+    }
+
+    public void incrementSortCounter(double value, Tags tags) {
+        sortCounter.add(value, tags);
+    }
+
+    public Counter getAggCounter() {
+        return aggCounter;
+    }
+
+    public Counter getSortCounter() {
+        return sortCounter;
+    }
+
+    public Counter getCounterByQueryBuilderName(String queryBuilderName) {
+        return nameToQueryTypeCounters.get(queryBuilderName);
     }
 
     private Counter createQueryCounter(String counterName) {

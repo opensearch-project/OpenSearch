@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.insights.core.categorizer;
+package org.opensearch.plugin.insights.core.service.categorizer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,7 +34,7 @@ public final class SearchQueryCategorizer {
     /**
      * Contains all the search query counters
      */
-    public final SearchQueryCounters searchQueryCounters;
+    private final SearchQueryCounters searchQueryCounters;
 
     final SearchQueryAggregationCategorizer searchQueryAggregationCategorizer;
 
@@ -72,10 +72,9 @@ public final class SearchQueryCategorizer {
 
     private void incrementQuerySortCounters(List<SortBuilder<?>> sorts) {
         if (sorts != null && sorts.size() > 0) {
-            for (ListIterator<SortBuilder<?>> it = sorts.listIterator(); it.hasNext();) {
-                SortBuilder<?> sortBuilder = it.next();
+            for (SortBuilder<?> sortBuilder : sorts) {
                 String sortOrder = sortBuilder.order().toString();
-                searchQueryCounters.sortCounter.add(1, Tags.create().addTag("sort_order", sortOrder));
+                searchQueryCounters.incrementSortCounter(1, Tags.create().addTag("sort_order", sortOrder));
             }
         }
     }
@@ -105,4 +104,7 @@ public final class SearchQueryCategorizer {
         log.trace("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
     }
 
+    public SearchQueryCounters getSearchQueryCounters() {
+        return this.searchQueryCounters;
+    }
 }

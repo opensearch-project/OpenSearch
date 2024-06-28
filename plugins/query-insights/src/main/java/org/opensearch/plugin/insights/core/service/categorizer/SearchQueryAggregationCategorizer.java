@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.insights.core.categorizer;
+package org.opensearch.plugin.insights.core.service.categorizer;
 
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
@@ -43,7 +43,7 @@ public class SearchQueryAggregationCategorizer {
     private void incrementCountersRecursively(AggregationBuilder aggregationBuilder) {
         // Increment counters for the current aggregation
         String aggregationType = aggregationBuilder.getType();
-        searchQueryCounters.aggCounter.add(1, Tags.create().addTag(TYPE_TAG, aggregationType));
+        searchQueryCounters.incrementAggCounter(1, Tags.create().addTag(TYPE_TAG, aggregationType));
 
         // Recursively process sub-aggregations if any
         Collection<AggregationBuilder> subAggregations = aggregationBuilder.getSubAggregations();
@@ -57,7 +57,7 @@ public class SearchQueryAggregationCategorizer {
         Collection<PipelineAggregationBuilder> pipelineAggregations = aggregationBuilder.getPipelineAggregations();
         for (PipelineAggregationBuilder pipelineAggregation : pipelineAggregations) {
             String pipelineAggregationType = pipelineAggregation.getType();
-            searchQueryCounters.aggCounter.add(1, Tags.create().addTag(TYPE_TAG, pipelineAggregationType));
+            searchQueryCounters.incrementAggCounter(1, Tags.create().addTag(TYPE_TAG, pipelineAggregationType));
         }
     }
 }

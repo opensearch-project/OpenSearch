@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.insights.core.categorizor;
+package org.opensearch.plugin.insights.core.service.categorizor;
 
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.BoostingQueryBuilder;
@@ -20,7 +20,7 @@ import org.opensearch.index.query.RegexpQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.opensearch.plugin.insights.core.categorizer.SearchQueryCategorizer;
+import org.opensearch.plugin.insights.core.service.categorizer.SearchQueryCategorizer;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.MultiTermsValuesSourceConfig;
@@ -75,14 +75,12 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getAggCounter()).add(eq(1.0d), any(Tags.class));
 
-        // capture the arguments passed to the aggCounter.add method
         ArgumentCaptor<Double> valueCaptor = ArgumentCaptor.forClass(Double.class);
         ArgumentCaptor<Tags> tagsCaptor = ArgumentCaptor.forClass(Tags.class);
 
-        // Verify that aggCounter.add was called with the expected arguments
-        verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(valueCaptor.capture(), tagsCaptor.capture());
+        verify(searchQueryCategorizer.getSearchQueryCounters().getAggCounter()).add(valueCaptor.capture(), tagsCaptor.capture());
 
         double actualValue = valueCaptor.getValue();
         String actualTag = (String) tagsCaptor.getValue().getTagsMap().get("type");
@@ -98,8 +96,8 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("bool")).add(eq(1.0d), any(Tags.class));
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("bool")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("match")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testFunctionScoreQuery() {
@@ -109,7 +107,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("function_score")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("function_score")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testMatchQuery() {
@@ -119,7 +117,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("match")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testMatchPhraseQuery() {
@@ -129,7 +127,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match_phrase")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("match_phrase")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testMultiMatchQuery() {
@@ -139,7 +137,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("multi_match")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("multi_match")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testOtherQuery() {
@@ -153,9 +151,9 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("boosting")).add(eq(1.0d), any(Tags.class));
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match_none")).add(eq(1.0d), any(Tags.class));
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("term")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("boosting")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("match_none")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("term")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testQueryStringQuery() {
@@ -166,7 +164,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("query_string")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("query_string")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testRangeQuery() {
@@ -178,7 +176,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("range")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("range")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testRegexQuery() {
@@ -187,7 +185,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("regexp")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("regexp")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testSortQuery() {
@@ -198,8 +196,8 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match")).add(eq(1.0d), any(Tags.class));
-        verify(searchQueryCategorizer.searchQueryCounters.sortCounter, times(2)).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("match")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getSortCounter(), times(2)).add(eq(1.0d), any(Tags.class));
     }
 
     public void testTermQuery() {
@@ -209,7 +207,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("term")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("term")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testWildcardQuery() {
@@ -219,7 +217,7 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("wildcard")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("wildcard")).add(eq(1.0d), any(Tags.class));
     }
 
     public void testComplexQuery() {
@@ -237,10 +235,10 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("term")).add(eq(1.0d), any(Tags.class));
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("match")).add(eq(1.0d), any(Tags.class));
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("regexp")).add(eq(1.0d), any(Tags.class));
-        verify(searchQueryCategorizer.searchQueryCounters.nameToQueryTypeCounters.get("bool")).add(eq(1.0d), any(Tags.class));
-        verify(searchQueryCategorizer.searchQueryCounters.aggCounter).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("term")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("match")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("regexp")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("bool")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getAggCounter()).add(eq(1.0d), any(Tags.class));
     }
 }

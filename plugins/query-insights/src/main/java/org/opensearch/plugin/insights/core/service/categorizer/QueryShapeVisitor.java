@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.insights.core.categorizer;
+package org.opensearch.plugin.insights.core.service.categorizer;
 
 import org.apache.lucene.search.BooleanClause;
 import org.opensearch.common.SetOnce;
