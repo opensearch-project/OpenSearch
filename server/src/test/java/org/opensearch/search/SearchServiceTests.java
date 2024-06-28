@@ -39,6 +39,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.DeletePitResponse;
@@ -54,6 +55,7 @@ import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -66,6 +68,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
@@ -108,6 +111,8 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.ScoreSortBuilder;
+import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -116,6 +121,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -1134,6 +1140,176 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         latch.await();
     }
 
+    public void testCanMatchWithPendingRefresh() throws Exception {
+        IndexService indexService = createIndex(
+            "test",
+            Settings.builder().put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build()
+        );
+        assertFalse(indexService.getIndexSettings().isExplicitRefresh());
+        ensureGreen();
+        final IndexShard shard = indexService.getShard(0);
+
+        final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        final int numDocs = randomIntBetween(10, 20);
+        final long[] nums = new long[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            nums[i] = randomIntBetween(0, 100);
+            bulkRequestBuilder.add(
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource(String.format(Locale.ROOT, "{\"num\": %d}", nums[i]), MediaTypeRegistry.JSON)
+            );
+        }
+        bulkRequestBuilder.get();
+        client().admin().indices().prepareRefresh().get();
+        assertFalse(shard.hasRefreshPending());
+
+        client().prepareIndex("test").setId(String.valueOf(numDocs)).setSource("{\"foo\" : \"bar\"}", MediaTypeRegistry.JSON).get();
+        assertFalse(shard.scheduledRefresh());
+        assertTrue(shard.hasRefreshPending());
+
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder()));
+        searchRequest.source().sort("num");
+
+        SearchService.CanMatchResponse canMatchResponse = service.canMatch(
+            new ShardSearchRequest(
+                OriginalIndices.NONE,
+                searchRequest,
+                shard.shardId(),
+                1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1f,
+                -1,
+                null,
+                null
+            )
+        );
+        assertTrue(canMatchResponse.canMatch());
+        Arrays.sort(nums);
+        assertEquals(nums[0], canMatchResponse.estimatedMinAndMax().getMin());
+        assertEquals(nums[numDocs - 1], canMatchResponse.estimatedMinAndMax().getMax());
+    }
+
+    public void testCanMatchWithSort() throws Exception {
+        IndexService indexService = createIndex("test");
+        ensureGreen();
+
+        final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        final int numDocs = randomIntBetween(10, 20);
+        final long[] nums1 = new long[numDocs];
+        final long[] nums2 = new long[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            nums1[i] = randomIntBetween(0, 100);
+            nums2[i] = randomIntBetween(100, 200);
+            bulkRequestBuilder.add(
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource(String.format(Locale.ROOT, "{\"num1\": %d, \"num2\": %d}", nums1[i], nums2[i]), MediaTypeRegistry.JSON)
+            );
+        }
+        bulkRequestBuilder.get();
+        client().admin().indices().prepareRefresh().get();
+        Arrays.sort(nums1);
+        Arrays.sort(nums2);
+
+        final IndexShard shard = indexService.getShard(0);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            shard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1f,
+            -1,
+            null,
+            null
+        );
+        assertFalse(shard.hasRefreshPending());
+
+        // the primary sort is score sort
+        shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        shardRequest.source().sort(ScoreSortBuilder.NAME);
+        if (randomBoolean()) {
+            shardRequest.source().sort("num1");
+        }
+        SearchService.CanMatchResponse canMatchResponse = service.canMatch(shardRequest);
+        assertTrue(canMatchResponse.canMatch());
+        assertNull(canMatchResponse.estimatedMinAndMax());
+
+        // the primary sort is field sort
+        shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        shardRequest.source().sort("num2");
+        if (randomBoolean()) {
+            shardRequest.source().sort("num1");
+        }
+        canMatchResponse = service.canMatch(shardRequest);
+        assertTrue(canMatchResponse.canMatch());
+        assertEquals(nums2[0], canMatchResponse.estimatedMinAndMax().getMin());
+        assertEquals(nums2[numDocs - 1], canMatchResponse.estimatedMinAndMax().getMax());
+
+        // the primary searchAfter is greater than max or less than min
+        final CheckedTriFunction<Boolean, Boolean, Boolean, Void, Exception> outOfRangeTester = (missingNull, traceTotalHits, reverse) -> {
+            shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).trackTotalHits(traceTotalHits));
+            shardRequest.source()
+                .sort(SortBuilders.fieldSort("num1").missing(missingNull ? null : 1).order(reverse ? SortOrder.DESC : SortOrder.ASC));
+            List<Object> searchAfterFields = new ArrayList<>();
+            searchAfterFields.add(reverse ? nums1[0] - 1 : nums1[numDocs - 1] + 1);
+            if (randomBoolean()) {
+                shardRequest.source().sort("num2");
+                searchAfterFields.add(randomLong());
+            }
+            shardRequest.source().searchAfter(searchAfterFields.toArray());
+            SearchService.CanMatchResponse response = service.canMatch(shardRequest);
+            if (missingNull && traceTotalHits == false) {
+                assertFalse(response.canMatch());
+                assertNull(response.estimatedMinAndMax());
+            } else {
+                assertTrue(response.canMatch());
+                assertEquals(nums1[0], response.estimatedMinAndMax().getMin());
+                assertEquals(nums1[numDocs - 1], response.estimatedMinAndMax().getMax());
+            }
+            return null;
+        };
+        for (boolean missingNull : new boolean[] { true, false }) {
+            for (boolean traceTotalHit : new boolean[] { true, false }) {
+                for (boolean reverse : new boolean[] { true, false }) {
+                    outOfRangeTester.apply(missingNull, traceTotalHit, reverse);
+                }
+            }
+        }
+
+        // the primary searchAfter is within the range of min and max
+        final CheckedTriFunction<Boolean, Boolean, Boolean, Void, Exception> withinRangeTester = (missingNull, traceTotalHits, reverse) -> {
+            shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).trackTotalHits(traceTotalHits));
+            shardRequest.source()
+                .sort(SortBuilders.fieldSort("num2").missing(missingNull ? null : 1).order(reverse ? SortOrder.DESC : SortOrder.ASC));
+            List<Object> searchAfterFields = new ArrayList<>();
+            searchAfterFields.add(randomLongBetween(nums2[0], nums2[numDocs - 1]));
+            if (randomBoolean()) {
+                shardRequest.source().sort("num1");
+                searchAfterFields.add(randomLong());
+            }
+            shardRequest.source().searchAfter(searchAfterFields.toArray());
+            SearchService.CanMatchResponse response = service.canMatch(shardRequest);
+
+            assertTrue(response.canMatch());
+            assertEquals(nums2[0], response.estimatedMinAndMax().getMin());
+            assertEquals(nums2[numDocs - 1], response.estimatedMinAndMax().getMax());
+
+            return null;
+        };
+        for (boolean missingNull : new boolean[] { true, false }) {
+            for (boolean traceTotalHit : new boolean[] { true, false }) {
+                for (boolean reverse : new boolean[] { true, false }) {
+                    withinRangeTester.apply(missingNull, traceTotalHit, reverse);
+                }
+            }
+        }
+    }
+
     public void testCanRewriteToMatchNone() {
         assertFalse(
             SearchService.canRewriteToMatchNone(
@@ -1877,7 +2053,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
+        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
@@ -1890,7 +2066,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
@@ -1903,7 +2079,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
@@ -1916,7 +2092,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
@@ -1929,7 +2105,7 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
+        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
@@ -1942,38 +2118,6 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
         FieldSortBuilder primarySort = new FieldSortBuilder("test");
         primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
-    }
-
-    /**
-     * Test canMatchSearchAfter with missing value, even if min/max is out of range
-     * Min = 0L, Max = 9L, search_after = -1L
-     * Expected result is canMatch = true
-     */
-    public void testCanMatchSearchAfterWithMissing() throws IOException {
-        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
-        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        // Should be false without missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
-        primarySort.missing("_last");
-        // Should be true with missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
-    }
-
-    /**
-     * Test for DESC order search_after query with track_total_hits=true.
-     * Min = 0L, Max = 9L, search_after = -1L
-     * With above min/max and search_after, it should not match, but since
-     * track_total_hits = true,
-     * Expected result is canMatch = true
-     */
-    public void testCanMatchSearchAfterDescLessThanMinWithTrackTotalhits() throws IOException {
-        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
-        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000), true);
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 }

@@ -1627,26 +1627,29 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
 
                 final boolean aliasFilterCanMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-                if (aliasFilterCanMatch == false) {
+                if (aliasFilterCanMatch == false
+                    || (canRewriteToMatchNone(request.source()) && request.source().query() instanceof MatchNoneQueryBuilder)) {
                     return new CanMatchResponse(false, null);
                 }
 
-                // null query means match_all
-                boolean canMatch = canRewriteToMatchNone(request.source()) == false
-                    || request.source().query() instanceof MatchNoneQueryBuilder == false;
-                if (canMatch == false) {
-                    return new CanMatchResponse(false, null);
-                }
-
+                boolean canMatch = true;
                 final FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
                 final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                final Object primarySearchAfterField = SearchAfterBuilder.getPrimarySearchAfterFieldOrNull(request.source());
-                if (minMax != null && primarySearchAfterField != null) {
-                    final FieldDoc searchAfterFieldDoc = getPrimarySearchAfterFieldDoc(sortBuilder, primarySearchAfterField, context);
-                    final Integer trackTotalHitsUpto = request.source() == null ? null : request.source().trackTotalHitsUpTo();
-                    canMatch = canMatchSearchAfter(searchAfterFieldDoc, minMax, sortBuilder, trackTotalHitsUpto);
+                final Integer trackTotalHitsUpto = request.source() == null ? null : request.source().trackTotalHitsUpTo();
+                // Skipping search on shard/segment entirely can cause mismatch on total_tracking_hits, hence skip only if
+                // track_total_hits is false.
+                // Check for sort.missing == null, since in case of missing values sort queries, if segment/shard's min/max
+                // is out of search_after range, it still should be printed and hence we should not skip segment/shard.
+                if (Objects.equals(trackTotalHitsUpto, SearchContext.TRACK_TOTAL_HITS_DISABLED)
+                    && minMax != null
+                    && sortBuilder.missing() == null) {
+                    final Object primarySearchAfterField = SearchAfterBuilder.getPrimarySearchAfterFieldOrNull(request.source());
+                    if (primarySearchAfterField != null) {
+                        final FieldDoc searchAfterFieldDoc = getPrimarySearchAfterFieldDoc(sortBuilder, primarySearchAfterField, context);
+                        canMatch = canMatchSearchAfter(searchAfterFieldDoc, minMax, sortBuilder, trackTotalHitsUpto);
+                    }
                 }
-                return new CanMatchResponse(canMatch, minMax);
+                return new CanMatchResponse(canMatch, canMatch ? minMax : null);
             }
         }
     }
@@ -1657,15 +1660,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FieldSortBuilder primarySortField,
         Integer trackTotalHitsUpto
     ) {
-        // Check for sort.missing == null, since in case of missing values sort queries, if segment/shard's min/max
-        // is out of search_after range, it still should be printed and hence we should not skip segment/shard.
-        // Skipping search on shard/segment entirely can cause mismatch on total_tracking_hits, hence skip only if
-        // track_total_hits is false.
-        if (searchAfter != null
-            && minMax != null
-            && primarySortField != null
-            && primarySortField.missing() == null
-            && Objects.equals(trackTotalHitsUpto, SearchContext.TRACK_TOTAL_HITS_DISABLED)) {
+        assert primarySortField != null && primarySortField.missing() == null;
+        assert Objects.equals(trackTotalHitsUpto, SearchContext.TRACK_TOTAL_HITS_DISABLED);
+        if (searchAfter != null && minMax != null) {
             final Object searchAfterPrimary = searchAfter.fields[0];
             if (primarySortField.order() == SortOrder.DESC) {
                 if (minMax.compareMin(searchAfterPrimary) > 0) {
