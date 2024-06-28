@@ -32,6 +32,8 @@
 
 package org.opensearch.ingest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
@@ -57,15 +59,19 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.hamcrest.MatcherAssert;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.test.NodeRoles.nonIngestNode;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -73,7 +79,16 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class IngestClientIT extends OpenSearchIntegTestCase {
+public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public IngestClientIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return replicationSettings;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -147,6 +162,14 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
     }
 
     public void testBulkWithIngestFailures() throws Exception {
+        runBulkTestWithRandomDocs(false);
+    }
+
+    public void testBulkWithIngestFailuresWithBatchSize() throws Exception {
+        runBulkTestWithRandomDocs(true);
+    }
+
+    private void runBulkTestWithRandomDocs(boolean shouldSetBatchSize) throws Exception {
         createIndex("index");
 
         BytesReference source = BytesReference.bytes(
@@ -165,6 +188,9 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
 
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
+        if (shouldSetBatchSize) {
+            bulkRequest.batchSize(scaledRandomIntBetween(2, numRequests));
+        }
         for (int i = 0; i < numRequests; i++) {
             IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
             indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", i % 2 == 0);
@@ -188,9 +214,64 @@ public class IngestClientIT extends OpenSearchIntegTestCase {
                 );
                 assertThat(indexResponse, notNullValue());
                 assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
+                // verify field of successful doc
+                Map<String, Object> successDoc = client().prepareGet("index", indexResponse.getId()).get().getSourceAsMap();
+                assertThat(successDoc.get("processed"), equalTo(true));
                 assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
             }
         }
+
+        // cleanup
+        AcknowledgedResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
+        assertTrue(deletePipelineResponse.isAcknowledged());
+    }
+
+    public void testBulkWithIngestFailuresAndDropBatch() throws Exception {
+        createIndex("index");
+
+        BytesReference source = BytesReference.bytes(
+            jsonBuilder().startObject()
+                .field("description", "my_pipeline")
+                .startArray("processors")
+                .startObject()
+                .startObject("test")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, MediaTypeRegistry.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.batchSize(3);
+        bulkRequest.add(
+            new IndexRequest("index").id("_fail").setPipeline("_id").source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", true)
+        );
+        bulkRequest.add(
+            new IndexRequest("index").id("_success").setPipeline("_id").source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", false)
+        );
+        bulkRequest.add(
+            new IndexRequest("index").id("_drop").setPipeline("_id").source(Requests.INDEX_CONTENT_TYPE, "field", "value", "drop", true)
+        );
+
+        BulkResponse response = client().bulk(bulkRequest).actionGet();
+        MatcherAssert.assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
+
+        Map<String, BulkItemResponse> results = Arrays.stream(response.getItems())
+            .collect(Collectors.toMap(BulkItemResponse::getId, r -> r));
+
+        MatcherAssert.assertThat(results.keySet(), containsInAnyOrder("_fail", "_success", "_drop"));
+        assertNotNull(results.get("_fail").getFailure());
+        assertNull(results.get("_success").getFailure());
+        assertNull(results.get("_drop").getFailure());
+
+        // verify dropped doc not in index
+        assertNull(client().prepareGet("index", "_drop").get().getSourceAsMap());
+
+        // verify field of successful doc
+        Map<String, Object> successDoc = client().prepareGet("index", "_success").get().getSourceAsMap();
+        assertThat(successDoc.get("processed"), equalTo(true));
 
         // cleanup
         AcknowledgedResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();

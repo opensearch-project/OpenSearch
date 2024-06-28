@@ -45,17 +45,16 @@ import java.util.stream.Stream;
 
 /**
  * A standalone process that will reap external services after a build dies.
- *
  * <h2>Input</h2>
  * Since how to reap a given service is platform and service dependent, this tool
  * operates on system commands to execute. It takes a single argument, a directory
  * that will contain files with reaping commands. Each line in each file will be
  * executed with {@link Runtime#exec(String)}.
- *
+ * <p>
  * The main method will wait indefinitely on the parent process (Gradle) by
  * reading from stdin. When Gradle shuts down, whether normally or abruptly, the
  * pipe will be broken and read will return.
- *
+ * <p>
  * The reaper will then iterate over the files in the configured directory,
  * and execute the given commands. If any commands fail, a failure message is
  * written to stderr. Otherwise, the input file will be deleted. If no inputs

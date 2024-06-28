@@ -10,11 +10,10 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.telemetry.TelemetrySettings;
-import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -41,17 +40,7 @@ final class WrappedTracer implements Tracer {
 
     @Override
     public Span startSpan(SpanCreationContext context) {
-        return startSpan(context.getSpanName(), context.getAttributes());
-    }
-
-    @Override
-    public Span startSpan(String spanName) {
-        return startSpan(spanName, Attributes.EMPTY);
-    }
-
-    @Override
-    public Span startSpan(String spanName, Attributes attributes) {
-        return startSpan(spanName, (SpanContext) null, attributes);
+        return getDelegateTracer().startSpan(context);
     }
 
     @Override
@@ -62,12 +51,7 @@ final class WrappedTracer implements Tracer {
 
     @Override
     public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext) {
-        return startScopedSpan(spanCreationContext, null);
-    }
-
-    @Override
-    public ScopedSpan startScopedSpan(SpanCreationContext spanCreationContext, SpanContext parentSpan) {
-        return getDelegateTracer().startScopedSpan(spanCreationContext, parentSpan);
+        return getDelegateTracer().startScopedSpan(spanCreationContext);
     }
 
     @Override
@@ -76,9 +60,8 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(String spanName, SpanContext parentSpan, Attributes attributes) {
-        Tracer delegateTracer = getDelegateTracer();
-        return delegateTracer.startSpan(spanName, parentSpan, attributes);
+    public boolean isRecording() {
+        return getDelegateTracer().isRecording();
     }
 
     @Override
@@ -92,7 +75,7 @@ final class WrappedTracer implements Tracer {
     }
 
     @Override
-    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, List<String>> headers) {
+    public Span startSpan(SpanCreationContext spanCreationContext, Map<String, Collection<String>> headers) {
         return defaultTracer.startSpan(spanCreationContext, headers);
     }
 }

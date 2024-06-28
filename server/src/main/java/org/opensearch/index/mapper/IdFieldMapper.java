@@ -41,6 +41,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.BigArrays;
@@ -74,8 +75,9 @@ import java.util.function.Supplier;
  * stored, but we need to keep it so that its FieldType can be used to generate
  * queries.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IdFieldMapper extends MetadataFieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =

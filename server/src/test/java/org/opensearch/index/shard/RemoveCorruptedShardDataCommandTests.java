@@ -58,7 +58,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.MergePolicyConfig;
+import org.opensearch.index.MergePolicyProvider;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineCreationFailureException;
 import org.opensearch.index.engine.InternalEngineFactory;
@@ -134,7 +134,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            .put(MergePolicyProvider.INDEX_MERGE_ENABLED, false)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();

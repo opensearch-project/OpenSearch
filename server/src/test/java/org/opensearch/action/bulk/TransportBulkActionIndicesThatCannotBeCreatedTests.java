@@ -54,6 +54,8 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
@@ -152,9 +154,15 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
             null,
             new IndexingPressureService(
                 Settings.EMPTY,
-                new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null)
+                ClusterServiceUtils.createClusterService(
+                    Settings.EMPTY,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    null
+                )
             ),
-            new SystemIndices(emptyMap())
+            null,
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
         ) {
             @Override
             void executeBulk(

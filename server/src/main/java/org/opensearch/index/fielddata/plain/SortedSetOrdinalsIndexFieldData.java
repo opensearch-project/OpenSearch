@@ -101,9 +101,9 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
-        /**
-         * Check if we can use a simple {@link SortedSetSortField} compatible with index sorting and
-         * returns a custom sort field otherwise.
+        /*
+          Check if we can use a simple {@link SortedSetSortField} compatible with index sorting and
+          returns a custom sort field otherwise.
          */
         if (nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)

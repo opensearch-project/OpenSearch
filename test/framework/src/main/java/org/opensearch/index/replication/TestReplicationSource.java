@@ -17,6 +17,7 @@ import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.util.List;
+import java.util.function.BiConsumer;
 
 /**
  * This class is used by unit tests implementing SegmentReplicationSource
@@ -36,6 +37,7 @@ public abstract class TestReplicationSource implements SegmentReplicationSource 
         ReplicationCheckpoint checkpoint,
         List<StoreFileMetadata> filesToFetch,
         IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
         ActionListener<GetSegmentFilesResponse> listener
     );
 

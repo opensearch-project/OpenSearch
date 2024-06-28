@@ -98,18 +98,18 @@ public class CreatePitController {
             task.getParentTaskId(),
             Collections.emptyMap()
         );
-        /**
-         * This is needed for cross cluster functionality to work with PITs and current ccsMinimizeRoundTrips is
-         * not supported for point in time
+        /*
+          This is needed for cross cluster functionality to work with PITs and current ccsMinimizeRoundTrips is
+          not supported for point in time
          */
         searchRequest.setCcsMinimizeRoundtrips(false);
-        /**
-         * Phase 1 of create PIT
+        /*
+          Phase 1 of create PIT
          */
         executeCreatePit(searchTask, searchRequest, createPitListener);
 
-        /**
-         * Phase 2 of create PIT where we update pit id in pit contexts
+        /*
+          Phase 2 of create PIT where we update pit id in pit contexts
          */
         createPitListener.whenComplete(
             searchResponse -> { executeUpdatePitId(request, searchRequest, searchResponse, updatePitIdListener); },
@@ -167,9 +167,9 @@ public class CreatePitController {
                 searchResponse.pointInTimeId()
             )
         );
-        /**
-         * store the create time ( same create time for all PIT contexts across shards ) to be used
-         * for list PIT api
+        /*
+          store the create time ( same create time for all PIT contexts across shards ) to be used
+          for list PIT api
          */
         final long relativeStartNanos = System.nanoTime();
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(

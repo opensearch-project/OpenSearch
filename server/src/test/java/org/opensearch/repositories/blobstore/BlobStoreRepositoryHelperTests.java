@@ -43,6 +43,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -56,17 +58,21 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
     }
 
     protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepository) throws IOException {
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(remoteStoreIndex)
-            .get()
-            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
         final BlobStoreRepository remoteStorerepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepository);
-        BlobPath shardLevelBlobPath = remoteStorerepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
+        BlobPath shardLevelBlobPath = getShardLevelBlobPath(
+            client(),
+            remoteStoreIndex,
+            remoteStorerepository.basePath(),
+            "0",
+            SEGMENTS,
+            LOCK_FILES
+        );
         BlobContainer blobContainer = remoteStorerepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
-            return Arrays.stream(lockDirectory.listAll()).filter(lock -> lock.endsWith(".lock")).toArray(String[]::new);
+            return Arrays.stream(lockDirectory.listAll())
+                .filter(lock -> lock.endsWith(".lock") || lock.endsWith(".v2_lock"))
+                .toArray(String[]::new);
         }
     }
 

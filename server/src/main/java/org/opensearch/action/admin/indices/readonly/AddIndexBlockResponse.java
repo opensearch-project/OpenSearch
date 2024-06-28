@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.readonly;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -54,8 +55,9 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Transport response to open an index.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
     private final List<AddBlockResult> indices;
@@ -99,8 +101,9 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
     /**
      * Result for adding a block
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class AddBlockResult implements Writeable, ToXContentFragment {
 
         private final Index index;
@@ -199,8 +202,9 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
     /**
      * Per shard result for adding a block
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class AddBlockShardResult implements Writeable, ToXContentFragment {
 
         private final int id;
@@ -258,8 +262,9 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
         /**
          * Contains failure information
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class Failure extends DefaultShardOperationFailedException {
 
             private @Nullable String nodeId;

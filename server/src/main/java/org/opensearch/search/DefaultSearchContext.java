@@ -50,7 +50,6 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -107,7 +106,9 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 
 /**
  * The main search context used during search phase
@@ -149,6 +150,8 @@ final class DefaultSearchContext extends SearchContext {
     private SortAndFormats sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
+
+    private boolean includeNamedQueriesScore = false;
     private int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     private FieldDoc searchAfter;
     private CollapseContext collapse;
@@ -186,6 +189,8 @@ final class DefaultSearchContext extends SearchContext {
     private final Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
     private final boolean concurrentSearchSettingsEnabled;
     private final SetOnce<Boolean> requestShouldUseConcurrentSearch = new SetOnce<>();
+    private final int maxAggRewriteFilters;
+    private final int cardinalityAggregationPruningThreshold;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -239,6 +244,9 @@ final class DefaultSearchContext extends SearchContext {
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
+
+        this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
+        this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
     }
 
     @Override
@@ -637,6 +645,17 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        this.includeNamedQueriesScore = includeNamedQueriesScore;
+        return this;
+    }
+
+    @Override
+    public boolean includeNamedQueriesScore() {
+        return includeNamedQueriesScore;
+    }
+
+    @Override
     public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpTo) {
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         return this;
@@ -896,6 +915,8 @@ final class DefaultSearchContext extends SearchContext {
             && aggregations().factories() != null
             && !aggregations().factories().allFactoriesSupportConcurrentSearch()) {
                 requestShouldUseConcurrentSearch.set(false);
+            } else if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
+                requestShouldUseConcurrentSearch.set(false);
             } else {
                 requestShouldUseConcurrentSearch.set(true);
             }
@@ -948,18 +969,21 @@ final class DefaultSearchContext extends SearchContext {
      *         false: otherwise
      */
     private boolean evaluateConcurrentSegmentSearchSettings(Executor concurrentSearchExecutor) {
-        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)
-            && (clusterService != null)
-            && (concurrentSearchExecutor != null)) {
+        // Do not use concurrent segment search for system indices or throttled requests. See:
+        // https://github.com/opensearch-project/OpenSearch/issues/12951
+        if (indexShard.isSystem() || indexShard.indexSettings().isSearchThrottled()) {
+            return false;
+        }
+
+        if ((clusterService != null) && (concurrentSearchExecutor != null)) {
             return indexService.getIndexSettings()
                 .getSettings()
                 .getAsBoolean(
                     IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(),
                     clusterService.getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
                 );
-        } else {
-            return false;
         }
+        return false;
     }
 
     @Override
@@ -976,5 +1000,29 @@ final class DefaultSearchContext extends SearchContext {
             && sort != null
             && sort.isSortOnTimeSeriesField()
             && sort.sort.getSort()[0].getReverse() == false;
+    }
+
+    @Override
+    public int maxAggRewriteFilters() {
+        return maxAggRewriteFilters;
+    }
+
+    private int evaluateFilterRewriteSetting() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(MAX_AGGREGATION_REWRITE_FILTERS);
+        }
+        return 0;
+    }
+
+    @Override
+    public int cardinalityAggregationPruningThreshold() {
+        return cardinalityAggregationPruningThreshold;
+    }
+
+    private int evaluateCardinalityAggregationPruningThreshold() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(CARDINALITY_AGGREGATION_PRUNING_THRESHOLD);
+        }
+        return 0;
     }
 }

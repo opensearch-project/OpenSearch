@@ -34,6 +34,7 @@ package org.opensearch.search.searchafter;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -279,7 +280,7 @@ public class SearchAfterBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
                 return null;
             }
 

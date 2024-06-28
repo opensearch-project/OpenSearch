@@ -112,7 +112,7 @@ abstract class AbstractTasksIT extends OpenSearchIntegTestCase {
      * Returns all events that satisfy the criteria across all nodes
      *
      * @param actionMasks action masks to match
-     * @return number of events that satisfy the criteria
+     * @return List of events that satisfy the criteria
      */
     protected List<TaskInfo> findEvents(String actionMasks, Function<Tuple<Boolean, TaskInfo>, Boolean> criteria) {
         List<TaskInfo> events = new ArrayList<>();

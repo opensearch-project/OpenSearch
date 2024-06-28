@@ -63,14 +63,14 @@ class BulkByScrollParallelizationHelper {
 
     /**
      * Takes an action created by a {@link BulkByScrollTask} and runs it with regard to whether the request is sliced or not.
-     *
+     * <p>
      * If the request is not sliced (i.e. the number of slices is 1), the worker action in the given {@link Runnable} will be started on
      * the local node. If the request is sliced (i.e. the number of slices is more than 1), then a subrequest will be created for each
      * slice and sent.
-     *
+     * <p>
      * If slices are set as {@code "auto"}, this class will resolve that to a specific number based on characteristics of the source
      * indices. A request with {@code "auto"} slices may end up being sliced or unsliced.
-     *
+     * <p>
      * This method is equivalent to calling {@link #initTaskState} followed by {@link #executeSlicedAction}
      */
     static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
@@ -98,11 +98,11 @@ class BulkByScrollParallelizationHelper {
     /**
      * Takes an action and a {@link BulkByScrollTask} and runs it with regard to whether this task is a
      * leader or worker.
-     *
+     * <p>
      * If this task is a worker, the worker action in the given {@link Runnable} will be started on the local
      * node. If the task is a leader (i.e. the number of slices is more than 1), then a subrequest will be
      * created for each slice and sent.
-     *
+     * <p>
      * This method can only be called after the task state is initialized {@link #initTaskState}.
      */
     static <Request extends AbstractBulkByScrollRequest<Request>> void executeSlicedAction(
@@ -125,7 +125,7 @@ class BulkByScrollParallelizationHelper {
 
     /**
      * Takes a {@link BulkByScrollTask} and ensures that its initial task state (leader or worker) is set.
-     *
+     * <p>
      * If slices are set as {@code "auto"}, this method will resolve that to a specific number based on
      * characteristics of the source indices. A request with {@code "auto"} slices may end up being sliced or
      * unsliced. This method does not execute the action. In order to execute the action see

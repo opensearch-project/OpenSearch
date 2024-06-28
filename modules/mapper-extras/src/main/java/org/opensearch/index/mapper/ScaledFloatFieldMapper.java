@@ -35,6 +35,7 @@ package org.opensearch.index.mapper;
 import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -165,7 +166,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getSettings()));
 
-    public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
+    public static final class ScaledFloatFieldType extends SimpleMappedFieldType implements NumericPointEncoder {
 
         private final double scalingFactor;
         private final Double nullValue;
@@ -188,6 +189,21 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
             this(name, true, false, true, Collections.emptyMap(), scalingFactor, null);
         }
 
+        @Override
+        public byte[] encodePoint(Number value) {
+            assert value instanceof Double;
+            double doubleValue = (Double) value;
+            byte[] point = new byte[Long.BYTES];
+            if (doubleValue == Double.POSITIVE_INFINITY) {
+                LongPoint.encodeDimension(Long.MAX_VALUE, point, 0);
+            } else if (doubleValue == Double.NEGATIVE_INFINITY) {
+                LongPoint.encodeDimension(Long.MIN_VALUE, point, 0);
+            } else {
+                LongPoint.encodeDimension(Math.round(scale(value)), point, 0);
+            }
+            return point;
+        }
+
         public double getScalingFactor() {
             return scalingFactor;
         }
@@ -199,9 +215,9 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             long scaledValue = Math.round(scale(value));
-            Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
+            Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, hasDocValues(), isSearchable());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -210,13 +226,18 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
                 long scaledValue = Math.round(scale(value));
                 scaledValues.add(scaledValue);
             }
-            Query query = NumberFieldMapper.NumberType.LONG.termsQuery(name(), Collections.unmodifiableList(scaledValues));
+            Query query = NumberFieldMapper.NumberType.LONG.termsQuery(
+                name(),
+                Collections.unmodifiableList(scaledValues),
+                hasDocValues(),
+                isSearchable()
+            );
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -225,7 +246,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             Long lo = null;
             if (lowerTerm != null) {
                 double dValue = scale(lowerTerm);
@@ -242,7 +263,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), isSearchable(), context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }

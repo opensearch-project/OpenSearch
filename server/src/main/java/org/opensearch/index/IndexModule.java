@@ -79,8 +79,10 @@ import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactor
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesQueryCache;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -104,6 +106,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.apache.logging.log4j.util.Strings.toRootUpperCase;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -139,6 +143,17 @@ public final class IndexModule {
         Property.NodeScope
     );
 
+    /**
+     * Index setting which used to determine how the data is cached locally fully or partially
+     */
+    public static final Setting<DataLocalityType> INDEX_STORE_LOCALITY_SETTING = new Setting<>(
+        "index.store.data_locality",
+        DataLocalityType.FULL.name(),
+        DataLocalityType::getValueOf,
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
     public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
         "index.recovery.type",
         "",
@@ -160,7 +175,7 @@ public final class IndexModule {
 
     /** Which lucene file extensions to load with the mmap directory when using hybridfs store. This settings is ignored if {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} is set.
      *  This is an expert setting.
-     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
+     *  @see <a href="https://lucene.apache.org/core/9_9_0/core/org/apache/lucene/codecs/lucene99/package-summary.html#file-names">Lucene File Extensions</a>.
      *
      * @deprecated This setting will be removed in OpenSearch 3.x. Use {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} instead.
      */
@@ -205,7 +220,7 @@ public final class IndexModule {
 
     /** Which lucene file extensions to load with nio. All others will default to mmap. Takes precedence over {@link #INDEX_STORE_HYBRID_MMAP_EXTENSIONS}.
      *  This is an expert setting.
-     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
+     *  @see <a href="https://lucene.apache.org/core/9_9_0/core/org/apache/lucene/codecs/lucene99/package-summary.html#file-names">Lucene File Extensions</a>.
      */
     public static final Setting<List<String>> INDEX_STORE_HYBRID_NIO_EXTENSIONS = Setting.listSetting(
         "index.store.hybrid.nio.extensions",
@@ -295,6 +310,7 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final FileCache fileCache;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -313,7 +329,8 @@ public final class IndexModule {
         final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
-        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final FileCache fileCache
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -325,6 +342,30 @@ public final class IndexModule {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.fileCache = fileCache;
+    }
+
+    public IndexModule(
+        final IndexSettings indexSettings,
+        final AnalysisRegistry analysisRegistry,
+        final EngineFactory engineFactory,
+        final EngineConfigFactory engineConfigFactory,
+        final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        final BooleanSupplier allowExpensiveQueries,
+        final IndexNameExpressionResolver expressionResolver,
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
+    ) {
+        this(
+            indexSettings,
+            analysisRegistry,
+            engineFactory,
+            engineConfigFactory,
+            directoryFactories,
+            allowExpensiveQueries,
+            expressionResolver,
+            recoveryStateFactories,
+            null
+        );
     }
 
     /**
@@ -495,8 +536,9 @@ public final class IndexModule {
     /**
      * Type of file system
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Type {
         HYBRIDFS("hybridfs"),
         NIOFS("niofs"),
@@ -574,6 +616,40 @@ public final class IndexModule {
         }
     }
 
+    /**
+     * Indicates the locality of the data - whether it will be cached fully or partially
+     */
+    public enum DataLocalityType {
+        /**
+         * Indicates that all the data will be cached locally
+         */
+        FULL,
+        /**
+         * Indicates that only a subset of the data will be cached locally
+         */
+        PARTIAL;
+
+        private static final Map<String, DataLocalityType> LOCALITY_TYPES;
+
+        static {
+            final Map<String, DataLocalityType> localityTypes = new HashMap<>(values().length);
+            for (final DataLocalityType dataLocalityType : values()) {
+                localityTypes.put(dataLocalityType.name(), dataLocalityType);
+            }
+            LOCALITY_TYPES = Collections.unmodifiableMap(localityTypes);
+        }
+
+        public static DataLocalityType getValueOf(final String localityType) {
+            Objects.requireNonNull(localityType, "No locality type given.");
+            final String localityTypeName = toRootUpperCase(localityType.trim());
+            final DataLocalityType type = LOCALITY_TYPES.get(localityTypeName);
+            if (type != null) {
+                return type;
+            }
+            throw new IllegalArgumentException("Unknown locality type constant [" + localityType + "].");
+        }
+    }
+
     public static Type defaultStoreType(final boolean allowMmap) {
         if (allowMmap && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
             return Type.HYBRIDFS;
@@ -602,7 +678,8 @@ public final class IndexModule {
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
-        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -660,7 +737,9 @@ public final class IndexModule {
                 recoveryStateFactory,
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
-                clusterRemoteTranslogBufferIntervalSupplier
+                recoverySettings,
+                remoteStoreSettings,
+                fileCache
             );
             success = true;
             return indexService;

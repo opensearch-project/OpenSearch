@@ -69,9 +69,11 @@ import java.net.InetSocketAddress;
 import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -298,6 +300,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     public void onException(HttpChannel channel, Exception e) {
+        channel.handleException(e);
         if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
@@ -355,13 +358,23 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     /**
+     * This method handles an incoming http request as a stream.
+     *
+     * @param httpRequest that is incoming
+     * @param httpChannel that received the http request
+     */
+    public void incomingStream(HttpRequest httpRequest, final StreamingHttpChannel httpChannel) {
+        handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+    }
+
+    /**
      * This method handles an incoming http request.
      *
      * @param httpRequest that is incoming
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        final Span span = tracer.startSpan(SpanBuilder.from(httpRequest), httpRequest.getHeaders());
+        final Span span = tracer.startSpan(SpanBuilder.from(httpRequest), extractHeaders(httpRequest.getHeaders()));
         try (final SpanScope httpRequestSpanScope = tracer.withSpanInScope(span)) {
             HttpChannel traceableHttpChannel = TraceableHttpChannel.create(httpChannel, span, tracer);
             handleIncomingRequest(httpRequest, traceableHttpChannel, httpRequest.getInboundException());
@@ -435,29 +448,56 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             RestChannel innerChannel;
             ThreadContext threadContext = threadPool.getThreadContext();
             try {
-                innerChannel = new DefaultRestChannel(
-                    httpChannel,
-                    httpRequest,
-                    restRequest,
-                    bigArrays,
-                    handlingSettings,
-                    threadContext,
-                    corsHandler,
-                    trace
-                );
+                if (httpChannel instanceof StreamingHttpChannel) {
+                    innerChannel = new DefaultStreamingRestChannel(
+                        (StreamingHttpChannel) httpChannel,
+                        httpRequest,
+                        restRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                } else {
+                    innerChannel = new DefaultRestChannel(
+                        httpChannel,
+                        httpRequest,
+                        restRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                }
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
-                innerChannel = new DefaultRestChannel(
-                    httpChannel,
-                    httpRequest,
-                    innerRequest,
-                    bigArrays,
-                    handlingSettings,
-                    threadContext,
-                    corsHandler,
-                    trace
-                );
+
+                if (httpChannel instanceof StreamingHttpChannel) {
+                    innerChannel = new DefaultStreamingRestChannel(
+                        (StreamingHttpChannel) httpChannel,
+                        httpRequest,
+                        innerRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                } else {
+                    innerChannel = new DefaultRestChannel(
+                        httpChannel,
+                        httpRequest,
+                        innerRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                }
             }
             channel = innerChannel;
         }
@@ -481,5 +521,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         } else {
             return NO_OP;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <Values extends Collection<String>> Map<String, Collection<String>> extractHeaders(Map<String, Values> headers) {
+        return (Map<String, Collection<String>>) headers;
     }
 }

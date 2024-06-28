@@ -14,15 +14,20 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
+import static org.opensearch.index.remote.RemoteSegmentTransferTracker.currentTimeMsUsingSystemNanos;
 import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexShard;
 
 public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
@@ -41,7 +46,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("remote_refresh_segment_pressure_settings_test");
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
@@ -58,7 +63,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
     public void testIsSegmentsUploadBackpressureEnabled() {
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
         pressureService = new RemoteStorePressureService(clusterService, Settings.EMPTY, remoteStoreStatsTrackerFactory);
-        assertFalse(pressureService.isSegmentsUploadBackpressureEnabled());
+        assertTrue(pressureService.isSegmentsUploadBackpressureEnabled());
 
         Settings newSettings = Settings.builder()
             .put(RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), "true")
@@ -68,7 +73,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         assertTrue(pressureService.isSegmentsUploadBackpressureEnabled());
     }
 
-    public void testValidateSegmentUploadLag() {
+    public void testValidateSegmentUploadLag() throws InterruptedException {
         // Create the pressure tracker
         IndexShard indexShard = createIndexShard(shardId, true);
         remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
@@ -86,14 +91,28 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
             sum.addAndGet(i);
         });
         double avg = (double) sum.get() / 20;
-        long currentMs = System.nanoTime() / 1_000_000;
-        pressureTracker.updateLocalRefreshTimeMs((long) (currentMs + 12 * avg));
-        pressureTracker.updateRemoteRefreshTimeMs(currentMs);
-        Exception e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
-        assertTrue(e.getMessage().contains("due to remote segments lagging behind local segments"));
-        assertTrue(e.getMessage().contains("time_lag:114 ms dynamic_time_lag_threshold:95.0 ms"));
 
-        pressureTracker.updateRemoteRefreshTimeMs((long) (currentMs + 2 * avg));
+        // We run this to ensure that the local and remote refresh time are not same anymore
+        while (pressureTracker.getLocalRefreshTimeMs() == currentTimeMsUsingSystemNanos()) {
+            Thread.sleep(10);
+        }
+        long localRefreshTimeMs = currentTimeMsUsingSystemNanos();
+        pressureTracker.updateLocalRefreshTimeMs(localRefreshTimeMs);
+
+        while (currentTimeMsUsingSystemNanos() - localRefreshTimeMs <= 20 * avg) {
+            Thread.sleep((long) (4 * avg));
+        }
+        pressureTracker.updateLatestLocalFileNameLengthMap(List.of("test"), k -> 1L);
+        Exception e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
+        String regex = "^rejected execution on primary shard:\\[index]\\[0] due to remote segments lagging behind "
+            + "local segments.time_lag:[0-9]{2,3} ms dynamic_time_lag_threshold:95\\.0 ms$";
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(e.getMessage());
+        assertTrue(matcher.matches());
+
+        pressureTracker.updateRemoteRefreshTimeMs(pressureTracker.getLocalRefreshTimeMs());
+        pressureTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
+        Thread.sleep((long) (2 * avg));
         pressureService.validateSegmentsUploadLag(shardId);
 
         // 2. bytes lag more than dynamic threshold

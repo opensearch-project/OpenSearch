@@ -48,9 +48,9 @@ import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-/**
- * Basic test case for token streams. the assertion methods in this class will
- * run basic checks to enforce correct behavior of the token streams.
+/*
+  Basic test case for token streams. the assertion methods in this class will
+  run basic checks to enforce correct behavior of the token streams.
  */
 public abstract class OpenSearchTokenStreamTestCase extends BaseTokenStreamTestCase {
 

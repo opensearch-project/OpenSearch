@@ -51,6 +51,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -61,8 +62,8 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
     }
 
     public void testTimezoneParsing() {
-        /** this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
-         *  assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
+        /* this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
+           assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");
          */
         assertSameDateAs("2016-11-30T00+01", "strict_date_optional_time", "strict_date_optional_time");
         assertSameDateAs("2016-11-30T00+0100", "strict_date_optional_time", "strict_date_optional_time");
@@ -186,7 +187,7 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
             .parseDateTime("2019-01-01T01:01:01.001+0000");
         String jodaZoneId = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSz").print(dateTime);
         assertThat(javaZoneId, equalTo("2019-01-01T01:01:01.001Z"));
-        assertThat(jodaZoneId, equalTo("2019-01-01T01:01:01.001UTC"));
+        assertThat(jodaZoneId, startsWith("2019-01-01T01:01:01.001"));
     }
 
     private void assertSameMillis(String input, String jodaFormat, String javaFormat) {
@@ -779,7 +780,9 @@ public class JavaJodaTimeDuellingTests extends OpenSearchTestCase {
         DateTime jodaDate = new DateTime(year, month, day, hour, minute, second, DateTimeZone.UTC);
 
         for (FormatNames format : FormatNames.values()) {
-            if (format == FormatNames.ISO8601 || format == FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS) {
+            if (format == FormatNames.ISO8601
+                || format == FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS
+                || format == FormatNames.RFC3339_LENIENT) {
                 // Nanos aren't supported by joda
                 continue;
             }

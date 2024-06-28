@@ -34,11 +34,11 @@ package org.opensearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -62,7 +62,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 
@@ -73,8 +72,9 @@ import static java.util.Collections.emptyMap;
  * referred to as replicas of a shard. Given that, this class encapsulates all
  * replicas (instances) for a single index shard.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     final ShardShuffler shuffler;
@@ -94,8 +94,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private volatile Map<AttributesKey, AttributesRoutings> initializingShardsByAttributes = emptyMap();
     private final Object shardsByAttributeMutex = new Object();
     private final Object shardsByWeightMutex = new Object();
-    private volatile Map<WeightedRoutingKey, List<ShardRouting>> activeShardsByWeight = emptyMap();
-    private volatile Map<WeightedRoutingKey, List<ShardRouting>> initializingShardsByWeight = emptyMap();
+    private volatile Map<WeightedRoutingKey, WeightedShardRoutings> activeShardsByWeight = emptyMap();
+    private volatile Map<WeightedRoutingKey, WeightedShardRoutings> initializingShardsByWeight = emptyMap();
 
     private static final Logger logger = LogManager.getLogger(IndexShardRoutingTable.class);
 
@@ -247,7 +247,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return this.assignedShards;
     }
 
-    public Map<WeightedRoutingKey, List<ShardRouting>> getActiveShardsByWeight() {
+    public Map<WeightedRoutingKey, WeightedShardRoutings> getActiveShardsByWeight() {
         return activeShardsByWeight;
     }
 
@@ -336,23 +336,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         // append shards for attribute value with weight zero, so that shard search requests can be tried on
         // shard copies in case of request failure from other attribute values.
         if (isFailOpenEnabled) {
-            try {
-                Stream<String> keys = weightedRouting.weights()
-                    .entrySet()
-                    .stream()
-                    .filter(entry -> entry.getValue().intValue() == WeightedRoutingMetadata.WEIGHED_AWAY_WEIGHT)
-                    .map(Map.Entry::getKey);
-                keys.forEach(key -> {
-                    ShardIterator iterator = onlyNodeSelectorActiveInitializingShardsIt(weightedRouting.attributeName() + ":" + key, nodes);
-                    while (iterator.remaining() > 0) {
-                        ordered.add(iterator.nextOrNull());
-                    }
-                });
-            } catch (IllegalArgumentException e) {
-                // this exception is thrown by {@link onlyNodeSelectorActiveInitializingShardsIt} in case count of shard
-                // copies found is zero
-                logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
-            }
+            ordered.addAll(activeInitializingShardsWithoutWeights(weightedRouting, nodes, defaultWeight));
         }
 
         return new PlainShardIterator(shardId, ordered);
@@ -374,6 +358,18 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         List<ShardRouting> orderedListWithDistinctShards;
         orderedListWithDistinctShards = ordered.stream().distinct().collect(Collectors.toList());
         return orderedListWithDistinctShards;
+    }
+
+    private List<ShardRouting> activeInitializingShardsWithoutWeights(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight
+    ) {
+        List<ShardRouting> ordered = new ArrayList<>(getActiveShardsWithoutWeight(weightedRouting, nodes, defaultWeight));
+        if (!allInitializingShards.isEmpty()) {
+            ordered.addAll(getInitializingShardsWithoutWeight(weightedRouting, nodes, defaultWeight));
+        }
+        return ordered.stream().distinct().collect(Collectors.toList());
     }
 
     /**
@@ -463,7 +459,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      * OpenSearch, however, we do not have that sort of broadcast-to-all behavior. In order to prevent a node that gets a high score and
      * then never gets any more requests, we must ensure it eventually returns to a more normal score and can be a candidate for serving
      * requests.
-     *
+     * <p>
      * This adjustment takes the "winning" node's statistics and adds the average of those statistics with each non-winning node. Let's say
      * the winning node had a queue size of 10 and a non-winning node had a queue of 18. The average queue size is (10 + 18) / 2 = 14 so the
      * non-winning node will have statistics added for a queue size of 14. This is repeated for the response time and service times as well.
@@ -742,9 +738,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
         if (!shardId.equals(that.shardId)) return false;
-        if (!shards.equals(that.shards)) return false;
-
-        return true;
+        return shards.size() == that.shards.size() && shards.containsAll(that.shards) && that.shards.containsAll(shards);
     }
 
     @Override
@@ -908,6 +902,22 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return shards;
     }
 
+    /**
+     * Returns a {@link List} of shards that match the provided {@link Predicate}
+     *
+     * @param predicate {@link Predicate} to apply
+     * @return a {@link List} of shards that match one of the given {@link Predicate}
+     */
+    public List<ShardRouting> shardsMatchingPredicate(Predicate<ShardRouting> predicate) {
+        List<ShardRouting> shards = new ArrayList<>();
+        for (ShardRouting shardEntry : this) {
+            if (predicate.test(shardEntry)) {
+                shards.add(shardEntry);
+            }
+        }
+        return shards;
+    }
+
     public int shardsMatchingPredicateCount(Predicate<ShardRouting> predicate) {
         int count = 0;
         for (ShardRouting shardEntry : this) {
@@ -921,8 +931,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     /**
      * Key for WeightedRouting Shard Iterator
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "2.4.0")
     public static class WeightedRoutingKey {
         private final WeightedRouting weightedRouting;
 
@@ -947,19 +958,59 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
+     * Holder class for shard routing(s) which are classified and stored based on their weights.
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "2.14.0")
+    public static class WeightedShardRoutings {
+        private final List<ShardRouting> shardRoutingsWithWeight;
+        private final List<ShardRouting> shardRoutingWithoutWeight;
+
+        public WeightedShardRoutings(List<ShardRouting> shardRoutingsWithWeight, List<ShardRouting> shardRoutingWithoutWeight) {
+            this.shardRoutingsWithWeight = Collections.unmodifiableList(shardRoutingsWithWeight);
+            this.shardRoutingWithoutWeight = Collections.unmodifiableList(shardRoutingWithoutWeight);
+        }
+
+        public List<ShardRouting> getShardRoutingsWithWeight() {
+            return shardRoutingsWithWeight;
+        }
+
+        public List<ShardRouting> getShardRoutingWithoutWeight() {
+            return shardRoutingWithoutWeight;
+        }
+    }
+
+    /**
      * *
      * Gets active shard routing from memory if available, else calculates and put it in memory.
      */
     private List<ShardRouting> getActiveShardsByWeight(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
         WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
-        List<ShardRouting> shardRoutings = activeShardsByWeight.get(key);
-        if (shardRoutings == null) {
-            synchronized (shardsByWeightMutex) {
-                shardRoutings = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
-                activeShardsByWeight = new MapBuilder().put(key, shardRoutings).immutableMap();
-            }
+        if (activeShardsByWeight.get(key) == null) {
+            populateActiveShardWeightsMap(weightedRouting, nodes, defaultWeight);
         }
-        return shardRoutings;
+        return activeShardsByWeight.get(key).getShardRoutingsWithWeight();
+    }
+
+    private List<ShardRouting> getActiveShardsWithoutWeight(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+        WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
+        if (activeShardsByWeight.get(key) == null) {
+            populateActiveShardWeightsMap(weightedRouting, nodes, defaultWeight);
+        }
+        return activeShardsByWeight.get(key).getShardRoutingWithoutWeight();
+    }
+
+    private void populateActiveShardWeightsMap(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+        WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
+        List<ShardRouting> weightedRoutings = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
+        List<ShardRouting> nonWeightedRoutings = activeShards.stream()
+            .filter(shard -> !weightedRoutings.contains(shard))
+            .collect(Collectors.toUnmodifiableList());
+        synchronized (shardsByWeightMutex) {
+            activeShardsByWeight = new MapBuilder().put(key, new WeightedShardRoutings(weightedRoutings, nonWeightedRoutings))
+                .immutableMap();
+        }
     }
 
     /**
@@ -968,14 +1019,34 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
      */
     private List<ShardRouting> getInitializingShardsByWeight(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
         WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
-        List<ShardRouting> shardRoutings = initializingShardsByWeight.get(key);
-        if (shardRoutings == null) {
-            synchronized (shardsByWeightMutex) {
-                shardRoutings = shardsOrderedByWeight(activeShards, weightedRouting, nodes, defaultWeight);
-                initializingShardsByWeight = new MapBuilder().put(key, shardRoutings).immutableMap();
-            }
+        if (initializingShardsByWeight.get(key) == null) {
+            populateInitializingShardWeightsMap(weightedRouting, nodes, defaultWeight);
         }
-        return shardRoutings;
+        return initializingShardsByWeight.get(key).getShardRoutingsWithWeight();
+    }
+
+    private List<ShardRouting> getInitializingShardsWithoutWeight(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight
+    ) {
+        WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
+        if (initializingShardsByWeight.get(key) == null) {
+            populateInitializingShardWeightsMap(weightedRouting, nodes, defaultWeight);
+        }
+        return initializingShardsByWeight.get(key).getShardRoutingWithoutWeight();
+    }
+
+    private void populateInitializingShardWeightsMap(WeightedRouting weightedRouting, DiscoveryNodes nodes, double defaultWeight) {
+        WeightedRoutingKey key = new WeightedRoutingKey(weightedRouting);
+        List<ShardRouting> weightedRoutings = shardsOrderedByWeight(allInitializingShards, weightedRouting, nodes, defaultWeight);
+        List<ShardRouting> nonWeightedRoutings = allInitializingShards.stream()
+            .filter(shard -> !weightedRoutings.contains(shard))
+            .collect(Collectors.toUnmodifiableList());
+        synchronized (shardsByWeightMutex) {
+            initializingShardsByWeight = new MapBuilder().put(key, new WeightedShardRoutings(weightedRoutings, nonWeightedRoutings))
+                .immutableMap();
+        }
     }
 
     /**

@@ -33,6 +33,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.OpenSearchGenerationException;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,8 +44,9 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * A list backed by an {@link AtomicReferenceArray} with potential null values, easily allowing
  * to get the concrete values as a list using {@link #asList()}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AtomicArray<E> {
     private final AtomicReferenceArray<E> array;
     private volatile List<E> nonNullList;

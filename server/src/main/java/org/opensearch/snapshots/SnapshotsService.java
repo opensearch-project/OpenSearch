@@ -131,6 +131,9 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.cluster.SnapshotsInProgress.completed;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
 import static org.opensearch.snapshots.SnapshotUtils.validateSnapshotsBackingAnyIndex;
 
@@ -343,6 +346,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
+                logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
+                if (remoteStoreIndexShallowCopy
+                    && clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED)) {
+                    // don't allow shallow snapshots if compatibility mode is not strict
+                    logger.warn("Shallow snapshots are not supported during migration. Falling back to full snapshot.");
+                    remoteStoreIndexShallowCopy = false;
+                }
                 newEntry = SnapshotsInProgress.startedEntry(
                     new Snapshot(repositoryName, snapshotId),
                     request.includeGlobalState(),
@@ -466,11 +476,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         indicesForSnapshot.add(indexId.getName());
                     }
                 }
-                final List<String> matchingIndices = SnapshotUtils.filterIndices(
-                    indicesForSnapshot,
-                    request.indices(),
-                    request.indicesOptions()
-                );
+                final List<String> matchingIndices = filterIndices(indicesForSnapshot, request.indices(), request.indicesOptions());
                 if (matchingIndices.isEmpty()) {
                     throw new SnapshotException(
                         new Snapshot(repositoryName, sourceSnapshotId),
@@ -1565,7 +1571,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Runs a cluster state update that checks whether we have outstanding snapshot deletions that can be executed and executes them.
-     *
+     * <p>
      * TODO: optimize this to execute in a single CS update together with finalizing the latest snapshot
      */
     private void runReadyDeletions(RepositoryData repositoryData, String repository) {
@@ -2758,7 +2764,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Every shard snapshot or clone state update can result in multiple snapshots being updated. In order to determine whether or not a
      * shard update has an effect we use an outer loop over all current executing snapshot operations that iterates over them in the order
      * they were started in and an inner loop over the list of shard update tasks.
-     *
+     * <p>
      * If the inner loop finds that a shard update task applies to a given snapshot and either a shard-snapshot or shard-clone operation in
      * it then it will update the state of the snapshot entry accordingly. If that update was a noop, then the task is removed from the
      * iteration as it was already applied before and likely just arrived on the cluster-manager node again due to retries upstream.
@@ -2768,7 +2774,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * a task in the executed tasks collection applied to a shard it was waiting for to become available, then the shard snapshot operation
      * will be started for that snapshot entry and the task removed from the collection of tasks that need to be applied to snapshot
      * entries since it can not have any further effects.
-     *
+     * <p>
      * Package private to allow for tests.
      */
     static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = new ClusterStateTaskExecutor<ShardSnapshotUpdate>() {
@@ -3058,7 +3064,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * An update to the snapshot state of a shard.
-     *
+     * <p>
      * Package private for testing
      */
     static final class ShardSnapshotUpdate {

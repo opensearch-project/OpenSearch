@@ -49,6 +49,7 @@ import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -98,8 +99,9 @@ import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 /**
  * Metadata information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ToXContentFragment {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
@@ -127,8 +129,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Context of the XContent.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum XContentContext {
         /* Custom metadata should be returns as part of API call */
         API,
@@ -166,11 +169,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Custom metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment, ClusterState.FeatureAware {
 
         EnumSet<XContentContext> context();
+
+        static Custom fromXContent(XContentParser parser, String name) throws IOException {
+            // handling any Exception is caller's responsibility
+            return parser.namedObject(Custom.class, name, null);
+        }
     }
 
     public static final Setting<Integer> DEFAULT_REPLICA_COUNT_SETTING = Setting.intSetting(
@@ -256,7 +265,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final Settings settings;
     private final DiffableStringMap hashesOfConsistentSettings;
     private final Map<String, IndexMetadata> indices;
-    private final Map<String, IndexTemplateMetadata> templates;
+    private final TemplatesMetadata templates;
     private final Map<String, Custom> customs;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
@@ -300,7 +309,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
         this.indices = Collections.unmodifiableMap(indices);
         this.customs = Collections.unmodifiableMap(customs);
-        this.templates = Collections.unmodifiableMap(templates);
+        this.templates = new TemplatesMetadata(templates);
         int totalNumberOfShards = 0;
         int totalOpenIndexShards = 0;
         for (IndexMetadata cursor : indices.values()) {
@@ -802,11 +811,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public Map<String, IndexTemplateMetadata> templates() {
-        return this.templates;
+        return this.templates.getTemplates();
     }
 
     public Map<String, IndexTemplateMetadata> getTemplates() {
         return templates();
+    }
+
+    public TemplatesMetadata templatesMetadata() {
+        return this.templates;
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {
@@ -825,6 +838,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
             .map(DataStreamMetadata::dataStreams)
             .orElse(Collections.emptyMap());
+    }
+
+    public Map<String, View> views() {
+        return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
@@ -919,16 +936,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
-        if (!metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata)) {
-            return false;
-        }
-        if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
+        if (!isCoordinationMetadataEqual(metadata1, metadata2)) {
             return false;
         }
         if (!metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings)) {
-            return false;
-        }
-        if (!metadata1.templates.equals(metadata2.templates())) {
             return false;
         }
         if (!metadata1.clusterUUID.equals(metadata2.clusterUUID)) {
@@ -937,7 +948,44 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
             return false;
         }
+        return isGlobalResourcesMetadataEquals(metadata1, metadata2);
+    }
+
+    /**
+     * Compares Metadata entities persisted in Remote Store.
+     */
+    public static boolean isGlobalResourcesMetadataEquals(Metadata metadata1, Metadata metadata2) {
+        if (!isSettingsMetadataEqual(metadata1, metadata2)) {
+            return false;
+        }
+        if (!isTemplatesMetadataEqual(metadata1, metadata2)) {
+            return false;
+        }
         // Check if any persistent metadata needs to be saved
+        return isCustomMetadataEqual(metadata1, metadata2);
+    }
+
+    public static boolean isCoordinationMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata);
+    }
+
+    public static boolean isSettingsMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.persistentSettings.equals(metadata2.persistentSettings);
+    }
+
+    public static boolean isTransientSettingsMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.transientSettings.equals(metadata2.transientSettings);
+    }
+
+    public static boolean isTemplatesMetadataEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.templates.equals(metadata2.templates);
+    }
+
+    public static boolean isHashesOfConsistentSettingsEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings);
+    }
+
+    public static boolean isCustomMetadataEqual(Metadata metadata1, Metadata metadata2) {
         int customCount1 = 0;
         for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
             if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
@@ -951,8 +999,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 customCount2++;
             }
         }
-        if (customCount1 != customCount2) return false;
-        return true;
+        return customCount1 == customCount2;
     }
 
     @Override
@@ -1001,7 +1048,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             persistentSettings = after.persistentSettings;
             hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
             indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
-            templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
+            templates = DiffableUtils.diff(
+                before.templates.getTemplates(),
+                after.templates.getTemplates(),
+                DiffableUtils.getStringKeySerializer()
+            );
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
@@ -1048,7 +1099,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
             builder.indices(indices.apply(part.indices));
-            builder.templates(templates.apply(part.templates));
+            builder.templates(templates.apply(part.templates.getTemplates()));
             builder.customs(customs.apply(part.customs));
             return builder.build();
         }
@@ -1092,10 +1143,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         for (IndexMetadata indexMetadata : this) {
             indexMetadata.writeTo(out);
         }
-        out.writeVInt(templates.size());
-        for (final IndexTemplateMetadata cursor : templates.values()) {
-            cursor.writeTo(out);
-        }
+        templates.writeTo(out);
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
         for (final Custom cursor : customs.values()) {
@@ -1122,8 +1170,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Builder of metadata.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private String clusterUUID;
@@ -1158,7 +1207,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
             this.indices = new HashMap<>(metadata.indices);
-            this.templates = new HashMap<>(metadata.templates);
+            this.templates = new HashMap<>(metadata.templates.getTemplates());
             this.customs = new HashMap<>(metadata.customs);
             this.previousMetadata = metadata;
         }
@@ -1237,6 +1286,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        public Builder templates(TemplatesMetadata templatesMetadata) {
+            this.templates.putAll(templatesMetadata.getTemplates());
+            return this;
+        }
+
         public Builder put(String name, ComponentTemplate componentTemplate) {
             Objects.requireNonNull(componentTemplate, "it is invalid to add a null component template: " + name);
             Map<String, ComponentTemplate> existingTemplates = Optional.ofNullable(
@@ -1311,6 +1365,36 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             existingDataStreams.remove(name);
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
             return this;
+        }
+
+        private Map<String, View> getViews() {
+            return Optional.ofNullable(customs.get(ViewMetadata.TYPE))
+                .map(o -> (ViewMetadata) o)
+                .map(vmd -> vmd.views())
+                .orElse(new HashMap<>());
+        }
+
+        public View view(final String viewName) {
+            return getViews().get(viewName);
+        }
+
+        public Builder views(final Map<String, View> views) {
+            this.customs.put(ViewMetadata.TYPE, new ViewMetadata(views));
+            return this;
+        }
+
+        public Builder put(final View view) {
+            Objects.requireNonNull(view, "view cannot be null");
+            final var replacementViews = new HashMap<>(getViews());
+            replacementViews.put(view.getName(), view);
+            return views(replacementViews);
+        }
+
+        public Builder removeView(final String viewName) {
+            Objects.requireNonNull(viewName, "viewName cannot be null");
+            final var replacementViews = new HashMap<>(getViews());
+            replacementViews.remove(viewName);
+            return views(replacementViews);
         }
 
         public Custom getCustom(String type) {
@@ -1666,7 +1750,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         /**
          * Validates there isn't any index with a name that would clash with the future backing indices of the existing data streams.
-         *
+         * <p>
          * E.g., if data stream `foo` has backing indices [`.ds-foo-000001`, `.ds-foo-000002`] and the indices lookup contains indices
          * `.ds-foo-000001`, `.ds-foo-000002` and `.ds-foo-000006` this will throw an IllegalStateException (as attempting to rollover the
          * `foo` data stream from generation 5 to 6 will not be possible)
@@ -1727,9 +1811,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             builder.startObject("templates");
-            for (final IndexTemplateMetadata cursor : metadata.templates().values()) {
-                IndexTemplateMetadata.Builder.toXContentWithTypes(cursor, builder, params);
-            }
+            metadata.templatesMetadata().toXContent(builder, params);
             builder.endObject();
 
             if (context == XContentContext.API) {
@@ -1792,12 +1874,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
                         builder.hashesOfConsistentSettings(parser.mapStrings());
                     } else if ("templates".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
-                        }
+                        builder.templates(TemplatesMetadata.fromXContent(parser));
                     } else {
                         try {
-                            Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
+                            Custom custom = Custom.fromXContent(parser, currentFieldName);
                             builder.putCustom(custom.getWriteableName(), custom);
                         } catch (NamedObjectNotFoundException ex) {
                             logger.warn("Skipping unknown custom object with type {}", currentFieldName);

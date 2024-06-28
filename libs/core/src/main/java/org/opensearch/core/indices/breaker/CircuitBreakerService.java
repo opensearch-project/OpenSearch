@@ -32,8 +32,7 @@
 
 package org.opensearch.core.indices.breaker;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 
@@ -41,11 +40,10 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
  * Interface for Circuit Breaker services, which provide breakers to classes
  * that load field data.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(CircuitBreakerService.class);
-
     protected CircuitBreakerService() {}
 
     /**

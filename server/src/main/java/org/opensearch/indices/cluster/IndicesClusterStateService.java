@@ -51,6 +51,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
@@ -679,7 +680,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 retentionLeaseSyncer,
                 nodes.getLocalNode(),
                 sourceNode,
-                remoteStoreStatsTrackerFactory
+                remoteStoreStatsTrackerFactory,
+                nodes
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
@@ -713,7 +715,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryReplicaSyncer::resync,
                 clusterState.version(),
                 inSyncIds,
-                indexShardRoutingTable
+                indexShardRoutingTable,
+                nodes
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
@@ -921,7 +924,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
             long applyingClusterStateVersion,
             Set<String> inSyncAllocationIds,
-            IndexShardRoutingTable routingTable
+            IndexShardRoutingTable routingTable,
+            DiscoveryNodes discoveryNodes
         ) throws IOException;
     }
 
@@ -1039,7 +1043,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode,
-            RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+            RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+            DiscoveryNodes discoveryNodes
         ) throws IOException;
 
         /**
@@ -1059,8 +1064,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Why the index was removed
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         enum IndexRemovalReason {
             /**
              * Shard of this index were previously assigned to this node but all shards have been relocated.

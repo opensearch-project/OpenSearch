@@ -42,6 +42,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -50,6 +51,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
@@ -61,6 +63,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 
 public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
 
@@ -405,5 +409,57 @@ public class FilterAllocationDeciderTests extends OpenSearchAllocationTestCase {
             Settings.builder(),
             "test ip validation"
         );
+    }
+
+    public void testMixedModeRemoteStoreAllocation() {
+        // For mixed mode remote store direction cluster's existing indices replica creation ,
+        // we don't consider filter allocation decider for replica of existing indices
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings initialSettings = Settings.builder()
+            .put("cluster.routing.allocation.exclude._id", "node2")
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
+            .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE)
+            .build();
+
+        FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(initialSettings, clusterSettings);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            Arrays.asList(
+                filterAllocationDecider,
+                new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+                new ReplicaAfterPrimaryActiveAllocationDecider()
+            )
+        );
+        AllocationService service = new AllocationService(
+            allocationDeciders,
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        ClusterState state = createInitialClusterState(service, Settings.EMPTY, Settings.EMPTY);
+        RoutingTable routingTable = state.routingTable();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
+        allocation.debugDecision(true);
+        ShardRouting sr = ShardRouting.newUnassigned(
+            routingTable.index("sourceIndex").shard(0).shardId(),
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "")
+        );
+        Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
+            sr,
+            state.getRoutingNodes().node("node2"),
+            allocation
+        );
+        assertEquals(decision.toString(), Type.YES, decision.type());
+
+        sr = ShardRouting.newUnassigned(
+            routingTable.index("sourceIndex").shard(0).shardId(),
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+        );
+        decision = (Decision.Single) filterAllocationDecider.canAllocate(sr, state.getRoutingNodes().node("node2"), allocation);
+        assertEquals(decision.toString(), Type.NO, decision.type());
     }
 }

@@ -35,6 +35,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -56,8 +57,9 @@ import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBoole
 /**
  * Mapping configuration for a type.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
 

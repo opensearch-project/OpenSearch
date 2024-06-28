@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.snapshots.status;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress.State;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -68,8 +69,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 /**
  * Status of a snapshot
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SnapshotStatus implements ToXContentObject, Writeable {
 
     private final Snapshot snapshot;

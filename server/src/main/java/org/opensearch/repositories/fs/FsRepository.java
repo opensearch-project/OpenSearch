@@ -50,6 +50,8 @@ import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -61,7 +63,6 @@ import java.util.function.Function;
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
  * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size.
  *      Defaults to not chucked.</dd>
- * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  *
  * @opensearch.internal
@@ -101,11 +102,11 @@ public class FsRepository extends BlobStoreRepository {
 
     public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
-    private final Environment environment;
+    protected final Environment environment;
 
-    private ByteSizeValue chunkSize;
+    protected ByteSizeValue chunkSize;
 
-    private final BlobPath basePath;
+    protected BlobPath basePath;
 
     /**
      * Constructs a shared file system repository.
@@ -117,8 +118,27 @@ public class FsRepository extends BlobStoreRepository {
         ClusterService clusterService,
         RecoverySettings recoverySettings
     ) {
-        super(metadata, calculateCompress(metadata, environment), namedXContentRegistry, clusterService, recoverySettings);
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings);
         this.environment = environment;
+        validateLocation();
+        readMetadata();
+    }
+
+    protected void readMetadata() {
+        if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
+            this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        } else {
+            this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
+        }
+        final String basePath = BASE_PATH_SETTING.get(metadata.settings());
+        if (Strings.hasLength(basePath)) {
+            this.basePath = new BlobPath().add(basePath);
+        } else {
+            this.basePath = BlobPath.cleanPath();
+        }
+    }
+
+    protected void validateLocation() {
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
             logger.warn(
@@ -151,24 +171,6 @@ public class FsRepository extends BlobStoreRepository {
                 );
             }
         }
-
-        if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
-            this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
-        } else {
-            this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
-        }
-        final String basePath = BASE_PATH_SETTING.get(metadata.settings());
-        if (Strings.hasLength(basePath)) {
-            this.basePath = new BlobPath().add(basePath);
-        } else {
-            this.basePath = BlobPath.cleanPath();
-        }
-    }
-
-    private static boolean calculateCompress(RepositoryMetadata metadata, Environment environment) {
-        return COMPRESS_SETTING.exists(metadata.settings())
-            ? COMPRESS_SETTING.get(metadata.settings())
-            : REPOSITORIES_COMPRESS_SETTING.get(environment.settings());
     }
 
     @Override
@@ -186,5 +188,13 @@ public class FsRepository extends BlobStoreRepository {
     @Override
     public BlobPath basePath() {
         return basePath;
+    }
+
+    @Override
+    public List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        List<Setting<?>> restrictedSettings = new ArrayList<>();
+        restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
+        restrictedSettings.add(LOCATION_SETTING);
+        return restrictedSettings;
     }
 }

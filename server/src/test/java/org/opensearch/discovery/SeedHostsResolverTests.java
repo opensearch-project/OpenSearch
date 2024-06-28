@@ -185,7 +185,8 @@ public class SeedHostsResolverTests extends OpenSearchTestCase {
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         ) {
 
             @Override
@@ -237,7 +238,8 @@ public class SeedHostsResolverTests extends OpenSearchTestCase {
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         ) {
 
             @Override
@@ -292,7 +294,8 @@ public class SeedHostsResolverTests extends OpenSearchTestCase {
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         ) {
 
             @Override
@@ -368,7 +371,8 @@ public class SeedHostsResolverTests extends OpenSearchTestCase {
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         ) {
 
             @Override
@@ -432,7 +436,8 @@ public class SeedHostsResolverTests extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         ) {
             @Override
             public BoundTransportAddress boundAddress() {

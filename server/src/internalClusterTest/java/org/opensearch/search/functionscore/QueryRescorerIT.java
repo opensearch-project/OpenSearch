@@ -43,7 +43,6 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.Operator;
@@ -55,7 +54,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.rescore.QueryRescoreMode;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.search.sort.SortBuilders;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -84,6 +83,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResp
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSecondHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertThirdHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasId;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasMatchedQueries;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasScore;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,10 +91,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
+public class QueryRescorerIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public QueryRescorerIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public QueryRescorerIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -105,12 +105,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
         );
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
-    }
-
-    public void testEnforceWindowSize() {
+    public void testEnforceWindowSize() throws InterruptedException {
         createIndex("test");
         // this
         int iters = scaledRandomIntBetween(10, 20);
@@ -118,6 +113,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("f", Integer.toString(i)).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         int numShards = getNumShards("test").numPrimaries;
         for (int j = 0; j < iters; j++) {
@@ -169,6 +165,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
             .setRescorer(
@@ -474,6 +471,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
     public void testEquivalence() throws Exception {
         // no dummy docs since merges can change scores while we run queries.
         int numDocs = indexRandomNumbers("whitespace", -1, false);
+        indexRandomForConcurrentSearch("test");
 
         final int iters = scaledRandomIntBetween(50, 100);
         for (int i = 0; i < iters; i++) {
@@ -545,6 +543,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         {
             SearchResponse searchResponse = client().prepareSearch()
@@ -596,7 +595,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
 
             SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR).queryName("hello-world"))
                 .setRescorer(innerRescoreQuery, 5)
                 .setExplain(true)
                 .get();
@@ -604,7 +603,10 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             assertFirstHit(searchResponse, hasId("1"));
             assertSecondHit(searchResponse, hasId("2"));
             assertThirdHit(searchResponse, hasId("3"));
-
+            final String[] matchedQueries = { "hello-world" };
+            assertFirstHit(searchResponse, hasMatchedQueries(matchedQueries));
+            assertSecondHit(searchResponse, hasMatchedQueries(matchedQueries));
+            assertThirdHit(searchResponse, hasMatchedQueries(matchedQueries));
             for (int j = 0; j < 3; j++) {
                 assertThat(searchResponse.getHits().getAt(j).getExplanation().getDescription(), equalTo(descriptionModes[innerMode]));
             }
@@ -816,6 +818,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("" + i).setSource("text", "hello world").get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchRequestBuilder request = client().prepareSearch();
         request.setQuery(QueryBuilders.termQuery("text", "hello"));
@@ -832,6 +835,7 @@ public class QueryRescorerIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("" + i).setSource("number", 0).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         Exception exc = expectThrows(
             Exception.class,

@@ -10,12 +10,14 @@ package org.opensearch.action.admin.cluster.shards.routing.weighted.get;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Request builder to get weights for weighted round-robin search routing policy.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.4.0")
 public class ClusterGetWeightedRoutingRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     ClusterGetWeightedRoutingRequest,
     ClusterGetWeightedRoutingResponse,

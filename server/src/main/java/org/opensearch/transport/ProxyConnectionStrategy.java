@@ -309,7 +309,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug(
+                        logger.error(
                             new ParameterizedMessage(
                                 "failed to open remote connection [remote cluster: {}, address: {}]",
                                 clusterAlias,

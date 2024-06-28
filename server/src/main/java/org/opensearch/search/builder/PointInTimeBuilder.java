@@ -33,6 +33,7 @@
 package org.opensearch.search.builder;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -50,8 +51,9 @@ import java.util.Objects;
  * A search request with a point in time will execute using the reader contexts associated with that point time
  * instead of the latest reader contexts.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public final class PointInTimeBuilder implements Writeable, ToXContentObject {
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField KEEP_ALIVE_FIELD = new ParseField("keep_alive");

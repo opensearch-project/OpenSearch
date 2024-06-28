@@ -92,7 +92,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
      * necessary. This is done lazily so that the {@link Weight}s are only
      * created if the aggregation collects documents reducing the overhead of
      * the aggregation in the case where no documents are collected.
-     *
+     * <p>
      * Note: With concurrent segment search use case, multiple aggregation collectors executing
      * on different threads will try to fetch the weights. To handle the race condition there is
      * a synchronization block

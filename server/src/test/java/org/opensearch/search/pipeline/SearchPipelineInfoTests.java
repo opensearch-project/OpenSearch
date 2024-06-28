@@ -46,7 +46,7 @@ public class SearchPipelineInfoTests extends OpenSearchTestCase {
 
     /**
      * When serializing / deserializing to / from old versions, processor type info is lost.
-     *
+     * <p>
      * Also, we only supported request/response processors.
      */
     public void testSerializationRoundtripBackcompat() throws IOException {

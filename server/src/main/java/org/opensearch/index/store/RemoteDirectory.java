@@ -28,8 +28,11 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.index.store.remote.utils.BlockIOContext;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -39,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,9 +64,11 @@ public class RemoteDirectory extends Directory {
     protected final BlobContainer blobContainer;
     private static final Logger logger = LogManager.getLogger(RemoteDirectory.class);
 
-    protected final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
+    private final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
 
-    protected final UnaryOperator<InputStream> downloadRateLimiter;
+    private final UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter;
+
+    private final UnaryOperator<InputStream> downloadRateLimiter;
 
     /**
      * Number of bytes in the segment file to store checksum
@@ -76,15 +80,17 @@ public class RemoteDirectory extends Directory {
     }
 
     public RemoteDirectory(BlobContainer blobContainer) {
-        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity());
+        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity());
     }
 
     public RemoteDirectory(
         BlobContainer blobContainer,
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
+        UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter,
         UnaryOperator<InputStream> downloadRateLimiter
     ) {
         this.blobContainer = blobContainer;
+        this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.uploadRateLimiter = uploadRateLimiter;
         this.downloadRateLimiter = downloadRateLimiter;
     }
@@ -193,12 +199,20 @@ public class RemoteDirectory extends Directory {
      */
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
+        return openInput(name, fileLength(name), context);
+    }
+
+    public IndexInput openInput(String name, long fileLength, IOContext context) throws IOException {
         InputStream inputStream = null;
         try {
-            inputStream = blobContainer.readBlob(name);
-            return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength(name));
+            if (context instanceof BlockIOContext) {
+                return getBlockInput(name, fileLength, (BlockIOContext) context);
+            } else {
+                inputStream = blobContainer.readBlob(name);
+                return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
+            }
         } catch (Exception e) {
-            // Incase the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
+            // In case the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
                 try {
                     inputStream.close();
@@ -230,9 +244,9 @@ public class RemoteDirectory extends Directory {
     @Override
     public long fileLength(String name) throws IOException {
         // ToDo: Instead of calling remote store each time, keep a cache with segment metadata
-        Map<String, BlobMetadata> metadata = blobContainer.listBlobsByPrefix(name);
-        if (metadata.containsKey(name)) {
-            return metadata.get(name).length();
+        List<BlobMetadata> metadata = blobContainer.listBlobsByPrefixInSortedOrder(name, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+        if (metadata.size() == 1 && metadata.get(0).name().equals(name)) {
+            return metadata.get(0).length();
         }
         throw new NoSuchFileException(name);
     }
@@ -320,11 +334,12 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext context,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
     ) {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
-                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener);
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -339,7 +354,8 @@ public class RemoteDirectory extends Directory {
         String remoteFileName,
         IOContext ioContext,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload
     ) throws Exception {
         long expectedChecksum = calculateChecksumOfChecksum(from, src);
         long contentLength;
@@ -350,13 +366,24 @@ public class RemoteDirectory extends Directory {
         if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
             remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
         }
+        lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+        RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
+        if (lowPriorityUpload) {
+            offsetRangeInputStreamSupplier = (size, position) -> lowPriorityUploadRateLimiter.apply(
+                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
+            );
+        } else {
+            offsetRangeInputStreamSupplier = (size, position) -> uploadRateLimiter.apply(
+                new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)
+            );
+        }
         RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
             src,
             remoteFileName,
             contentLength,
             true,
-            WritePriority.NORMAL,
-            (size, position) -> uploadRateLimiter.apply(new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)),
+            lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
+            offsetRangeInputStreamSupplier,
             expectedChecksum,
             remoteIntegrityEnabled
         );
@@ -412,5 +439,19 @@ public class RemoteDirectory extends Directory {
                 );
             }
         }
+    }
+
+    private IndexInput getBlockInput(String name, long fileLength, BlockIOContext blockIOContext) throws IOException {
+        long position = blockIOContext.getBlockStart();
+        long length = blockIOContext.getBlockSize();
+        if (position < 0 || length < 0 || (position + length > fileLength)) {
+            throw new IllegalArgumentException("Invalid values of block start and size");
+        }
+        byte[] bytes;
+        try (InputStream inputStream = blobContainer.readBlob(name, position, length)) {
+            // TODO - Explore how we can buffer small chunks of data instead of having the whole 8MB block in memory
+            bytes = downloadRateLimiter.apply(inputStream).readAllBytes();
+        }
+        return new ByteArrayIndexInput(name, bytes);
     }
 }

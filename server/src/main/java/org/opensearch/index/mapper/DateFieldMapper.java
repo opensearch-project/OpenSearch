@@ -52,6 +52,7 @@ import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.LocaleUtils;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -91,7 +92,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
-    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    @Deprecated
+    public static final DateFormatter LEGACY_DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern(
+        // TODO remove in 3.0 after backporting
+        "strict_date_optional_time||epoch_millis"
+    );
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern(
+        "strict_date_time_no_millis||strict_date_optional_time||epoch_millis",
+        "strict_date_optional_time"
+    );
+
+    public static DateFormatter getDefaultDateTimeFormatter() {
+        return FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING_SETTING)
+            ? DEFAULT_DATE_TIME_FORMATTER
+            : LEGACY_DEFAULT_DATE_TIME_FORMATTER;
+    }
 
     /**
      * Resolution of the date time
@@ -223,8 +238,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             "format",
             false,
             m -> toType(m).format,
-            DEFAULT_DATE_TIME_FORMATTER.pattern()
+            getDefaultDateTimeFormatter().pattern()
         );
+        private final Parameter<String> printFormat = Parameter.stringParam(
+            "print_format",
+            false,
+            m -> toType(m).printFormat,
+            getDefaultDateTimeFormatter().printPattern()
+        ).acceptsNull();
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
             false,
@@ -253,13 +274,18 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             if (dateFormatter != null) {
                 this.format.setValue(dateFormatter.pattern());
+                this.printFormat.setValue(dateFormatter.printPattern());
                 this.locale.setValue(dateFormatter.locale());
             }
         }
 
         private DateFormatter buildFormatter() {
             try {
-                return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
+                if (format.isConfigured() && !printFormat.isConfigured()) {
+                    return DateFormatter.forPattern(format.getValue(), null, !format.isConfigured()).withLocale(locale.getValue());
+                }
+                return DateFormatter.forPattern(format.getValue(), printFormat.getValue(), !format.isConfigured())
+                    .withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
             }
@@ -267,7 +293,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, docValues, store, format, locale, nullValue, ignoreMalformed, boost, meta);
+            return Arrays.asList(index, docValues, store, format, printFormat, locale, nullValue, ignoreMalformed, boost, meta);
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -322,7 +348,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static final class DateFieldType extends MappedFieldType {
+    public static final class DateFieldType extends MappedFieldType implements NumericPointEncoder {
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;
         protected final Resolution resolution;
@@ -346,7 +372,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         public DateFieldType(String name) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, Collections.emptyMap());
+            this(name, true, false, true, getDefaultDateTimeFormatter(), Resolution.MILLISECONDS, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
@@ -354,7 +380,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
+            this(name, true, false, true, getDefaultDateTimeFormatter(), resolution, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
@@ -381,6 +407,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         // Visible for testing.
         public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
+        }
+
+        public long convertNanosToMillis(long nanoSecondsSinceEpoch) {
+            if (resolution.numericType.equals(NumericType.DATE_NANOSECONDS)) return DateUtils.toMilliSeconds(nanoSecondsSinceEpoch);
+            return nanoSecondsSinceEpoch;
+        }
+
+        public long convertRoundedMillisToNanos(long milliSecondsSinceEpoch) {
+            if (resolution.numericType.equals(NumericType.DATE_NANOSECONDS)) return DateUtils.toNanoSeconds(milliSecondsSinceEpoch);
+            return milliSecondsSinceEpoch;
         }
 
         @Override
@@ -421,22 +457,30 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Nullable DateMathParser forcedDateParser,
             QueryShardContext context
         ) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query query = LongPoint.newRangeQuery(name(), l, u);
-                if (hasDocValues()) {
+                if (isSearchable() && hasDocValues()) {
+                    Query query = LongPoint.newRangeQuery(name(), l, u);
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
 
                     if (context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                     }
+                    return query;
                 }
-                return query;
+                if (hasDocValues()) {
+                    Query query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    if (context.indexSortedOnField(name())) {
+                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                    }
+                    return query;
+                }
+                return LongPoint.newRangeQuery(name(), l, u);
             });
         }
 
@@ -506,7 +550,15 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public byte[] encodePoint(Number value) {
+            byte[] point = new byte[Long.BYTES];
+            LongPoint.encodeDimension(value.longValue(), point, 0);
+            return point;
+        }
+
+        @Override
         public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
@@ -523,6 +575,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
+            // if we have only doc_values enabled we do not look at the BKD so we return an INTERSECTS by default
+            if (isSearchable() == false && hasDocValues()) {
+                return Relation.INTERSECTS;
+            }
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -610,6 +666,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final boolean hasDocValues;
     private final Locale locale;
     private final String format;
+    private final String printFormat;
     private final boolean ignoreMalformed;
     private final Long nullValue;
     private final String nullValueAsString;
@@ -633,6 +690,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         this.hasDocValues = builder.docValues.getValue();
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
+        this.printFormat = builder.printFormat.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValueAsString = builder.nullValue.getValue();
         this.nullValue = nullValue;

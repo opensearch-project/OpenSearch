@@ -63,14 +63,14 @@ import static org.opensearch.search.suggest.Suggest.COMPARATOR;
 
 /**
  * Suggestion response for {@link CompletionSuggester} results
- *
+ * <p>
  * Response format for each entry:
  * {
  *     "text" : STRING
  *     "score" : FLOAT
  *     "contexts" : CONTEXTS
  * }
- *
+ * <p>
  * CONTEXTS : {
  *     "CONTEXT_NAME" : ARRAY,
  *     ..

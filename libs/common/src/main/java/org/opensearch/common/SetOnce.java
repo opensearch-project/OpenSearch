@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * A convenient class which offers a semi-immutable object wrapper implementation which allows one
  * to set the value of an object exactly once, and retrieve it many times. If {@link #set(Object)}
  * is called more than once, {@link AlreadySetException} is thrown and the operation will fail.
- *
+ * <p>
  * This is borrowed from lucene's experimental API. It is not reused to eliminate the dependency
  * on lucene core for such a simple (standalone) utility class that may change beyond OpenSearch needs.
  *

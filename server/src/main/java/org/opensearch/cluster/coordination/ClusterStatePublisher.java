@@ -34,23 +34,25 @@ package org.opensearch.cluster.coordination;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 
 /**
  * Publishes the cluster state
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ClusterStatePublisher {
     /**
      * Publish all the changes to the cluster from the cluster-manager (can be called just by the cluster-manager). The publish
      * process should apply this state to the cluster-manager as well!
-     *
+     * <p>
      * The publishListener allows to wait for the publication to complete, which can be either successful completion, timing out or failing.
      * The method is guaranteed to pass back a {@link FailedToCommitClusterStateException} to the publishListener if the change is not
      * committed and should be rejected. Any other exception signals that something bad happened but the change is committed.
-     *
+     * <p>
      * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
      * they updated their own cluster state or not.
      */
@@ -59,8 +61,9 @@ public interface ClusterStatePublisher {
     /**
      * An acknowledgement listener.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface AckListener {
         /**
          * Should be called when the cluster coordination layer has committed the cluster state (i.e. even if this publication fails,

@@ -137,7 +137,7 @@ public class Installation {
 
     /**
      * Returns the user that owns this installation.
-     *
+     * <p>
      * For packages this is root, and for archives it is the user doing the installation.
      */
     public String getOwner() {

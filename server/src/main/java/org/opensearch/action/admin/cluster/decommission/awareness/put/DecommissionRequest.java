@@ -11,6 +11,7 @@ package org.opensearch.action.admin.cluster.decommission.awareness.put;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -23,8 +24,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Registers a decommission request with decommission attribute and timeout
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.4.0")
 public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionRequest> {
 
     public static final TimeValue DEFAULT_NODE_DRAINING_TIMEOUT = TimeValue.timeValueSeconds(120);

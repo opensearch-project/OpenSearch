@@ -35,6 +35,7 @@ package org.opensearch.common.xcontent;
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
@@ -49,7 +50,9 @@ import java.io.OutputStream;
 
 /**
  * The content type of {@link XContent}.
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum XContentType implements MediaType {
 
     /**

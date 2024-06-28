@@ -61,11 +61,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final ShardMovementStrategy shardMovementStrategy;
 
     private final boolean preferPrimaryBalance;
+    private final boolean preferPrimaryRebalance;
     private final BalancedShardsAllocator.WeightFunction weight;
 
     private final float threshold;
     private final Metadata metadata;
-    private final float avgShardsPerNode;
 
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
@@ -77,7 +77,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         ShardMovementStrategy shardMovementStrategy,
         BalancedShardsAllocator.WeightFunction weight,
         float threshold,
-        boolean preferPrimaryBalance
+        boolean preferPrimaryBalance,
+        boolean preferPrimaryRebalance
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -85,7 +86,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.threshold = threshold;
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
-        avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
         avgPrimaryShardsPerNode = (float) (StreamSupport.stream(metadata.spliterator(), false)
             .mapToInt(IndexMetadata::getNumberOfShards)
             .sum()) / routingNodes.size();
@@ -93,6 +93,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
         this.preferPrimaryBalance = preferPrimaryBalance;
+        this.preferPrimaryRebalance = preferPrimaryRebalance;
         this.shardMovementStrategy = shardMovementStrategy;
     }
 
@@ -530,7 +531,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
     /**
      * Move started shards that can not be allocated to a node anymore
-     *
+     * <p>
      * For each shard to be moved this function executes a move operation
      * to the minimal eligible node with respect to the
      * weight function. If a shard is moved the shard will be set to
@@ -663,7 +664,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         RoutingNode targetNode = null;
         final List<NodeAllocationResult> nodeExplanationMap = explain ? new ArrayList<>() : null;
         int weightRanking = 0;
-        int targetNodeProcessed = 0;
         for (BalancedShardsAllocator.ModelNode currentNode : sorter.modelNodes) {
             if (currentNode != sourceNode) {
                 RoutingNode target = currentNode.getRoutingNode();
@@ -677,7 +677,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
                         continue;
                     }
                 }
-                targetNodeProcessed++;
                 // don't use canRebalance as we want hard filtering rules to apply. See #17698
                 Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                 if (explain) {
@@ -999,13 +998,18 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     continue;
                 }
                 // This is a safety net which prevents un-necessary primary shard relocations from maxNode to minNode when
-                // doing such relocation wouldn't help in primary balance.
+                // doing such relocation wouldn't help in primary balance. The condition won't be applicable when we enable node level
+                // primary rebalance
                 if (preferPrimaryBalance == true
+                    && preferPrimaryRebalance == false
                     && shard.primary()
                     && maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName()) < 2) {
                     continue;
                 }
-
+                // Relax the above condition to per node to allow rebalancing to attain global balance
+                if (preferPrimaryRebalance == true && shard.primary() && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
+                    continue;
+                }
                 final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                 maxNode.removeShard(shard);
                 long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

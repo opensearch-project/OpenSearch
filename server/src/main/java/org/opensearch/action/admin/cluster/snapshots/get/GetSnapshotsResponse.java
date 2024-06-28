@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.get;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
@@ -53,8 +54,9 @@ import java.util.Objects;
 /**
  * Get snapshots response
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetSnapshotsResponse extends ActionResponse implements ToXContentObject {
 
     @SuppressWarnings("unchecked")

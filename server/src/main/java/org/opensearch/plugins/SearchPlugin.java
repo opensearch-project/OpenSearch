@@ -551,8 +551,8 @@ public interface SearchPlugin {
         private final Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar;
         private final Class<?> valueSourceBuilderClass;
         @Deprecated
-        /** This is added for backward compatibility, you don't need to set it, as we use aggregationType instead of
-         * byte code
+        /* This is added for backward compatibility, you don't need to set it, as we use aggregationType instead of
+          byte code
          */
         private Byte byteCode;
         private final CompositeAggregationParsingFunction parsingFunction;

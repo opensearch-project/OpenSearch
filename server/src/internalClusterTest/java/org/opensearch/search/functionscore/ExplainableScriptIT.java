@@ -43,7 +43,6 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.Functions;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ScriptPlugin;
@@ -58,7 +57,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
@@ -83,10 +82,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
-public class ExplainableScriptIT extends ParameterizedOpenSearchIntegTestCase {
+public class ExplainableScriptIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ExplainableScriptIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ExplainableScriptIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -95,11 +94,6 @@ public class ExplainableScriptIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     public static class ExplainableScriptPlugin extends Plugin implements ScriptPlugin {

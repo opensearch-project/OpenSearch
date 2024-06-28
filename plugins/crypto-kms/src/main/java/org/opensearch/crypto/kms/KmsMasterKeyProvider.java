@@ -59,7 +59,10 @@ public class KmsMasterKeyProvider implements MasterKeyProvider {
     @Override
     public byte[] decryptKey(byte[] encryptedKey) {
         try (AmazonKmsClientReference clientReference = clientReferenceSupplier.get()) {
-            DecryptRequest decryptRequest = DecryptRequest.builder().ciphertextBlob(SdkBytes.fromByteArray(encryptedKey)).build();
+            DecryptRequest decryptRequest = DecryptRequest.builder()
+                .ciphertextBlob(SdkBytes.fromByteArray(encryptedKey))
+                .encryptionContext(encryptionContext)
+                .build();
             DecryptResponse decryptResponse = SocketAccess.doPrivileged(() -> clientReference.get().decrypt(decryptRequest));
             return decryptResponse.plaintext().asByteArray();
         }

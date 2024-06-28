@@ -32,6 +32,8 @@
 
 package org.opensearch.search.suggest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -54,7 +56,7 @@ import org.opensearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.opensearch.search.suggest.phrase.StupidBackoff;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.io.IOException;
@@ -73,6 +75,7 @@ import java.util.concurrent.ExecutionException;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.opensearch.search.suggest.SuggestBuilders.termSuggestion;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -92,7 +95,18 @@ import static org.hamcrest.Matchers.nullValue;
  * possible these tests should declare for the first request, make the request, modify the configuration for the next request, make that
  * request, modify again, request again, etc.  This makes it very obvious what changes between requests.
  */
-public class SuggestSearchIT extends OpenSearchIntegTestCase {
+public class SuggestSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+    public SuggestSearchIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {
@@ -267,6 +281,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
             index("test", "type1", Integer.toString(i), "text", "abc" + i);
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellchecker")).get();
         assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
@@ -349,6 +364,7 @@ public class SuggestSearchIT extends OpenSearchIntegTestCase {
         index("test", "type1", "3", "text", "abbd");
         index("test", "type1", "4", "text", "abcc");
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("text", "spellcecker")).get();
         assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());

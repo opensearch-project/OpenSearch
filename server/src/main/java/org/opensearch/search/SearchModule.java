@@ -37,9 +37,7 @@ import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.ShapesAvailability;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.ParseFieldRegistry;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -303,13 +301,6 @@ import static org.opensearch.threadpool.ThreadPool.Names.INDEX_SEARCHER;
  * @opensearch.internal
  */
 public class SearchModule {
-    public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(
-        "indices.query.bool.max_clause_count",
-        1024,
-        1,
-        Integer.MAX_VALUE,
-        Setting.Property.NodeScope
-    );
 
     private final Map<String, Highlighter> highlighters;
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
@@ -327,7 +318,7 @@ public class SearchModule {
 
     /**
      * Constructs a new SearchModule object
-     *
+     * <p>
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
      *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
      * @param settings Current settings
@@ -1095,7 +1086,6 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new, QueryStringQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(BoostingQueryBuilder.NAME, BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent));
-        BooleanQuery.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         registerQuery(new QuerySpec<>(BoolQueryBuilder.NAME, BoolQueryBuilder::new, BoolQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermsQueryBuilder.NAME, TermsQueryBuilder::new, TermsQueryBuilder::fromXContent));
@@ -1279,7 +1269,7 @@ public class SearchModule {
             }
         }
 
-        if (provider == null && FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
+        if (provider == null) {
             provider = (ThreadPool threadPool) -> threadPool.executor(INDEX_SEARCHER);
         }
         return provider;

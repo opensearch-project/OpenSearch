@@ -32,6 +32,7 @@
 
 package org.opensearch.script;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -44,8 +45,9 @@ import java.util.Objects;
 /**
  * Stats for a script context
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ScriptContextStats implements Writeable, ToXContentFragment, Comparable<ScriptContextStats> {
     private final String context;
     private final long compilations;

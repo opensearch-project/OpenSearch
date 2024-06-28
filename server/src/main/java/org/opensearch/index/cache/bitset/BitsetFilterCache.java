@@ -48,6 +48,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
@@ -85,8 +86,9 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.opensearch.index.cache.query.QueryCache} should be used instead.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class BitsetFilterCache extends AbstractIndexComponent
     implements
         IndexReader.ClosedListener,
@@ -195,8 +197,9 @@ public final class BitsetFilterCache extends AbstractIndexComponent
     /**
      * Value for bitset filter cache
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class Value {
 
         final BitSet bitset;

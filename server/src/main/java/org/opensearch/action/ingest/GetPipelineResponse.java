@@ -32,6 +32,7 @@
 
 package org.opensearch.action.ingest;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
@@ -57,8 +58,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * transport response for getting a pipeline
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetPipelineResponse extends ActionResponse implements StatusToXContentObject {
 
     private List<PipelineConfiguration> pipelines;

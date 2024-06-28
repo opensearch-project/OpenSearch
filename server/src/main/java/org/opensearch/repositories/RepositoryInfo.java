@@ -32,7 +32,7 @@
 
 package org.opensearch.repositories;
 
-import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -48,67 +48,31 @@ import java.util.Objects;
 /**
  * Information about a repository
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class RepositoryInfo implements Writeable, ToXContentFragment {
-    public final String ephemeralId;
     public final String name;
     public final String type;
     public final Map<String, String> location;
-    public final long startedAt;
-    @Nullable
-    public final Long stoppedAt;
 
-    public RepositoryInfo(String ephemeralId, String name, String type, Map<String, String> location, long startedAt) {
-        this(ephemeralId, name, type, location, startedAt, null);
-    }
-
-    public RepositoryInfo(
-        String ephemeralId,
-        String name,
-        String type,
-        Map<String, String> location,
-        long startedAt,
-        @Nullable Long stoppedAt
-    ) {
-        this.ephemeralId = ephemeralId;
+    public RepositoryInfo(String name, String type, Map<String, String> location) {
         this.name = name;
         this.type = type;
         this.location = location;
-        this.startedAt = startedAt;
-        if (stoppedAt != null && startedAt > stoppedAt) {
-            throw new IllegalArgumentException("createdAt must be before or equal to stoppedAt");
-        }
-        this.stoppedAt = stoppedAt;
     }
 
     public RepositoryInfo(StreamInput in) throws IOException {
-        this.ephemeralId = in.readString();
         this.name = in.readString();
         this.type = in.readString();
         this.location = in.readMap(StreamInput::readString, StreamInput::readString);
-        this.startedAt = in.readLong();
-        this.stoppedAt = in.readOptionalLong();
-    }
-
-    public RepositoryInfo stopped(long stoppedAt) {
-        assert isStopped() == false : "The repository is already stopped";
-
-        return new RepositoryInfo(ephemeralId, name, type, location, startedAt, stoppedAt);
-    }
-
-    public boolean isStopped() {
-        return stoppedAt != null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(ephemeralId);
         out.writeString(name);
         out.writeString(type);
         out.writeMap(location, StreamOutput::writeString, StreamOutput::writeString);
-        out.writeLong(startedAt);
-        out.writeOptionalLong(stoppedAt);
     }
 
     @Override
@@ -116,11 +80,6 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         builder.field("repository_name", name);
         builder.field("repository_type", type);
         builder.field("repository_location", location);
-        builder.field("repository_ephemeral_id", ephemeralId);
-        builder.field("repository_started_at", startedAt);
-        if (stoppedAt != null) {
-            builder.field("repository_stopped_at", stoppedAt);
-        }
         return builder;
     }
 
@@ -129,17 +88,12 @@ public final class RepositoryInfo implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RepositoryInfo that = (RepositoryInfo) o;
-        return ephemeralId.equals(that.ephemeralId)
-            && name.equals(that.name)
-            && type.equals(that.type)
-            && location.equals(that.location)
-            && startedAt == that.startedAt
-            && Objects.equals(stoppedAt, that.stoppedAt);
+        return name.equals(that.name) && type.equals(that.type) && location.equals(that.location);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ephemeralId, name, type, location, startedAt, stoppedAt);
+        return Objects.hash(name, type, location);
     }
 
     @Override

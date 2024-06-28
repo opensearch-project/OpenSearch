@@ -697,7 +697,8 @@ public class IndexShardTests extends IndexShardTestCase {
             (shard, listener) -> {},
             0L,
             Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build()
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(),
+            IndexShardTestUtils.getFakeDiscoveryNodes(primaryRouting)
         );
 
         /*
@@ -764,7 +765,8 @@ public class IndexShardTests extends IndexShardTestCase {
             },
                 0L,
                 Collections.singleton(indexShard.routingEntry().allocationId().getId()),
-                new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build()
+                new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build(),
+                IndexShardTestUtils.getFakeDiscoveryNodes(primaryRouting)
             );
             latch.await();
             assertThat(indexShard.getActiveOperationsCount(), is(oneOf(0, IndexShard.OPERATIONS_BLOCKED)));
@@ -1416,7 +1418,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard,
             indexShard.getPendingPrimaryTerm() + 1,
             globalCheckpoint,
-            randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo),
+            randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNoOfUpdatesOrDeletesBeforeRollback),
             new ActionListener<Releasable>() {
                 @Override
                 public void onResponse(Releasable releasable) {
@@ -1446,7 +1448,8 @@ public class IndexShardTests extends IndexShardTestCase {
             (s, r) -> resyncLatch.countDown(),
             1L,
             Collections.singleton(newRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(newRouting.shardId()).addShard(newRouting).build()
+            new IndexShardRoutingTable.Builder(newRouting.shardId()).addShard(newRouting).build(),
+            IndexShardTestUtils.getFakeDiscoveryNodes(newRouting)
         );
         resyncLatch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
@@ -1780,7 +1783,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         };
 
-        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory)) {
+        try (Store store = createStore(shardId, new IndexSettings(metadata, Settings.EMPTY), directory, shardPath)) {
             IndexShard shard = newShard(
                 shardRouting,
                 shardPath,
@@ -2745,6 +2748,7 @@ public class IndexShardTests extends IndexShardTestCase {
             AllocationId.newRelocation(routing.allocationId())
         );
         IndexShardTestCase.updateRoutingEntry(indexShard, routing);
+        indexDoc(indexShard, "_doc", "0");
         assertTrue(indexShard.isSyncNeeded());
         try {
             indexShard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
@@ -2849,6 +2853,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(source, "_doc", "1");
         indexDoc(source, "_doc", "2");
         source.refresh("test");
+        assertTrue("At lease one remote sync should have been completed", source.isRemoteSegmentStoreInSync());
         assertDocs(source, "1", "2");
         indexDoc(source, "_doc", "3");
         source.refresh("test");
@@ -2950,6 +2955,14 @@ public class IndexShardTests extends IndexShardTestCase {
                 new IndexId("test", UUIDs.randomBase64UUID(random()))
             )
         );
+
+        // Make sure to drain refreshes from the shard. Otherwise, if the refresh is in-progress, it overlaps with
+        // deletion of segment files in the subsequent code block.
+        for (ReferenceManager.RefreshListener refreshListener : target.getEngine().config().getInternalRefreshListener()) {
+            if (refreshListener instanceof ReleasableRetryableRefreshListener) {
+                ((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes();
+            }
+        }
 
         // Delete files in store directory to restore from remote directory
         Directory storeDirectory = target.store().directory();
@@ -3206,7 +3219,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener) {
+        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener, threadPool) {
             @Override
             public void indexTranslogOperations(
                 final List<Translog.Operation> operations,
@@ -3282,7 +3295,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(operations);
         primary.markAsRecovering(
             "store",
-            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+            new RecoveryState(primary.routingEntry(), IndexShardTestUtils.getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
         );
         recoverFromStore(primary);
 
@@ -3338,7 +3351,7 @@ public class IndexShardTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener) {
+        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener, threadPool) {
             @Override
             public void indexTranslogOperations(
                 final List<Translog.Operation> operations,
@@ -3395,7 +3408,7 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         assertListenerCalled.accept(replica);
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener) {
+        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, recoveryListener, threadPool) {
             // we're only checking that listeners are called when the engine is open, before there is no point
             @Override
             public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
@@ -4027,15 +4040,19 @@ public class IndexShardTests extends IndexShardTestCase {
         if (isPrimary) {
             newShard.markAsRecovering(
                 "store",
-                new RecoveryState(newShard.routingEntry(), getFakeDiscoNode(newShard.routingEntry().currentNodeId()), null)
+                new RecoveryState(
+                    newShard.routingEntry(),
+                    IndexShardTestUtils.getFakeDiscoNode(newShard.routingEntry().currentNodeId()),
+                    null
+                )
             );
         } else {
             newShard.markAsRecovering(
                 "peer",
                 new RecoveryState(
                     newShard.routingEntry(),
-                    getFakeDiscoNode(newShard.routingEntry().currentNodeId()),
-                    getFakeDiscoNode(newShard.routingEntry().currentNodeId())
+                    IndexShardTestUtils.getFakeDiscoNode(newShard.routingEntry().currentNodeId()),
+                    IndexShardTestUtils.getFakeDiscoNode(newShard.routingEntry().currentNodeId())
                 )
             );
         }
@@ -4910,6 +4927,8 @@ public class IndexShardTests extends IndexShardTestCase {
         tracker.addUploadBytesStarted(30L);
         tracker.addUploadBytesSucceeded(10L);
         tracker.addUploadBytesFailed(10L);
+        tracker.incrementRejectionCount();
+        tracker.incrementRejectionCount();
     }
 
     private void populateSampleRemoteTranslogStats(RemoteTranslogTransferTracker tracker) {
@@ -4943,5 +4962,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(remoteSegmentTransferTracker.getUploadBytesStarted(), remoteSegmentStats.getUploadBytesStarted());
         assertEquals(remoteSegmentTransferTracker.getUploadBytesSucceeded(), remoteSegmentStats.getUploadBytesSucceeded());
         assertEquals(remoteSegmentTransferTracker.getUploadBytesFailed(), remoteSegmentStats.getUploadBytesFailed());
+        assertTrue(remoteSegmentStats.getTotalRejections() > 0);
+        assertEquals(remoteSegmentTransferTracker.getRejectionCount(), remoteSegmentStats.getTotalRejections());
     }
 }

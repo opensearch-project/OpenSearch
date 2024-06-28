@@ -31,6 +31,8 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.cluster.metadata.RepositoryMetadata;
+
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.Map;
@@ -50,7 +52,51 @@ public interface BlobStore extends Closeable {
     /**
      * Returns statistics on the count of operations that have been performed on this blob store
      */
+    /**
+     * Returns statistics on the count of operations that have been performed on this blob store
+     */
     default Map<String, Long> stats() {
         return Collections.emptyMap();
     }
+
+    /**
+     * Returns details statistics of operations that have been performed on this blob store
+     */
+    default Map<Metric, Map<String, Long>> extendedStats() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Reload the blob store inplace
+     */
+    default void reload(RepositoryMetadata repositoryMetadata) {}
+
+    /**
+     * Returns a boolean indicating if blobStore has object metadata support enabled
+     */
+    default boolean isBlobMetadataEnabled() {
+        return false;
+    }
+
+    /**
+     * Metrics for BlobStore interactions
+     */
+    enum Metric {
+        GENERIC_STATS("generic_stats"),
+        REQUEST_SUCCESS("request_success_total"),
+        REQUEST_FAILURE("request_failures_total"),
+        REQUEST_LATENCY("request_time_in_millis"),
+        RETRY_COUNT("request_retry_count_total");
+
+        private String metricName;
+
+        Metric(String name) {
+            this.metricName = name;
+        }
+
+        public String metricName() {
+            return this.metricName;
+        }
+    }
+
 }

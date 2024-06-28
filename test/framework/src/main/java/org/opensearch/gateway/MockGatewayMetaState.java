@@ -67,6 +67,12 @@ public class MockGatewayMetaState extends GatewayMetaState {
     private final BigArrays bigArrays;
     private final RemoteClusterStateService remoteClusterStateService;
     private final RemoteStoreRestoreService remoteStoreRestoreService;
+    private boolean prepareFullState = false;
+
+    public MockGatewayMetaState(DiscoveryNode localNode, BigArrays bigArrays, boolean prepareFullState) {
+        this(localNode, bigArrays);
+        this.prepareFullState = prepareFullState;
+    }
 
     public MockGatewayMetaState(DiscoveryNode localNode, BigArrays bigArrays) {
         this.localNode = localNode;
@@ -99,8 +105,12 @@ public class MockGatewayMetaState extends GatewayMetaState {
 
     @Override
     ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
-        // Just set localNode here, not to mess with ClusterService and IndicesService mocking
-        return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
+        if (prepareFullState) {
+            return super.prepareInitialClusterState(transportService, clusterService, clusterState);
+        } else {
+            // Just set localNode here, not to mess with ClusterService and IndicesService mocking
+            return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
+        }
     }
 
     @Override
@@ -114,6 +124,16 @@ public class MockGatewayMetaState extends GatewayMetaState {
         NamedXContentRegistry xContentRegistry,
         PersistedStateRegistry persistedStateRegistry
     ) {
+        start(settings, nodeEnvironment, xContentRegistry, persistedStateRegistry, false);
+    }
+
+    public void start(
+        Settings settings,
+        NodeEnvironment nodeEnvironment,
+        NamedXContentRegistry xContentRegistry,
+        PersistedStateRegistry persistedStateRegistry,
+        boolean prepareFullState
+    ) {
         final TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         final ClusterService clusterService = mock(ClusterService.class);
@@ -126,6 +146,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
         } catch (IOException e) {
             throw new AssertionError(e);
         }
+        this.prepareFullState = prepareFullState;
         start(
             settings,
             transportService,

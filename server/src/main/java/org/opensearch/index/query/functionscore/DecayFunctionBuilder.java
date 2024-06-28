@@ -561,6 +561,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
             return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
+                public int advance(int target) throws IOException {
+                    return doubleValues.advance(target);
+                }
+
+                @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (doubleValues.advanceExact(docId)) {
                         int n = doubleValues.docValueCount();

@@ -12,8 +12,8 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
-import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Map;
@@ -40,6 +40,6 @@ public class SearchTaskStatsTests extends AbstractWireSerializingTestCase<Search
             new ElapsedTimeTracker.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
         );
 
-        return new SearchTaskStats(randomNonNegativeLong(), randomNonNegativeLong(), resourceUsageTrackerStats);
+        return new SearchTaskStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), resourceUsageTrackerStats);
     }
 }

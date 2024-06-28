@@ -39,11 +39,14 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.geometry.LinearRing;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -72,6 +75,35 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             randomNonNegativeLong(),
             randomBoolean()
         );
+    }
+
+    public void testClone() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest clonedRequest = searchRequest.deepCopy();
+        assertEquals(searchRequest.hashCode(), clonedRequest.hashCode());
+        assertNotSame(searchRequest, clonedRequest);
+
+        String[] includes = new String[] { "field1.*" };
+        String[] excludes = new String[] { "field2.*" };
+        FetchSourceContext fetchSourceContext = new FetchSourceContext(true, includes, excludes);
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(fetchSourceContext);
+        SearchRequest complexSearchRequest = createSearchRequest().source(source);
+        complexSearchRequest.requestCache(false);
+        complexSearchRequest.scroll(new TimeValue(1000));
+        SearchRequest clonedComplexRequest = complexSearchRequest.deepCopy();
+        assertEquals(complexSearchRequest.hashCode(), clonedComplexRequest.hashCode());
+        assertNotSame(complexSearchRequest, clonedComplexRequest);
+        assertEquals(fetchSourceContext, clonedComplexRequest.source().fetchSource());
+        assertNotSame(fetchSourceContext, clonedComplexRequest.source().fetchSource());
+        // Change the value of the original includes array and excludes array
+        includes[0] = "new_field1.*";
+        excludes[0] = "new_field2.*";
+        // Values in the original fetchSource object should be updated
+        assertEquals("new_field1.*", complexSearchRequest.source().fetchSource().includes()[0]);
+        assertEquals("new_field2.*", complexSearchRequest.source().fetchSource().excludes()[0]);
+        // Values in the cloned fetchSource object should not be updated
+        assertEquals("field1.*", clonedComplexRequest.source().fetchSource().includes()[0]);
+        assertEquals("field2.*", clonedComplexRequest.source().fetchSource().excludes()[0]);
     }
 
     public void testWithLocalReduction() {
@@ -245,6 +277,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
         mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
         mutators.add(
+            () -> mutation.setPhaseTook(searchRequest.isPhaseTook() == null ? randomBoolean() : searchRequest.isPhaseTook() == false)
+        );
+        mutators.add(
             () -> mutation.setCancelAfterTimeInterval(
                 searchRequest.getCancelAfterTimeInterval() != null
                     ? null
@@ -263,6 +298,19 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertThat(
             toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
             equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]")
+        );
+    }
+
+    public void testDescriptionOnSourceError() {
+        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
+        GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("geo", linearRing);
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().query(queryBuilder));
+        assertThat(
+            toDescription(request),
+            equalTo(
+                "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson>]"
+            )
         );
     }
 

@@ -78,6 +78,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.remote.RemoteStoreTestsHelper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexShardState;
@@ -153,7 +154,7 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
     /**
      * takes a request that was sent by a {@link TransportReplicationAction} and captured
      * and returns the underlying request if it's wrapped or the original (cast to the expected type).
-     *
+     * <p>
      * This will throw a {@link ClassCastException} if the request is of the wrong type.
      */
     public static <R extends ReplicationRequest> R resolveRequest(TransportRequest requestOrWrappedRequest) {
@@ -1318,7 +1319,8 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             namedWriteableRegistry,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            NoopTracer.INSTANCE
         );
         transportService = new MockTransportService(
             Settings.EMPTY,
@@ -1588,9 +1590,15 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService) {
+        return mockIndexShard(shardId, clusterService, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService, boolean remote) {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.state()).thenReturn(IndexShardState.STARTED);
+        when(indexShard.indexSettings()).thenReturn(RemoteStoreTestsHelper.createIndexSettings(remote));
         doAnswer(invocation -> {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
             if (isPrimaryMode.get()) {

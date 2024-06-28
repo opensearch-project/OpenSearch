@@ -61,9 +61,9 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
 
     private static final String TEMPLATE_LANG = MustacheScriptEngine.NAME;
 
-    private final ScriptService scriptService;
-    private final NamedXContentRegistry xContentRegistry;
-    private final NodeClient client;
+    protected final ScriptService scriptService;
+    protected final NamedXContentRegistry xContentRegistry;
+    protected final NodeClient client;
 
     @Inject
     public TransportSearchTemplateAction(
@@ -74,6 +74,20 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         NodeClient client
     ) {
         super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new);
+        this.scriptService = scriptService;
+        this.xContentRegistry = xContentRegistry;
+        this.client = client;
+    }
+
+    public TransportSearchTemplateAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NodeClient client
+    ) {
+        super(actionName, transportService, actionFilters, SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

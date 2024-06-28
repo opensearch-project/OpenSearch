@@ -33,6 +33,7 @@
 package org.opensearch.threadpool;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -49,15 +50,17 @@ import java.util.List;
 /**
  * Stats for a threadpool
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<ThreadPoolStats.Stats> {
 
     /**
      * The statistics.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Stats implements Writeable, ToXContentFragment, Comparable<Stats> {
 
         private final String name;
@@ -88,7 +91,7 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             rejected = in.readLong();
             largest = in.readInt();
             completed = in.readLong();
-            waitTimeNanos = in.getVersion().onOrAfter(Version.V_3_0_0) ? in.readLong() : -1;
+            waitTimeNanos = in.getVersion().onOrAfter(Version.V_2_11_0) ? in.readLong() : -1;
         }
 
         @Override
@@ -100,7 +103,7 @@ public class ThreadPoolStats implements Writeable, ToXContentFragment, Iterable<
             out.writeLong(rejected);
             out.writeInt(largest);
             out.writeLong(completed);
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
                 out.writeLong(waitTimeNanos);
             }
         }

@@ -50,6 +50,7 @@ import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 import org.opensearch.search.Scroll;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -86,10 +87,13 @@ public class RestSearchAction extends BaseRestHandler {
      */
     public static final String TOTAL_HITS_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
+    public static final String INCLUDE_NAMED_QUERIES_SCORE_PARAM = "include_named_queries_score";
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM));
+        final Set<String> responseParams = new HashSet<>(
+            Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM, INCLUDE_NAMED_QUERIES_SCORE_PARAM)
+        );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
@@ -180,6 +184,12 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
         }
 
+        if (request.hasParam("phase_took")) {
+            // only set if we have the parameter passed to override the cluster-level default
+            // else phaseTook = null
+            searchRequest.setPhaseTook(request.paramAsBoolean("phase_took", true));
+        }
+
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should
         // not be specified explicitly by the user.
@@ -203,6 +213,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.pipeline(request.param("search_pipeline"));
 
         checkRestTotalHits(request, searchRequest);
+        request.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
 
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request, namedWriteableRegistry);
@@ -225,13 +236,12 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.query(queryBuilder);
         }
 
-        int from = request.paramAsInt("from", -1);
-        if (from != -1) {
-            searchSourceBuilder.from(from);
+        if (request.hasParam("from")) {
+            searchSourceBuilder.from(request.paramAsInt("from", SearchService.DEFAULT_FROM));
         }
-        int size = request.paramAsInt("size", -1);
-        if (size != -1) {
-            setSize.accept(size);
+
+        if (request.hasParam("size")) {
+            setSize.accept(request.paramAsInt("size", SearchService.DEFAULT_SIZE));
         }
 
         if (request.hasParam("explain")) {
@@ -278,6 +288,10 @@ public class RestSearchAction extends BaseRestHandler {
 
         if (request.hasParam("track_scores")) {
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
+        }
+
+        if (request.hasParam("include_named_queries_score")) {
+            searchSourceBuilder.includeNamedQueriesScores(request.paramAsBoolean("include_named_queries_score", false));
         }
 
         if (request.hasParam("track_total_hits")) {

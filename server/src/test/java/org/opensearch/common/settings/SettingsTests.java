@@ -50,6 +50,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -64,7 +65,9 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -91,6 +94,15 @@ public class SettingsTests extends OpenSearchTestCase {
             .replacePropertyPlaceholders(name -> name.equals("HOSTNAME") ? hostname : name.equals("HOSTIP") ? hostip : null)
             .build();
         assertThat(settings.getAsList("setting1"), contains(hostname, hostip));
+    }
+
+    public void testReplacePropertiesPlaceholderSystemPropertyEmptyList() {
+        final Settings settings = Settings.builder()
+            .put("setting1", "${HOSTNAMES}")
+            .replacePropertyPlaceholders(name -> name.equals("HOSTNAMES") ? "[]" : null)
+            .build();
+        assertThat(settings.getAsList("setting1"), empty());
+        assertThat(settings.get("setting1"), equalTo("[]"));
     }
 
     public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {
@@ -603,6 +615,18 @@ public class SettingsTests extends OpenSearchTestCase {
         assertThat(settings.getAsList("test1.test3").size(), equalTo(2));
         assertThat(settings.getAsList("test1.test3").get(0), equalTo("test3-1"));
         assertThat(settings.getAsList("test1.test3").get(1), equalTo("test3-2"));
+        assertThat(settings.getAsList("test1.test4"), empty());
+    }
+
+    public void testYamlPlaceholder() throws IOException {
+        try (InputStream in = new ByteArrayInputStream("hosts: ${HOSTNAMES}".getBytes(StandardCharsets.UTF_8))) {
+            Settings settings = Settings.builder()
+                .loadFromStream("foo.yml", in, false)
+                .replacePropertyPlaceholders(name -> name.equals("HOSTNAMES") ? "[\"h1\", \"h2\"]" : null)
+                .build();
+            assertThat(settings.getAsList("hosts"), hasSize(2));
+            assertThat(settings.getAsList("hosts"), containsInAnyOrder("h1", "h2"));
+        }
     }
 
     public void testYamlLegacyList() throws IOException {

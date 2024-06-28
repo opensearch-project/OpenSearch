@@ -38,14 +38,16 @@ import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision.Type;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * {@link AllocationDecider} is an abstract base class that allows to make
  * dynamic cluster- or index-wide shard allocation decisions on a per-node
  * basis.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class AllocationDecider {
     /**
      * Returns a {@link Decision} whether the given shard routing can be
@@ -109,7 +111,7 @@ public abstract class AllocationDecider {
      * Returns a {@link Decision} whether the given primary shard can be
      * forcibly allocated on the given node. This method should only be called
      * for unassigned primary shards where the node has a shard copy on disk.
-     *
+     * <p>
      * Note: all implementations that override this behavior should take into account
      * the results of {@link #canAllocate(ShardRouting, RoutingNode, RoutingAllocation)}
      * before making a decision on force allocation, because force allocation should only

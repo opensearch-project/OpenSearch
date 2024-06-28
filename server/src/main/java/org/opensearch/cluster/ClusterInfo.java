@@ -34,6 +34,7 @@ package org.opensearch.cluster;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -56,8 +57,9 @@ import java.util.Set;
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterInfo implements ToXContentFragment, Writeable {
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -287,8 +289,9 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Represents the total amount of "reserved" space on a particular data path, together with the set of shards considered.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ReservedSpace implements Writeable {
 
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());

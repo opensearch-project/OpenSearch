@@ -36,6 +36,7 @@ import org.opensearch.action.ActionRequestBuilder;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.script.Script;
@@ -58,8 +59,9 @@ import java.util.List;
 /**
  * A search action request builder.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
     public SearchRequestBuilder(OpenSearchClient client, SearchAction action) {
@@ -362,6 +364,21 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Adds a derived field of a given type. The script provided will be used to derive the value
+     * of a given type. Thereafter, it can be treated as regular field of a given type to perform
+     * query on them.
+     *
+     * @param name   The name of the field to be used in various parts of the query. The name will also represent
+     *               the field value in the return hit.
+     * @param type   The type of derived field. All values emitted by script must be of this type
+     * @param script The script to use
+     */
+    public SearchRequestBuilder addDerivedField(String name, String type, Script script) {
+        sourceBuilder().derivedField(name, type, script);
+        return this;
+    }
+
+    /**
      * Adds a sort against the given field name and the sort ordering.
      *
      * @param field The name of the field
@@ -401,6 +418,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setTrackScores(boolean trackScores) {
         sourceBuilder().trackScores(trackScores);
+        return this;
+    }
+
+    /**
+     * Applies when fetching scores with named queries, and controls if scores will be tracked as well.
+     * Defaults to {@code false}.
+     */
+    public SearchRequestBuilder setIncludeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        sourceBuilder().includeNamedQueriesScores(includeNamedQueriesScore);
         return this;
     }
 
@@ -605,7 +631,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
      * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
      * bounds and the query are disjoint.
-     *
+     * <p>
      * When unspecified, the pre-filter phase is executed if any of these conditions is met:
      * <ul>
      * <li>The request targets more than 128 shards</li>

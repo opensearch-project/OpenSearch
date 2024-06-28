@@ -34,6 +34,7 @@ package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
@@ -52,8 +53,9 @@ import java.util.Map;
 /**
  * Transport response to get field mappings.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");

@@ -54,7 +54,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHAR
 /**
  * This class contains the logic used to check the cluster-wide shard limit before shards are created and ensuring that the limit is
  * updated correctly on setting updates, etc.
- *
+ * <p>
  * NOTE: This is the limit applied at *shard creation time*. If you are looking for the limit applied at *allocation* time, which is
  * controlled by a different setting,
  * see {@link org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider}.
@@ -261,14 +261,15 @@ public class ShardLimitValidator {
             return Optional.empty();
         }
 
+        int computedMaxShards = (int) Math.min(Integer.MAX_VALUE, (long) maxShardsPerNodeSetting * nodeCount);
         int maxShardsInCluster = maxShardsPerClusterSetting;
         if (maxShardsInCluster == -1) {
-            maxShardsInCluster = maxShardsPerNodeSetting * nodeCount;
+            maxShardsInCluster = computedMaxShards;
         } else {
-            maxShardsInCluster = Math.min(maxShardsInCluster, maxShardsPerNodeSetting * nodeCount);
+            maxShardsInCluster = Math.min(maxShardsInCluster, computedMaxShards);
         }
 
-        int currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
+        long currentOpenShards = state.getMetadata().getTotalOpenIndexShards();
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
             String errorMessage = "this action would add ["
                 + newShards

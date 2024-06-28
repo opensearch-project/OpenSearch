@@ -33,6 +33,7 @@
 package org.opensearch.index.seqno;
 
 import org.opensearch.action.support.replication.ReplicationResponse;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
@@ -44,6 +45,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "1.0.0")
 public class RetentionLeaseSyncer {
     private final SyncAction syncAction;
     private final BackgroundSyncAction backgroundSyncAction;

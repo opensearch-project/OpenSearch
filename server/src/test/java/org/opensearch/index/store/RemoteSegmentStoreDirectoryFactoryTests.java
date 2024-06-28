@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 
 import org.mockito.ArgumentCaptor;
 
+import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -78,7 +79,12 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
             latchedActionListener.onResponse(List.of());
             return null;
         }).when(blobContainer)
-            .listBlobsByPrefixInSortedOrder(any(), eq(1), eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC), any(ActionListener.class));
+            .listBlobsByPrefixInSortedOrder(
+                any(),
+                eq(METADATA_FILES_TO_FETCH),
+                eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
+                any(ActionListener.class)
+            );
 
         when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
 
@@ -93,7 +99,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
 
             verify(blobContainer).listBlobsByPrefixInSortedOrder(
                 eq(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX),
-                eq(1),
+                eq(METADATA_FILES_TO_FETCH),
                 eq(BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC),
                 any()
             );

@@ -102,7 +102,7 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
 
     /**
      *  A special cache that closes the gap between PreBuiltAnalyzers and PreBuiltAnalyzerProviderFactory.
-     *
+     * <p>
      *  This can be removed when all analyzers have been moved away from PreBuiltAnalyzers to
      *  PreBuiltAnalyzerProviderFactory either in server or analysis-common.
      *

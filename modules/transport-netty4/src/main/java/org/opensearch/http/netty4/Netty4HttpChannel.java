@@ -40,11 +40,13 @@ import org.opensearch.http.HttpResponse;
 import org.opensearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
+import java.util.Optional;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
 
 public class Netty4HttpChannel implements HttpChannel {
+    private static final String CHANNEL_PROPERTY = "channel";
 
     private final Channel channel;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
@@ -96,6 +98,26 @@ public class Netty4HttpChannel implements HttpChannel {
 
     public Channel getNettyChannel() {
         return channel;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        if (CHANNEL_PROPERTY.equalsIgnoreCase(name) && clazz.isAssignableFrom(Channel.class)) {
+            return (Optional<T>) Optional.of(getNettyChannel());
+        }
+
+        Object handler = getNettyChannel().pipeline().get(name);
+
+        if (handler == null && inboundPipeline() != null) {
+            handler = inboundPipeline().get(name);
+        }
+
+        if (handler != null && clazz.isInstance(handler) == true) {
+            return Optional.of((T) handler);
+        }
+
+        return Optional.empty();
     }
 
     @Override

@@ -41,6 +41,11 @@ public final class AttributeNames {
     public static final String HTTP_URI = "http.uri";
 
     /**
+     * Http Request Query Parameters.
+     */
+    public static final String HTTP_REQ_QUERY_PARAMS = "url.query";
+
+    /**
      * Rest Request ID.
      */
     public static final String REST_REQ_ID = "rest.request_id";
@@ -61,7 +66,52 @@ public final class AttributeNames {
     public static final String TRANSPORT_TARGET_HOST = "target_host";
 
     /**
+     * Transport Service send request local host.
+     */
+    public static final String TRANSPORT_HOST = "host";
+
+    /**
      * Action Name.
      */
     public static final String TRANSPORT_ACTION = "action";
+
+    /**
+     * Task id
+     */
+    public static final String TASK_ID = "task_id";
+
+    /**
+     * Parent task id
+     */
+    public static final String PARENT_TASK_ID = "parent_task_id";
+
+    /**
+     * Index Name
+     */
+    public static final String INDEX = "index";
+
+    /**
+     * Shard ID
+     */
+    public static final String SHARD_ID = "shard_id";
+
+    /**
+     * Number of request items in bulk request
+     */
+    public static final String BULK_REQUEST_ITEMS = "bulk_request_items";
+
+    /**
+     * Node ID
+     */
+    public static final String NODE_ID = "node_id";
+
+    /**
+     * Refresh Policy
+     */
+    public static final String REFRESH_POLICY = "refresh_policy";
+
+    /**
+     * Search Response Total Hits
+     */
+    public static final String TOTAL_HITS = "total_hits";
 }

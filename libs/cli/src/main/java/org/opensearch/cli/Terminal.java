@@ -44,7 +44,7 @@ import java.util.Locale;
 
 /**
  * A Terminal wraps access to reading input and writing output for a cli.
- *
+ * <p>
  * The available methods are similar to those of {@link Console}, with the ability
  * to read either normal text or a password, and the ability to print a line
  * of text. Printing is also gated by the {@link Verbosity} of the terminal,

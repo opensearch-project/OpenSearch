@@ -42,6 +42,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -64,6 +66,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -252,7 +255,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         );
     }
 
-    public void testFsRepositoryCompressDeprecated() {
+    public void testFsRepositoryCompressDeprecatedIgnored() {
         final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
         final Settings settings = Settings.builder().put(node().settings()).put("location", location).build();
         final RepositoryMetadata metadata = new RepositoryMetadata("test-repo", REPO_TYPE, settings);
@@ -265,10 +268,7 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
 
         new FsRepository(metadata, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService(), null);
 
-        assertWarnings(
-            "[repositories.fs.compress] setting was deprecated in OpenSearch and will be removed in a future release!"
-                + " See the breaking changes documentation for the next major version."
-        );
+        assertNoDeprecationWarnings();
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
@@ -321,4 +321,31 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
         return repoData;
     }
 
+    private String getShardIdentifier(String indexUUID, String shardId) {
+        return String.join("/", indexUUID, shardId);
+    }
+
+    public void testRemoteStoreShardCleanupTask() {
+        AtomicBoolean executed1 = new AtomicBoolean(false);
+        Runnable task1 = () -> executed1.set(true);
+        String indexName = "test-idx";
+        String testIndexUUID = "test-idx-uuid";
+        ShardId shardId = new ShardId(new Index(indexName, testIndexUUID), 0);
+
+        // just adding random shards in ongoing cleanups.
+        RemoteStoreShardCleanupTask.ongoingRemoteDirectoryCleanups.add(getShardIdentifier(testIndexUUID, "1"));
+        RemoteStoreShardCleanupTask.ongoingRemoteDirectoryCleanups.add(getShardIdentifier(testIndexUUID, "2"));
+
+        // Scenario 1: ongoing = false => executed
+        RemoteStoreShardCleanupTask remoteStoreShardCleanupTask = new RemoteStoreShardCleanupTask(task1, testIndexUUID, shardId);
+        remoteStoreShardCleanupTask.run();
+        assertTrue(executed1.get());
+
+        // Scenario 2: ongoing = true => currentTask skipped.
+        executed1.set(false);
+        RemoteStoreShardCleanupTask.ongoingRemoteDirectoryCleanups.add(getShardIdentifier(testIndexUUID, "0"));
+        remoteStoreShardCleanupTask = new RemoteStoreShardCleanupTask(task1, testIndexUUID, shardId);
+        remoteStoreShardCleanupTask.run();
+        assertFalse(executed1.get());
+    }
 }

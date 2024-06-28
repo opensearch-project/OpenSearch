@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -56,6 +58,7 @@ import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -78,6 +81,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.avg;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
@@ -93,7 +97,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DateHistogramIT extends OpenSearchIntegTestCase {
+public class DateHistogramIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static Map<ZonedDateTime, Map<String, Object>> expectedMultiSortBuckets;
 
@@ -101,8 +105,20 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         return ZonedDateTime.of(2012, month, day, 0, 0, 0, 0, ZoneOffset.UTC);
     }
 
+    public DateHistogramIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
+
     private ZonedDateTime date(String date) {
-        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
+        return DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date));
     }
 
     private static String format(ZonedDateTime date, String pattern) {
@@ -161,9 +177,9 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
                 indexDoc(2, 15, 3), // date: Feb 15, dates: Feb 15, Mar 16
                 indexDoc(3, 2, 4),  // date: Mar 2, dates: Mar 2, Apr 3
                 indexDoc(3, 15, 5), // date: Mar 15, dates: Mar 15, Apr 16
-                indexDoc(3, 23, 6)
+                indexDoc(3, 23, 6)  // date: Mar 23, dates: Mar 23, Apr 24
             )
-        ); // date: Mar 23, dates: Mar 23, Apr 24
+        );
         indexRandom(true, builders);
         ensureSearchable();
     }
@@ -1459,7 +1475,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
     /**
      * https://github.com/elastic/elasticsearch/issues/31760 shows an edge case where an unmapped "date" field in two indices
      * that are queried simultaneously can lead to the "format" parameter in the aggregation not being preserved correctly.
-     *
+     * <p>
      * The error happens when the bucket from the "unmapped" index is received first in the reduce phase, however the case can
      * be recreated when aggregating about a single index with an unmapped date field and also getting "empty" buckets.
      */
@@ -1602,8 +1618,8 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get()
         );
-        String date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(1, 1));
-        String date2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(date(2, 1));
+        String date = DateFieldMapper.getDefaultDateTimeFormatter().format(date(1, 1));
+        String date2 = DateFieldMapper.getDefaultDateTimeFormatter().format(date(2, 1));
         indexRandom(
             true,
             client().prepareIndex("cache_test_idx").setId("1").setSource("d", date),
@@ -1733,6 +1749,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        cluster().wipeIndices("cache_test_idx");
     }
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndKeyDesc() throws Exception {
@@ -1850,6 +1867,7 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
         assertEquals(1, buckets.get(0).getDocCount());
         assertEquals(946771200000L, ((ZonedDateTime) buckets.get(1).getKey()).toEpochSecond() * 1000);
         assertEquals(1, buckets.get(1).getDocCount());
+        cluster().wipeIndices("nanos");
     }
 
     public void testDateKeyFormatting() {

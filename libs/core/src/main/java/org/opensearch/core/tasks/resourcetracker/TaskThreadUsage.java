@@ -8,6 +8,7 @@
 
 package org.opensearch.core.tasks.resourcetracker;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -29,8 +30,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
  * Writeable TaskThreadExecutions objects are used to represent thread related resource usage of running tasks.
  * asd
  *
- * @opensearch.internal
+ *  @opensearch.api
  */
+@PublicApi(since = "2.1.0")
 public class TaskThreadUsage implements Writeable, ToXContentFragment {
 
     private static final String THREAD_EXECUTIONS = "thread_executions";

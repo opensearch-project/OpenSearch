@@ -32,6 +32,7 @@
 
 package org.opensearch.index.seqno;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -51,8 +52,9 @@ import java.util.Objects;
  * otherwise merge away operations that have been soft deleted). Each retention lease contains a unique identifier, the retaining sequence
  * number, the timestamp of when the lease was created or renewed, and the source of the retention lease (e.g., "ccr").
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class RetentionLease implements ToXContentObject, Writeable {
 
     private final String id;

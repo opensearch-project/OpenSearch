@@ -165,6 +165,7 @@ import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.NodeRoles.onlyRoles;
 import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.opensearch.test.OpenSearchTestCase.assertBusy;
+import static org.opensearch.test.OpenSearchTestCase.randomBoolean;
 import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -216,7 +217,8 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.node.settings()
     );
 
-    private static final ByteSizeValue DEFAULT_SEARCH_CACHE_SIZE = new ByteSizeValue(2, ByteSizeUnit.GB);
+    private static final String DEFAULT_SEARCH_CACHE_SIZE_BYTES = "2gb";
+    private static final String DEFAULT_SEARCH_CACHE_SIZE_PERCENT = "5%";
 
     public static final int DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES = 3;
@@ -700,8 +702,10 @@ public final class InternalTestCluster extends TestCluster {
             logger.info("increasing cluster size from {} to {}", size, n);
             Set<DiscoveryNodeRole> searchAndDataRoles = Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
             Settings settings = Settings.builder()
-                .put(Settings.EMPTY)
-                .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), DEFAULT_SEARCH_CACHE_SIZE)
+                .put(
+                    Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(),
+                    randomBoolean() ? DEFAULT_SEARCH_CACHE_SIZE_PERCENT : DEFAULT_SEARCH_CACHE_SIZE_BYTES
+                )
                 .build();
             startNodes(n - size, Settings.builder().put(onlyRoles(settings, searchAndDataRoles)).build());
             validateClusterFormed();
@@ -1816,7 +1820,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops any of the current nodes but not the cluster-manager node.
      */
-    public synchronized void stopRandomNonClusterManagerNode() throws IOException {
+    public synchronized void stopRandomNodeNotCurrentClusterManager() throws IOException {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getClusterManagerName()).negate());
         if (nodeAndClient != null) {
             logger.info(
@@ -1841,11 +1845,11 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops any of the current nodes but not the cluster-manager node.
      *
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #stopRandomNonClusterManagerNode()}
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #stopRandomNodeNotCurrentClusterManager()}
      */
     @Deprecated
-    public synchronized void stopRandomNonMasterNode() throws IOException {
-        stopRandomNonClusterManagerNode();
+    public synchronized void stopRandomNodeNotCurrentMaster() throws IOException {
+        stopRandomNodeNotCurrentClusterManager();
     }
 
     /**
@@ -1853,20 +1857,34 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void stopAllNodes() {
         try {
-            int totalDataNodes = numDataNodes();
-            while (totalDataNodes > 0) {
-                stopRandomDataNode();
-                totalDataNodes -= 1;
+            if (numDataAndClusterManagerNodes() != numClusterManagerNodes()) {
+                int totalDataNodes = numDataNodes();
+                while (totalDataNodes > 0) {
+                    stopRandomDataNode();
+                    totalDataNodes -= 1;
+                }
             }
             int totalClusterManagerNodes = numClusterManagerNodes();
             while (totalClusterManagerNodes > 1) {
-                stopRandomNonClusterManagerNode();
+                stopRandomNodeNotCurrentClusterManager();
                 totalClusterManagerNodes -= 1;
             }
             stopCurrentClusterManagerNode();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Replace all nodes by stopping all current node and starting new node.
+     * Used for remote store test cases, where remote state is restored.
+     */
+    public void resetCluster() {
+        int totalClusterManagerNodes = numClusterManagerNodes();
+        int totalDataNodes = numDataNodes();
+        stopAllNodes();
+        startClusterManagerOnlyNodes(totalClusterManagerNodes);
+        startDataOnlyNodes(totalDataNodes);
     }
 
     private synchronized void startAndPublishNodesAndClients(List<NodeAndClient> nodeAndClients) {
@@ -2698,6 +2716,11 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
                     false,
                     false,
                     false,

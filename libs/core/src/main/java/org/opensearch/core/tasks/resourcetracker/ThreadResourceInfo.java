@@ -8,14 +8,17 @@
 
 package org.opensearch.core.tasks.resourcetracker;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Resource consumption information about a particular execution of thread.
  * <p>
  * It captures the resource usage information about a particular execution of thread
  * for a specific stats type like worker_stats or response_stats etc.,
  *
- * @opensearch.internal
+ *  @opensearch.api
  */
+@PublicApi(since = "2.1.0")
 public class ThreadResourceInfo {
     private final long threadId;
     private volatile boolean isActive = true;

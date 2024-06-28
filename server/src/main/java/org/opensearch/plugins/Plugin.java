@@ -121,7 +121,7 @@ public abstract class Plugin implements Closeable {
 
     /**
      * Returns components added by this plugin.
-     *
+     * <p>
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
      * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
      * to themselves.
@@ -268,5 +268,14 @@ public abstract class Plugin implements Closeable {
      */
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns the {@link SecureSettingsFactory} instance that could be used to configure the
+     * security related components (fe. transports)
+     * @return the {@link SecureSettingsFactory} instance
+     */
+    public Optional<SecureSettingsFactory> getSecureSettingFactory(Settings settings) {
+        return Optional.empty();
     }
 }

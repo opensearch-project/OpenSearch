@@ -90,7 +90,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     protected PackedLongValues.Builder docDeltasBuilder;
     protected PackedLongValues.Builder bucketsBuilder;
     protected long maxBucket = -1;
-    protected boolean finished = false;
+    protected boolean finished;
     protected LongHash selectedBuckets;
 
     /**
@@ -101,6 +101,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     public BestBucketsDeferringCollector(SearchContext context, boolean isGlobal) {
         this.searchContext = context;
         this.isGlobal = isGlobal;
+        // a postCollection call is not made by the IndexSearcher when there are no segments.
+        // In this case init the collector as finished.
+        this.finished = context.searcher().getLeafContexts().isEmpty();
     }
 
     @Override
@@ -121,6 +124,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         if (context != null) {
             assert docDeltasBuilder != null && bucketsBuilder != null;
             entries.add(new Entry(context, docDeltasBuilder.build(), bucketsBuilder.build()));
+            context = null;
         }
     }
 
@@ -158,6 +162,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     @Override
     public void postCollection() throws IOException {
+        assert searchContext.searcher().getLeafContexts().isEmpty() || finished != true;
         finishLeaf();
         finished = true;
     }

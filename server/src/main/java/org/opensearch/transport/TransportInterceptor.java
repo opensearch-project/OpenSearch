@@ -35,6 +35,7 @@ package org.opensearch.transport;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 
 /**
  * This interface allows plugins to intercept requests on both the sender and the receiver side.
@@ -55,6 +56,19 @@ public interface TransportInterceptor {
         TransportRequestHandler<T> actualHandler
     ) {
         return actualHandler;
+    }
+
+    /**
+     * This is called for handlers that needs admission control support
+     */
+    default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+        String action,
+        String executor,
+        boolean forceExecution,
+        TransportRequestHandler<T> actualHandler,
+        AdmissionControlActionType admissionControlActionType
+    ) {
+        return interceptHandler(action, executor, forceExecution, actualHandler);
     }
 
     /**

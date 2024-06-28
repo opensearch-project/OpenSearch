@@ -70,7 +70,6 @@ dependencies {
   api "software.amazon.awssdk:sts:${versions.aws}"
   api "software.amazon.awssdk:netty-nio-client:${versions.aws}"
 
-  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
@@ -578,11 +577,14 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
     'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
   )
 }
 

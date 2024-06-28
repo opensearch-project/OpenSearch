@@ -32,6 +32,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -53,12 +55,14 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -69,6 +73,7 @@ import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.scriptedMetric;
@@ -87,9 +92,21 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @ClusterScope(scope = Scope.SUITE)
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class ScriptedMetricIT extends OpenSearchIntegTestCase {
+public class ScriptedMetricIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static long numDocs;
+
+    public ScriptedMetricIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -1378,6 +1395,7 @@ public class ScriptedMetricIT extends OpenSearchIntegTestCase {
                 .getMissCount(),
             equalTo(2L)
         );
+        internalCluster().wipeIndices("cache_test_idx");
     }
 
     public void testConflictingAggAndScriptParams() {

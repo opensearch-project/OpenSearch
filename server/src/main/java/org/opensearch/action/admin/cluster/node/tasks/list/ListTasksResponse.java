@@ -39,6 +39,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -64,8 +65,9 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 /**
  * Returns the list of tasks currently running on the nodes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ListTasksResponse extends BaseTasksResponse implements ToXContentObject {
     private static final String TASKS = "tasks";
 

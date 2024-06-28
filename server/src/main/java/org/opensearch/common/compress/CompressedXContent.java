@@ -32,6 +32,7 @@
 
 package org.opensearch.common.compress;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -57,8 +58,9 @@ import java.util.zip.CheckedOutputStream;
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class CompressedXContent {
 
     private static int crc32(BytesReference data) {

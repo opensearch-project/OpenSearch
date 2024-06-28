@@ -213,7 +213,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Traverses the json tree of the valid query provided as argument and mutates it one or more times by adding one object within each
      * object encountered.
-     *
+     * <p>
      * For instance given the following valid term query:
      * {
      *     "term" : {
@@ -222,7 +222,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      *         }
      *     }
      * }
-     *
+     * <p>
      * The following two mutations will be generated, and an exception is expected when trying to parse them:
      * {
      *     "term" : {
@@ -233,7 +233,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      *         }
      *     }
      * }
-     *
+     * <p>
      * {
      *     "term" : {
      *         "field" : {
@@ -243,7 +243,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      *         }
      *     }
      * }
-     *
+     * <p>
      * Every mutation is then added to the list of results with a boolean flag indicating if a parsing exception is expected or not
      * for the mutation. Some specific objects do not cause any exception as they can hold arbitrary content; they are passed using the
      * arbitraryMarkers parameter.
@@ -768,7 +768,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Call this method to check a valid json string representing the query under test against
      * it's generated json.
-     *
+     * <p>
      * Note: By the time of this writing (Nov 2015) all queries are taken from the query dsl
      * reference docs mirroring examples there. Here's how the queries were generated:
      *

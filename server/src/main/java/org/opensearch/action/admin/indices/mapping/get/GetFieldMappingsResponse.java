@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionResponse;
@@ -51,6 +52,7 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -61,12 +63,13 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should go to that client class as well.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
@@ -114,6 +117,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             String index = in.readString();
             if (in.getVersion().before(Version.V_2_0_0)) {
                 int typesSize = in.readVInt();
+                // if the requested field doesn't exist, type size in the received response from 1.x node is 0
+                if (typesSize == 0) {
+                    indexMapBuilder.put(index, Collections.emptyMap());
+                    continue;
+                }
                 if (typesSize != 1) {
                     throw new IllegalStateException("Expected single type but received [" + typesSize + "]");
                 }
@@ -178,8 +186,9 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     /**
      * Metadata for field mappings for toXContent
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class FieldMappingMetadata implements ToXContentFragment {
 
         private static final ParseField FULL_NAME = new ParseField("full_name");

@@ -10,6 +10,7 @@ package org.opensearch.action.admin.cluster.decommission.awareness.get;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.decommission.DecommissionStatus;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -26,8 +27,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * Response for decommission status
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.4.0")
 public class GetDecommissionStateResponse extends ActionResponse implements ToXContentObject {
 
     private String attributeValue;

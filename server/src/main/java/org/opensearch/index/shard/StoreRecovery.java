@@ -191,6 +191,9 @@ final class StoreRecovery {
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
                     indexShard.getEngine().forceMerge(false, -1, false, false, false, UUIDs.randomBase64UUID());
+                    if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                        indexShard.waitForRemoteStoreSync();
+                    }
                     return true;
                 } catch (IOException ex) {
                     throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
@@ -399,7 +402,13 @@ final class StoreRecovery {
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,
-                    String.valueOf(shardId.id())
+                    shardId,
+                    shallowCopyShardMetadata.getRemoteStorePathStrategy()
+                );
+                sourceRemoteDirectory.initializeToSpecificCommit(
+                    primaryTerm,
+                    commitGeneration,
+                    recoverySource.snapshot().getSnapshotId().getUUID()
                 );
                 indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, sourceRemoteDirectory, primaryTerm, commitGeneration);
                 final Store store = indexShard.store();
@@ -418,6 +427,9 @@ final class StoreRecovery {
                 }
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
+                if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                    indexShard.waitForRemoteStoreSync();
+                }
                 indexShard.postRecovery("restore done");
 
                 listener.onResponse(true);
@@ -536,7 +548,6 @@ final class StoreRecovery {
         try {
             // Download segments from remote segment store
             indexShard.syncSegmentsFromRemoteSegmentStore(true);
-
             indexShard.syncTranslogFilesFromRemoteTranslog();
 
             // On index creation, the only segment file that is created is segments_N. We can safely discard this file
@@ -639,6 +650,14 @@ final class StoreRecovery {
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
             }
             indexShard.openEngineAndRecoverFromTranslog();
+            if (indexShard.shouldSeedRemoteStore()) {
+                indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    logger.info("Attempting to seed Remote Store via local recovery for {}", indexShard.shardId());
+                    indexShard.refresh("remote store migration");
+                });
+                indexShard.waitForRemoteStoreSync();
+                logger.info("Remote Store is now seeded via local recovery for {}", indexShard.shardId());
+            }
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
@@ -698,6 +717,9 @@ final class StoreRecovery {
             }
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
+            if (indexShard.isRemoteTranslogEnabled() && indexShard.shardRouting.primary()) {
+                indexShard.waitForRemoteStoreSync();
+            }
             indexShard.postRecovery("restore done");
             listener.onResponse(true);
         }, e -> listener.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e)));

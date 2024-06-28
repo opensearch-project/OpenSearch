@@ -32,6 +32,7 @@
 
 package org.opensearch.core.common.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -47,8 +48,9 @@ import java.net.UnknownHostException;
 /**
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class TransportAddress implements Writeable, ToXContentFragment {
 
     /**
@@ -71,6 +73,12 @@ public final class TransportAddress implements Writeable, ToXContentFragment {
         this(new InetSocketAddress(address, port));
     }
 
+    /**
+     * Creates a new {@link TransportAddress} from a {@link InetSocketAddress}.
+     * @param address the address to wrap
+     * @throws IllegalArgumentException if the address is null or not resolved
+     * @see InetSocketAddress#getAddress()
+     */
     public TransportAddress(InetSocketAddress address) {
         if (address == null) {
             throw new IllegalArgumentException("InetSocketAddress must not be null");
@@ -82,7 +90,9 @@ public final class TransportAddress implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Read from a stream.
+     * Creates a new {@link TransportAddress} from a {@link StreamInput}.
+     * @param in the stream to read from
+     * @throws IOException if an I/O error occurs
      */
     public TransportAddress(StreamInput in) throws IOException {
         final int len = in.readByte();
@@ -116,6 +126,8 @@ public final class TransportAddress implements Writeable, ToXContentFragment {
 
     /**
      * Returns the addresses port
+     * @return the port number, or 0 if the socket is not bound yet.
+     * @see InetSocketAddress#getPort()
      */
     public int getPort() {
         return address.getPort();

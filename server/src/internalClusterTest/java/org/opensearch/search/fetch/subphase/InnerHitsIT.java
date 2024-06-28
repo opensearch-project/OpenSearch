@@ -41,7 +41,6 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.BoolQueryBuilder;
@@ -58,7 +57,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -88,10 +87,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
+public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public InnerHitsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public InnerHitsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -100,11 +99,6 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -897,6 +891,7 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         refresh();
+        indexRandomForConcurrentSearch("index1");
 
         // the field name (comments.message) used for source filtering should be the same as when using that field for
         // other features (like in the query dsl or aggs) in order for consistency:
@@ -973,6 +968,7 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("index1").setId("1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
+        indexRandomForConcurrentSearch("index1", "index2");
 
         SearchResponse response = client().prepareSearch("index1", "index2")
             .setQuery(
@@ -1002,6 +998,7 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
+        indexRandomForConcurrentSearch("index2");
         QueryBuilder query = nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
             new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)
         );
@@ -1019,6 +1016,7 @@ public class InnerHitsIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .setRefreshPolicy(IMMEDIATE)
             .get();
+        indexRandomForConcurrentSearch("index2");
         SearchResponse response = client().prepareSearch("index2")
             .setQuery(
                 nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(

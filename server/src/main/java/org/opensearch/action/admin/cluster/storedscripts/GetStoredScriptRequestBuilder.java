@@ -34,12 +34,14 @@ package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Transport request builder for getting stored script
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetStoredScriptRequestBuilder extends ClusterManagerNodeReadOperationRequestBuilder<
     GetStoredScriptRequest,
     GetStoredScriptResponse,

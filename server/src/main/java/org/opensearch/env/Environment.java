@@ -249,7 +249,7 @@ public class Environment {
 
     /**
      * Resolves the specified location against the list of configured repository roots
-     *
+     * <p>
      * If the specified location doesn't match any of the roots, returns null.
      */
     public Path resolveRepoFile(String location) {
@@ -259,7 +259,7 @@ public class Environment {
     /**
      * Checks if the specified URL is pointing to the local file system and if it does, resolves the specified url
      * against the list of configured repository roots
-     *
+     * <p>
      * If the specified url doesn't match any of the roots, returns null.
      */
     public URL resolveRepoURL(URL url) {

@@ -75,7 +75,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * This set is used to track the insertions before we convert over to an approximate
      * filter. This gives us 100% accuracy for small cardinalities.  This will be null
      * if isSetMode = false;
-     *
+     * <p>
      * package-private for testing
      */
     Set<Long> hashes;
@@ -178,7 +178,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
 
     /**
      * Registers a circuit breaker with the datastructure.
-     *
+     * <p>
      * CuckooFilter's can "saturate" and refuse to accept any new values.  When this happens,
      * the datastructure scales by adding a new filter.  This new filter's bytes will be tracked
      * in the registered breaker when configured.

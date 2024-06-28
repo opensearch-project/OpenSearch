@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * Service Provider Interface for plugins, modules, extensions providing custom
  * compression algorithms
- *
+ * <p>
  * see {@link Compressor} for implementing methods
  * and {@link org.opensearch.core.compress.CompressorRegistry} for the registration of custom
  * Compressors

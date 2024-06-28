@@ -34,6 +34,7 @@ package org.opensearch.index.get;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
@@ -68,6 +69,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
 
     public static final String _INDEX = "_index";

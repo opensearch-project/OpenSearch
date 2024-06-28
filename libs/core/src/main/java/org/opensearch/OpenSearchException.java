@@ -33,6 +33,7 @@ package org.opensearch;
 
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
@@ -69,8 +70,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 /**
  * A core library base class for all opensearch exceptions.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class OpenSearchException extends RuntimeException implements Writeable, ToXContentFragment {
 
     protected static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
@@ -168,7 +170,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
 
     /**
      * Construct a <code>OpenSearchException</code> with the specified detail message.
-     *
+     * <p>
      * The message can be parameterized using <code>{}</code> as placeholders for the given
      * arguments
      *
@@ -182,7 +184,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
     /**
      * Construct a <code>OpenSearchException</code> with the specified detail message
      * and nested exception.
-     *
+     * <p>
      * The message can be parameterized using <code>{}</code> as placeholders for the given
      * arguments
      *
@@ -587,7 +589,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
      * Static toXContent helper method that renders {@link OpenSearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link OpenSearchException#toXContent(XContentBuilder, ToXContent.Params)}
      * or {@link #innerToXContent(XContentBuilder, ToXContent.Params, Throwable, String, String, Map, Map, Throwable)}.
-     *
+     * <p>
      * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
      * be parsed back using the {@code OpenSearchException.fromXContent(XContentParser)} method.
      */
@@ -606,7 +608,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
      * depends on the value of the "detailed" parameter: when it's false only a simple message based on the type and message of the
      * exception is rendered. When it's true all detail are provided including guesses root causes, cause and potentially stack
      * trace.
-     *
+     * <p>
      * This method is usually used when the {@link Exception} is rendered as a full XContent object, and its output can be parsed
      * by the {@code #OpenSearchException.failureFromXContent(XContentParser)} method.
      */

@@ -33,6 +33,7 @@
 package org.opensearch.index;
 
 import org.apache.lucene.index.ConcurrentMergeScheduler;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -48,14 +49,14 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
  *
  * <ul>
  * <li> <code>index.merge.scheduler.max_thread_count</code>:
- *
+ * <p>
  *     The maximum number of threads that may be merging at once. Defaults to
  *     <code>Math.max(1, Math.min(4, {@link OpenSearchExecutors#allocatedProcessors(Settings)} / 2))</code>
  *     which works well for a good solid-state-disk (SSD).  If your index is on
  *     spinning platter drives instead, decrease this to 1.
  *
  * <li><code>index.merge.scheduler.auto_throttle</code>:
- *
+ * <p>
  *     If this is true (the default), then the merge scheduler will rate-limit IO
  *     (writes) for merges to an adaptive value depending on how many merges are
  *     requested over time.  An application with a low indexing rate that
@@ -64,8 +65,9 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
  *     move higher to allow merges to keep up with ongoing indexing.
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class MergeSchedulerConfig {
 
     public static final Setting<Integer> MAX_THREAD_COUNT_SETTING = new Setting<>(

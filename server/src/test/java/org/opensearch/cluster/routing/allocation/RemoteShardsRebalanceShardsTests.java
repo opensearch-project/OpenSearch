@@ -21,7 +21,7 @@ public class RemoteShardsRebalanceShardsTests extends RemoteShardsBalancerBaseTe
 
     /**
      * Test remote shard allocation and balancing for standard new cluster setup.
-     *
+     * <p>
      * Post rebalance primaries should be balanced across all the nodes.
      */
     public void testShardAllocationAndRebalance() {
@@ -72,7 +72,7 @@ public class RemoteShardsRebalanceShardsTests extends RemoteShardsBalancerBaseTe
 
     /**
      * Asserts that the expected value is within the variance range.
-     *
+     * <p>
      * Being used to assert the average number of shards per node.
      * Variance is required in case of non-absolute mean values;
      * for example, total number of remote capable nodes in a cluster.

@@ -33,13 +33,18 @@
 package org.opensearch.ingest;
 
 import org.opensearch.client.Client;
+import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.Scheduler;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -48,7 +53,7 @@ import java.util.function.LongSupplier;
 /**
  * A processor implementation may modify the data belonging to a document.
  * Whether changes are made and what exactly is modified is up to the implementation.
- *
+ * <p>
  * Processors may get called concurrently and thus need to be thread-safe.
  *
  * @opensearch.internal
@@ -57,7 +62,7 @@ public interface Processor {
 
     /**
      * Introspect and potentially modify the incoming data.
-     *
+     * <p>
      * Expert method: only override this method if a processor implementation needs to make an asynchronous call,
      * otherwise just overwrite {@link #execute(IngestDocument)}.
      */
@@ -79,6 +84,42 @@ public interface Processor {
      *         otherwise this document will be kept and indexed
      */
     IngestDocument execute(IngestDocument ingestDocument) throws Exception;
+
+    /**
+     * Process batched documents and they could be potentially modified by processors.
+     * Only override this method if the processor can benefit from processing documents in batches, otherwise, please
+     * use default implementation.
+     *
+     * @param ingestDocumentWrappers a list of wrapped IngestDocument
+     * @param handler callback with IngestDocument result and exception wrapped in IngestDocumentWrapper.
+     */
+    default void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
+        if (ingestDocumentWrappers.isEmpty()) {
+            handler.accept(Collections.emptyList());
+            return;
+        }
+        int size = ingestDocumentWrappers.size();
+        AtomicInteger counter = new AtomicInteger(size);
+        AtomicArray<IngestDocumentWrapper> results = new AtomicArray<>(size);
+        for (int i = 0; i < size; ++i) {
+            innerExecute(i, ingestDocumentWrappers.get(i), results, counter, handler);
+        }
+    }
+
+    private void innerExecute(
+        int slot,
+        IngestDocumentWrapper ingestDocumentWrapper,
+        AtomicArray<IngestDocumentWrapper> results,
+        AtomicInteger counter,
+        Consumer<List<IngestDocumentWrapper>> handler
+    ) {
+        execute(ingestDocumentWrapper.getIngestDocument(), (doc, ex) -> {
+            results.set(slot, new IngestDocumentWrapper(ingestDocumentWrapper.getSlot(), doc, ex));
+            if (counter.decrementAndGet() == 0) {
+                handler.accept(results.asList());
+            }
+        });
+    }
 
     /**
      * Gets the type of a processor
@@ -156,6 +197,8 @@ public interface Processor {
          */
         public final Client client;
 
+        public final IndicesService indicesService;
+
         public Parameters(
             Environment env,
             ScriptService scriptService,
@@ -165,7 +208,8 @@ public interface Processor {
             BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
             IngestService ingestService,
             Client client,
-            Consumer<Runnable> genericExecutor
+            Consumer<Runnable> genericExecutor,
+            IndicesService indicesService
         ) {
             this.env = env;
             this.scriptService = scriptService;
@@ -176,6 +220,7 @@ public interface Processor {
             this.ingestService = ingestService;
             this.client = client;
             this.genericExecutor = genericExecutor;
+            this.indicesService = indicesService;
         }
 
     }

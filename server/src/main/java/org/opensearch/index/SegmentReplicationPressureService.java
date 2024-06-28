@@ -98,7 +98,7 @@ public class SegmentReplicationPressureService implements Closeable {
     private final SegmentReplicationStatsTracker tracker;
     private final ShardStateAction shardStateAction;
 
-    private final AsyncFailStaleReplicaTask failStaleReplicaTask;
+    private volatile AsyncFailStaleReplicaTask failStaleReplicaTask;
 
     @Inject
     public SegmentReplicationPressureService(
@@ -106,10 +106,11 @@ public class SegmentReplicationPressureService implements Closeable {
         ClusterService clusterService,
         IndicesService indicesService,
         ShardStateAction shardStateAction,
+        SegmentReplicationStatsTracker tracker,
         ThreadPool threadPool
     ) {
         this.indicesService = indicesService;
-        this.tracker = new SegmentReplicationStatsTracker(this.indicesService);
+        this.tracker = tracker;
         this.shardStateAction = shardStateAction;
         this.threadPool = threadPool;
 
@@ -144,7 +145,9 @@ public class SegmentReplicationPressureService implements Closeable {
         final IndexService indexService = indicesService.indexService(shardId.getIndex());
         if (indexService != null) {
             final IndexShard shard = indexService.getShard(shardId.id());
-            if (isSegmentReplicationBackpressureEnabled && shard.indexSettings().isSegRepEnabled() && shard.routingEntry().primary()) {
+            if (isSegmentReplicationBackpressureEnabled
+                && shard.indexSettings().isSegRepEnabledOrRemoteNode()
+                && shard.routingEntry().primary()) {
                 validateReplicationGroup(shard);
             }
         }
@@ -201,6 +204,15 @@ public class SegmentReplicationPressureService implements Closeable {
 
     public void setReplicationTimeLimitFailReplica(TimeValue replicationTimeLimitFailReplica) {
         this.replicationTimeLimitFailReplica = replicationTimeLimitFailReplica;
+        updateAsyncFailReplicaTask();
+    }
+
+    private synchronized void updateAsyncFailReplicaTask() {
+        try {
+            failStaleReplicaTask.close();
+        } finally {
+            failStaleReplicaTask = new AsyncFailStaleReplicaTask(this);
+        }
     }
 
     public void setReplicationTimeLimitBackpressure(TimeValue replicationTimeLimitBackpressure) {
@@ -227,13 +239,13 @@ public class SegmentReplicationPressureService implements Closeable {
 
         @Override
         protected boolean mustReschedule() {
-            return true;
+            return pressureService.shouldScheduleAsyncFailTask();
         }
 
         @Override
         protected void runInternal() {
             // Do not fail the replicas if time limit is set to 0 (i.e. disabled).
-            if (TimeValue.ZERO.equals(pressureService.replicationTimeLimitFailReplica) == false) {
+            if (pressureService.shouldScheduleAsyncFailTask()) {
                 final SegmentReplicationStats stats = pressureService.tracker.getStats();
 
                 // Find the shardId in node which is having stale replicas with highest current replication time.
@@ -254,7 +266,8 @@ public class SegmentReplicationPressureService implements Closeable {
                             stats.getShardStats().get(shardId).getReplicaStats()
                         );
                         final IndexService indexService = pressureService.indicesService.indexService(shardId.getIndex());
-                        if (indexService.getIndexSettings() != null && indexService.getIndexSettings().isSegRepEnabled() == false) {
+                        if (indexService.getIndexSettings() != null
+                            && indexService.getIndexSettings().isSegRepEnabledOrRemoteNode() == false) {
                             return;
                         }
                         final IndexShard primaryShard = indexService.getShard(shardId.getId());
@@ -299,6 +312,10 @@ public class SegmentReplicationPressureService implements Closeable {
             return "fail_stale_replica";
         }
 
+    }
+
+    boolean shouldScheduleAsyncFailTask() {
+        return TimeValue.ZERO.equals(replicationTimeLimitFailReplica) == false;
     }
 
 }

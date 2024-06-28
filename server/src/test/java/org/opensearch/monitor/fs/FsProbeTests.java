@@ -58,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.opensearch.monitor.fs.FsProbe.adjustForHugeFilesystems;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -91,6 +92,14 @@ public class FsProbeTests extends OpenSearchTestCase {
                     assertThat(deviceStats.previousWritesCompleted, equalTo(-1L));
                     assertThat(deviceStats.currentSectorsWritten, greaterThanOrEqualTo(0L));
                     assertThat(deviceStats.previousSectorsWritten, equalTo(-1L));
+                    assertThat(deviceStats.currentReadTime, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousReadTime, greaterThanOrEqualTo(-1L));
+                    assertThat(deviceStats.currentWriteTime, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousWriteTime, greaterThanOrEqualTo(-1L));
+                    assertThat(deviceStats.currentQueueSize, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousQueueSize, greaterThanOrEqualTo(-1L));
+                    assertThat(deviceStats.currentIOTime, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousIOTime, greaterThanOrEqualTo(-1L));
                 }
             } else {
                 assertNull(stats.getIoStats());
@@ -149,6 +158,46 @@ public class FsProbeTests extends OpenSearchTestCase {
 
                 if (path.fileCacheReserved > -1L) {
                     assertTrue(path.free - path.available >= path.fileCacheReserved);
+                }
+            }
+        }
+    }
+
+    public void testFsInfoWhenFileCacheOccupied() throws IOException {
+        Settings settings = Settings.builder().putList("node.roles", "search", "data").build();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            // Use the total space as reserved space to simulate the situation where the cache space is occupied
+            final long totalSpace = adjustForHugeFilesystems(env.fileCacheNodePath().fileStore.getTotalSpace());
+            ByteSizeValue gbByteSizeValue = new ByteSizeValue(totalSpace, ByteSizeUnit.BYTES);
+            env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
+                gbByteSizeValue.getBytes(),
+                16,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+            );
+
+            FsProbe probe = new FsProbe(env, fileCache);
+            FsInfo stats = probe.stats(null);
+            assertNotNull(stats);
+            assertTrue(stats.getTimestamp() > 0L);
+            FsInfo.Path total = stats.getTotal();
+            assertNotNull(total);
+            assertTrue(total.total > 0L);
+            assertTrue(total.free > 0L);
+            assertTrue(total.fileCacheReserved > 0L);
+
+            for (FsInfo.Path path : stats) {
+                assertNotNull(path);
+                assertFalse(path.getPath().isEmpty());
+                assertFalse(path.getMount().isEmpty());
+                assertFalse(path.getType().isEmpty());
+                assertTrue(path.total > 0L);
+                assertTrue(path.free > 0L);
+
+                if (path.fileCacheReserved > 0L) {
+                    assertEquals(0L, path.available);
+                } else {
+                    assertTrue(path.available > 0L);
                 }
             }
         }
@@ -243,6 +292,16 @@ public class FsProbeTests extends OpenSearchTestCase {
         assertThat(first.devicesStats[0].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(first.devicesStats[0].previousSectorsWritten, equalTo(-1L));
+
+        assertEquals(33457, first.devicesStats[0].currentReadTime);
+        assertEquals(-1, first.devicesStats[0].previousReadTime);
+        assertEquals(18730966, first.devicesStats[0].currentWriteTime);
+        assertEquals(-1, first.devicesStats[0].previousWriteTime);
+        assertEquals(18767169, first.devicesStats[0].currentQueueSize);
+        assertEquals(-1, first.devicesStats[0].previousQueueSize);
+        assertEquals(1918440, first.devicesStats[0].currentIOTime);
+        assertEquals(-1, first.devicesStats[0].previousIOTime);
+
         assertThat(first.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(first.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(first.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -254,6 +313,15 @@ public class FsProbeTests extends OpenSearchTestCase {
         assertThat(first.devicesStats[1].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[1].currentSectorsWritten, equalTo(64126096L));
         assertThat(first.devicesStats[1].previousSectorsWritten, equalTo(-1L));
+
+        assertEquals(49312, first.devicesStats[1].currentReadTime);
+        assertEquals(-1, first.devicesStats[1].previousReadTime);
+        assertEquals(33730596, first.devicesStats[1].currentWriteTime);
+        assertEquals(-1, first.devicesStats[1].previousWriteTime);
+        assertEquals(33781827, first.devicesStats[1].currentQueueSize);
+        assertEquals(-1, first.devicesStats[1].previousQueueSize);
+        assertEquals(1058193, first.devicesStats[1].currentIOTime);
+        assertEquals(-1, first.devicesStats[1].previousIOTime);
 
         diskStats.set(
             Arrays.asList(
@@ -281,6 +349,16 @@ public class FsProbeTests extends OpenSearchTestCase {
         assertThat(second.devicesStats[0].previousWritesCompleted, equalTo(8398869L));
         assertThat(second.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(second.devicesStats[0].previousSectorsWritten, equalTo(118857776L));
+
+        assertEquals(33464, second.devicesStats[0].currentReadTime);
+        assertEquals(33457, second.devicesStats[0].previousReadTime);
+        assertEquals(18730966, second.devicesStats[0].currentWriteTime);
+        assertEquals(18730966, second.devicesStats[0].previousWriteTime);
+        assertEquals(18767176, second.devicesStats[0].currentQueueSize);
+        assertEquals(18767169, second.devicesStats[0].previousQueueSize);
+        assertEquals(1918444, second.devicesStats[0].currentIOTime);
+        assertEquals(1918440, second.devicesStats[0].previousIOTime);
+
         assertThat(second.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(second.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(second.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -293,11 +371,25 @@ public class FsProbeTests extends OpenSearchTestCase {
         assertThat(second.devicesStats[1].currentSectorsWritten, equalTo(64128568L));
         assertThat(second.devicesStats[1].previousSectorsWritten, equalTo(64126096L));
 
+        assertEquals(49369, second.devicesStats[1].currentReadTime);
+        assertEquals(49312, second.devicesStats[1].previousReadTime);
+        assertEquals(33730766, second.devicesStats[1].currentWriteTime);
+        assertEquals(33730596, second.devicesStats[1].previousWriteTime);
+        assertEquals(33781827, first.devicesStats[1].currentQueueSize);
+        assertEquals(-1L, first.devicesStats[1].previousQueueSize);
+        assertEquals(1058193, first.devicesStats[1].currentIOTime);
+        assertEquals(-1L, first.devicesStats[1].previousIOTime);
+
         assertThat(second.totalOperations, equalTo(575L));
         assertThat(second.totalReadOperations, equalTo(261L));
         assertThat(second.totalWriteOperations, equalTo(314L));
         assertThat(second.totalReadKilobytes, equalTo(2392L));
         assertThat(second.totalWriteKilobytes, equalTo(1236L));
+
+        assertEquals(64, second.totalReadTime);
+        assertEquals(170, second.totalWriteTime);
+        assertEquals(236, second.totalQueueSize);
+        assertEquals(158, second.totalIOTimeInMillis);
     }
 
     public void testAdjustForHugeFilesystems() throws Exception {

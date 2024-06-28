@@ -36,6 +36,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -50,8 +51,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * Transport request for cloning a snapshot
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CloneSnapshotRequest extends ClusterManagerNodeRequest<CloneSnapshotRequest>
     implements
         IndicesRequest.Replaceable,

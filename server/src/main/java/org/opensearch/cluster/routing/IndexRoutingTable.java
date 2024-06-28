@@ -44,6 +44,7 @@ import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.Index;
@@ -75,8 +76,9 @@ import java.util.function.Predicate;
  * represented as {@link ShardRouting}.
  * </p>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
 
     private final Index index;
@@ -300,6 +302,20 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         return shards;
     }
 
+    /**
+     * Returns a {@link List} of shards that match the provided {@link Predicate}
+     *
+     * @param predicate {@link Predicate} to apply
+     * @return a {@link List} of shards that match one of the given {@link Predicate}
+     */
+    public List<ShardRouting> shardsMatchingPredicate(Predicate<ShardRouting> predicate) {
+        List<ShardRouting> shards = new ArrayList<>();
+        for (IndexShardRoutingTable shardRoutingTable : this) {
+            shards.addAll(shardRoutingTable.shardsMatchingPredicate(predicate));
+        }
+        return shards;
+    }
+
     public int shardsMatchingPredicateCount(Predicate<ShardRouting> predicate) {
         int count = 0;
         for (IndexShardRoutingTable shardRoutingTable : this) {
@@ -367,8 +383,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     /**
      * Builder of a routing table.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
 
         private final Index index;
@@ -466,12 +483,12 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
-                if (forceRecoverAllPrimaries == false && indexShardRoutingTableMap.containsKey(shardId) == false) {
+                if (indexShardRoutingTableMap.containsKey(shardId) == false) {
                     throw new IllegalStateException("IndexShardRoutingTable is not present for shardId: " + shardId);
                 }
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingTableMap.get(shardId);
-                if (forceRecoverAllPrimaries || indexShardRoutingTable == null || indexShardRoutingTable.primaryShard().unassigned()) {
+                if (forceRecoverAllPrimaries || indexShardRoutingTable.primaryShard().unassigned()) {
                     // Primary shard to be recovered from remote store.
                     indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, true, recoverySource, unassignedInfo));
                     // All the replica shards to be recovered from peer recovery.

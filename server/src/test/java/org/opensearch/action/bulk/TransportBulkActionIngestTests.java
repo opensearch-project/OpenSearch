@@ -70,6 +70,8 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.tasks.Task;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
@@ -169,9 +171,15 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
                 ),
                 new IndexingPressureService(
                     SETTINGS,
-                    new ClusterService(SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null)
+                    ClusterServiceUtils.createClusterService(
+                        SETTINGS,
+                        new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                        null
+                    )
                 ),
-                new SystemIndices(emptyMap())
+                null,
+                new SystemIndices(emptyMap()),
+                NoopTracer.INSTANCE
             );
         }
 
@@ -338,7 +346,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureHandler.capture(),
             completionHandler.capture(),
             any(),
-            eq(Names.WRITE)
+            eq(Names.WRITE),
+            eq(bulkRequest)
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -375,7 +384,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureHandler.capture(),
             completionHandler.capture(),
             any(),
-            eq(Names.WRITE)
+            eq(Names.WRITE),
+            any()
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -421,7 +431,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureHandler.capture(),
             completionHandler.capture(),
             any(),
-            eq(Names.SYSTEM_WRITE)
+            eq(Names.SYSTEM_WRITE),
+            eq(bulkRequest)
         );
         completionHandler.getValue().accept(null, exception);
         assertTrue(failureCalled.get());
@@ -452,7 +463,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         action.execute(null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -492,7 +503,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         singleItemBulkWriteAction.execute(null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -578,7 +589,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureHandler.capture(),
             completionHandler.capture(),
             any(),
-            eq(Names.WRITE)
+            eq(Names.WRITE),
+            eq(bulkRequest)
         );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
         assertEquals(indexRequest2.getPipeline(), "default_pipeline");
@@ -621,7 +633,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureHandler.capture(),
             completionHandler.capture(),
             any(),
-            eq(Names.WRITE)
+            eq(Names.WRITE),
+            any()
         );
         completionHandler.getValue().accept(null, exception);
         assertFalse(action.indexCreated); // still no index yet, the ingest node failed.
@@ -708,7 +721,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureHandler.capture(),
             completionHandler.capture(),
             any(),
-            eq(Names.WRITE)
+            eq(Names.WRITE),
+            any()
         );
     }
 
@@ -747,7 +761,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureHandler.capture(),
             completionHandler.capture(),
             any(),
-            eq(Names.WRITE)
+            eq(Names.WRITE),
+            any()
         );
     }
 
@@ -772,7 +787,8 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
             failureHandler.capture(),
             completionHandler.capture(),
             any(),
-            eq(Names.WRITE)
+            eq(Names.WRITE),
+            any()
         );
         assertEquals(indexRequest.getPipeline(), "default_pipeline");
         completionHandler.getValue().accept(null, exception);

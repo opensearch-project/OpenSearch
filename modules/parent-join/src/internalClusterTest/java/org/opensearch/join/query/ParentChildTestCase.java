@@ -41,7 +41,7 @@ import org.opensearch.join.ParentJoinModulePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,10 +51,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public abstract class ParentChildTestCase extends ParameterizedOpenSearchIntegTestCase {
+public abstract class ParentChildTestCase extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ParentChildTestCase(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ParentChildTestCase(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

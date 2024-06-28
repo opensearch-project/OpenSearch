@@ -51,8 +51,12 @@ import org.opensearch.repositories.RepositoryData;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 
 /**
  * Contains metadata about registered snapshot repositories
@@ -68,6 +72,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      * in {@link org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
      */
     public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
+    public static final String HIDE_SYSTEM_REPOSITORY_SETTING = "hide_system_repository_setting";
 
     private final List<RepositoryMetadata> repositories;
 
@@ -161,6 +166,40 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         return true;
     }
 
+    /**
+     * Checks if this instance and the give instance share the same repositories, with option to skip checking for a list of repos.
+     * This will support
+     * @param other other repositories metadata
+     * @param reposToSkip list of repos to skip check for equality
+     * @return {@code true} iff both instances contain the same repositories apart from differences in generations, not including repos provided in reposToSkip.
+     */
+    public boolean equalsIgnoreGenerationsWithRepoSkip(@Nullable RepositoriesMetadata other, List<String> reposToSkip) {
+        if (other == null) {
+            return false;
+        }
+        List<RepositoryMetadata> currentRepositories = repositories.stream()
+            .filter(repo -> !reposToSkip.contains(repo.name()))
+            .collect(Collectors.toList());
+        List<RepositoryMetadata> otherRepositories = other.repositories.stream()
+            .filter(repo -> !reposToSkip.contains(repo.name()))
+            .collect(Collectors.toList());
+
+        if (otherRepositories.size() != currentRepositories.size()) {
+            return false;
+        }
+        // Sort repos by name for ordered comparison
+        Comparator<RepositoryMetadata> compareByName = (o1, o2) -> o1.name().compareTo(o2.name());
+        currentRepositories.sort(compareByName);
+        otherRepositories.sort(compareByName);
+
+        for (int i = 0; i < currentRepositories.size(); i++) {
+            if (currentRepositories.get(i).equalsIgnoreGenerations(otherRepositories.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public int hashCode() {
         return repositories.hashCode();
@@ -199,6 +238,10 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         XContentParser.Token token;
         List<RepositoryMetadata> repository = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                // move to next token if parsing the whole object
+                token = parser.nextToken();
+            }
             if (token == XContentParser.Token.FIELD_NAME) {
                 String name = parser.currentName();
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
@@ -288,8 +331,12 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         if (repository.cryptoMetadata() != null) {
             repository.cryptoMetadata().toXContent(repository.cryptoMetadata(), builder, params);
         }
+        Settings settings = repository.settings();
+        if (SYSTEM_REPOSITORY_SETTING.get(settings) && params.paramAsBoolean(HIDE_SYSTEM_REPOSITORY_SETTING, false)) {
+            settings = repository.settings().filter(s -> !s.equals(SYSTEM_REPOSITORY_SETTING.getKey()));
+        }
         builder.startObject("settings");
-        repository.settings().toXContent(builder, params);
+        settings.toXContent(builder, params);
         builder.endObject();
 
         if (params.paramAsBoolean(HIDE_GENERATIONS_PARAM, false) == false) {

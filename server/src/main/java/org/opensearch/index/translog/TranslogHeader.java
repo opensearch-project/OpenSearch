@@ -40,6 +40,8 @@ import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.io.Channels;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -147,7 +149,11 @@ public final class TranslogHeader {
         if (actualUUID.bytesEquals(expectedUUID) == false) {
             throw new TranslogCorruptedException(
                 path.toString(),
-                "expected shard UUID " + expectedUUID + " but got: " + actualUUID + " this translog file belongs to a different translog"
+                "expected shard UUID "
+                    + translogUUID
+                    + " but got: "
+                    + translogHeader.translogUUID
+                    + " this translog file belongs to a different translog"
             );
         }
         return translogHeader;

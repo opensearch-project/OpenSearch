@@ -66,7 +66,7 @@ import java.util.Objects;
  * <li>'{@code -}' negates a single token: {@code -token0}
  * <li>'{@code "}' creates phrases of terms: {@code "term1 term2 ..."}
  * <li>'{@code *}' at the end of terms specifies prefix query: {@code term*}
- * <li>'{@code (}' and '{@code)}' specifies precedence: {@code token1 + (token2 | token3)}
+ * <li>'{@code (}' and '{@code )}' specifies precedence: {@code token1 + (token2 | token3)}
  * <li>'{@code ~}N' at the end of terms specifies fuzzy query: {@code term~1}
  * <li>'{@code ~}N' at the end of phrases specifies near/slop query: {@code "term1 term2"~5}
  * </ul>

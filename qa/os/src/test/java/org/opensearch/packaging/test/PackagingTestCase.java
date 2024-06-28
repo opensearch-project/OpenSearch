@@ -441,7 +441,7 @@ public abstract class PackagingTestCase extends Assert {
 
     /**
      * Run the given action with a temporary copy of the config directory.
-     *
+     * <p>
      * Files under the path passed to the action may be modified as necessary for the
      * test to execute, and running OpenSearch with {@link #startOpenSearch()} will
      * use the temporary directory.

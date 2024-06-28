@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -22,8 +23,9 @@ import java.io.IOException;
 /**
  * Encapsulates all remote store stats
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.8.0")
 public class RemoteStoreStats implements Writeable, ToXContentFragment {
     /**
      * Stats related to Remote Segment Store operations

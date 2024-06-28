@@ -32,9 +32,8 @@
 
 package org.opensearch.tasks;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.io.stream.NamedWriteable;
@@ -62,12 +61,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Current task information
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class Task {
-
-    private static final Logger logger = LogManager.getLogger(Task.class);
-
     /**
      * The request header to mark tasks with specific ids
      */
@@ -479,6 +476,18 @@ public class Task {
         throw new IllegalStateException("cannot update final values if active thread resource entry is not present");
     }
 
+    public ThreadResourceInfo getActiveThreadResourceInfo(long threadId, ResourceStatsType statsType) {
+        final List<ThreadResourceInfo> threadResourceInfoList = resourceStats.get(threadId);
+        if (threadResourceInfoList != null) {
+            for (ThreadResourceInfo threadResourceInfo : threadResourceInfoList) {
+                if (threadResourceInfo.getStatsType() == statsType && threadResourceInfo.isActive()) {
+                    return threadResourceInfo;
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * Individual tasks can override this if they want to support task resource tracking. We just need to make sure that
      * the ThreadPool on which the task runs on have runnable wrapper similar to
@@ -501,7 +510,10 @@ public class Task {
      * <b>can</b> change this on version upgrade but we should be careful
      * because some statuses (reindex) have become defacto standardized because
      * they are used by systems like Kibana.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Status extends ToXContentObject, NamedWriteable {}
 
     /**
@@ -550,11 +562,11 @@ public class Task {
      * This method is called when threads finish execution, and also when the task is unregistered (to mark the task's
      * own thread as complete). When the active thread count becomes zero, the onTaskResourceTrackingCompleted method
      * is called exactly once on all registered listeners.
-     *
+     * <p>
      * Since a task is unregistered after the message is processed, it implies that the threads responsible to produce
      * the response must have started prior to it (i.e. startThreadResourceTracking called before unregister).
      * This ensures that the number of active threads doesn't drop to zero pre-maturely.
-     *
+     * <p>
      * Rarely, some threads may even start execution after the task is unregistered. As resource stats are piggy-backed
      * with the response, any thread usage info captured after the task is unregistered may be irrelevant.
      *

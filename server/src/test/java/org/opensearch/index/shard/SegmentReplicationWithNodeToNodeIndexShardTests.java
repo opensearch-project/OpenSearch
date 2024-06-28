@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -87,6 +88,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     // randomly resolve the listener, indicating the source has resolved.
@@ -108,7 +110,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
             IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
 
-            final int numDocs = shards.indexDocs(randomInt(10));
             primary.refresh("Test");
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
@@ -122,7 +123,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 ) {
                     // trigger a cancellation by closing the replica.
                     targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
-                    resolveCheckpointInfoResponseListener(listener, primary);
                 }
 
                 @Override
@@ -131,6 +131,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     Assert.fail("Should not be reached");
@@ -138,7 +139,6 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(replica, primary, targetService);
-
             shards.removeReplica(replica);
             closeShards(replica);
         }
@@ -176,6 +176,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     Assert.fail("Unreachable");
@@ -223,6 +224,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {}
             };
@@ -269,6 +271,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                     ReplicationCheckpoint checkpoint,
                     List<StoreFileMetadata> filesToFetch,
                     IndexShard indexShard,
+                    BiConsumer<String, Long> fileProgressTracker,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));

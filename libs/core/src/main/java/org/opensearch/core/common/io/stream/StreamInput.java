@@ -56,6 +56,7 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.semver.SemverRange;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -79,6 +80,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -89,6 +91,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
@@ -96,7 +100,7 @@ import static org.opensearch.OpenSearchException.readStackTrace;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
- *
+ * <p>
  * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
  * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
  * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamOutput}. Finally
@@ -641,12 +645,47 @@ public abstract class StreamInput extends InputStream {
             return Collections.emptyMap();
         }
         Map<K, V> map = new HashMap<>(size);
+        readIntoMap(keyReader, valueReader, map, size);
+        return map;
+    }
+
+    /**
+     * Read a serialized map into a SortedMap using the default ordering for the keys. If the result is empty it might be immutable.
+     */
+    public <K extends Comparable<K>, V> SortedMap<K, V> readOrderedMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+        throws IOException {
+        return readOrderedMap(keyReader, valueReader, null);
+    }
+
+    /**
+     * Read a serialized map into a SortedMap, specifying a Comparator for the keys. If the result is empty it might be immutable.
+     */
+    public <K extends Comparable<K>, V> SortedMap<K, V> readOrderedMap(
+        Writeable.Reader<K> keyReader,
+        Writeable.Reader<V> valueReader,
+        @Nullable Comparator<K> keyComparator
+    ) throws IOException {
+        int size = readArraySize();
+        if (size == 0) {
+            return Collections.emptySortedMap();
+        }
+        SortedMap<K, V> sortedMap;
+        if (keyComparator == null) {
+            sortedMap = new TreeMap<>();
+        } else {
+            sortedMap = new TreeMap<>(keyComparator);
+        }
+        readIntoMap(keyReader, valueReader, sortedMap, size);
+        return sortedMap;
+    }
+
+    private <K, V> void readIntoMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, Map<K, V> map, int size)
+        throws IOException {
         for (int i = 0; i < size; i++) {
             K key = keyReader.read(this);
             V value = valueReader.read(this);
             map.put(key, value);
         }
-        return map;
     }
 
     /**
@@ -750,6 +789,8 @@ public abstract class StreamInput extends InputStream {
                 return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
             case 26:
                 return readBigInteger();
+            case 27:
+                return readSemverRange();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -1090,6 +1131,10 @@ public abstract class StreamInput extends InputStream {
         return Version.fromId(readVInt());
     }
 
+    public SemverRange readSemverRange() throws IOException {
+        return SemverRange.fromString(readString());
+    }
+
     /** Reads the {@link Version} from the input stream */
     public Build readBuild() throws IOException {
         // the following is new for opensearch: we write the distribution to support any "forks"
@@ -1128,7 +1173,7 @@ public abstract class StreamInput extends InputStream {
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
-     *
+     * <p>
      * Prefer {@link StreamInput#readNamedWriteable(Class)} and {@link StreamOutput#writeNamedWriteable(NamedWriteable)} unless you
      * have a compelling reason to use this method instead.
      */

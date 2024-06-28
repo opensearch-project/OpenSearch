@@ -43,6 +43,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
@@ -54,14 +55,16 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.isMigratingToRemoteStore;
 
 /**
  * The {@link RoutingAllocation} keep the state of the current allocation
  * of shards and holds the {@link AllocationDeciders} which are responsible
  *  for the current routing state.
  *
- *  @opensearch.internal
+ *  @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RoutingAllocation {
 
     private final AllocationDeciders deciders;
@@ -123,6 +126,9 @@ public class RoutingAllocation {
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
+        if (isMigratingToRemoteStore(metadata)) {
+            indexMetadataUpdater.setOngoingRemoteStoreMigration(true);
+        }
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -265,7 +271,7 @@ public class RoutingAllocation {
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
     public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
-        return indexMetadataUpdater.applyChanges(metadata, newRoutingTable);
+        return indexMetadataUpdater.applyChanges(metadata, newRoutingTable, nodes());
     }
 
     /**
@@ -317,8 +323,9 @@ public class RoutingAllocation {
     /**
      * Debug mode.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum DebugMode {
         /**
          * debug mode is off

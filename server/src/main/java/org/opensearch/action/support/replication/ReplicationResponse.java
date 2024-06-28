@@ -36,6 +36,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -57,8 +58,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
 /**
  * Base class for write action responses.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ReplicationResponse extends ActionResponse {
 
     public static final ReplicationResponse.ShardInfo.Failure[] EMPTY = new ReplicationResponse.ShardInfo.Failure[0];
@@ -88,8 +90,9 @@ public class ReplicationResponse extends ActionResponse {
     /**
      * Holds shard information
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ShardInfo implements Writeable, ToXContentObject {
 
         private static final String TOTAL = "total";
@@ -235,8 +238,9 @@ public class ReplicationResponse extends ActionResponse {
         /**
          * Holds failure information
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class Failure extends ShardOperationFailedException implements ToXContentObject {
 
             private static final String _INDEX = "_index";

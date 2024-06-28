@@ -43,6 +43,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
 import java.util.Map;
@@ -81,10 +82,12 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchRequestContext searchRequestContext,
+        final Tracer tracer
     ) {
         super(
-            "query",
+            SearchPhaseName.QUERY.getName(),
             logger,
             searchTransportService,
             nodeIdToConnection,
@@ -100,7 +103,9 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             task,
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters,
+            searchRequestContext,
+            tracer
         );
         this.topDocsSize = SearchPhaseController.getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();

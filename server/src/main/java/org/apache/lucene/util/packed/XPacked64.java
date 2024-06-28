@@ -38,8 +38,8 @@ import java.util.Arrays;
 /**
  * Forked from Lucene 8.x; removed in Lucene 9.0
  *
- * @todo further investigate a better alternative
- *
+ * TODO: further investigate a better alternative
+ * <p>
  * Space optimized random access capable array of values with a fixed number of bits/value. Values
  * are packed contiguously.
  *

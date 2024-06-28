@@ -90,15 +90,15 @@ import static org.hamcrest.Matchers.equalTo;
  * You need to wrap your code between two tags like:
  * // tag::example
  * // end::example
- *
+ * <p>
  * Where example is your tag name.
- *
+ * <p>
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
  * include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[example]
  * --------------------------------------------------
- *
+ * <p>
  * The column width of the code block is 84. If the code contains a line longer
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
@@ -827,7 +827,7 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
     }
 
     private void createTestSnapshots() throws IOException {
-        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repositoryName, snapshotName));
+        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "/_snapshot/%s/%s", repositoryName, snapshotName));
         createSnapshot.addParameter("wait_for_completion", "true");
         createSnapshot.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
         Response response = highLevelClient().getLowLevelClient().performRequest(createSnapshot);

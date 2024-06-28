@@ -318,11 +318,17 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
         }
 
+        BitSetProducer previousParentFilter = context.getParentFilter();
         try {
+            context.setParentFilter(parentFilter);
             context.nestedScope().nextLevel(nestedObjectMapper);
-            innerQuery = this.query.toQuery(context);
+            try {
+                innerQuery = this.query.toQuery(context);
+            } finally {
+                context.nestedScope().previousLevel();
+            }
         } finally {
-            context.nestedScope().previousLevel();
+            context.setParentFilter(previousParentFilter);
         }
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents
@@ -395,16 +401,32 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             }
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
-            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
-            NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
-                name,
-                parentSearchContext,
-                parentObjectMapper,
-                nestedObjectMapper
-            );
-            setupInnerHitsContext(queryShardContext, nestedInnerHits);
-            queryShardContext.nestedScope().previousLevel();
-            innerHitsContext.addInnerHitDefinition(nestedInnerHits);
+            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().getObjectMapper();
+            BitSetProducer parentFilter;
+            if (parentObjectMapper == null) {
+                parentFilter = queryShardContext.bitsetFilter(Queries.newNonNestedFilter());
+            } else {
+                parentFilter = queryShardContext.bitsetFilter(parentObjectMapper.nestedTypeFilter());
+            }
+            BitSetProducer previousParentFilter = queryShardContext.getParentFilter();
+            try {
+                queryShardContext.setParentFilter(parentFilter);
+                queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
+                try {
+                    NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
+                        name,
+                        parentSearchContext,
+                        parentObjectMapper,
+                        nestedObjectMapper
+                    );
+                    setupInnerHitsContext(queryShardContext, nestedInnerHits);
+                    innerHitsContext.addInnerHitDefinition(nestedInnerHits);
+                } finally {
+                    queryShardContext.nestedScope().previousLevel();
+                }
+            } finally {
+                queryShardContext.setParentFilter(previousParentFilter);
+            }
         }
     }
 

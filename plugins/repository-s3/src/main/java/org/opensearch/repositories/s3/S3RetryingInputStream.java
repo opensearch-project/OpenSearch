@@ -48,13 +48,14 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Wrapper around an S3 object that will retry the {@link GetObjectRequest} if the download fails part-way through, resuming from where
  * the failure occurred. This should be handled by the SDK but it isn't today. This should be revisited in the future (e.g. before removing
  * the {@code LegacyESVersion#V_7_0_0} version constant) and removed when the SDK handles retries itself.
- *
+ * <p>
  * See https://github.com/aws/aws-sdk-java/issues/856 for the related SDK issue
  */
 class S3RetryingInputStream extends InputStream {
@@ -77,6 +78,7 @@ class S3RetryingInputStream extends InputStream {
     private long currentOffset;
     private boolean closed;
     private boolean eof;
+    private Map<String, String> metadata;
 
     S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
         this(blobStore, blobKey, 0, Long.MAX_VALUE - 1);
@@ -122,6 +124,7 @@ class S3RetryingInputStream extends InputStream {
                 getObjectResponseInputStream.response().contentLength()
             );
             this.currentStream = getObjectResponseInputStream;
+            this.metadata = getObjectResponseInputStream.response().metadata();
             this.isStreamAborted.set(false);
         } catch (final SdkException e) {
             if (e instanceof S3Exception) {
@@ -264,5 +267,9 @@ class S3RetryingInputStream extends InputStream {
     // package-private for tests
     boolean isAborted() {
         return isStreamAborted.get();
+    }
+
+    Map<String, String> getMetadata() {
+        return this.metadata;
     }
 }

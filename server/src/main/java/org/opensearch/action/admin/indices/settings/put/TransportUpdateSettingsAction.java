@@ -50,15 +50,13 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.IndexModule;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Stream;
-
-import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * Transport action for updating index settings
@@ -77,10 +75,11 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
         "index.max_script_fields",
         "index.max_terms_count",
         "index.max_regex_length",
-        "index.highlight.max_analyzed_offset"
+        "index.highlight.max_analyzed_offset",
+        "index.number_of_replicas"
     );
 
-    private final static String[] ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES = { "index.search.slowlog" };
+    private final static String[] ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES = { "index.search.slowlog", "index.routing.allocation" };
 
     private final MetadataUpdateSettingsService updateSettingsService;
 
@@ -131,9 +130,7 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
         for (Index index : requestIndices) {
             if (state.blocks().indexBlocked(ClusterBlockLevel.METADATA_WRITE, index.getName())) {
                 allowSearchableSnapshotSettingsUpdate = allowSearchableSnapshotSettingsUpdate
-                    && IndexModule.Type.REMOTE_SNAPSHOT.match(
-                        state.getMetadata().getIndexSafe(index).getSettings().get(INDEX_STORE_TYPE_SETTING.getKey())
-                    );
+                    && state.getMetadata().getIndexSafe(index).isRemoteSnapshot();
             }
         }
         // check if all settings in the request are in the allow list
@@ -145,10 +142,10 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
             }
         }
 
+        final String[] requestIndexNames = Arrays.stream(requestIndices).map(Index::getName).toArray(String[]::new);
         return allowSearchableSnapshotSettingsUpdate
             ? null
-            : state.blocks()
-                .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+            : state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, requestIndexNames);
     }
 
     @Override

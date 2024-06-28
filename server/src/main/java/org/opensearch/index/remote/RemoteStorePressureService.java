@@ -78,7 +78,9 @@ public class RemoteStorePressureService {
         for (LagValidator lagValidator : lagValidators) {
             if (lagValidator.validate(remoteSegmentTransferTracker, shardId) == false) {
                 remoteSegmentTransferTracker.incrementRejectionCount(lagValidator.name());
-                throw new OpenSearchRejectedExecutionException(lagValidator.rejectionMessage(remoteSegmentTransferTracker, shardId));
+                String rejectionMessage = lagValidator.rejectionMessage(remoteSegmentTransferTracker, shardId);
+                logger.warn("Rejecting write requests for shard due to remote backpressure:  {}", rejectionMessage);
+                throw new OpenSearchRejectedExecutionException(rejectionMessage);
             }
         }
     }
@@ -180,7 +182,6 @@ public class RemoteStorePressureService {
                 return true;
             }
             if (pressureTracker.isUploadTimeMovingAverageReady() == false) {
-                logger.trace("upload time moving average is not ready");
                 return true;
             }
             long timeLag = pressureTracker.getTimeMsLag();

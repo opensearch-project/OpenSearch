@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -62,6 +64,7 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformati
 import org.opensearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.search.aggregations.bucket.SharedSignificantTermsTestMethods;
 
 import java.io.IOException;
@@ -78,6 +81,7 @@ import java.util.function.Function;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.opensearch.search.aggregations.AggregationBuilders.significantText;
@@ -90,11 +94,23 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class SignificantTermsSignificanceScoreIT extends OpenSearchIntegTestCase {
+public class SignificantTermsSignificanceScoreIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static final String INDEX_NAME = "testidx";
     static final String TEXT_FIELD = "text";
     static final String CLASS_FIELD = "class";
+
+    public SignificantTermsSignificanceScoreIT(Settings staticSettings) {
+        super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+        );
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

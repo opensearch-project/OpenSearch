@@ -99,12 +99,14 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.indices.recovery.DefaultRecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -235,7 +237,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
                     repositoriesServiceReference::get,
                     threadPool,
                     indexSettings.getRemoteStoreTranslogRepository(),
-                    new RemoteTranslogTransferTracker(shardRouting.shardId(), 10)
+                    new RemoteTranslogTransferTracker(shardRouting.shardId(), 10),
+                    DefaultRemoteStoreSettings.INSTANCE
                 );
             }
             return new InternalTranslogFactory();
@@ -260,7 +263,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool),
             translogFactorySupplier,
             () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
-            () -> IndexSettings.DEFAULT_REMOTE_TRANSLOG_BUFFER_INTERVAL
+            DefaultRecoverySettings.INSTANCE,
+            DefaultRemoteStoreSettings.INSTANCE
         );
     }
 

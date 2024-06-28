@@ -34,6 +34,7 @@ package org.opensearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -68,8 +69,9 @@ import static org.opensearch.core.xcontent.ObjectParser.fromList;
  *
  * @see org.opensearch.search.builder.SearchSourceBuilder#highlight()
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> {
     /** default for whether to highlight fields based on the source even if stored separately */
     public static final boolean DEFAULT_FORCE_SOURCE = false;
@@ -109,6 +111,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /** the default closing tags when {@code tag_schema = "styled"}  */
     public static final String[] DEFAULT_STYLED_POST_TAGS = { "</em>" };
 
+    static final Character[] DEFAULT_BOUNDARY_CHARS = HighlightBuilder.convertCharArray(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS);
+
     /**
      * a {@link FieldOptions} with default settings
      */
@@ -122,7 +126,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS)
         .encoder(DEFAULT_ENCODER)
         .boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
-        .boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
+        .boundaryChars(DEFAULT_BOUNDARY_CHARS)
         .boundaryScannerLocale(Locale.ROOT)
         .noMatchSize(DEFAULT_NO_MATCH_SIZE)
         .phraseLimit(DEFAULT_PHRASE_LIMIT)
@@ -476,8 +480,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /**
      * Field for highlight builder
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Field extends AbstractHighlighterBuilder<Field> {
         static final NamedObjectParser<Field, Void> PARSER;
         static {
@@ -584,8 +589,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /**
      * Order for highlight builder
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Order implements Writeable {
         NONE,
         SCORE;
@@ -615,8 +621,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /**
      * Boundary scanner type
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum BoundaryScannerType implements Writeable {
         CHARS,
         WORD,

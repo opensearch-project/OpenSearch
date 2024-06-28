@@ -44,7 +44,6 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
-import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -62,7 +61,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -127,6 +128,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean isSearchNode(Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
+    public static boolean isDedicatedSearchNode(Settings settings) {
+        return getRolesFromSettings(settings).stream().allMatch(DiscoveryNodeRole.SEARCH_ROLE::equals);
     }
 
     private final String nodeName;
@@ -281,27 +286,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
         Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
         return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
-    }
-
-    /** Creates a DiscoveryNode representing the local node and verifies the repository. */
-    public static DiscoveryNode createRemoteNodeLocal(
-        Settings settings,
-        TransportAddress publishAddress,
-        String nodeId,
-        RemoteStoreNodeService remoteStoreNodeService
-    ) {
-        Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
-        Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            Node.NODE_NAME_SETTING.get(settings),
-            nodeId,
-            publishAddress,
-            attributes,
-            roles,
-            Version.CURRENT
-        );
-        remoteStoreNodeService.createAndVerifyRepositories(discoveryNode);
-        return discoveryNode;
     }
 
     /** extract node roles from the given settings */
@@ -493,6 +477,18 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Returns whether remote cluster state publication is enabled on this node
+     * @return true if the node contains remote cluster state node attribute and remote routing table node attribute
+     */
+    public boolean isRemoteStatePublicationEnabled() {
+        return this.getAttributes()
+            .keySet()
+            .stream()
+            .anyMatch(key -> (key.equals(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)))
+            && this.getAttributes().keySet().stream().anyMatch(key -> key.equals(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
+    }
+
+    /**
      * Returns a set of all the roles that the node has. The roles are returned in sorted order by the role name.
      * <p>
      * If a node does not have any specific role, the returned set is empty, which means that the node is a coordinating-only node.
@@ -553,7 +549,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             sb.append('}');
         }
         if (!attributes.isEmpty()) {
-            sb.append(attributes);
+            sb.append(
+                attributes.entrySet()
+                    .stream()
+                    .filter(entry -> !entry.getKey().startsWith(REMOTE_STORE_NODE_ATTRIBUTE_KEY_PREFIX)) // filter remote_store attributes
+                                                                                                         // from logging to reduce noise.
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
         }
         return sb.toString();
     }

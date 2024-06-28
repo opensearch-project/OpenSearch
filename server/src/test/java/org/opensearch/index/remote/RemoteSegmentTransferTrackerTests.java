@@ -15,13 +15,17 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.DirectoryFileTransferTracker;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import static org.opensearch.index.remote.RemoteSegmentTransferTracker.currentTimeMsUsingSystemNanos;
 
 public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
     private RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
@@ -39,7 +43,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("remote_refresh_segment_pressure_settings_test");
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
@@ -92,7 +96,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             directoryFileTransferTracker,
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        long refreshTimeMs = System.nanoTime() / 1_000_000L + randomIntBetween(10, 100);
+        long refreshTimeMs = currentTimeMsUsingSystemNanos() + randomIntBetween(10, 100);
         transferTracker.updateLocalRefreshTimeMs(refreshTimeMs);
         assertEquals(refreshTimeMs, transferTracker.getLocalRefreshTimeMs());
     }
@@ -103,7 +107,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             directoryFileTransferTracker,
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        long refreshTimeMs = System.nanoTime() / 1_000_000 + randomIntBetween(10, 100);
+        long refreshTimeMs = currentTimeMsUsingSystemNanos() + randomIntBetween(10, 100);
         transferTracker.updateRemoteRefreshTimeMs(refreshTimeMs);
         assertEquals(refreshTimeMs, transferTracker.getRemoteRefreshTimeMs());
     }
@@ -133,20 +137,30 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         assertEquals(localRefreshSeqNo - remoteRefreshSeqNo, transferTracker.getRefreshSeqNoLag());
     }
 
-    public void testComputeTimeLagOnUpdate() {
+    public void testComputeTimeLagOnUpdate() throws InterruptedException {
         transferTracker = new RemoteSegmentTransferTracker(
             shardId,
             directoryFileTransferTracker,
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        long currentLocalRefreshTimeMs = transferTracker.getLocalRefreshTimeMs();
-        long currentTimeMs = System.nanoTime() / 1_000_000L;
-        long localRefreshTimeMs = currentTimeMs + randomIntBetween(100, 500);
-        long remoteRefreshTimeMs = currentTimeMs + randomIntBetween(50, 99);
-        transferTracker.updateLocalRefreshTimeMs(localRefreshTimeMs);
-        assertEquals(localRefreshTimeMs - currentLocalRefreshTimeMs, transferTracker.getTimeMsLag());
-        transferTracker.updateRemoteRefreshTimeMs(remoteRefreshTimeMs);
-        assertEquals(localRefreshTimeMs - remoteRefreshTimeMs, transferTracker.getTimeMsLag());
+
+        // No lag if there is a remote upload corresponding to a local refresh
+        assertEquals(0, transferTracker.getTimeMsLag());
+
+        // Set a local refresh time that is higher than remote refresh time
+        Thread.sleep(1);
+        transferTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
+
+        transferTracker.updateLatestLocalFileNameLengthMap(List.of("test"), k -> 1L);
+        // Sleep for 100ms and then the lag should be within 100ms +/- 20ms
+        Thread.sleep(100);
+        assertTrue(Math.abs(transferTracker.getTimeMsLag() - 100) <= 20);
+
+        transferTracker.updateRemoteRefreshTimeMs(transferTracker.getLocalRefreshTimeMs());
+        transferTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
+        long random = randomIntBetween(50, 200);
+        Thread.sleep(random);
+        assertTrue(Math.abs(transferTracker.getTimeMsLag() - random) <= 20);
     }
 
     public void testAddUploadBytesStarted() {
@@ -519,7 +533,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         transferTracker = constructTracker();
         RemoteSegmentTransferTracker.Stats transferTrackerStats = transferTracker.stats();
         assertEquals(transferTracker.getShardId(), transferTrackerStats.shardId);
-        assertEquals(transferTracker.getTimeMsLag(), (int) transferTrackerStats.refreshTimeLagMs);
+        assertTrue(Math.abs(transferTracker.getTimeMsLag() - transferTrackerStats.refreshTimeLagMs) <= 20);
         assertEquals(transferTracker.getLocalRefreshSeqNo(), (int) transferTrackerStats.localRefreshNumber);
         assertEquals(transferTracker.getRemoteRefreshSeqNo(), (int) transferTrackerStats.remoteRefreshNumber);
         assertEquals(transferTracker.getBytesLag(), (int) transferTrackerStats.bytesLag);
@@ -591,9 +605,9 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         );
         transferTracker.incrementTotalUploadsStarted();
         transferTracker.incrementTotalUploadsFailed();
-        transferTracker.updateUploadTimeMovingAverage(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
+        transferTracker.updateUploadTimeMovingAverage(currentTimeMsUsingSystemNanos() + randomIntBetween(10, 100));
         transferTracker.updateUploadBytesMovingAverage(99);
-        transferTracker.updateRemoteRefreshTimeMs(System.nanoTime() / 1_000_000L + randomIntBetween(10, 100));
+        transferTracker.updateRemoteRefreshTimeMs(currentTimeMsUsingSystemNanos() + randomIntBetween(10, 100));
         transferTracker.incrementRejectionCount();
         transferTracker.getDirectoryFileTransferTracker().addTransferredBytesStarted(10);
         transferTracker.getDirectoryFileTransferTracker().addTransferredBytesSucceeded(10, System.currentTimeMillis());

@@ -139,7 +139,7 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
 
     /**
      * Add type-specific modifiers for consistency checking.
-     *
+     * <p>
      * This should be called in a {@code @Before} method
      */
     protected void addModifier(String property, boolean updateable, BiConsumer<T, T> method) {
@@ -148,7 +148,7 @@ public abstract class FieldMapperTestCase2<T extends FieldMapper.Builder<?>> ext
 
     /**
      * Add type-specific modifiers for consistency checking.
-     *
+     * <p>
      * This should be called in a {@code @Before} method
      */
     protected void addBooleanModifier(String property, boolean updateable, BiConsumer<T, Boolean> method) {

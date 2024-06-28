@@ -32,6 +32,7 @@
 
 package org.opensearch.core.indices.breaker;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -43,29 +44,56 @@ import java.io.IOException;
 /**
  * Stats class encapsulating all of the different circuit breaker stats
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AllCircuitBreakerStats implements Writeable, ToXContentFragment {
 
+    /** An array of all the circuit breaker stats */
     private final CircuitBreakerStats[] allStats;
 
+    /**
+     * Constructs the instance
+     *
+     * @param allStats an array of all the circuit breaker stats
+     */
     public AllCircuitBreakerStats(CircuitBreakerStats[] allStats) {
         this.allStats = allStats;
     }
 
+    /**
+     * Constructs the new instance from {@link StreamInput}
+     * @param in the  {@link StreamInput} to read from
+     * @throws IOException If an error occurs while reading from the StreamInput
+     * @see #writeTo(StreamOutput)
+     */
     public AllCircuitBreakerStats(StreamInput in) throws IOException {
         allStats = in.readArray(CircuitBreakerStats::new, CircuitBreakerStats[]::new);
     }
 
+    /**
+     * Writes this instance into a {@link StreamOutput}
+     * @param out the {@link StreamOutput} to write to
+     * @throws IOException if an error occurs while writing to the StreamOutput
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(allStats);
     }
 
+    /**
+     * Returns inner stats instances for all circuit breakers
+     * @return inner stats instances for all circuit breakers
+     */
     public CircuitBreakerStats[] getAllStats() {
         return this.allStats;
     }
 
+    /**
+     * Returns the stats for a specific circuit breaker
+     * @param name the name of the circuit breaker
+     * @return  the {@link CircuitBreakerStats} for the circuit breaker, null if the circuit breaker with such name does not exist
+     */
     public CircuitBreakerStats getStats(String name) {
         for (CircuitBreakerStats stats : allStats) {
             if (stats.getName().equals(name)) {

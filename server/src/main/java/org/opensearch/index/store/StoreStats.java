@@ -32,6 +32,7 @@
 
 package org.opensearch.index.store;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -44,8 +45,9 @@ import java.io.IOException;
 /**
  * Statistics about an OpenSearch Store
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class StoreStats implements Writeable, ToXContentFragment {
 
     /**

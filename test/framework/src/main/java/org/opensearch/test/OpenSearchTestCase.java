@@ -63,14 +63,17 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
+import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -83,6 +86,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.time.FormatNames;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -119,7 +123,8 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -144,6 +149,8 @@ import org.junit.rules.RuleChain;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -169,14 +176,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import reactor.core.scheduler.Schedulers;
+
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
+import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -205,7 +216,12 @@ import static org.hamcrest.Matchers.hasItem;
     "LuceneFixedGap",
     "LuceneVarGapFixedInterval",
     "LuceneVarGapDocFreqInterval",
-    "Lucene50" })
+    "Lucene50",
+    "Lucene90",
+    "Lucene94",
+    "Lucene90",
+    "Lucene95",
+    "Lucene99" })
 @LuceneTestCase.SuppressReproduceLine
 public abstract class OpenSearchTestCase extends LuceneTestCase {
 
@@ -225,6 +241,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     @Override
     public void tearDown() throws Exception {
+        Schedulers.shutdownNow();
         FeatureFlagSetter.clear();
         super.tearDown();
     }
@@ -635,7 +652,32 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             try {
                 // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
                 // StatusData instances to Strings as otherwise their toString output is useless
+
+                final Function<StatusData, String> statusToString = (statusData) -> {
+                    try (final StringWriter sw = new StringWriter(); final PrintWriter pw = new PrintWriter(sw)) {
+
+                        pw.print(statusData.getLevel());
+                        pw.print(":");
+                        pw.print(statusData.getMessage().getFormattedMessage());
+
+                        if (statusData.getStackTraceElement() != null) {
+                            final var messageSource = statusData.getStackTraceElement();
+                            pw.println("Source:");
+                            pw.println(messageSource.getFileName() + "@" + messageSource.getLineNumber());
+                        }
+
+                        if (statusData.getThrowable() != null) {
+                            pw.println("Throwable:");
+                            statusData.getThrowable().printStackTrace(pw);
+                        }
+                        return sw.toString();
+                    } catch (IOException ioe) {
+                        throw new RuntimeException(ioe);
+                    }
+                };
+
                 assertThat(
+                    statusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     empty()
                 );
@@ -1093,6 +1135,38 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     /**
+     * Runs the code block for the provided max wait time and sleeping for fixed sleep time, waiting for no assertions to trip.
+     */
+    public static void assertBusyWithFixedSleepTime(CheckedRunnable<Exception> codeBlock, TimeValue maxWaitTime, TimeValue sleepTime)
+        throws Exception {
+        long maxTimeInMillis = maxWaitTime.millis();
+        long sleepTimeInMillis = sleepTime.millis();
+        if (sleepTimeInMillis > maxTimeInMillis) {
+            throw new IllegalArgumentException("sleepTime is more than the maxWaitTime");
+        }
+        long sum = 0;
+        List<AssertionError> failures = new ArrayList<>();
+        while (sum <= maxTimeInMillis) {
+            try {
+                codeBlock.run();
+                return;
+            } catch (AssertionError e) {
+                failures.add(e);
+            }
+            sum += sleepTimeInMillis;
+            Thread.sleep(sleepTimeInMillis);
+        }
+        try {
+            codeBlock.run();
+        } catch (AssertionError e) {
+            for (AssertionError failure : failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+    }
+
+    /**
      * Periodically execute the supplied function until it returns true, or a timeout
      * is reached. This version uses a timeout of 10 seconds. If at all possible,
      * use {@link OpenSearchTestCase#assertBusy(CheckedRunnable)} instead.
@@ -1204,7 +1278,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static Settings.Builder remoteIndexSettings(Version version) {
         Settings.Builder builder = Settings.builder()
-            .put(FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
+            .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
         return builder;
@@ -1727,5 +1801,40 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         } catch (UnknownHostException e) {
             throw new AssertionError();
         }
+    }
+
+    public static BlobPath getShardLevelBlobPath(
+        Client client,
+        String remoteStoreIndex,
+        BlobPath basePath,
+        String shardId,
+        RemoteStoreEnums.DataCategory dataCategory,
+        RemoteStoreEnums.DataType dataType
+    ) {
+        String indexUUID = client.admin()
+            .indices()
+            .prepareGetSettings(remoteStoreIndex)
+            .get()
+            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
+        ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
+        Map<String, String> remoteCustomData = state.metadata()
+            .index(remoteStoreIndex)
+            .getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        RemoteStoreEnums.PathType type = Objects.isNull(remoteCustomData)
+            ? RemoteStoreEnums.PathType.FIXED
+            : RemoteStoreEnums.PathType.valueOf(remoteCustomData.get(RemoteStoreEnums.PathType.NAME));
+        RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = Objects.nonNull(remoteCustomData)
+            ? remoteCustomData.containsKey(RemoteStoreEnums.PathHashAlgorithm.NAME)
+                ? RemoteStoreEnums.PathHashAlgorithm.valueOf(remoteCustomData.get(RemoteStoreEnums.PathHashAlgorithm.NAME))
+                : null
+            : null;
+        RemoteStorePathStrategy.ShardDataPathInput pathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
+            .basePath(basePath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        return type.path(pathInput, hashAlgorithm);
     }
 }

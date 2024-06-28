@@ -34,6 +34,7 @@ package org.opensearch.action.admin.cluster.repositories.delete;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -46,8 +47,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  * <p>
  * The unregister repository command just unregisters the repository. No data is getting deleted from the repository.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DeleteRepositoryRequest extends AcknowledgedRequest<DeleteRepositoryRequest> {
 
     private String name;

@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -56,6 +57,7 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.ClusterStateStats;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -83,6 +85,7 @@ import org.opensearch.discovery.HandshakingTransportAddressConnector;
 import org.opensearch.discovery.PeerFinder;
 import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.SeedHostsResolver;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
@@ -206,7 +209,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         ElectionStrategy electionStrategy,
         NodeHealthService nodeHealthService,
         PersistedStateRegistry persistedStateRegistry,
-        RemoteStoreNodeService remoteStoreNodeService
+        RemoteStoreNodeService remoteStoreNodeService,
+        ClusterManagerMetrics clusterManagerMetrics,
+        RemoteClusterStateService remoteClusterStateService
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -258,15 +263,25 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService,
             namedWriteableRegistry,
             this::handlePublishRequest,
-            this::handleApplyCommit
+            this::handleApplyCommit,
+            remoteClusterStateService
         );
-        this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure, nodeHealthService);
+        this.leaderChecker = new LeaderChecker(
+            settings,
+            clusterSettings,
+            transportService,
+            this::onLeaderFailure,
+            nodeHealthService,
+            clusterManagerMetrics
+        );
         this.followersChecker = new FollowersChecker(
             settings,
+            clusterSettings,
             transportService,
             this::onFollowerCheckRequest,
             this::removeNode,
-            nodeHealthService
+            nodeHealthService,
+            clusterManagerMetrics
         );
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
@@ -384,6 +399,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                     @Override
                     public void onSuccess(String source) {
+                        closePrevotingAndElectionScheduler();
                         applyListener.onResponse(null);
                     }
                 });
@@ -470,15 +486,27 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void closePrevotingAndElectionScheduler() {
+        closePrevoting();
+        closeElectionScheduler();
+    }
+
+    private void closePrevoting() {
         if (prevotingRound != null) {
             prevotingRound.close();
             prevotingRound = null;
         }
+    }
 
+    private void closeElectionScheduler() {
         if (electionScheduler != null) {
             electionScheduler.close();
             electionScheduler = null;
         }
+    }
+
+    // package-visible for testing
+    boolean isElectionSchedulerRunning() {
+        return electionScheduler != null;
     }
 
     private void updateMaxTermSeen(final long term) {
@@ -722,7 +750,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         lastKnownLeader = Optional.of(getLocalNode());
         peerFinder.deactivate(getLocalNode());
         clusterFormationFailureHelper.stop();
-        closePrevotingAndElectionScheduler();
+        closePrevoting();
         preVoteCollector.update(getPreVoteResponse(), getLocalNode());
 
         assert leaderChecker.leader() == null : leaderChecker.leader();
@@ -759,7 +787,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         lastKnownLeader = Optional.of(leaderNode);
         peerFinder.deactivate(leaderNode);
         clusterFormationFailureHelper.stop();
-        closePrevotingAndElectionScheduler();
+        closePrevoting();
         cancelActivePublication("become follower: " + method);
         preVoteCollector.update(getPreVoteResponse(), leaderNode);
 
@@ -865,7 +893,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats());
+        ClusterStateStats clusterStateStats = clusterManagerService.getClusterStateStats();
+        ArrayList<PersistedStateStats> stats = new ArrayList<>();
+        Stream.of(PersistedStateRegistry.PersistedStateType.values()).forEach(stateType -> {
+            if (persistedStateRegistry.getPersistedState(stateType) != null
+                && persistedStateRegistry.getPersistedState(stateType).getStats() != null) {
+                stats.add(persistedStateRegistry.getPersistedState(stateType).getStats());
+            }
+        });
+        clusterStateStats.setPersistenceStats(stats);
+        return new DiscoveryStats(new PendingClusterStateStats(0, 0, 0), publicationHandler.stats(), clusterStateStats);
     }
 
     @Override
@@ -916,7 +953,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert lastKnownLeader.isPresent() && lastKnownLeader.get().equals(getLocalNode());
                 assert joinAccumulator instanceof JoinHelper.LeaderJoinAccumulator;
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
-                assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
                 assert becomingClusterManager || getStateForClusterManagerService().nodes().getClusterManagerNodeId() != null
                     : getStateForClusterManagerService();
@@ -961,7 +997,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);
                 assert joinAccumulator instanceof JoinHelper.FollowerJoinAccumulator;
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
-                assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
                 assert getStateForClusterManagerService().nodes().getClusterManagerNodeId() == null : getStateForClusterManagerService();
                 assert leaderChecker.currentNodeIsClusterManager() == false;
@@ -1298,7 +1333,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     + clusterState;
 
                 final PublicationTransportHandler.PublicationContext publicationContext = publicationHandler.newPublicationContext(
-                    clusterChangedEvent
+                    clusterChangedEvent,
+                    coordinationState.get().isRemotePublicationEnabled(),
+                    persistedStateRegistry
                 );
 
                 final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
@@ -1682,6 +1719,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     updateMaxTermSeen(getCurrentTerm());
 
                                     if (mode == Mode.LEADER) {
+                                        closePrevotingAndElectionScheduler();
                                         // if necessary, abdicate to another node or improve the voting configuration
                                         boolean attemptReconfiguration = true;
                                         final ClusterState state = getLastAcceptedState(); // committed state

@@ -240,6 +240,7 @@ final class FetchSearchPhase extends SearchPhase {
                     public void innerOnResponse(FetchSearchResult result) {
                         try {
                             progressListener.notifyFetchResult(shardIndex);
+                            context.setPhaseResourceUsages();
                             counter.onResult(result);
                         } catch (Exception e) {
                             context.onPhaseFailure(FetchSearchPhase.this, "", e);
@@ -254,6 +255,7 @@ final class FetchSearchPhase extends SearchPhase {
                                 e
                             );
                             progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
+                            context.setPhaseResourceUsages();
                             counter.onFailure(shardIndex, shardTarget, e);
                         } finally {
                             // the search context might not be cleared on the node where the fetch was executed for example

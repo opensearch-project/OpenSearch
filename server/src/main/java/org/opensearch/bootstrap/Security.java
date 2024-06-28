@@ -66,6 +66,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
@@ -119,7 +121,10 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  *
  * @opensearch.internal
  */
+@SuppressWarnings("removal")
 final class Security {
+    private static final Pattern CODEBASE_JAR_WITH_CLASSIFIER = Pattern.compile("^(.+)-\\d+\\.\\d+[^-]*.*?[-]?([^-]+)?\\.jar$");
+
     /** no instantiation */
     private Security() {}
 
@@ -230,33 +235,45 @@ final class Security {
         try {
             List<String> propertiesSet = new ArrayList<>();
             try {
+                final Map<Map.Entry<String, URL>, String> jarsWithPossibleClassifiers = new HashMap<>();
                 // set codebase properties
                 for (Map.Entry<String, URL> codebase : codebases.entrySet()) {
-                    String name = codebase.getKey();
-                    URL url = codebase.getValue();
+                    final String name = codebase.getKey();
+                    final URL url = codebase.getValue();
 
                     // We attempt to use a versionless identifier for each codebase. This assumes a specific version
                     // format in the jar filename. While we cannot ensure all jars in all plugins use this format, nonconformity
                     // only means policy grants would need to include the entire jar filename as they always have before.
-                    String property = "codebase." + name;
-                    String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
-                    if (aliasProperty.equals(property) == false) {
-                        propertiesSet.add(aliasProperty);
-                        String previous = System.setProperty(aliasProperty, url.toString());
-                        if (previous != null) {
-                            throw new IllegalStateException(
-                                "codebase property already set: " + aliasProperty + " -> " + previous + ", cannot set to " + url.toString()
-                            );
-                        }
-                    }
-                    propertiesSet.add(property);
-                    String previous = System.setProperty(property, url.toString());
-                    if (previous != null) {
-                        throw new IllegalStateException(
-                            "codebase property already set: " + property + " -> " + previous + ", cannot set to " + url.toString()
-                        );
+                    final Matcher matcher = CODEBASE_JAR_WITH_CLASSIFIER.matcher(name);
+                    if (matcher.matches() && matcher.group(2) != null) {
+                        // There is a JAR that, possibly, has a classifier or SNAPSHOT at the end, examples are:
+                        // - netty-tcnative-boringssl-static-2.0.61.Final-linux-x86_64.jar
+                        // - kafka-server-common-3.6.1-test.jar
+                        // - lucene-core-9.11.0-snapshot-8a555eb.jar
+                        // - zstd-jni-1.5.5-5.jar
+                        jarsWithPossibleClassifiers.put(codebase, matcher.group(2));
+                    } else {
+                        String property = "codebase." + name;
+                        String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                        addCodebaseToSystemProperties(propertiesSet, url, property, aliasProperty);
                     }
                 }
+
+                // set codebase properties for JARs that might present with classifiers
+                for (Map.Entry<Map.Entry<String, URL>, String> jarWithPossibleClassifier : jarsWithPossibleClassifiers.entrySet()) {
+                    final Map.Entry<String, URL> codebase = jarWithPossibleClassifier.getKey();
+                    final String name = codebase.getKey();
+                    final URL url = codebase.getValue();
+
+                    String property = "codebase." + name;
+                    String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                    if (System.getProperties().containsKey(aliasProperty)) {
+                        aliasProperty = aliasProperty + "@" + jarWithPossibleClassifier.getValue();
+                    }
+
+                    addCodebaseToSystemProperties(propertiesSet, url, property, aliasProperty);
+                }
+
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
@@ -266,6 +283,27 @@ final class Security {
             }
         } catch (NoSuchAlgorithmException | URISyntaxException e) {
             throw new IllegalArgumentException("unable to parse policy file `" + policyFile + "`", e);
+        }
+    }
+
+    /** adds the codebase to properties and System properties */
+    @SuppressForbidden(reason = "accesses System properties to configure codebases")
+    private static void addCodebaseToSystemProperties(List<String> propertiesSet, final URL url, String property, String aliasProperty) {
+        if (aliasProperty.equals(property) == false) {
+            propertiesSet.add(aliasProperty);
+            String previous = System.setProperty(aliasProperty, url.toString());
+            if (previous != null) {
+                throw new IllegalStateException(
+                    "codebase property already set: " + aliasProperty + " -> " + previous + ", cannot set to " + url.toString()
+                );
+            }
+        }
+        propertiesSet.add(property);
+        String previous = System.setProperty(property, url.toString());
+        if (previous != null) {
+            throw new IllegalStateException(
+                "codebase property already set: " + property + " -> " + previous + ", cannot set to " + url.toString()
+            );
         }
     }
 

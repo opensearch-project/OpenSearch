@@ -317,8 +317,8 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         );
         Settings nonClusterManagerDataPathSettings1 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(0));
         Settings nonClusterManagerDataPathSettings2 = internalCluster().dataPathSettings(nonClusterManagerNodes.get(1));
-        internalCluster().stopRandomNonClusterManagerNode();
-        internalCluster().stopRandomNonClusterManagerNode();
+        internalCluster().stopRandomNodeNotCurrentClusterManager();
+        internalCluster().stopRandomNodeNotCurrentClusterManager();
 
         logger.info("--> verify that there is no cluster-manager anymore on remaining node");
         // spin here to wait till the state is set

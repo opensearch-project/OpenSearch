@@ -225,7 +225,7 @@ public class GeometryIndexerTests extends OpenSearchTestCase {
     /**
      * A randomized test that generates a random lines crossing anti-merdian and checks that the decomposed segments of this line
      * have the same total length (measured using Euclidean distances between neighboring points) as the original line.
-     *
+     * <p>
      * It also extracts all points from these lines, performs normalization of these points and then compares that the resulting
      * points of line normalization match the points of points normalization with the exception of points that were created on the
      * antimeridian as the result of line decomposition.

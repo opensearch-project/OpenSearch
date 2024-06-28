@@ -32,6 +32,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -40,13 +41,24 @@ import java.util.Objects;
 /**
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-abstract class SearchPhase implements CheckedRunnable<IOException> {
+@PublicApi(since = "1.0.0")
+public abstract class SearchPhase implements CheckedRunnable<IOException> {
     private final String name;
+    private long startTimeInNanos;
 
     protected SearchPhase(String name) {
         this.name = Objects.requireNonNull(name, "name must not be null");
+    }
+
+    public long getStartTimeInNanos() {
+        return startTimeInNanos;
+    }
+
+    public void recordAndRun() throws IOException {
+        this.startTimeInNanos = System.nanoTime();
+        run();
     }
 
     /**

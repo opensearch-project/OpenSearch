@@ -111,16 +111,16 @@ import java.util.function.Supplier;
  * Stores cluster metadata in a bare Lucene index (per data path) split across a number of documents. This is used by cluster-manager-eligible nodes
  * to record the last-accepted cluster state during publication. The metadata is written incrementally where possible, leaving alone any
  * documents that have not changed. The index has the following fields:
- *
+ * <p>
  * +------------------------------+-----------------------------+----------------------------------------------+
  * | "type" (string field)        | "index_uuid" (string field) | "data" (stored binary field in SMILE format) |
  * +------------------------------+-----------------------------+----------------------------------------------+
  * | GLOBAL_TYPE_NAME == "global" | (omitted)                   | Global metadata                              |
  * | INDEX_TYPE_NAME  == "index"  | Index UUID                  | Index metadata                               |
  * +------------------------------+-----------------------------+----------------------------------------------+
- *
+ * <p>
  * Additionally each commit has the following user data:
- *
+ * <p>
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
  * |        Key symbol         |       Key literal       |                                     Value                                     |
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
@@ -129,7 +129,7 @@ import java.util.function.Supplier;
  * | NODE_ID_KEY               | "node_id"               | The (persistent) ID of the node that wrote this metadata                      |
  * | NODE_VERSION_KEY          | "node_version"          | The (ID of the) version of the node that wrote this metadata                  |
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
- *
+ * <p>
  * (the last-accepted term is recorded in Metadata → CoordinationMetadata so does not need repeating here)
  *
  * @opensearch.internal

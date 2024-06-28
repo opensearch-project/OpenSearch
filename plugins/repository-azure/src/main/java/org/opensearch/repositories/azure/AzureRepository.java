@@ -47,6 +47,8 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -114,14 +116,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        super(
-            metadata,
-            COMPRESS_SETTING.get(metadata.settings()),
-            namedXContentRegistry,
-            clusterService,
-            recoverySettings,
-            buildLocation(metadata)
-        );
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
 
@@ -191,5 +186,14 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     @Override
     public boolean isReadOnly() {
         return readonly;
+    }
+
+    @Override
+    public List<Setting<?>> getRestrictedSystemRepositorySettings() {
+        List<Setting<?>> restrictedSettings = new ArrayList<>();
+        restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
+        restrictedSettings.add(Repository.BASE_PATH_SETTING);
+        restrictedSettings.add(Repository.LOCATION_MODE_SETTING);
+        return restrictedSettings;
     }
 }

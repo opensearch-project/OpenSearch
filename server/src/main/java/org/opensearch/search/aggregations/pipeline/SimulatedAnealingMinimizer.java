@@ -36,11 +36,11 @@ import org.opensearch.common.collect.EvictingQueue;
 
 /**
  * A cost minimizer which will fit a MovAvgModel to the data.
- *
+ * <p>
  * This optimizer uses naive simulated annealing.  Random solutions in the problem space
  * are generated, compared against the last period of data, and the least absolute deviation
  * is recorded as a cost.
- *
+ * <p>
  * If the new cost is better than the old cost, the new coefficients are chosen.  If the new
  * solution is worse, there is a temperature-dependent probability it will be randomly selected
  * anyway.  This allows the algo to sample the problem space widely.  As iterations progress,
@@ -114,7 +114,7 @@ public class SimulatedAnealingMinimizer {
     /**
      * Calculates the "cost" of a model.  E.g. when run on the training data, how closely do the  predictions
      * match the test data
-     *
+     * <p>
      * Uses Least Absolute Differences to calculate error.  Note that this is not scale free, but seems
      * to work fairly well in practice
      *

@@ -49,7 +49,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * Generic resource watcher service
- *
+ * <p>
  * Other opensearch services can register their resource watchers with this service using {@link #add(ResourceWatcher)}
  * method. This service will call {@link org.opensearch.watcher.ResourceWatcher#checkAndNotify()} method of all
  * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
@@ -64,8 +64,9 @@ public class ResourceWatcherService implements Closeable {
     /**
      * Frequency level to watch.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Frequency {
 
         /**

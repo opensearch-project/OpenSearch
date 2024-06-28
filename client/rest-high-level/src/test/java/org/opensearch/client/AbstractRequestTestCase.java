@@ -44,7 +44,7 @@ import java.io.IOException;
 
 /**
  * Base class for HLRC request parsing tests.
- *
+ * <p>
  * This case class facilitates generating client side request test instances and
  * verifies that they are correctly parsed into server side request instances.
  *

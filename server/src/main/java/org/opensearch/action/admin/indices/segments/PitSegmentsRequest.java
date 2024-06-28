@@ -10,6 +10,7 @@ package org.opensearch.action.admin.indices.segments;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -25,7 +26,10 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * Transport request for retrieving PITs segment information
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.3.0")
 public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
     private boolean verbose = false;
     private final List<String> pitIds = new ArrayList<>();

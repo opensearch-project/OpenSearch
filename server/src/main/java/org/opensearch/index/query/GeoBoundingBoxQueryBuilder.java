@@ -60,7 +60,7 @@ import java.util.Objects;
 /**
  * Creates a Lucene query that will filter for all documents that lie within the specified
  * bounding box.
- *
+ * <p>
  * This query can only operate on fields of type geo_point that have latitude and longitude
  * enabled.
  *

@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.ClusterStateListener;
@@ -51,6 +52,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.StopWatch;
 import org.opensearch.common.StopWatch.TimingHandle;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -60,6 +62,8 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -67,6 +71,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -82,8 +87,9 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
 /**
  * Service that provides callbacks when cluster state changes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterApplierService extends AbstractLifecycleComponent implements ClusterApplier {
     private static final Logger logger = LogManager.getLogger(ClusterApplierService.class);
 
@@ -118,8 +124,19 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private final String nodeName;
 
     private NodeConnectionsService nodeConnectionsService;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
     public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(nodeName, settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
+    }
+
+    public ClusterApplierService(
+        String nodeName,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        ClusterManagerMetrics clusterManagerMetrics
+    ) {
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
@@ -130,6 +147,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             this::setSlowTaskLoggingThreshold
         );
+        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -294,7 +312,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     /**
      * Adds a cluster state listener that is expected to be removed during a short period of time.
      * If provided, the listener will be notified once a specific time has elapsed.
-     *
+     * <p>
      * NOTE: the listener is not removed on timeout. This is the responsibility of the caller.
      */
     public void addTimeoutListener(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
@@ -595,7 +613,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateAppliers(clusterChangedEvent, stopWatch, lowPriorityStateAppliers);
     }
 
-    private static void callClusterStateAppliers(
+    private void callClusterStateAppliers(
         ClusterChangedEvent clusterChangedEvent,
         StopWatch stopWatch,
         Collection<ClusterStateApplier> clusterStateAppliers
@@ -603,7 +621,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
             try (TimingHandle ignored = stopWatch.timing("running applier [" + applier + "]")) {
+                long applierStartTimeNS = System.nanoTime();
                 applier.applyClusterState(clusterChangedEvent);
+                clusterManagerMetrics.recordLatency(
+                    clusterManagerMetrics.clusterStateAppliersHistogram,
+                    (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - applierStartTimeNS)),
+                    Optional.of(Tags.create().addTag("Operation", applier.getClass().getSimpleName()))
+                );
             }
         }
     }
@@ -622,7 +646,13 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try {
                 logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
                 try (TimingHandle ignored = stopWatch.timing("notifying listener [" + listener + "]")) {
+                    long listenerStartTimeNS = System.nanoTime();
                     listener.clusterChanged(clusterChangedEvent);
+                    clusterManagerMetrics.recordLatency(
+                        clusterManagerMetrics.clusterStateListenersHistogram,
+                        (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - listenerStartTimeNS)),
+                        Optional.of(Tags.create().addTag("Operation", listener.getClass().getSimpleName()))
+                    );
                 }
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);

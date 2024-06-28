@@ -43,7 +43,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -58,9 +57,9 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.search.SearchModule;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -80,6 +79,7 @@ import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
@@ -95,12 +95,12 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for the {@code simple_query_string} query
  */
-public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static int CLUSTER_MAX_CLAUSE_COUNT;
 
-    public SimpleQueryStringIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SimpleQueryStringIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -111,21 +111,19 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         );
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
-    }
-
     @BeforeClass
     public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(60, 100);
+        // Lower bound can't be small(such as 60), simpleQueryStringQuery("foo Bar 19 127.0.0.1") in testDocWithAllTypes
+        // will create many clauses of BooleanClause, In that way, it will throw too_many_nested_clauses exception.
+        // So we need to set a higher bound(such as 80) to avoid failures.
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(80, 100);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
+            .put(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
             .build();
     }
 
@@ -150,6 +148,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("5").setSource("body", "quux baz spaghetti"),
             client().prepareIndex("test").setId("6").setSource("otherbody", "spaghetti")
         );
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar")).get();
         assertHitCount(searchResponse, 3L);
@@ -199,6 +198,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("3").setSource("body", "foo bar"),
             client().prepareIndex("test").setId("4").setSource("body", "foo baz bar")
         );
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> query 1");
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")).get();
@@ -235,6 +235,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("7").setSource("body2", "foo bar", "other", "foo"),
             client().prepareIndex("test").setId("8").setSource("body2", "foo baz bar", "other", "foo")
         );
+        indexRandomForConcurrentSearch("test");
 
         logger.info("--> query 5");
         searchResponse = client().prepareSearch()
@@ -256,7 +257,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         assertSearchHits(searchResponse, "6", "7", "8");
     }
 
-    public void testNestedFieldSimpleQueryString() throws IOException {
+    public void testNestedFieldSimpleQueryString() throws Exception {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -275,6 +276,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("body", "foo bar baz").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body")).get();
         assertHitCount(searchResponse, 1L);
@@ -359,6 +361,8 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test2").setId("10").setSource("field", 5)
         );
         refresh();
+        indexRandomForConcurrentSearch("test1");
+        indexRandomForConcurrentSearch("test2");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setAllowPartialSearchResults(true)
@@ -419,6 +423,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("123").field("foo").field("bar")).get();
         assertHitCount(searchResponse, 1L);
@@ -430,6 +435,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")).get();
         assertHitCount(searchResponse, 2L);
@@ -469,6 +475,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("2").setSource("f2", "Bar"));
         reqs.add(client().prepareIndex("test").setId("3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
         assertHitCount(resp, 2L);
@@ -492,6 +499,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("1").setSource("f1", "foo", "f_date", "2015/09/02"));
         reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")).get();
         assertHits(resp.getHits(), "1", "2");
@@ -523,6 +531,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01", "f_float", "1.8", "f_ip", "127.0.0.2")
         );
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")).get();
         assertHits(resp.getHits(), "1", "2");
@@ -550,6 +559,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         String docBody = copyToStringFromClasspath("/org/opensearch/search/query/all-example-document.json");
         reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, MediaTypeRegistry.JSON));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
         assertHits(resp.getHits(), "1");
@@ -596,6 +606,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar"));
         reqs.add(client().prepareIndex("test").setId("3").setSource("f1", "foo bar"));
         indexRandom(true, false, reqs);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foo")).get();
         assertHits(resp.getHits(), "3");
@@ -663,6 +674,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
         indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").setQuery(simpleQueryStringQuery("value").field("f3_alias")).get();
 
@@ -681,6 +693,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         indexRequests.add(client().prepareIndex("test").setId("2").setSource("f3", "value", "f2", "two"));
         indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test").setQuery(simpleQueryStringQuery("value").field("f3_*")).get();
 
@@ -697,6 +710,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         indexRequests.add(client().prepareIndex("test").setId("1").setSource("f3", "text", "f2", "one"));
         indexRandom(true, false, indexRequests);
+        indexRandomForConcurrentSearch("test");
 
         // The wildcard field matches aliases for both a text and boolean field.
         // By default, the boolean field should be ignored when building the query.
@@ -705,6 +719,52 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertHits(response.getHits(), "1");
+    }
+
+    public void testDynamicClauseCountUpdate() throws Exception {
+        client().prepareIndex("testdynamic").setId("1").setSource("field", "foo bar baz").get();
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT - 1))
+        );
+        refresh();
+        StringBuilder sb = new StringBuilder("foo");
+
+        // create clause_count + 1 clauses to hit error
+        for (int i = 0; i <= CLUSTER_MAX_CLAUSE_COUNT; i++) {
+            sb.append(" OR foo" + i);
+        }
+
+        QueryStringQueryBuilder qb = queryStringQuery(sb.toString()).field("field");
+
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch("testdynamic").setQuery(qb).get();
+        });
+
+        assert (e.getDetailedMessage().contains("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT - 1)));
+
+        // increase clause count by 2
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 2))
+        );
+
+        Thread.sleep(1);
+
+        SearchResponse response = client().prepareSearch("testdynamic").setQuery(qb).get();
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()))
+        );
     }
 
     private void assertHits(SearchHits hits, String... ids) {

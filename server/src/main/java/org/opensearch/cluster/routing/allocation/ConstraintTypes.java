@@ -29,6 +29,11 @@ public class ConstraintTypes {
     public final static String CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID = "cluster.primary.shard.balance.constraint";
 
     /**
+     * Defines a cluster constraint which is breached when a node contains more than avg primary shards across all indices
+     */
+    public final static String CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID = "cluster.primary.shard.rebalance.constraint";
+
+    /**
      * Defines an index constraint which is breached when a node contains more than avg number of shards for an index
      */
     public final static String INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID = "index.shard.count.constraint";
@@ -36,14 +41,14 @@ public class ConstraintTypes {
     /**
      * Constraint to control number of shards of an index allocated on a single
      * node.
-     *
+     * <p>
      * In current weight function implementation, when a node has significantly
      * fewer shards than other nodes (e.g. during single new node addition or node
      * replacement), its weight is much less than other nodes. All shard allocations
      * at this time tend to land on the new node with skewed weight. This breaks
      * index level balance in the cluster, by creating all shards of the same index
      * on one node, often resulting in a hotspot on that node.
-     *
+     * <p>
      * This constraint is breached when balancer attempts to allocate more than
      * average shards per index per node.
      */
@@ -70,14 +75,14 @@ public class ConstraintTypes {
     }
 
     /**
-     * Defines a predicate which returns true when a node contains more than average number of primary shards. This
-     * constraint is used in weight calculation during allocation only. When breached a high weight {@link ConstraintTypes#CONSTRAINT_WEIGHT}
-     * is assigned to node resulting in lesser chances of node being selected as allocation target
+     * Defines a predicate which returns true when a node contains more than average number of primary shards with added buffer. This
+     * constraint is used in weight calculation during allocation/rebalance both. When breached a high weight {@link ConstraintTypes#CONSTRAINT_WEIGHT}
+     * is assigned to node resulting in lesser chances of node being selected as allocation/rebalance target
      */
-    public static Predicate<Constraint.ConstraintParams> isPrimaryShardsPerNodeBreached() {
+    public static Predicate<Constraint.ConstraintParams> isPrimaryShardsPerNodeBreached(float buffer) {
         return (params) -> {
             int primaryShardCount = params.getNode().numPrimaryShards();
-            int allowedPrimaryShardCount = (int) Math.ceil(params.getBalancer().avgPrimaryShardsPerNode());
+            int allowedPrimaryShardCount = (int) Math.ceil(params.getBalancer().avgPrimaryShardsPerNode() * (1 + buffer));
             return primaryShardCount >= allowedPrimaryShardCount;
         };
     }

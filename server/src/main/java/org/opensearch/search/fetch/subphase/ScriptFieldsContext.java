@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch.subphase;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.script.FieldScript;
 
 import java.util.ArrayList;
@@ -40,15 +41,17 @@ import java.util.List;
 /**
  * Context used for script fields
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ScriptFieldsContext {
 
     /**
      * Script field use in the script fields context
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class ScriptField {
         private final String name;
         private final FieldScript.LeafFactory script;
