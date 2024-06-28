@@ -14,12 +14,17 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.NumericDimension;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -205,6 +210,100 @@ public class StarTreeMapperTests extends MapperTestCase {
             "Failed to parse mapping [_doc]: Atleast two dimensions are required to build star tree index field [startree]",
             ex.getMessage()
         );
+    }
+
+    public void testMetric() {
+        List<MetricStat> m1 = new ArrayList<>();
+        m1.add(MetricStat.MAX);
+        Metric metric1 = new Metric("name", m1);
+        Metric metric2 = new Metric("name", m1);
+        assertEquals(metric1, metric2);
+        List<MetricStat> m2 = new ArrayList<>();
+        m2.add(MetricStat.MAX);
+        m2.add(MetricStat.COUNT);
+        metric2 = new Metric("name", m2);
+        assertNotEquals(metric1, metric2);
+
+        assertEquals(MetricStat.COUNT, MetricStat.fromTypeName("count"));
+        assertEquals(MetricStat.MAX, MetricStat.fromTypeName("max"));
+        assertEquals(MetricStat.MIN, MetricStat.fromTypeName("min"));
+        assertEquals(MetricStat.SUM, MetricStat.fromTypeName("sum"));
+        assertEquals(MetricStat.AVG, MetricStat.fromTypeName("avg"));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> MetricStat.fromTypeName("invalid"));
+        assertEquals("Invalid metric stat: invalid", ex.getMessage());
+    }
+
+    public void testDimensions() {
+        List<Rounding.DateTimeUnit> d1CalendarIntervals = new ArrayList<>();
+        d1CalendarIntervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
+        DateDimension d1 = new DateDimension("name", d1CalendarIntervals);
+        DateDimension d2 = new DateDimension("name", d1CalendarIntervals);
+        assertEquals(d1, d2);
+        d2 = new DateDimension("name1", d1CalendarIntervals);
+        assertNotEquals(d1, d2);
+        List<Rounding.DateTimeUnit> d2CalendarIntervals = new ArrayList<>();
+        d2CalendarIntervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
+        d2CalendarIntervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
+        d2 = new DateDimension("name", d2CalendarIntervals);
+        assertNotEquals(d1, d2);
+        NumericDimension n1 = new NumericDimension("name");
+        NumericDimension n2 = new NumericDimension("name");
+        assertEquals(n1, n2);
+        n2 = new NumericDimension("name1");
+        assertNotEquals(n1, n2);
+    }
+
+    public void testStarTreeField() {
+        List<MetricStat> m1 = new ArrayList<>();
+        m1.add(MetricStat.MAX);
+        Metric metric1 = new Metric("name", m1);
+        List<Rounding.DateTimeUnit> d1CalendarIntervals = new ArrayList<>();
+        d1CalendarIntervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
+        DateDimension d1 = new DateDimension("name", d1CalendarIntervals);
+        NumericDimension n1 = new NumericDimension("numeric");
+        NumericDimension n2 = new NumericDimension("name1");
+
+        List<Metric> metrics = List.of(metric1);
+        List<Dimension> dims = List.of(d1, n2);
+        StarTreeFieldConfiguration config = new StarTreeFieldConfiguration(
+            100,
+            Set.of("name"),
+            StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP
+        );
+
+        StarTreeField field1 = new StarTreeField("starTree", dims, metrics, config);
+        StarTreeField field2 = new StarTreeField("starTree", dims, metrics, config);
+        assertEquals(field1, field2);
+
+        dims = List.of(d1, n2, n1);
+        field2 = new StarTreeField("starTree", dims, metrics, config);
+        assertNotEquals(field1, field2);
+
+        dims = List.of(d1, n2);
+        metrics = List.of(metric1, metric1);
+        field2 = new StarTreeField("starTree", dims, metrics, config);
+        assertNotEquals(field1, field2);
+
+        dims = List.of(d1, n2);
+        metrics = List.of(metric1);
+        StarTreeFieldConfiguration config1 = new StarTreeFieldConfiguration(
+            1000,
+            Set.of("name"),
+            StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP
+        );
+        field2 = new StarTreeField("starTree", dims, metrics, config1);
+        assertNotEquals(field1, field2);
+
+        config1 = new StarTreeFieldConfiguration(100, Set.of("name", "field2"), StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP);
+        field2 = new StarTreeField("starTree", dims, metrics, config1);
+        assertNotEquals(field1, field2);
+
+        config1 = new StarTreeFieldConfiguration(100, Set.of("name"), StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP);
+        field2 = new StarTreeField("starTree", dims, metrics, config1);
+        assertNotEquals(field1, field2);
+
+        field2 = new StarTreeField("starTree", dims, metrics, config);
+        assertEquals(field1, field2);
     }
 
     private XContentBuilder getExpandedMapping(String dim, String metric) throws IOException {
