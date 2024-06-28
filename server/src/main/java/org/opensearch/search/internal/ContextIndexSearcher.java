@@ -513,10 +513,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private boolean canMatchSearchAfter(LeafReaderContext ctx) throws IOException {
-        if (searchContext.searchAfter() != null && searchContext.request() != null && searchContext.request().source() != null) {
+        // Skipping search on shard/segment entirely can cause mismatch on total_tracking_hits, hence skip only if
+        // track_total_hits is false.
+        if (searchContext.searchAfter() != null
+            && searchContext.request() != null
+            && searchContext.request().source() != null
+            && Objects.equals(searchContext.trackTotalHitsUpTo(), SearchContext.TRACK_TOTAL_HITS_DISABLED)) {
             // Only applied on primary sort field and primary search_after.
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
-            if (primarySortField != null) {
+            // Check for sort.missing == null, since in case of missing values sort queries, if segment/shard's min/max
+            // is out of search_after range, it still should be printed and hence we should not skip segment/shard.
+            if (primarySortField != null && primarySortField.missing() == null) {
                 MinAndMax<?> minMax = FieldSortBuilder.getMinMaxOrNullForSegment(
                     this.searchContext.getQueryShardContext(),
                     ctx,
