@@ -8,12 +8,15 @@
 
 package org.opensearch.ingest;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 public class AbstractBatchingProcessorTests extends OpenSearchTestCase {
@@ -87,6 +90,29 @@ public class AbstractBatchingProcessorTests extends OpenSearchTestCase {
         assertEquals(wrapperList.subList(2, 3), processor.getSubBatches().get(2));
     }
 
+    public void testFactory_invalidBatchSize() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("batch_size", 0);
+        DummyProcessor.DummyProcessorFactory factory = new DummyProcessor.DummyProcessorFactory("DummyProcessor");
+        OpenSearchParseException exception = assertThrows(OpenSearchParseException.class, () -> factory.create(config));
+        assertEquals("[batch_size] batch size must be a positive integer", exception.getMessage());
+    }
+
+    public void testFactory_defaultBatchSize() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        DummyProcessor.DummyProcessorFactory factory = new DummyProcessor.DummyProcessorFactory("DummyProcessor");
+        DummyProcessor processor = (DummyProcessor) factory.create(config);
+        assertEquals(1, processor.batchSize);
+    }
+
+    public void testFactory_callNewProcessor() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("batch_size", 3);
+        DummyProcessor.DummyProcessorFactory factory = new DummyProcessor.DummyProcessorFactory("DummyProcessor");
+        DummyProcessor processor = (DummyProcessor) factory.create(config);
+        assertEquals(3, processor.batchSize);
+    }
+
     static class DummyProcessor extends AbstractBatchingProcessor {
         private List<List<IngestDocumentWrapper>> subBatches = new ArrayList<>();
 
@@ -112,6 +138,23 @@ public class AbstractBatchingProcessorTests extends OpenSearchTestCase {
         @Override
         public String getType() {
             return null;
+        }
+
+        public static class DummyProcessorFactory extends Factory {
+
+            protected DummyProcessorFactory(String processorType) {
+                super(processorType);
+            }
+
+            public AbstractBatchingProcessor create(Map<String, Object> config) throws Exception {
+                final Map<String, org.opensearch.ingest.Processor.Factory> processorFactories = new HashMap<>();
+                return super.create(processorFactories, "tag", "description", config);
+            }
+
+            @Override
+            protected AbstractBatchingProcessor newProcessor(String tag, String description, int batchSize, Map<String, Object> config) {
+                return new DummyProcessor(batchSize);
+            }
         }
     }
 }

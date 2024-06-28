@@ -112,12 +112,7 @@ public abstract class AbstractBatchingProcessor extends AbstractProcessor {
         ) throws Exception {
             int batchSize = ConfigurationUtils.readIntProperty(this.processorType, tag, config, BATCH_SIZE_FIELD, DEFAULT_BATCH_SIZE);
             if (batchSize < 1) {
-                throw newConfigurationException(
-                    this.processorType,
-                    tag,
-                    BATCH_SIZE_FIELD,
-                    BATCH_SIZE_FIELD + " must be a positive integer"
-                );
+                throw newConfigurationException(this.processorType, tag, BATCH_SIZE_FIELD, "batch size must be a positive integer");
             }
             return newProcessor(tag, description, batchSize, config);
         }
