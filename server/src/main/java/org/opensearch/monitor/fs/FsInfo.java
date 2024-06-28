@@ -34,6 +34,7 @@ package org.opensearch.monitor.fs;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -79,7 +80,17 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
         public Path() {}
 
-        // Used only in tests
+        /**
+         * Please notice that this constructor will use value of <code>0</code>
+         * for <code>fileCacheReserved</code> and <code>fileCacheUtilized</code> variables.
+         *
+         * See {@link #getFileCacheReserved()}, {@link #getFileCacheUtilized()}
+         */
+        public Path(String path, @Nullable String mount, long total, long free, long available) {
+            new Path(path, mount, total, free, available, 0, 0);
+        }
+
+        @InternalApi
         public Path(
             String path,
             @Nullable String mount,
