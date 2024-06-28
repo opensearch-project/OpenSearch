@@ -36,7 +36,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 /**
  * Integration tests for star tree mapper
  */
-public class StarTreeMapper1IT extends OpenSearchIntegTestCase {
+public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     private static final String TEST_INDEX = "test";
 
     private static XContentBuilder createMinimalTestMapping(boolean invalidDim, boolean invalidMetric, boolean keywordDim) {
