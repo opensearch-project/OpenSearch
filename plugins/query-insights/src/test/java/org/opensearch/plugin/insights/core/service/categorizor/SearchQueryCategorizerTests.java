@@ -107,7 +107,10 @@ public final class SearchQueryCategorizerTests extends OpenSearchTestCase {
 
         searchQueryCategorizer.categorize(sourceBuilder);
 
-        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("function_score")).add(eq(1.0d), any(Tags.class));
+        verify(searchQueryCategorizer.getSearchQueryCounters().getCounterByQueryBuilderName("function_score")).add(
+            eq(1.0d),
+            any(Tags.class)
+        );
     }
 
     public void testMatchQuery() {

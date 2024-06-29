@@ -21,7 +21,6 @@ import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
 import java.util.List;
-import java.util.ListIterator;
 
 /**
  * Class to categorize the search queries based on the type and increment the relevant counters.
