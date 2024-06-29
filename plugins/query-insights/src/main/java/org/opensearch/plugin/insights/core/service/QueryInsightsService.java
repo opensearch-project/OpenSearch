@@ -209,7 +209,7 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Check if query insights service is enabled
+     * Check if query insights service is enabled including TopN and categorization.
      *
      * @return if query insights service is enabled
      */
@@ -219,7 +219,7 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
                 return true;
             }
         }
-        return false;
+        return searchQueryMetricsEnabled;
     }
 
     /**
