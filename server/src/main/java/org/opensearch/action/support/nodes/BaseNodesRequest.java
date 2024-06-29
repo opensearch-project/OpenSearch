@@ -32,6 +32,8 @@
 
 package org.opensearch.action.support.nodes;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -48,6 +50,7 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest {
+    private static final Logger logger = LogManager.getLogger(BaseNodesRequest.class);
 
     /**
      * the list of nodesIds that will be used to resolve this request and {@link #concreteNodes}
@@ -128,6 +131,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(nodesIds);
+        logger.info("concrete nodes is null? " + (concreteNodes == null));
         out.writeOptionalArray(concreteNodes);
         out.writeOptionalTimeValue(timeout);
     }

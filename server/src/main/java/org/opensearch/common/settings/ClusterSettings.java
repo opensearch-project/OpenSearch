@@ -40,6 +40,7 @@ import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.bootstrap.BootstrapSettings;
 import org.opensearch.client.Client;
@@ -754,7 +755,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS,
                 RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA,
-                SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING
+                SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
+                TransportNodesAction.OPTIMIZED_TRANSPORT_NODES_ACTIONS_SETTING
             )
         )
     );
