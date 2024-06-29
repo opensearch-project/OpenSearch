@@ -59,8 +59,10 @@ import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -538,6 +540,19 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             Query depth2Query = depth2.toQuery(ctx);
             assertTrue(depth2Query instanceof OpenSearchToParentBlockJoinQuery);
         });
+    }
+
+    public void testVisit() {
+        NestedQueryBuilder queryBuilder = new NestedQueryBuilder(
+            "nested1",
+            new BoolQueryBuilder().must(new TermQueryBuilder("must_field1", "value1"))
+                .filter(new TermQueryBuilder("must_field2", "value2")),
+            ScoreMode.None
+        );
+        List<QueryBuilder> visitorQueries = new ArrayList<>();
+        queryBuilder.visit(createTestVisitor(visitorQueries));
+
+        assertEquals(4, visitorQueries.size());
     }
 
     void doWithDepth(int depth, ThrowingConsumer<QueryShardContext> test) throws Exception {
