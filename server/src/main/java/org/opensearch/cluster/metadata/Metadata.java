@@ -844,6 +844,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
+    public Set<QueryGroup> queryGroups() {
+        return Optional.ofNullable((QueryGroupMetadata) this.custom(QueryGroupMetadata.TYPE))
+            .map(QueryGroupMetadata::queryGroups)
+            .orElse(Collections.emptySet());
+    }
+
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
         return custom(DecommissionAttributeMetadata.TYPE);
     }
@@ -1367,6 +1373,34 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        public Builder queryGroups(final Set<QueryGroup> queryGroups) {
+            this.customs.put(QueryGroupMetadata.TYPE, new QueryGroupMetadata(queryGroups));
+            return this;
+        }
+
+        public Builder put(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Set<QueryGroup> existing = getQueryGroups();
+            HashSet<QueryGroup> updatedGroups = new HashSet<>(existing);
+            updatedGroups.add(queryGroup);
+            return queryGroups(updatedGroups);
+        }
+
+        public Builder remove(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Set<QueryGroup> existing = getQueryGroups();
+            HashSet<QueryGroup> updatedGroups = new HashSet<>(existing);
+            updatedGroups.remove(queryGroup);
+            return queryGroups(updatedGroups);
+        }
+
+        public Set<QueryGroup> getQueryGroups() {
+            return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
+                .map(o -> (QueryGroupMetadata) o)
+                .map(QueryGroupMetadata::queryGroups)
+                .orElse(Collections.emptySet());
+        }
+
         private Map<String, View> getViews() {
             return Optional.ofNullable(customs.get(ViewMetadata.TYPE))
                 .map(o -> (ViewMetadata) o)
@@ -1763,8 +1797,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
                     String prefix = DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-";
                     Set<String> conflicts = indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the
-                                                                                                                               // char after
-                                                                                                                               // '-'
+                        // char after
+                        // '-'
                         .keySet()
                         .stream()
                         .filter(s -> NUMBER_PATTERN.matcher(s.substring(prefix.length())).matches())
