@@ -61,19 +61,19 @@ public class StarTreesBuilder implements Closeable {
         }
 
         this.starTreeFields = starTreeFields;
-        if (starTreeFields.isEmpty()) {
-            throw new IllegalArgumentException("Must provide star-tree field to build star trees");
-        }
         this.fieldProducerMap = fieldProducerMap;
         this.state = segmentWriteState;
         this.mapperService = mapperService;
-
     }
 
     /**
      * Builds the star-trees.
      */
     public void build() throws IOException {
+        if (starTreeFields.isEmpty()) {
+            logger.debug("no star-tree fields found, returning from star-tree builder");
+            return;
+        }
         long startTime = System.currentTimeMillis();
         int numStarTrees = starTreeFields.size();
         logger.debug("Starting building {} star-trees with star-tree fields", numStarTrees);

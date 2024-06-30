@@ -171,7 +171,7 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public Iterator<StarTreeDocument> sortAndAggregateStarTreeDocument(int numDocs) throws IOException {
+            public Iterator<StarTreeDocument> sortAndAggregateStarTreeDocuments(int numDocs) throws IOException {
                 return null;
             }
 

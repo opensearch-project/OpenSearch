@@ -17,12 +17,15 @@ import java.util.function.Function;
  * @opensearch.experimental
  */
 public enum StarTreeNumericType {
+
+    // TODO: Handle scaled floats
     HALF_FLOAT(IndexNumericFieldData.NumericType.HALF_FLOAT, StarTreeNumericTypeConverters::halfFloatPointToDouble),
     FLOAT(IndexNumericFieldData.NumericType.FLOAT, StarTreeNumericTypeConverters::floatPointToDouble),
     LONG(IndexNumericFieldData.NumericType.LONG, StarTreeNumericTypeConverters::longToDouble),
     DOUBLE(IndexNumericFieldData.NumericType.DOUBLE, StarTreeNumericTypeConverters::sortableLongtoDouble),
     INT(IndexNumericFieldData.NumericType.INT, StarTreeNumericTypeConverters::intToDouble),
     SHORT(IndexNumericFieldData.NumericType.SHORT, StarTreeNumericTypeConverters::shortToDouble),
+    BYTE(IndexNumericFieldData.NumericType.BYTE, StarTreeNumericTypeConverters::bytesToDouble),
     UNSIGNED_LONG(IndexNumericFieldData.NumericType.UNSIGNED_LONG, StarTreeNumericTypeConverters::unsignedlongToDouble);
 
     final IndexNumericFieldData.NumericType numericType;
@@ -53,6 +56,8 @@ public enum StarTreeNumericType {
                 return StarTreeNumericType.SHORT;
             case UNSIGNED_LONG:
                 return StarTreeNumericType.UNSIGNED_LONG;
+            case BYTE:
+                return StarTreeNumericType.BYTE;
             default:
                 throw new UnsupportedOperationException("Unknown numeric type [" + numericType + "]");
         }

@@ -8,7 +8,6 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -25,32 +24,30 @@ public class CountValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
-        assertEquals(1.0, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong(), StarTreeNumericType.LONG), 0.0);
+        assertEquals(1L, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong(), StarTreeNumericType.LONG), 0.0);
     }
 
     public void testMergeAggregatedValueAndSegmentValue() {
-        assertEquals(3.0, aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L, StarTreeNumericType.LONG), 0.0);
+        assertEquals(3L, aggregator.mergeAggregatedValueAndSegmentValue(2L, 3L, StarTreeNumericType.LONG), 0.0);
     }
 
     public void testMergeAggregatedValues() {
-        assertEquals(5.0, aggregator.mergeAggregatedValues(2.0, 3.0), 0.0);
+        assertEquals(5L, aggregator.mergeAggregatedValues(2L, 3L), 0.0);
     }
 
     public void testGetInitialAggregatedValue() {
-        assertEquals(3.0, aggregator.getInitialAggregatedValue(3.0), 0.0);
+        assertEquals(3L, aggregator.getInitialAggregatedValue(3L), 0.0);
     }
 
     public void testGetMaxAggregatedValueByteSize() {
-        assertEquals(Double.BYTES, aggregator.getMaxAggregatedValueByteSize());
+        assertEquals(Long.BYTES, aggregator.getMaxAggregatedValueByteSize());
     }
 
     public void testToLongValue() {
-        SumValueAggregator aggregator = new SumValueAggregator();
-        assertEquals(NumericUtils.doubleToSortableLong(3.0), aggregator.toLongValue(3.0), 0.0);
+        assertEquals(3L, aggregator.toLongValue(3L), 0.0);
     }
 
     public void testToStarTreeNumericTypeValue() {
-        SumValueAggregator aggregator = new SumValueAggregator();
-        assertEquals(NumericUtils.sortableLongToDouble(3L), aggregator.toStarTreeNumericTypeValue(3L, StarTreeNumericType.DOUBLE), 0.0);
+        assertEquals(3L, aggregator.toStarTreeNumericTypeValue(3L, StarTreeNumericType.LONG), 0.0);
     }
 }

@@ -20,6 +20,8 @@ import org.opensearch.search.aggregations.metrics.CompensatedSum;
 public class SumValueAggregator implements ValueAggregator<Double> {
 
     public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
+    private double sum = 0;
+    private double compensation = 0;
     private CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
     @Override
@@ -36,20 +38,28 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
         kahanSummation.reset(0, 0);
         kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
+        compensation = kahanSummation.delta();
+        sum = kahanSummation.value();
         return kahanSummation.value();
     }
 
     @Override
     public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
         assert kahanSummation.value() == value;
+        kahanSummation.reset(sum, compensation);
         kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
+        compensation = kahanSummation.delta();
+        sum = kahanSummation.value();
         return kahanSummation.value();
     }
 
     @Override
     public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
         assert kahanSummation.value() == aggregatedValue;
+        kahanSummation.reset(sum, compensation);
         kahanSummation.add(value);
+        compensation = kahanSummation.delta();
+        sum = kahanSummation.value();
         return kahanSummation.value();
     }
 
@@ -57,6 +67,8 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     public Double getInitialAggregatedValue(Double value) {
         kahanSummation.reset(0, 0);
         kahanSummation.add(value);
+        compensation = kahanSummation.delta();
+        sum = kahanSummation.value();
         return kahanSummation.value();
     }
 

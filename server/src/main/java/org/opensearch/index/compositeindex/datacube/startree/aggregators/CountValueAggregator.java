@@ -7,7 +7,6 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
@@ -16,8 +15,8 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  *
  * @opensearch.experimental
  */
-public class CountValueAggregator implements ValueAggregator<Double> {
-    public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
+public class CountValueAggregator implements ValueAggregator<Long> {
+    public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
 
     @Override
     public MetricStat getAggregationType() {
@@ -30,22 +29,22 @@ public class CountValueAggregator implements ValueAggregator<Double> {
     }
 
     @Override
-    public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
-        return 1.0;
+    public Long getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
+        return 1L;
     }
 
     @Override
-    public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
+    public Long mergeAggregatedValueAndSegmentValue(Long value, Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
         return value + 1;
     }
 
     @Override
-    public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
+    public Long mergeAggregatedValues(Long value, Long aggregatedValue) {
         return value + aggregatedValue;
     }
 
     @Override
-    public Double getInitialAggregatedValue(Double value) {
+    public Long getInitialAggregatedValue(Long value) {
         return value;
     }
 
@@ -55,20 +54,12 @@ public class CountValueAggregator implements ValueAggregator<Double> {
     }
 
     @Override
-    public Long toLongValue(Double value) {
-        try {
-            return NumericUtils.doubleToSortableLong(value);
-        } catch (Exception e) {
-            throw new IllegalStateException("Cannot convert " + value + " to sortable long", e);
-        }
+    public Long toLongValue(Long value) {
+        return value;
     }
 
     @Override
-    public Double toStarTreeNumericTypeValue(Long value, StarTreeNumericType type) {
-        try {
-            return type.getDoubleValue(value);
-        } catch (Exception e) {
-            throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
-        }
+    public Long toStarTreeNumericTypeValue(Long value, StarTreeNumericType type) {
+        return value;
     }
 }

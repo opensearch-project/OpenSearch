@@ -9,7 +9,7 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
-import org.opensearch.index.compositeindex.datacube.startree.utils.CoordinatedDocumentReader;
+import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 
 import java.util.Comparator;
@@ -28,7 +28,7 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
     private final String field;
     private final ValueAggregator valueAggregators;
     private final StarTreeNumericType starTreeNumericType;
-    private final CoordinatedDocumentReader metricStatReader;
+    private final SequentialDocValuesIterator metricStatReader;
 
     /**
      * Constructor for MetricAggregatorInfo
@@ -38,7 +38,7 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
         String field,
         String starFieldName,
         IndexNumericFieldData.NumericType numericType,
-        CoordinatedDocumentReader metricStatReader
+        SequentialDocValuesIterator metricStatReader
     ) {
         this.metricStat = metricStat;
         this.valueAggregators = ValueAggregatorFactory.getValueAggregator(metricStat);
@@ -87,7 +87,7 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
     /**
      * @return metric value reader iterator
      */
-    public CoordinatedDocumentReader getMetricStatReader() {
+    public SequentialDocValuesIterator getMetricStatReader() {
         return metricStatReader;
     }
 

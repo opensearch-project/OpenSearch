@@ -17,7 +17,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CoordinatedDocumentReader {
+public class SequentialDocValuesIterator {
 
     /**
      * The doc id set iterator associated for each field.
@@ -35,11 +35,11 @@ public class CoordinatedDocumentReader {
     private int docId;
 
     /**
-     * Constructs a new CoordinatedDocumentReader instance with the given DocIdSetIterator.
+     * Constructs a new SequentialDocValuesIterator instance with the given DocIdSetIterator.
      *
      * @param docIdSetIterator the DocIdSetIterator to be associated with this instance
      */
-    public CoordinatedDocumentReader(DocIdSetIterator docIdSetIterator) {
+    public SequentialDocValuesIterator(DocIdSetIterator docIdSetIterator) {
         this.docIdSetIterator = docIdSetIterator;
     }
 

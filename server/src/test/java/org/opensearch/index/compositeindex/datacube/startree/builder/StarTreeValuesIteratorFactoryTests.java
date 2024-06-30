@@ -16,7 +16,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.CoordinatedDocumentReader;
+import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.BeforeClass;
 
@@ -60,7 +60,7 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         DocValuesProducer producer = Mockito.mock(DocValuesProducer.class);
         SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
         when(producer.getSortedNumeric(mockFieldInfo)).thenReturn(iterator);
-        CoordinatedDocumentReader result = starTreeDocValuesIteratorAdapter.getDocValuesIterator(
+        SequentialDocValuesIterator result = starTreeDocValuesIteratorAdapter.getDocValuesIterator(
             DocValuesType.SORTED_NUMERIC,
             mockFieldInfo,
             producer
@@ -80,28 +80,28 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
         when(iterator.nextDoc()).thenReturn(0);
         when(iterator.nextValue()).thenReturn(123L);
-        CoordinatedDocumentReader coordinatedDocumentReader = new CoordinatedDocumentReader(iterator);
-        coordinatedDocumentReader.getDocIdSetIterator().nextDoc();
-        long result = starTreeDocValuesIteratorAdapter.getNextValue(coordinatedDocumentReader, 0);
+        SequentialDocValuesIterator sequentialDocValuesIterator = new SequentialDocValuesIterator(iterator);
+        sequentialDocValuesIterator.getDocIdSetIterator().nextDoc();
+        long result = starTreeDocValuesIteratorAdapter.getNextValue(sequentialDocValuesIterator, 0);
         assertEquals(123L, result);
     }
 
     public void testGetNextValue_UnsupportedIterator() {
         DocIdSetIterator iterator = Mockito.mock(DocIdSetIterator.class);
-        CoordinatedDocumentReader coordinatedDocumentReader = new CoordinatedDocumentReader(iterator);
+        SequentialDocValuesIterator sequentialDocValuesIterator = new SequentialDocValuesIterator(iterator);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
-            starTreeDocValuesIteratorAdapter.getNextValue(coordinatedDocumentReader, 0);
+            starTreeDocValuesIteratorAdapter.getNextValue(sequentialDocValuesIterator, 0);
         });
         assertEquals("Unsupported Iterator: " + iterator.toString(), exception.getMessage());
     }
 
     public void testNextDoc() throws IOException {
         SortedNumericDocValues iterator = Mockito.mock(SortedNumericDocValues.class);
-        CoordinatedDocumentReader coordinatedDocumentReader = new CoordinatedDocumentReader(iterator);
+        SequentialDocValuesIterator sequentialDocValuesIterator = new SequentialDocValuesIterator(iterator);
         when(iterator.nextDoc()).thenReturn(5);
 
-        int result = starTreeDocValuesIteratorAdapter.nextDoc(coordinatedDocumentReader, 5);
+        int result = starTreeDocValuesIteratorAdapter.nextDoc(sequentialDocValuesIterator, 5);
         assertEquals(5, result);
     }
 
@@ -109,8 +109,8 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         SortedNumericDocValues iterator1 = Mockito.mock(SortedNumericDocValues.class);
         SortedNumericDocValues iterator2 = Mockito.mock(SortedNumericDocValues.class);
 
-        CoordinatedDocumentReader coordinatedDocumentReader1 = new CoordinatedDocumentReader(iterator1);
-        CoordinatedDocumentReader coordinatedDocumentReader2 = new CoordinatedDocumentReader(iterator2);
+        SequentialDocValuesIterator sequentialDocValuesIterator1 = new SequentialDocValuesIterator(iterator1);
+        SequentialDocValuesIterator sequentialDocValuesIterator2 = new SequentialDocValuesIterator(iterator2);
 
         when(iterator1.nextDoc()).thenReturn(0);
         when(iterator2.nextDoc()).thenReturn(1);
@@ -118,13 +118,13 @@ public class StarTreeValuesIteratorFactoryTests extends OpenSearchTestCase {
         when(iterator1.nextValue()).thenReturn(9L);
         when(iterator2.nextValue()).thenReturn(9L);
 
-        starTreeDocValuesIteratorAdapter.nextDoc(coordinatedDocumentReader1, 0);
-        starTreeDocValuesIteratorAdapter.nextDoc(coordinatedDocumentReader2, 0);
-        assertEquals(0, coordinatedDocumentReader1.getDocId());
-        assertEquals(9L, (long) coordinatedDocumentReader1.getDocValue());
-        assertNotEquals(0, coordinatedDocumentReader2.getDocId());
-        assertEquals(1, coordinatedDocumentReader2.getDocId());
-        assertEquals(9L, (long) coordinatedDocumentReader2.getDocValue());
+        starTreeDocValuesIteratorAdapter.nextDoc(sequentialDocValuesIterator1, 0);
+        starTreeDocValuesIteratorAdapter.nextDoc(sequentialDocValuesIterator2, 0);
+        assertEquals(0, sequentialDocValuesIterator1.getDocId());
+        assertEquals(9L, (long) sequentialDocValuesIterator1.getDocValue());
+        assertNotEquals(0, sequentialDocValuesIterator2.getDocId());
+        assertEquals(1, sequentialDocValuesIterator2.getDocId());
+        assertEquals(9L, (long) sequentialDocValuesIterator2.getDocValue());
 
     }
 

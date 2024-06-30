@@ -48,4 +48,10 @@ public class StarTreeNumericTypeConverters {
         return Numbers.unsignedLongToDouble(value);
     }
 
+    public static double bytesToDouble(Long value) {
+        byte[] bytes = new byte[8];
+        NumericUtils.longToSortableBytes(value, bytes, 0);
+        return NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes, 0));
+    }
+
 }
