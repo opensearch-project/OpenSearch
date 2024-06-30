@@ -597,7 +597,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         this.indexSettings.getRemoteStorePathStrategy()
                     );
                 }
-                remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
+                remoteStore = new Store(
+                    shardId,
+                    this.indexSettings,
+                    remoteDirectory,
+                    getRemoteStoreLock(shardId),
+                    Store.OnClose.EMPTY,
+                    path
+                );
             } else {
                 // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
                 // Even though we have `RemoteStoreMigrationAllocationDecider` in place to prevent something like this from happening at the
@@ -676,6 +683,23 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 closeShard("initialization failed", shardId, indexShard, store, eventListener);
             }
         }
+    }
+
+    // When an instance of Store is created, a shardlock is created which is released on closing the instance of store.
+    // Currently, we create 2 instances of store for remote store backed indices: store and remoteStore.
+    // As there can be only one shardlock acquired for a given shard, the lock is shared between store and remoteStore.
+    // This creates an issue when we are deleting the index as it results in closing both store and remoteStore.
+    // Sample test failure: https://github.com/opensearch-project/OpenSearch/issues/13871
+    // The following method provides ShardLock that is not maintained by NodeEnvironment.
+    // As part of https://github.com/opensearch-project/OpenSearch/issues/13075, we want to move away from keeping 2
+    // store instances.
+    private ShardLock getRemoteStoreLock(ShardId shardId) {
+        return new ShardLock(shardId) {
+            @Override
+            protected void closeInternal() {
+                // Ignore for remote store
+            }
+        };
     }
 
     /*
