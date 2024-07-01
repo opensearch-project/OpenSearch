@@ -31,12 +31,14 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.fs.FsRepository;
+import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -46,8 +48,6 @@ import java.util.Map;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
 
 public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase {
 
@@ -145,10 +145,18 @@ public class BlobStoreRepositoryHelperTests extends OpenSearchSingleNodeTestCase
             .setWaitForCompletion(true)
             .get();
         SnapshotInfo snapshotInfo = response.getSnapshotInfo();
-        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.failedShards(), equalTo(0));
+        assertEquals(snapshotInfo.state(), SnapshotState.SUCCESS);
+        assertEquals(snapshotInfo.successfulShards(), snapshotInfo.totalShards());
+        assertEquals(snapshotInfo.failedShards(), 0);
         return snapshotInfo;
+    }
+
+    protected List<SnapshotId> createNSnapshots(String repositoryName, String snapshotPrefix, int snapshotCount, List<String> indices) {
+        List<SnapshotId> snapshots = new ArrayList<>();
+        for (int i = 0; i < snapshotCount; i++) {
+            snapshots.add(createSnapshot(repositoryName, snapshotPrefix + "-" + i, indices).snapshotId());
+        }
+        return snapshots;
     }
 
     protected void indexDocuments(Client client, String indexName) {

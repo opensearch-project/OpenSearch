@@ -539,6 +539,13 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return remoteStoreIndexShallowCopy;
     }
 
+    public SnapshotType getSnapshotType() {
+        if (remoteStoreIndexShallowCopy != null && remoteStoreIndexShallowCopy) {
+            return SnapshotType.SHALLOW_COPY;
+        }
+        return SnapshotType.FULL_COPY;
+    }
+
     /**
      * Returns shard failures; an empty list will be returned if there were no shard
      * failures, or if {@link #state()} returns {@code null}.
