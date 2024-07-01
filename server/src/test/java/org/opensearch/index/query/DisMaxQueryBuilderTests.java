@@ -161,10 +161,13 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     public void testVisit() {
         DisMaxQueryBuilder dismax = new DisMaxQueryBuilder();
         dismax.add(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
+        dismax.add(new BoolQueryBuilder()
+            .must(new TermQueryBuilder("unmapped_field1", "value1"))
+            .filter(new TermQueryBuilder("unmapped_field2", "value2")));
 
         List<QueryBuilder> visitedQueries = new ArrayList<>();
         dismax.visit(createTestVisitor(visitedQueries));
 
-        assertEquals(2, visitedQueries.size());
+        assertEquals(5, visitedQueries.size());
     }
 }

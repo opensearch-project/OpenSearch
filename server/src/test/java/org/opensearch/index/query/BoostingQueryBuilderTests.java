@@ -158,13 +158,15 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
 
     public void testVisit() {
         BoostingQueryBuilder builder = new BoostingQueryBuilder(
-            new TermQueryBuilder("unmapped_field", "value"),
+            new BoolQueryBuilder()
+                .must(new TermQueryBuilder("unmapped_field1", "value1"))
+                .filter(new TermQueryBuilder("unmapped_field2", "value2")),
             new TermQueryBuilder(KEYWORD_FIELD_NAME, "other_value")
         );
 
         List<QueryBuilder> visitedQueries = new ArrayList<>();
         builder.visit(createTestVisitor(visitedQueries));
 
-        assertEquals(3, visitedQueries.size());
+        assertEquals(5, visitedQueries.size());
     }
 }

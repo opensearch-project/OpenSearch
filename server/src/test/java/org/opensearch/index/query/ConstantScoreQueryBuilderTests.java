@@ -137,10 +137,13 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     public void testVisit() {
-        ConstantScoreQueryBuilder queryBuilder = new ConstantScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "foo"));
+        ConstantScoreQueryBuilder queryBuilder = new ConstantScoreQueryBuilder(
+            new BoolQueryBuilder()
+                .must(new TermQueryBuilder("unmapped_field1", "value1"))
+                .filter(new TermQueryBuilder("unmapped_field2", "value2")));
         List<QueryBuilder> visitorQueries = new ArrayList<>();
         queryBuilder.visit(createTestVisitor(visitorQueries));
 
-        assertEquals(2, visitorQueries.size());
+        assertEquals(4, visitorQueries.size());
     }
 }
