@@ -80,22 +80,45 @@ public final class SearchQueryCounters {
         counter.add(1, Tags.create().addTag(LEVEL_TAG, level));
     }
 
+    /**
+     * Increment aggregate counter
+     * @param value value to increment
+     * @param tags tags
+     */
     public void incrementAggCounter(double value, Tags tags) {
         aggCounter.add(value, tags);
     }
 
+    /**
+     * Increment sort counter
+     * @param value value to increment
+     * @param tags tags
+     */
     public void incrementSortCounter(double value, Tags tags) {
         sortCounter.add(value, tags);
     }
 
+    /**
+     * Get aggregation counter
+     * @return
+     */
     public Counter getAggCounter() {
         return aggCounter;
     }
 
+    /**
+     * Get sort counter
+     * @return
+     */
     public Counter getSortCounter() {
         return sortCounter;
     }
 
+    /**
+     * Get counter based on the query builder name
+     * @param queryBuilderName query builder name
+     * @return counter
+     */
     public Counter getCounterByQueryBuilderName(String queryBuilderName) {
         return nameToQueryTypeCounters.get(queryBuilderName);
     }

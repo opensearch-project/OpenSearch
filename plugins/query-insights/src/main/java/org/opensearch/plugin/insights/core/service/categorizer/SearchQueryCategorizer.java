@@ -103,6 +103,10 @@ public final class SearchQueryCategorizer {
         log.trace("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
     }
 
+    /**
+     * Get search query counters
+     * @return
+     */
     public SearchQueryCounters getSearchQueryCounters() {
         return this.searchQueryCounters;
     }
