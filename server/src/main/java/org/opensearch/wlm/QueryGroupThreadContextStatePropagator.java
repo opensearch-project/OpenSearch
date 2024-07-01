@@ -20,6 +20,7 @@ import java.util.Map;
 public class QueryGroupThreadContextStatePropagator implements ThreadContextStatePropagator {
     // TODO: move this constant to QueryGroupService class once the QueryGroup monitoring framework PR is ready
     public static List<String> PROPAGATED_HEADERS = List.of("queryGroupId");
+
     /**
      * @param source current context transient headers
      * @return the map of header and their values to be propagated across request threadContexts
@@ -28,7 +29,7 @@ public class QueryGroupThreadContextStatePropagator implements ThreadContextStat
     public Map<String, Object> transients(Map<String, Object> source) {
         final Map<String, Object> transientHeaders = new HashMap<>();
 
-        for (String headerName: PROPAGATED_HEADERS) {
+        for (String headerName : PROPAGATED_HEADERS) {
             if (source.containsKey(headerName)) {
                 transientHeaders.put(headerName, source.get(headerName));
             }
@@ -44,7 +45,7 @@ public class QueryGroupThreadContextStatePropagator implements ThreadContextStat
     public Map<String, String> headers(Map<String, Object> source) {
         final Map<String, String> propagatedHeaders = new HashMap<>();
 
-        for (String headerName: PROPAGATED_HEADERS) {
+        for (String headerName : PROPAGATED_HEADERS) {
             if (source.containsKey(headerName)) {
                 propagatedHeaders.put(headerName, (String) source.get(headerName));
             }
