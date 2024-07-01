@@ -75,16 +75,19 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
         assertEquals(0, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(8));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertFalse(autoExpandReplicas.autoExpandToAll());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "0-all").build());
         assertEquals(0, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertFalse(autoExpandReplicas.autoExpandToAll());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-all").build());
         assertEquals(1, autoExpandReplicas.getMinReplicas());
         assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
         assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertFalse(autoExpandReplicas.autoExpandToAll());
 
     }
 
