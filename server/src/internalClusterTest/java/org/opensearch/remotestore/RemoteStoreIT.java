@@ -132,7 +132,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         );
     }
 
-    public void testRemoteStoreIndexCreationAndDeletion() throws InterruptedException, ExecutionException {
+    public void testRemoteStoreIndexCreationAndDeletionWithReferencedStore() throws InterruptedException, ExecutionException {
         String dataNode = internalCluster().startNodes(1).get(0);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
@@ -140,6 +140,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
         IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
 
+        // Simulating a condition where store is already in use by increasing ref count, this helps in testing index
+        // deletion when refresh is in-progress.
         indexShard.store().incRef();
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
         indexShard.store().decRef();
