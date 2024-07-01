@@ -86,6 +86,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.compositeindex.CompositeIndexValidator;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -1339,6 +1340,10 @@ public class MetadataCreateIndexService {
             if (mapping.isEmpty() == false) {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
             }
+        }
+
+        if (mapperService.isCompositeIndexPresent()) {
+            CompositeIndexValidator.validate(mapperService, indexService.getCompositeIndexSettings(), indexService.getIndexSettings());
         }
 
         if (sourceMetadata == null) {
