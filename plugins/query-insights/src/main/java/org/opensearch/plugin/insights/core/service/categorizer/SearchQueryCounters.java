@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search;
+package org.opensearch.plugin.insights.core.service.categorizer;
 
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.telemetry.metrics.Counter;
@@ -20,16 +20,32 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Class contains all the Counters related to search query types.
  */
-final class SearchQueryCounters {
+public final class SearchQueryCounters {
     private static final String LEVEL_TAG = "level";
     private static final String UNIT = "1";
     private final MetricsRegistry metricsRegistry;
-    public final Counter aggCounter;
-    public final Counter otherQueryCounter;
-    public final Counter sortCounter;
+    /**
+     * Aggregation counter
+     */
+    private final Counter aggCounter;
+    /**
+     * Counter for all other query types (catch all)
+     */
+    private final Counter otherQueryCounter;
+    /**
+     * Counter for sort
+     */
+    private final Counter sortCounter;
     private final Map<Class<? extends QueryBuilder>, Counter> queryHandlers;
-    public final ConcurrentHashMap<String, Counter> nameToQueryTypeCounters;
+    /**
+     * Counter name to Counter object map
+     */
+    private final ConcurrentHashMap<String, Counter> nameToQueryTypeCounters;
 
+    /**
+     * Constructor
+     * @param metricsRegistry opentelemetry metrics registry
+     */
     public SearchQueryCounters(MetricsRegistry metricsRegistry) {
         this.metricsRegistry = metricsRegistry;
         this.nameToQueryTypeCounters = new ConcurrentHashMap<>();
@@ -52,11 +68,59 @@ final class SearchQueryCounters {
 
     }
 
+    /**
+     * Increment counter
+     * @param queryBuilder query builder
+     * @param level level of query builder, 0 being highest level
+     */
     public void incrementCounter(QueryBuilder queryBuilder, int level) {
         String uniqueQueryCounterName = queryBuilder.getName();
 
         Counter counter = nameToQueryTypeCounters.computeIfAbsent(uniqueQueryCounterName, k -> createQueryCounter(k));
         counter.add(1, Tags.create().addTag(LEVEL_TAG, level));
+    }
+
+    /**
+     * Increment aggregate counter
+     * @param value value to increment
+     * @param tags tags
+     */
+    public void incrementAggCounter(double value, Tags tags) {
+        aggCounter.add(value, tags);
+    }
+
+    /**
+     * Increment sort counter
+     * @param value value to increment
+     * @param tags tags
+     */
+    public void incrementSortCounter(double value, Tags tags) {
+        sortCounter.add(value, tags);
+    }
+
+    /**
+     * Get aggregation counter
+     * @return aggregation counter
+     */
+    public Counter getAggCounter() {
+        return aggCounter;
+    }
+
+    /**
+     * Get sort counter
+     * @return sort counter
+     */
+    public Counter getSortCounter() {
+        return sortCounter;
+    }
+
+    /**
+     * Get counter based on the query builder name
+     * @param queryBuilderName query builder name
+     * @return counter
+     */
+    public Counter getCounterByQueryBuilderName(String queryBuilderName) {
+        return nameToQueryTypeCounters.get(queryBuilderName);
     }
 
     private Counter createQueryCounter(String counterName) {

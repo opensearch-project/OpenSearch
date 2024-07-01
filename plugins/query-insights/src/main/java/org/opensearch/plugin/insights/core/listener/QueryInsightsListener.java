@@ -178,7 +178,7 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             }
             Map<Attribute, Object> attributes = new HashMap<>();
             attributes.put(Attribute.SEARCH_TYPE, request.searchType().toString().toLowerCase(Locale.ROOT));
-            attributes.put(Attribute.SOURCE, request.source().toString(FORMAT_PARAMS));
+            attributes.put(Attribute.SOURCE, request.source());
             attributes.put(Attribute.TOTAL_SHARDS, context.getNumShards());
             attributes.put(Attribute.INDICES, request.indices());
             attributes.put(Attribute.PHASE_LATENCY_MAP, searchRequestContext.phaseTookMap());

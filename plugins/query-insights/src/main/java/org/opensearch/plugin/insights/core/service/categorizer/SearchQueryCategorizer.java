@@ -6,13 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search;
+package org.opensearch.plugin.insights.core.service.categorizer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilderVisitor;
-import org.opensearch.index.query.QueryShapeVisitor;
+import org.opensearch.plugin.insights.rules.model.Attribute;
+import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortBuilder;
@@ -20,25 +21,46 @@ import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.metrics.tags.Tags;
 
 import java.util.List;
-import java.util.ListIterator;
 
 /**
  * Class to categorize the search queries based on the type and increment the relevant counters.
  * Class also logs the query shape.
  */
-final class SearchQueryCategorizer {
+public final class SearchQueryCategorizer {
 
     private static final Logger log = LogManager.getLogger(SearchQueryCategorizer.class);
 
-    final SearchQueryCounters searchQueryCounters;
+    /**
+     * Contains all the search query counters
+     */
+    private final SearchQueryCounters searchQueryCounters;
 
     final SearchQueryAggregationCategorizer searchQueryAggregationCategorizer;
 
+    /**
+     * Constructor for SearchQueryCategorizor
+     * @param metricsRegistry opentelemetry metrics registry
+     */
     public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
         searchQueryAggregationCategorizer = new SearchQueryAggregationCategorizer(searchQueryCounters);
     }
 
+    /**
+     * Consume records and increment counters for the records
+     * @param records records to consume
+     */
+    public void consumeRecords(List<SearchQueryRecord> records) {
+        for (SearchQueryRecord record : records) {
+            SearchSourceBuilder source = (SearchSourceBuilder) record.getAttributes().get(Attribute.SOURCE);
+            categorize(source);
+        }
+    }
+
+    /**
+     * Increment categorizations counters for the given source search query
+     * @param source search query source
+     */
     public void categorize(SearchSourceBuilder source) {
         QueryBuilder topLevelQueryBuilder = source.query();
         logQueryShape(topLevelQueryBuilder);
@@ -49,10 +71,9 @@ final class SearchQueryCategorizer {
 
     private void incrementQuerySortCounters(List<SortBuilder<?>> sorts) {
         if (sorts != null && sorts.size() > 0) {
-            for (ListIterator<SortBuilder<?>> it = sorts.listIterator(); it.hasNext();) {
-                SortBuilder sortBuilder = it.next();
+            for (SortBuilder<?> sortBuilder : sorts) {
                 String sortOrder = sortBuilder.order().toString();
-                searchQueryCounters.sortCounter.add(1, Tags.create().addTag("sort_order", sortOrder));
+                searchQueryCounters.incrementSortCounter(1, Tags.create().addTag("sort_order", sortOrder));
             }
         }
     }
@@ -82,4 +103,11 @@ final class SearchQueryCategorizer {
         log.trace("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
     }
 
+    /**
+     * Get search query counters
+     * @return search query counters
+     */
+    public SearchQueryCounters getSearchQueryCounters() {
+        return this.searchQueryCounters;
+    }
 }

@@ -6,10 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.query;
+package org.opensearch.plugin.insights.core.service.categorizer;
 
 import org.apache.lucene.search.BooleanClause;
 import org.opensearch.common.SetOnce;
+import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilderVisitor;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -55,7 +57,11 @@ public final class QueryShapeVisitor implements QueryBuilderVisitor {
         return childVisitorWrapper;
     }
 
-    String toJson() {
+    /**
+     * Convert query builder tree to json
+     * @return json query builder tree as a string
+     */
+    public String toJson() {
         StringBuilder outputBuilder = new StringBuilder("{\"type\":\"").append(queryType.get()).append("\"");
         for (Map.Entry<BooleanClause.Occur, List<QueryShapeVisitor>> entry : childVisitors.entrySet()) {
             outputBuilder.append(",\"").append(entry.getKey().name().toLowerCase(Locale.ROOT)).append("\"[");
@@ -73,6 +79,11 @@ public final class QueryShapeVisitor implements QueryBuilderVisitor {
         return outputBuilder.toString();
     }
 
+    /**
+     * Pretty print the query builder tree
+     * @param indent indent size
+     * @return Query builder tree as a pretty string
+     */
     public String prettyPrintTree(String indent) {
         StringBuilder outputBuilder = new StringBuilder(indent).append(queryType.get()).append("\n");
         for (Map.Entry<BooleanClause.Occur, List<QueryShapeVisitor>> entry : childVisitors.entrySet()) {
@@ -83,4 +94,9 @@ public final class QueryShapeVisitor implements QueryBuilderVisitor {
         }
         return outputBuilder.toString();
     }
+
+    /**
+     * Default constructor
+     */
+    public QueryShapeVisitor() {}
 }
