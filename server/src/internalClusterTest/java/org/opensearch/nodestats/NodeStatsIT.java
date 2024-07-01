@@ -10,6 +10,8 @@ package org.opensearch.nodestats;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
@@ -19,6 +21,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.DocumentMissingException;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -31,6 +34,7 @@ import org.hamcrest.MatcherAssert;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.singletonMap;
@@ -242,6 +246,47 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
             }
         }
     }
+    public void testNodeIndicesStatsOptimisedResponse() {
+        internalCluster().startNode();
+        ensureGreen();
+        String indexName = "test1";
+        index(indexName, "type", "1", "f", "f");
+        refresh();
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+
+        NodesStatsResponse response = client().admin().cluster().prepareNodesStats().get();
+        response.getNodes().forEach(nodeStats -> {
+            assertNotNull(nodeStats.getIndices().getShardStats(clusterState.metadata().index(indexName).getIndex()));
+            assertNull(nodeStats.getIndices().getIndexStats(clusterState.metadata().index(indexName).getIndex()));
+        });
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+        commonStatsFlags.optimizeNodeIndicesStatsOnLevel(true);
+        response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
+        response.getNodes().forEach(nodeStats -> {
+            assertNull(nodeStats.getIndices().getShardStats(clusterState.metadata().index(indexName).getIndex()));
+            assertNull(nodeStats.getIndices().getIndexStats(clusterState.metadata().index(indexName).getIndex()));
+
+        });
+        ArrayList<String> level_arg = new ArrayList<>();
+        level_arg.add("indices");
+        commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
+        response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
+        response.getNodes().forEach(nodeStats -> {
+            assertNotNull(nodeStats.getIndices().getIndexStats(clusterState.metadata().index(indexName).getIndex()));
+            assertNull(nodeStats.getIndices().getShardStats(clusterState.metadata().index(indexName).getIndex()));
+        });
+
+        level_arg.clear();
+        level_arg.add("shards");
+        commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
+        response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
+        response.getNodes().forEach(nodeStats -> {
+            assertNotNull(nodeStats.getIndices().getShardStats(clusterState.metadata().index(indexName).getIndex()));
+            assertNull(nodeStats.getIndices().getIndexStats(clusterState.metadata().index(indexName).getIndex()));
+        });
+    }
+
+
 
     private void assertDocStatusStats() {
         DocStatusStats docStatusStats = client().admin()
