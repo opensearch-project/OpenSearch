@@ -445,6 +445,7 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     failOnModification = true
     ignoreMissingClasses = true
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
+    annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
     dependsOn downloadJapicmpCompareTarget
