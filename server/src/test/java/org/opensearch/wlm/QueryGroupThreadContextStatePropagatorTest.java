@@ -8,15 +8,11 @@
 
 package org.opensearch.wlm;
 
-import org.junit.Test;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
 
-import static org.junit.Assert.*;
-
 public class QueryGroupThreadContextStatePropagatorTest extends OpenSearchTestCase {
-
 
     public void testTransients() {
         QueryGroupThreadContextStatePropagator sut = new QueryGroupThreadContextStatePropagator();
@@ -24,7 +20,6 @@ public class QueryGroupThreadContextStatePropagatorTest extends OpenSearchTestCa
         Map<String, Object> transients = sut.transients(source);
         assertEquals("adgarja0r235te", transients.get("queryGroupId"));
     }
-
 
     public void testHeaders() {
         QueryGroupThreadContextStatePropagator sut = new QueryGroupThreadContextStatePropagator();
