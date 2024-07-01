@@ -64,6 +64,7 @@ public class CodecService {
      * the raw unfiltered lucene default. useful for testing
      */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
+    private final CompositeCodecFactory compositeCodecFactory = new CompositeCodecFactory();
 
     public CodecService(@Nullable MapperService mapperService, IndexSettings indexSettings, Logger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
@@ -76,10 +77,8 @@ public class CodecService {
         } else {
             // CompositeCodec still delegates to PerFieldMappingPostingFormatCodec
             // We can still support all the compression codecs when composite index is present
-            // hence we're defining the codecs like below
             if (mapperService.isCompositeIndexPresent()) {
-                CompositeCodecFactory compositeCodecFactory = new CompositeCodecFactory();
-                codecs.putAll(compositeCodecFactory.getCompositeCodecs(mapperService, logger));
+                codecs.putAll(compositeCodecFactory.getCompositeIndexCodecs(mapperService, logger));
             } else {
                 codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
                 codecs.put(LZ4, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));

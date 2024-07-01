@@ -79,32 +79,15 @@ public class CodecTests extends OpenSearchTestCase {
         assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
     }
 
-    public void testBestCompression() throws Exception {
-        Codec codec = createCodecService(false).codec("best_compression");
-        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
-    }
-
-    public void testLZ4() throws Exception {
-        Codec codec = createCodecService(false).codec("lz4");
-        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
-        assert codec instanceof PerFieldMappingPostingFormatCodec;
-    }
-
-    public void testZlib() throws Exception {
-        Codec codec = createCodecService(false).codec("zlib");
-        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
-        assert codec instanceof PerFieldMappingPostingFormatCodec;
-    }
-
-    public void testResolveDefaultCodecsWithCompositeIndex() throws Exception {
-        CodecService codecService = createCodecService(false, true);
-        assertThat(codecService.codec("default"), instanceOf(Composite99Codec.class));
-    }
-
     public void testDefaultWithCompositeIndex() throws Exception {
         Codec codec = createCodecService(false, true).codec("default");
         assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
         assert codec instanceof Composite99Codec;
+    }
+
+    public void testBestCompression() throws Exception {
+        Codec codec = createCodecService(false).codec("best_compression");
+        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
     }
 
     public void testBestCompressionWithCompositeIndex() throws Exception {
@@ -113,16 +96,33 @@ public class CodecTests extends OpenSearchTestCase {
         assert codec instanceof Composite99Codec;
     }
 
+    public void testLZ4() throws Exception {
+        Codec codec = createCodecService(false).codec("lz4");
+        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
+        assert codec instanceof PerFieldMappingPostingFormatCodec;
+    }
+
     public void testLZ4WithCompositeIndex() throws Exception {
         Codec codec = createCodecService(false, true).codec("lz4");
         assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_SPEED, codec);
         assert codec instanceof Composite99Codec;
     }
 
+    public void testZlib() throws Exception {
+        Codec codec = createCodecService(false).codec("zlib");
+        assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
+        assert codec instanceof PerFieldMappingPostingFormatCodec;
+    }
+
     public void testZlibWithCompositeIndex() throws Exception {
         Codec codec = createCodecService(false, true).codec("zlib");
         assertStoredFieldsCompressionEquals(Lucene99Codec.Mode.BEST_COMPRESSION, codec);
         assert codec instanceof Composite99Codec;
+    }
+
+    public void testResolveDefaultCodecsWithCompositeIndex() throws Exception {
+        CodecService codecService = createCodecService(false, true);
+        assertThat(codecService.codec("default"), instanceOf(Composite99Codec.class));
     }
 
     public void testBestCompressionWithCompressionLevel() {

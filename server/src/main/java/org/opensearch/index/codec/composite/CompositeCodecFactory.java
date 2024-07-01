@@ -31,7 +31,7 @@ import static org.opensearch.index.codec.CodecService.ZLIB;
 public class CompositeCodecFactory {
     public CompositeCodecFactory() {}
 
-    public Map<String, Codec> getCompositeCodecs(MapperService mapperService, Logger logger) {
+    public Map<String, Codec> getCompositeIndexCodecs(MapperService mapperService, Logger logger) {
         Map<String, Codec> codecs = new HashMap<>();
         codecs.put(DEFAULT_CODEC, new Composite99Codec(Lucene99Codec.Mode.BEST_SPEED, mapperService, logger));
         codecs.put(LZ4, new Composite99Codec(Lucene99Codec.Mode.BEST_SPEED, mapperService, logger));
