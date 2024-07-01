@@ -18,11 +18,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
-import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Reader for star tree index and star tree doc values from the segments

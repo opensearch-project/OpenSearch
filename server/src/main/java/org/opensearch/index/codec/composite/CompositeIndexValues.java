@@ -17,5 +17,5 @@ import org.opensearch.common.annotation.ExperimentalApi;
  */
 @ExperimentalApi
 public interface CompositeIndexValues {
-     CompositeIndexValues getValues();
+    CompositeIndexValues getValues();
 }

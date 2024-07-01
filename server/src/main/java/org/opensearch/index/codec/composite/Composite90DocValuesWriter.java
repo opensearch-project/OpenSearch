@@ -16,6 +16,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.StarTreeMapper;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -98,7 +99,7 @@ public class Composite90DocValuesWriter extends DocValuesConsumer {
         // we have all the required fields to build composite fields
         if (compositeFieldSet.isEmpty()) {
             for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
-                if (mappedType.getCompositeIndexType().equals(CompositeMappedFieldType.CompositeFieldType.STAR_TREE)) {
+                if (mappedType instanceof StarTreeMapper.StarTreeFieldType) {
                     // TODO : Call StarTree builder
                 }
             }
