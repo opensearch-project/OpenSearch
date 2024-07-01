@@ -105,7 +105,7 @@ public final class SearchQueryCategorizer {
 
     /**
      * Get search query counters
-     * @return
+     * @return search query counters
      */
     public SearchQueryCounters getSearchQueryCounters() {
         return this.searchQueryCounters;

@@ -100,7 +100,7 @@ public final class SearchQueryCounters {
 
     /**
      * Get aggregation counter
-     * @return
+     * @return aggregation counter
      */
     public Counter getAggCounter() {
         return aggCounter;
@@ -108,7 +108,7 @@ public final class SearchQueryCounters {
 
     /**
      * Get sort counter
-     * @return
+     * @return sort counter
      */
     public Counter getSortCounter() {
         return sortCounter;
