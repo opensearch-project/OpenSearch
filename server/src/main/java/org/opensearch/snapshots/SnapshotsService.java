@@ -91,6 +91,10 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
+import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -247,22 +251,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot completion listener
      */
     public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        createSnapshot(
-            request,
-            ActionListener.wrap(snapshot -> addListener(snapshot, ActionListener.map(listener, Tuple::v2)), listener::onFailure)
-        );
+        boolean centralizedSnapshot = true;
+        if (centralizedSnapshot) {
+            createSnapshotNew(
+                request,
+                ActionListener.wrap(snapshot -> addListener(snapshot, ActionListener.map(listener, Tuple::v2)), listener::onFailure)
+            );
+        } else {
+            createSnapshot(
+                request,
+                ActionListener.wrap(snapshot -> addListener(snapshot, ActionListener.map(listener, Tuple::v2)), listener::onFailure)
+            );
+        }
     }
 
-    /**
-     * Initializes the snapshotting process.
-     * <p>
-     * This method is used by clients to start snapshot. It makes sure that there is no snapshots are currently running and
-     * creates a snapshot record in cluster state metadata.
-     *
-     * @param request  snapshot request
-     * @param listener snapshot creation listener
-     */
-    public void createSnapshot(final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
+    public void createSnapshotValidations(final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
@@ -275,6 +278,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));
             return;
         }
+
+    }
+
+    /**
+     * Initializes the snapshotting process.
+     * <p>
+     * This method is used by clients to start snapshot. It makes sure that there is no snapshots are currently running and
+     * creates a snapshot record in cluster state metadata.
+     *
+     * @param request  snapshot request
+     * @param listener snapshot creation listener
+     */
+    public void createSnapshot(final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
+
+        final String repositoryName = request.repository();
+        final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
+
+        createSnapshotValidations(request, listener);
+        final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
+        Repository repository = repositoriesService.repository(request.repository());
+
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
@@ -401,6 +425,225 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return request.clusterManagerNodeTimeout();
             }
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+    }
+
+    public void createSnapshotNew(final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
+        final String repositoryName = request.repository();
+        final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
+
+        createSnapshotValidations(request, listener);
+        final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
+        Repository repository = repositoriesService.repository(request.repository());
+
+        final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+        final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
+
+        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
+
+            private SnapshotsInProgress.Entry newEntry;
+
+            private List<IndexId> indexIds;
+
+            private Map<IndexId, Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus>> indexShardsMap;
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
+                final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+                final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
+                ensureSnapshotNameNotRunning(runningSnapshots, repositoryName, snapshotName);
+                validate(repositoryName, snapshotName, currentState);
+                final SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(
+                    SnapshotDeletionsInProgress.TYPE,
+                    SnapshotDeletionsInProgress.EMPTY
+                );
+                final RepositoryCleanupInProgress repositoryCleanupInProgress = currentState.custom(
+                    RepositoryCleanupInProgress.TYPE,
+                    RepositoryCleanupInProgress.EMPTY
+                );
+                if (repositoryCleanupInProgress.hasCleanupInProgress()) {
+                    throw new ConcurrentSnapshotExecutionException(
+                        repositoryName,
+                        snapshotName,
+                        "cannot snapshot while a repository cleanup is in-progress in [" + repositoryCleanupInProgress + "]"
+                    );
+                }
+                ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
+                ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
+                // Store newSnapshot here to be processed in clusterStateProcessed
+                List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
+
+                final List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
+                    currentState,
+                    request.indicesOptions(),
+                    request.indices()
+                );
+
+                logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
+
+                indexIds = repositoryData.resolveNewIndices(indices, getInFlightIndexIds(runningSnapshots, repositoryName));
+                final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
+                indexShardsMap = indexShardsStatusMap(
+                    snapshots,
+                    deletionsInProgress,
+                    currentState.metadata(),
+                    currentState.routingTable(),
+                    indexIds,
+                    repositoryData,
+                    repositoryName
+                );
+                if (request.partial() == false) {
+                    Set<String> missing = new HashSet<>();
+
+                    for (Map.Entry<IndexId, Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus>> indexShards : indexShardsMap
+                        .entrySet()) {
+                        for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : indexShards.getValue().entrySet()) {
+                            if (shard.getValue().state() == ShardState.MISSING) {
+                                missing.add(indexShards.getKey().getName());
+                                break;
+                            }
+                        }
+                    }
+                    if (missing.isEmpty() == false) {
+                        throw new SnapshotException(
+                            new Snapshot(repositoryName, snapshotId),
+                            "Indices don't have primary shards " + missing
+                        );
+                    }
+                }
+
+                boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
+                logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
+                if (remoteStoreIndexShallowCopy
+                    && clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED)) {
+                    // don't allow shallow snapshots if compatibility mode is not strict
+                    logger.warn("Shallow snapshots are not supported during migration. Falling back to full snapshot.");
+                    remoteStoreIndexShallowCopy = false;
+                }
+                newEntry = SnapshotsInProgress.startedEntryThin(
+                    new Snapshot(repositoryName, snapshotId),
+                    request.includeGlobalState(),
+                    request.partial(),
+                    null,
+                    dataStreams,
+                    threadPool.absoluteTimeInMillis(),
+                    repositoryData.getGenId(),
+                    null,
+                    userMeta,
+                    version,
+                    remoteStoreIndexShallowCopy,
+                    true
+                );
+                final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
+                newEntries.add(newEntry);
+                return ClusterState.builder(currentState)
+                    .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(new ArrayList<>(newEntries)))
+                    .build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return createSnapshotTaskKey;
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                try {
+                    logger.info("snapshot [{}] started", snapshot);
+                    listener.onResponse(snapshot);
+                    // start creating shard snapshot metadata file
+                    // check what all actions are taken in data node
+                    // check delete snapshot flow - how the flow is triggered
+                    // TODO: Add required validations
+
+                    for (Map.Entry<IndexId, Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus>> indexShards : indexShardsMap
+                        .entrySet()) {
+                        for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : indexShards.getValue().entrySet()) {
+                            // make it return the metadata
+                            snapshotShardOnClusterManager(snapshot, indexShards.getKey(), shard.getKey(), shard.getValue());
+                            // use BlobStoreRepository to write metadata in snapshot repository
+                        }
+                    }
+
+                } finally {
+                    if (newEntry.state().completed()) {
+                        endSnapshot(newEntry, newState.metadata(), repositoryData);
+                    }
+                }
+            }
+
+            @Override
+            public TimeValue timeout() {
+                return request.clusterManagerNodeTimeout();
+            }
+        }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+    }
+
+    private void snapshotShardOnClusterManager(
+        final Snapshot snapshot,
+        IndexId indexId,
+        ShardId shardId,
+        ShardSnapshotStatus shardSnapshotStatus
+    ) {
+        // if primary is relocating (routing table entry) - currently throw exception
+        // shard has just been created or recovering (indexShard.state()) - currently throw exception
+
+        final Repository repository = repositoriesService.repository(snapshot.getRepository());
+
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+            remoteStoreLockManagerFactory.getRepositoriesService(),
+            threadPool
+        );
+
+        IndexMetadata indexMetadata = clusterService.state().getMetadata().index(indexId.getName());
+        RemoteStorePathStrategy remoteStorePathStrategy = RemoteStoreUtils.determineRemoteStorePathStrategy(indexMetadata);
+
+        long startTime = threadPool.relativeTimeInMillis();
+        try {
+            repository.snapshotRemoteStoreIndexShardOnClusterManager(
+                snapshot.getSnapshotId(),
+                shardId,
+                indexId,
+                snapshotStatus,
+                remoteDirectoryFactory,
+                indexMetadata.getSettings(),
+                indexMetadata.getIndexUUID(),
+                startTime,
+                remoteStorePathStrategy,
+                ActionListener.runBefore(listener, wrappedSnapshot::close)
+            );
+        } catch (IndexShardSnapshotFailedException e) {
+            logger.error(
+                "Shallow Copy Snapshot Failed for Shard ["
+                    + indexId.getName()
+                    + "]["
+                    + shardId.getId()
+                    + "] for snapshot "
+                    + snapshot.getSnapshotId()
+                    + ", releasing acquired lock from remote store"
+            );
+            // TODO : release lock
+            throw e;
+        }
+        long endTime = threadPool.relativeTimeInMillis();
+        logger.debug(
+            "Time taken (in milliseconds) to complete shallow copy snapshot, "
+                + "for index "
+                + indexId.getName()
+                + ", shard "
+                + shardId.getId()
+                + " and snapshot "
+                + snapshot.getSnapshotId()
+                + " is "
+                + (endTime - startTime)
+        );
+
     }
 
     private static void ensureSnapshotNameNotRunning(
@@ -2588,7 +2831,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param indices             Indices to snapshot
      * @return list of shard to be included into current snapshot
      */
-    private static Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(
+    private Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(
         SnapshotsInProgress snapshotsInProgress,
         @Nullable SnapshotDeletionsInProgress deletionsInProgress,
         Metadata metadata,
@@ -2618,55 +2861,165 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                     final ShardId shardId = indexRoutingTable.shard(i).shardId();
-                    final String shardRepoGeneration;
-
-                    final String inFlightGeneration = inFlightShardStates.generationForShard(index, shardId.id(), shardGenerations);
-                    if (inFlightGeneration == null && isNewIndex) {
-                        assert shardGenerations.getShardGen(index, shardId.getId()) == null : "Found shard generation for new index ["
-                            + index
-                            + "]";
-                        shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
-                    } else {
-                        shardRepoGeneration = inFlightGeneration;
-                    }
-                    final ShardSnapshotStatus shardSnapshotStatus;
-                    if (indexRoutingTable == null) {
-                        shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
-                            null,
-                            ShardState.MISSING,
-                            "missing routing table",
-                            shardRepoGeneration
-                        );
-                    } else {
-                        ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
-                        if (readyToExecute == false || inFlightShardStates.isActive(indexName, i)) {
-                            shardSnapshotStatus = ShardSnapshotStatus.UNASSIGNED_QUEUED;
-                        } else if (primary == null || !primary.assignedToNode()) {
-                            shardSnapshotStatus = new ShardSnapshotStatus(
-                                null,
-                                ShardState.MISSING,
-                                "primary shard is not allocated",
-                                shardRepoGeneration
-                            );
-                        } else if (primary.relocating() || primary.initializing()) {
-                            shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
-                        } else if (!primary.started()) {
-                            shardSnapshotStatus = new ShardSnapshotStatus(
-                                primary.currentNodeId(),
-                                ShardState.MISSING,
-                                "primary shard hasn't been started yet",
-                                shardRepoGeneration
-                            );
-                        } else {
-                            shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
-                        }
-                    }
+                    // final String shardRepoGeneration;
+                    //
+                    // final String inFlightGeneration = inFlightShardStates.generationForShard(index, shardId.id(), shardGenerations);
+                    // if (inFlightGeneration == null && isNewIndex) {
+                    // assert shardGenerations.getShardGen(index, shardId.getId()) == null : "Found shard generation for new index ["
+                    // + index
+                    // + "]";
+                    // shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
+                    // } else {
+                    // shardRepoGeneration = inFlightGeneration;
+                    // }
+                    // final ShardSnapshotStatus shardSnapshotStatus;
+                    // if (indexRoutingTable == null) {
+                    // shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
+                    // null,
+                    // ShardState.MISSING,
+                    // "missing routing table",
+                    // shardRepoGeneration
+                    // );
+                    // } else {
+                    // ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
+                    // if (readyToExecute == false || inFlightShardStates.isActive(indexName, i)) {
+                    // shardSnapshotStatus = ShardSnapshotStatus.UNASSIGNED_QUEUED;
+                    // } else if (primary == null || !primary.assignedToNode()) {
+                    // shardSnapshotStatus = new ShardSnapshotStatus(
+                    // null,
+                    // ShardState.MISSING,
+                    // "primary shard is not allocated",
+                    // shardRepoGeneration
+                    // );
+                    // } else if (primary.relocating() || primary.initializing()) {
+                    // shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
+                    // } else if (!primary.started()) {
+                    // shardSnapshotStatus = new ShardSnapshotStatus(
+                    // primary.currentNodeId(),
+                    // ShardState.MISSING,
+                    // "primary shard hasn't been started yet",
+                    // shardRepoGeneration
+                    // );
+                    // } else {
+                    // shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
+                    // }
+                    // }
+                    ShardSnapshotStatus shardSnapshotStatus = calculateShardSnapshotStatus(
+                        index,
+                        shardId,
+                        indexRoutingTable,
+                        shardGenerations,
+                        inFlightShardStates,
+                        readyToExecute,
+                        isNewIndex
+                    );
                     builder.put(shardId, shardSnapshotStatus);
                 }
             }
         }
 
         return Collections.unmodifiableMap(builder);
+    }
+
+    private Map<IndexId, Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus>> indexShardsStatusMap(
+        SnapshotsInProgress snapshotsInProgress,
+        @Nullable SnapshotDeletionsInProgress deletionsInProgress,
+        Metadata metadata,
+        RoutingTable routingTable,
+        List<IndexId> indices,
+        RepositoryData repositoryData,
+        String repoName
+    ) {
+        final Map<IndexId, Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus>> builder = new HashMap<>();
+        final ShardGenerations shardGenerations = repositoryData.shardGenerations();
+        final InFlightShardSnapshotStates inFlightShardStates = InFlightShardSnapshotStates.forRepo(
+            repoName,
+            snapshotsInProgress.entries()
+        );
+        final boolean readyToExecute = deletionsInProgress == null
+            || deletionsInProgress.getEntries()
+                .stream()
+                .noneMatch(entry -> entry.repository().equals(repoName) && entry.state() == SnapshotDeletionsInProgress.State.STARTED);
+        for (IndexId index : indices) {
+            final String indexName = index.getName();
+            final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
+            IndexMetadata indexMetadata = metadata.index(indexName);
+            if (indexMetadata == null) {
+                // The index was deleted before we managed to start the snapshot - mark it as missing.
+                builder.computeIfAbsent(index, k -> new HashMap<>())
+                    .put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), ShardSnapshotStatus.MISSING);
+            } else {
+                final IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
+                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+                    final ShardId shardId = indexRoutingTable.shard(i).shardId();
+                    ShardSnapshotStatus shardSnapshotStatus = calculateShardSnapshotStatus(
+                        index,
+                        shardId,
+                        indexRoutingTable,
+                        shardGenerations,
+                        inFlightShardStates,
+                        readyToExecute,
+                        isNewIndex
+                    );
+                    builder.computeIfAbsent(index, k -> new HashMap<>()).put(shardId, shardSnapshotStatus);
+                }
+            }
+        }
+
+        return Collections.unmodifiableMap(builder);
+    }
+
+    private ShardSnapshotStatus calculateShardSnapshotStatus(
+        IndexId index,
+        ShardId shardId,
+        IndexRoutingTable indexRoutingTable,
+        ShardGenerations shardGenerations,
+        InFlightShardSnapshotStates inFlightShardStates,
+        boolean readyToExecute,
+        boolean isNewIndex
+    ) {
+        final String shardRepoGeneration;
+
+        final String inFlightGeneration = inFlightShardStates.generationForShard(index, shardId.id(), shardGenerations);
+        if (inFlightGeneration == null && isNewIndex) {
+            assert shardGenerations.getShardGen(index, shardId.getId()) == null : "Found shard generation for new index [" + index + "]";
+            shardRepoGeneration = ShardGenerations.NEW_SHARD_GEN;
+        } else {
+            shardRepoGeneration = inFlightGeneration;
+        }
+        final ShardSnapshotStatus shardSnapshotStatus;
+        if (indexRoutingTable == null) {
+            shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
+                null,
+                ShardState.MISSING,
+                "missing routing table",
+                shardRepoGeneration
+            );
+        } else {
+            ShardRouting primary = indexRoutingTable.shard(shardId.id()).primaryShard();
+            if (readyToExecute == false || inFlightShardStates.isActive(index.getName(), shardId.id())) {
+                shardSnapshotStatus = ShardSnapshotStatus.UNASSIGNED_QUEUED;
+            } else if (primary == null || !primary.assignedToNode()) {
+                shardSnapshotStatus = new ShardSnapshotStatus(
+                    null,
+                    ShardState.MISSING,
+                    "primary shard is not allocated",
+                    shardRepoGeneration
+                );
+            } else if (primary.relocating() || primary.initializing()) {
+                shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
+            } else if (!primary.started()) {
+                shardSnapshotStatus = new ShardSnapshotStatus(
+                    primary.currentNodeId(),
+                    ShardState.MISSING,
+                    "primary shard hasn't been started yet",
+                    shardRepoGeneration
+                );
+            } else {
+                shardSnapshotStatus = new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
+            }
+        }
+        return shardSnapshotStatus;
     }
 
     /**

@@ -252,6 +252,7 @@ public class RemoteClusterStateCustomsTests extends OpenSearchTestCase {
                     emptyMap(),
                     emptyMap(),
                     CURRENT,
+                    false,
                     false
                 )
             )
