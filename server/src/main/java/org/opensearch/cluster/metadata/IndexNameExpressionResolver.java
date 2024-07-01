@@ -38,7 +38,6 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.WildcardMatcher;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -93,17 +92,17 @@ public class IndexNameExpressionResolver {
     private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
 
     private final ThreadContext threadContext;
-    private final WildcardMatcher systemIndexMatcher;
+    private final String[] systemIndices;
 
     public IndexNameExpressionResolver(ThreadContext threadContext) {
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
-        this.systemIndexMatcher = WildcardMatcher.NONE;
+        this.systemIndices = new String[0];
     }
 
     public IndexNameExpressionResolver(ThreadContext threadContext, SystemIndices systemIndices) {
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
         List<String> allSystemIndexPatterns = systemIndices.getAllSystemIndexPatterns();
-        this.systemIndexMatcher = WildcardMatcher.from(allSystemIndexPatterns);
+        this.systemIndices = allSystemIndexPatterns.toArray(new String[0]);
     }
 
     /**
@@ -175,7 +174,7 @@ public class IndexNameExpressionResolver {
     }
 
     public List<String> concreteSystemIndices(String... concreteIndices) {
-        return systemIndexMatcher.getMatchAny(concreteIndices, Collectors.toList());
+        return Arrays.stream(concreteIndices).filter(idx -> Regex.simpleMatch(systemIndices, idx)).collect(Collectors.toList());
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
