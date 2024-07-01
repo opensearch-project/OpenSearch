@@ -19,7 +19,7 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class StarTreeValues extends CompositeIndexValues {
+public class StarTreeValues implements CompositeIndexValues {
     private final List<String> dimensionsOrder;
 
     // TODO : come up with full set of vales such as dimensions and metrics doc values + star tree

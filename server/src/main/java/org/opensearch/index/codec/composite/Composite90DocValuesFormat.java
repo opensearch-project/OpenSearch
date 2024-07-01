@@ -59,6 +59,6 @@ public class Composite90DocValuesFormat extends DocValuesFormat {
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new Composite90DocValuesReader(delegate.fieldsProducer(state), state, mapperService);
+        return new Composite90DocValuesReader(delegate.fieldsProducer(state), state);
     }
 }

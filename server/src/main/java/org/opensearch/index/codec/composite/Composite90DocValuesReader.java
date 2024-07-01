@@ -32,13 +32,9 @@ import java.util.Set;
 @ExperimentalApi
 public class Composite90DocValuesReader extends DocValuesProducer implements CompositeIndexReader {
     private DocValuesProducer delegate;
-    Set<CompositeMappedFieldType> compositeMappedFieldTypes;
-    MapperService mapperService;
 
-    public Composite90DocValuesReader(DocValuesProducer producer, SegmentReadState state, MapperService mapperService) throws IOException {
+    public Composite90DocValuesReader(DocValuesProducer producer, SegmentReadState state) throws IOException {
         this.delegate = producer;
-        this.mapperService = mapperService;
-        this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
         // TODO : read star tree files
     }
 
@@ -82,13 +78,14 @@ public class Composite90DocValuesReader extends DocValuesProducer implements Com
     @Override
     public List<String> getCompositeIndexFields() {
         // todo : read from file formats and get the field names.
-        return null;
+        throw new UnsupportedOperationException();
+
     }
 
     @Override
     public CompositeIndexValues getCompositeIndexValues(String field, CompositeMappedFieldType.CompositeFieldType fieldType)
         throws IOException {
         // TODO : read compositeIndexValues [starTreeValues] from star tree files
-        return null;
+        throw new UnsupportedOperationException();
     }
 }

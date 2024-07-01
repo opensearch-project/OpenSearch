@@ -11,11 +11,11 @@ package org.opensearch.index.codec.composite;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Abstract class for composite index values
+ * Interface for composite index values
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public abstract class CompositeIndexValues {
-    public abstract CompositeIndexValues getValues();
+public interface CompositeIndexValues {
+     CompositeIndexValues getValues();
 }
