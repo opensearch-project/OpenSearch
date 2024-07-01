@@ -41,6 +41,8 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
+
 /**
  * An allocation decider that prevents multiple instances of the same shard to
  * be allocated on the same {@code node}.
@@ -92,6 +94,10 @@ public class SameShardAllocationDecider extends AllocationDecider {
         if (decision.type() == Decision.Type.NO || sameHost == false) {
             // if its already a NO decision looking at the node, or we aren't configured to look at the host, return the decision
             return decision;
+        }
+        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(allocation.metadata().getIndexSafe(shardRouting.index()).getSettings())
+            .autoExpandToAll()) {
+            return allocation.decision(Decision.YES, NAME, "allocation awareness is ignored, this index is set to auto-expand to all");
         }
         if (node.node() != null) {
             for (RoutingNode checkNode : allocation.routingNodes()) {

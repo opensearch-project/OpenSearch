@@ -1063,4 +1063,39 @@ public class AwarenessAllocationTests extends OpenSearchAllocationTestCase {
 
         }
     }
+
+    public void testIgnoredByAutoExpandReplicasToAll() {
+        final Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .build();
+
+        final AllocationService strategy = createAllocationService(settings);
+
+        final IndexMetadata.Builder metadataBuilder = IndexMetadata.builder("test")
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 100)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+            );
+
+        final Metadata metadata = Metadata.builder().put(metadataBuilder).build();
+
+        final DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(newNode("A-0", singletonMap("zone", "a")))
+            .add(newNode("A-1", singletonMap("zone", "a")))
+            .add(newNode("A-2", singletonMap("zone", "a")))
+            .add(newNode("B-0", singletonMap("zone", "b")))
+            .build();
+
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+                .nodes(nodes)
+                .build(),
+            strategy
+        );
+
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
+    }
 }
