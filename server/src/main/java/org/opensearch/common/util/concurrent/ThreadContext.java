@@ -129,7 +129,9 @@ public final class ThreadContext implements Writeable {
         this.threadLocal = ThreadLocal.withInitial(() -> DEFAULT_CONTEXT);
         this.maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
         this.maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
-        this.propagators = new CopyOnWriteArrayList<>(List.of(new TaskThreadContextStatePropagator(), new QueryGroupThreadContextStatePropagator()));
+        this.propagators = new CopyOnWriteArrayList<>(
+            List.of(new TaskThreadContextStatePropagator(), new QueryGroupThreadContextStatePropagator())
+        );
     }
 
     public void registerThreadContextStatePropagator(final ThreadContextStatePropagator propagator) {
