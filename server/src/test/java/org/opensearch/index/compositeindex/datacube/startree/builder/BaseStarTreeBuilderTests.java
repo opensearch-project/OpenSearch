@@ -8,7 +8,6 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
-import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.index.BaseStarTreeBuilder;
@@ -27,6 +26,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
@@ -80,7 +80,12 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
     @BeforeClass
     public static void setup() throws IOException {
 
-        dimensionsOrder = List.of(new Dimension("field1"), new Dimension("field3"), new Dimension("field5"), new Dimension("field8"));
+        dimensionsOrder = List.of(
+            new NumericDimension("field1"),
+            new NumericDimension("field3"),
+            new NumericDimension("field5"),
+            new NumericDimension("field8")
+        );
         metrics = List.of(new Metric("field2", List.of(MetricStat.SUM)), new Metric("field4", List.of(MetricStat.SUM)));
 
         starTreeField = new StarTreeField(
@@ -89,7 +94,7 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
             metrics,
             new StarTreeFieldConfiguration(1, Set.of("field8"), StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP)
         );
-        DocValuesConsumer docValuesConsumer = mock(DocValuesConsumer.class);
+
         DocValuesProducer docValuesProducer = mock(DocValuesProducer.class);
         directory = newFSDirectory(createTempDir());
         SegmentInfo segmentInfo = new SegmentInfo(

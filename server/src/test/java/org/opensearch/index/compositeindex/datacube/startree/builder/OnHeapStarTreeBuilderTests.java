@@ -27,6 +27,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
@@ -78,7 +79,12 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws IOException {
-        dimensionsOrder = List.of(new Dimension("field1"), new Dimension("field3"), new Dimension("field5"), new Dimension("field8"));
+        dimensionsOrder = List.of(
+            new NumericDimension("field1"),
+            new NumericDimension("field3"),
+            new NumericDimension("field5"),
+            new NumericDimension("field8")
+        );
         metrics = List.of(
             new Metric("field2", List.of(MetricStat.SUM)),
             new Metric("field4", List.of(MetricStat.SUM)),
