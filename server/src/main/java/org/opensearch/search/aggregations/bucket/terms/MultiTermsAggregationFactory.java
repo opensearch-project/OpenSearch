@@ -146,6 +146,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             configs.stream()
                 .map(config -> queryShardContext.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config.v1()).build(config))
                 .collect(Collectors.toList()),
+            configs.stream().map(config -> config.v1().getValuesSource()).collect(Collectors.toList()),
             configs.stream().map(c -> c.v1().format()).collect(Collectors.toList()),
             order,
             collectMode,

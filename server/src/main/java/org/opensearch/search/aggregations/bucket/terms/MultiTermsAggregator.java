@@ -8,8 +8,15 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
@@ -62,6 +69,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     private final BytesKeyedBucketOrds bucketOrds;
     private final MultiTermsValuesSource multiTermsValue;
+    private final List<ValuesSource> valuesSources;
     private final boolean showTermDocCountError;
     private final List<DocValueFormat> formats;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -69,12 +77,15 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
     private final Comparator<InternalMultiTerms.Bucket> partiallyBuiltBucketComparator;
     private final SubAggCollectionMode collectMode;
     private final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
+    private Weight weight;
+    private static final Logger logger = LogManager.getLogger(MultiTermsAggregator.class);
 
     public MultiTermsAggregator(
         String name,
         AggregatorFactories factories,
         boolean showTermDocCountError,
         List<InternalValuesSource> internalValuesSources,
+        List<ValuesSource> valuesSources,
         List<DocValueFormat> formats,
         BucketOrder order,
         SubAggCollectionMode collectMode,
@@ -87,6 +98,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
         super(name, factories, context, parent, metadata);
         this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
         this.multiTermsValue = new MultiTermsValuesSource(internalValuesSources);
+        this.valuesSources = valuesSources;
         this.showTermDocCountError = showTermDocCountError;
         this.formats = formats;
         this.bucketCountThresholds = bucketCountThresholds;
@@ -173,6 +185,10 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
         return result;
     }
 
+    public void setWeight(Weight weight) {
+        this.weight = weight;
+    }
+
     InternalMultiTerms buildResult(long owningBucketOrd, long otherDocCount, InternalMultiTerms.Bucket[] topBuckets) {
         BucketOrder reduceOrder;
         if (isKeyOrder(order) == false) {
@@ -213,8 +229,114 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
         );
     }
 
+    private LeafBucketCollector getTermFrequencies(LeafReaderContext ctx) throws IOException {
+        // Instead of visiting doc values for each document, utilize posting data directly to get each composite bucket intersection
+        // For example, if we have a composite key of (a, b) where a is from field1 & b is from field2
+        // We can a find all the composite buckets by visiting both the posting lists
+        // and counting all the documents that intersect for each composite bucket.
+        // This is much faster than visiting the doc values for each document.
+
+        if (weight == null || weight.count(ctx) != ctx.reader().maxDoc()) {
+            // Weight not assigned - cannot use this optimization
+            // weight.count(ctx) == ctx.reader().maxDoc() implies there are no deleted documents and
+            // top-level query matches all docs in the segment
+            return null;
+        }
+
+        String field1, field2;
+        // Restricting the number of fields to 2 and only keyword fields with FieldData available
+        if (this.valuesSources.size() == 2
+            && this.valuesSources.get(0) instanceof ValuesSource.Bytes.WithOrdinals.FieldData
+            && this.valuesSources.get(1) instanceof ValuesSource.Bytes.WithOrdinals.FieldData) {
+            field1 = ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSources.get(0)).getIndexFieldName();
+            field2 = ((ValuesSource.Bytes.WithOrdinals.FieldData) valuesSources.get(1)).getIndexFieldName();
+
+        } else {
+            return null;
+        }
+
+        Terms segmentTerms1 = ctx.reader().terms(field1);
+        Terms segmentTerms2 = ctx.reader().terms(field2);
+
+        // TODO in this PR itself in coming commits:
+        // 1/ add check for fields cardinality - this might be ineffective for very high cardinality
+        // 2/ check for filter applied or not as default implementation might be resolving it as part of aggregation
+
+        TermsEnum segmentTermsEnum1 = segmentTerms1.iterator();
+
+        while (segmentTermsEnum1.next() != null) {
+            TermsEnum segmentTermsEnum2 = segmentTerms2.iterator();
+
+            while (segmentTermsEnum2.next() != null) {
+
+                PostingsEnum postings1 = segmentTermsEnum1.postings(null);
+                postings1.nextDoc();
+
+                PostingsEnum postings2 = segmentTermsEnum2.postings(null);
+                postings2.nextDoc();
+
+                int bucketCount = 0;
+
+                while (postings1.docID() != PostingsEnum.NO_MORE_DOCS && postings2.docID() != PostingsEnum.NO_MORE_DOCS) {
+
+                    // Count of intersecting docs to get number of docs in each bucket
+                    if (postings1.docID() == postings2.docID()) {
+                        bucketCount++;
+                        postings1.nextDoc();
+                        postings2.nextDoc();
+                    } else if (postings1.docID() < postings2.docID()) {
+                        postings1.advance(postings2.docID());
+                    } else {
+                        postings2.advance(postings1.docID());
+                    }
+                }
+
+                // For a key formed by value of t1 & a value of t2, create a composite key, convert it to byte ref and then update the
+                // ordinal data with count computed above
+                // The ordinal data is used to collect the sub-aggregations for each composite key
+                // The composite key is used to collect the buckets for each composite key
+                BytesRef v1 = segmentTermsEnum1.term();
+                BytesRef v2 = segmentTermsEnum2.term();
+
+                TermValue<BytesRef> termValue1 = new TermValue<>(v1, TermValue.BYTES_REF_WRITER);
+                TermValue<BytesRef> termValue2 = new TermValue<>(v2, TermValue.BYTES_REF_WRITER);
+
+                final BytesStreamOutput scratch = new BytesStreamOutput();
+                scratch.writeVInt(2); // number of fields per composite key
+                termValue1.writeTo(scratch);
+                termValue2.writeTo(scratch);
+                BytesRef compositeKeyBytesRef = scratch.bytes().toBytesRef();  // composite key formed
+                scratch.close();
+
+                long bucketOrd = bucketOrds.add(0, compositeKeyBytesRef);
+                if (bucketOrd < 0) {
+                    bucketOrd = -1 - bucketOrd;
+                }
+                incrementBucketDocCount(bucketOrd, bucketCount);
+            }
+        }
+
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                throw new CollectionTerminatedException();
+            }
+        };
+
+    }
+
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+
+        LeafBucketCollector optimizedCollector = this.getTermFrequencies(ctx);
+
+        if (optimizedCollector != null) {
+            logger.info("optimization used");
+            return optimizedCollector;
+        }
+
+        logger.info("optimization not not used");
+
         MultiTermsValuesSourceCollector collector = multiTermsValue.getValues(ctx);
         return new LeafBucketCollector() {
             @Override
@@ -256,7 +378,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
-        return collectMode == Aggregator.SubAggCollectionMode.BREADTH_FIRST && !aggsUsedForSorting.contains(aggregator);
+        return collectMode == SubAggCollectionMode.BREADTH_FIRST && !aggsUsedForSorting.contains(aggregator);
     }
 
     private void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
