@@ -30,6 +30,10 @@ public abstract class AggregatorBridge {
     OptimizationContext optimizationContext;
     MappedFieldType fieldType;
 
+    void setOptimizationContext(OptimizationContext optimizationContext) {
+        this.optimizationContext = optimizationContext;
+    }
+
     /**
      * Check whether we can optimize the aggregator
      * If not, don't call the other methods
@@ -38,15 +42,11 @@ public abstract class AggregatorBridge {
      */
     protected abstract boolean canOptimize();
 
-    void setOptimizationContext(OptimizationContext optimizationContext) {
-        this.optimizationContext = optimizationContext;
-    }
+    protected abstract void prepare() throws IOException;
 
-    protected abstract void buildRanges() throws IOException;
+    abstract Ranges prepare(LeafReaderContext leaf) throws IOException;
 
-    abstract Ranges buildRanges(LeafReaderContext leaf) throws IOException;
-
-    abstract void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount, Ranges ranges) throws IOException;
+    abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, Ranges ranges) throws IOException;
 
     protected abstract Function<Object, Long> bucketOrdProducer();
 

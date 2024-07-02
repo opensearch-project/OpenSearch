@@ -69,7 +69,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    OptimizationContext.Ranges buildRanges(LeafReaderContext leaf) throws IOException {
+    OptimizationContext.Ranges prepare(LeafReaderContext leaf) throws IOException {
         long[] bounds = Helper.getSegmentBounds(leaf, fieldType.name());
         return buildRanges(bounds);
     }
@@ -141,7 +141,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    final void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount, OptimizationContext.Ranges ranges)
+    final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, OptimizationContext.Ranges ranges)
         throws IOException {
         int size = getSize();
 

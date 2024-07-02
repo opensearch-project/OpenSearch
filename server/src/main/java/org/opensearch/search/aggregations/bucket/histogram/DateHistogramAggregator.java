@@ -124,7 +124,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             }
 
             @Override
-            protected void buildRanges() throws IOException {
+            protected void prepare() throws IOException {
                 buildRanges(context);
             }
 

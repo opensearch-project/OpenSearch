@@ -189,7 +189,7 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            protected void buildRanges() throws IOException {
+            protected void prepare() throws IOException {
                 buildRanges(context);
             }
 

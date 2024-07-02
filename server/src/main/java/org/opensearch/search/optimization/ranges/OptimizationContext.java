@@ -63,8 +63,7 @@ public final class OptimizationContext {
 
         if (parent != null || subAggLength != 0) return false;
 
-        boolean rewriteable = aggregatorBridge.canOptimize();
-        this.rewriteable = rewriteable;
+        this.rewriteable = aggregatorBridge.canOptimize();
         if (rewriteable) {
             aggregatorBridge.setOptimizationContext(this);
             this.maxAggRewriteFilters = context.maxAggRewriteFilters();
@@ -76,14 +75,14 @@ public final class OptimizationContext {
 
     public void prepare() throws IOException {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
-        this.aggregatorBridge.buildRanges();
+        this.aggregatorBridge.prepare();
         if (ranges != null) {
             preparedAtShardLevel = true;
         }
     }
 
     private Ranges prepare(LeafReaderContext leaf) throws IOException {
-        return this.aggregatorBridge.buildRanges(leaf);
+        return this.aggregatorBridge.prepare(leaf);
     }
 
     void setRanges(Ranges ranges) {
@@ -123,7 +122,7 @@ public final class OptimizationContext {
         Ranges ranges = prepareFromSegment(leafCtx);
         if (ranges == null) return false;
 
-        aggregatorBridge.tryFastFilterAggregation(values, incrementDocCount, ranges);
+        aggregatorBridge.tryOptimize(values, incrementDocCount, ranges);
 
         optimizedSegments++;
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
@@ -262,19 +261,19 @@ public final class OptimizationContext {
     /**
      * @param maxNumNonZeroRanges the number of non-zero ranges to collect
      */
-    static OptimizationContext.DebugInfo multiRangesTraverse(
+    static DebugInfo multiRangesTraverse(
         final PointValues.PointTree tree,
-        final OptimizationContext.Ranges ranges,
+        final Ranges ranges,
         final BiConsumer<Integer, Integer> incrementDocCount,
         final int maxNumNonZeroRanges
     ) throws IOException {
-        OptimizationContext.DebugInfo debugInfo = new OptimizationContext.DebugInfo();
+        DebugInfo debugInfo = new DebugInfo();
         int activeIndex = ranges.firstRangeIndex(tree.getMinPackedValue(), tree.getMaxPackedValue());
         if (activeIndex < 0) {
             logger.debug("No ranges match the query, skip the fast filter optimization");
             return debugInfo;
         }
-        OptimizationContext.RangeCollectorForPointTree collector = new OptimizationContext.RangeCollectorForPointTree(
+        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(
             incrementDocCount,
             maxNumNonZeroRanges,
             ranges,
@@ -294,8 +293,8 @@ public final class OptimizationContext {
     private static void intersectWithRanges(
         PointValues.IntersectVisitor visitor,
         PointValues.PointTree pointTree,
-        OptimizationContext.RangeCollectorForPointTree collector,
-        OptimizationContext.DebugInfo debug
+        RangeCollectorForPointTree collector,
+        DebugInfo debug
     ) throws IOException {
         PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
 
@@ -319,7 +318,7 @@ public final class OptimizationContext {
         }
     }
 
-    private static PointValues.IntersectVisitor getIntersectVisitor(OptimizationContext.RangeCollectorForPointTree collector) {
+    private static PointValues.IntersectVisitor getIntersectVisitor(RangeCollectorForPointTree collector) {
         return new PointValues.IntersectVisitor() {
             @Override
             public void visit(int docID) {

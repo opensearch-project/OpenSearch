@@ -68,12 +68,12 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    OptimizationContext.Ranges buildRanges(LeafReaderContext leaf) {
+    OptimizationContext.Ranges prepare(LeafReaderContext leaf) {
         throw new UnsupportedOperationException("Range aggregation should not build ranges at segment level");
     }
 
     @Override
-    final void tryFastFilterAggregation(PointValues values, BiConsumer<Long, Long> incrementDocCount, OptimizationContext.Ranges ranges)
+    final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, OptimizationContext.Ranges ranges)
         throws IOException {
         int size = Integer.MAX_VALUE;
 

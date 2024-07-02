@@ -164,7 +164,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             }
 
             @Override
-            protected void buildRanges() throws IOException {
+            protected void prepare() throws IOException {
                 buildRanges(context);
             }
 

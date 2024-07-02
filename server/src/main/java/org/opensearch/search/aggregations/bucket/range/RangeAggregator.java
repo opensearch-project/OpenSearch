@@ -288,7 +288,7 @@ public class RangeAggregator extends BucketsAggregator {
             }
 
             @Override
-            protected void buildRanges() {
+            protected void prepare() {
                 buildRanges(RangeAggregator.this.ranges);
             }
 
