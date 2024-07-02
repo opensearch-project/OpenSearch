@@ -165,6 +165,26 @@ public class TestShardRouting {
         );
     }
 
+    public static ShardRouting newShardRoutingWithNullAllocationId(
+        ShardId shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state
+    ) {
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            relocatingNodeId,
+            primary,
+            state,
+            buildRecoveryTarget(primary, state),
+            buildUnassignedInfo(state),
+            null,
+            -1
+        );
+    }
+
     public static ShardRouting newShardRouting(
         String index,
         int shardId,

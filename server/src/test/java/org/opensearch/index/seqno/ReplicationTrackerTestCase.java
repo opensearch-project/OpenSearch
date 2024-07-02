@@ -134,6 +134,18 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
         assert activeIds.contains(primaryShard.allocationId());
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
+
+        // Add a shard that is unassigned to simulate #11945
+        builder.addShard(
+            TestShardRouting.newShardRoutingWithNullAllocationId(
+                shardId,
+                null,
+                null,
+                false,
+                ShardRoutingState.UNASSIGNED
+            )
+        );
+
         for (final AllocationId initializingId : initializingIds) {
             builder.addShard(
                 TestShardRouting.newShardRouting(
@@ -146,6 +158,8 @@ public abstract class ReplicationTrackerTestCase extends OpenSearchTestCase {
                 )
             );
         }
+
+
         for (final AllocationId activeId : activeIds) {
             if (activeId.equals(primaryShard.allocationId())) {
                 continue;
