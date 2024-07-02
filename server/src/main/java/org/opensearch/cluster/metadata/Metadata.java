@@ -271,12 +271,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
     private final int totalOpenIndexShards;
 
-    private final String[] allIndices;
-    private final String[] visibleIndices;
-    private final String[] allOpenIndices;
-    private final String[] visibleOpenIndices;
-    private final String[] allClosedIndices;
-    private final String[] visibleClosedIndices;
+    private final List<String> allIndices;
+    private final List<String> visibleIndices;
+    private final List<String> allOpenIndices;
+    private final List<String> visibleOpenIndices;
+    private final List<String> allClosedIndices;
+    private final List<String> visibleClosedIndices;
 
     private final SortedMap<String, IndexAbstraction> indicesLookup;
 
@@ -291,12 +291,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         final Map<String, IndexMetadata> indices,
         final Map<String, IndexTemplateMetadata> templates,
         final Map<String, Custom> customs,
-        String[] allIndices,
-        String[] visibleIndices,
-        String[] allOpenIndices,
-        String[] visibleOpenIndices,
-        String[] allClosedIndices,
-        String[] visibleClosedIndices,
+        List<String> allIndices,
+       List<String> visibleIndices,
+        List<String> allOpenIndices,
+        List<String> visibleOpenIndices,
+        List<String> allClosedIndices,
+        List<String> visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup
     ) {
         this.clusterUUID = clusterUUID;
@@ -321,12 +321,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.totalNumberOfShards = totalNumberOfShards;
         this.totalOpenIndexShards = totalOpenIndexShards;
 
-        this.allIndices = allIndices;
-        this.visibleIndices = visibleIndices;
-        this.allOpenIndices = allOpenIndices;
-        this.visibleOpenIndices = visibleOpenIndices;
-        this.allClosedIndices = allClosedIndices;
-        this.visibleClosedIndices = visibleClosedIndices;
+        this.allIndices = Collections.unmodifiableList(allIndices);
+        this.visibleIndices = Collections.unmodifiableList(visibleIndices);
+        this.allOpenIndices = Collections.unmodifiableList(allOpenIndices);
+        this.visibleOpenIndices = Collections.unmodifiableList(visibleOpenIndices);
+        this.allClosedIndices = Collections.unmodifiableList(allClosedIndices);
+        this.visibleClosedIndices = Collections.unmodifiableList(visibleClosedIndices);
         this.indicesLookup = indicesLookup;
     }
 
