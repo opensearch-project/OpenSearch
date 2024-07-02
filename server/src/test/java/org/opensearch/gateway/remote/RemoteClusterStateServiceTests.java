@@ -13,14 +13,17 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.RepositoryCleanupInProgress;
-import org.opensearch.cluster.RepositoryCleanupInProgress.Entry;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
+import org.opensearch.cluster.metadata.DiffableStringMap;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.NoopRemoteRoutingTableService;
@@ -44,13 +47,16 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
-import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
+import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
+import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.repositories.FilterRepository;
@@ -60,7 +66,6 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.TestCustomMetadata;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -74,7 +79,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -96,17 +100,30 @@ import org.mockito.ArgumentMatchers;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
+import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_BLOCKS;
+import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata1;
+import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata2;
+import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata3;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.FORMAT_PARAMS;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.getFormattedIndexFileName;
+import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS_FORMAT;
+import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.randomClusterBlocks;
 import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA_FORMAT;
+import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.readFrom;
+import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodes.DISCOVERY_NODES;
+import static org.opensearch.gateway.remote.model.RemoteDiscoveryNodes.DISCOVERY_NODES_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteGlobalMetadata.GLOBAL_METADATA_FORMAT;
+import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS;
+import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS_FORMAT;
+import static org.opensearch.gateway.remote.model.RemoteIndexMetadata.INDEX_METADATA_FORMAT;
 import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata.SETTINGS_METADATA_FORMAT;
 import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata.SETTING_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLATES_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLATES_METADATA_FORMAT;
+import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
@@ -131,9 +148,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     private Supplier<RepositoriesService> repositoriesServiceSupplier;
     private RepositoriesService repositoriesService;
     private BlobStoreRepository blobStoreRepository;
+    private Compressor compressor;
     private BlobStore blobStore;
     private Settings settings;
     private boolean publicationEnabled;
+    private NamedWriteableRegistry namedWriteableRegistry;
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Before
@@ -160,6 +179,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .put(RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "routing_repository")
             .build();
+        List<NamedWriteableRegistry.Entry> writeableEntries = ClusterModule.getNamedWriteables();
+        writeableEntries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, CustomMetadata1.TYPE, CustomMetadata1::new));
+        writeableEntries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, CustomMetadata2.TYPE, CustomMetadata2::new));
+        writeableEntries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, CustomMetadata3.TYPE, CustomMetadata3::new));
+        namedWriteableRegistry = new NamedWriteableRegistry(writeableEntries);
 
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterService = mock(ClusterService.class);
@@ -172,6 +196,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             ).flatMap(Function.identity()).collect(toList())
         );
 
+        compressor = new DeflateCompressor();
         blobStoreRepository = mock(BlobStoreRepository.class);
         blobStore = mock(BlobStore.class);
         when(blobStoreRepository.blobStore()).thenReturn(blobStore);
@@ -187,7 +212,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             () -> 0L,
             threadPool,
             List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
-            writableRegistry()
+            namedWriteableRegistry
         );
     }
 
@@ -294,7 +319,12 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             writableRegistry()
         );
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager())
-            .customs(Map.of(RepositoryCleanupInProgress.TYPE, new RepositoryCleanupInProgress(List.of(new Entry("test-repo", 10L)))))
+            .customs(
+                Map.of(
+                    RepositoryCleanupInProgress.TYPE,
+                    new RepositoryCleanupInProgress(List.of(new RepositoryCleanupInProgress.Entry("test-repo", 10L)))
+                )
+            )
             .build();
         mockBlobStoreObjects();
         remoteClusterStateService.start();
@@ -384,7 +414,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .provideStream(0)
             .getInputStream()
             .readAllBytes();
-        IndexMetadata writtenIndexMetadata = RemoteIndexMetadata.INDEX_METADATA_FORMAT.deserialize(
+        IndexMetadata writtenIndexMetadata = INDEX_METADATA_FORMAT.deserialize(
             capturedWriteContext.get("metadata").getFileName(),
             blobStoreRepository.getNamedXContentRegistry(),
             new BytesArray(writtenBytes)
@@ -543,6 +573,292 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateVersion(), is(expectedManifest.getStateVersion()));
         assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
+    }
+
+    public void testGetClusterStateUsingDiffFailWhenDiffManifestAbsent() {
+        ClusterMetadataManifest manifest = ClusterMetadataManifest.builder().build();
+        ClusterState previousState = ClusterState.EMPTY_STATE;
+        AssertionError error = assertThrows(
+            AssertionError.class,
+            () -> remoteClusterStateService.getClusterStateUsingDiff(manifest, previousState, "test-node")
+        );
+        assertEquals("Diff manifest null which is required for downloading cluster state", error.getMessage());
+    }
+
+    public void testGetClusterStateUsingDiff_NoDiff() throws IOException {
+        ClusterStateDiffManifest diffManifest = ClusterStateDiffManifest.builder().build();
+        ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+            .diffManifest(diffManifest)
+            .stateUUID(clusterState.stateUUID())
+            .stateVersion(clusterState.version())
+            .metadataVersion(clusterState.metadata().version())
+            .clusterUUID(clusterState.getMetadata().clusterUUID())
+            .routingTableVersion(clusterState.routingTable().version())
+            .build();
+        ClusterState updatedClusterState = remoteClusterStateService.getClusterStateUsingDiff(manifest, clusterState, "test-node");
+        assertEquals(clusterState.getClusterName(), updatedClusterState.getClusterName());
+        assertEquals(clusterState.metadata().clusterUUID(), updatedClusterState.metadata().clusterUUID());
+        assertEquals(clusterState.metadata().version(), updatedClusterState.metadata().version());
+        assertEquals(clusterState.metadata().coordinationMetadata(), updatedClusterState.metadata().coordinationMetadata());
+        assertEquals(clusterState.metadata().getIndices(), updatedClusterState.metadata().getIndices());
+        assertEquals(clusterState.metadata().templates(), updatedClusterState.metadata().templates());
+        assertEquals(clusterState.metadata().persistentSettings(), updatedClusterState.metadata().persistentSettings());
+        assertEquals(clusterState.metadata().transientSettings(), updatedClusterState.metadata().transientSettings());
+        assertEquals(clusterState.metadata().getCustoms(), updatedClusterState.metadata().getCustoms());
+        assertEquals(clusterState.metadata().hashesOfConsistentSettings(), updatedClusterState.metadata().hashesOfConsistentSettings());
+        assertEquals(clusterState.getCustoms(), updatedClusterState.getCustoms());
+        assertEquals(clusterState.stateUUID(), updatedClusterState.stateUUID());
+        assertEquals(clusterState.version(), updatedClusterState.version());
+        assertEquals(clusterState.getRoutingTable().version(), updatedClusterState.getRoutingTable().version());
+        assertEquals(clusterState.getRoutingTable().getIndicesRouting(), updatedClusterState.getRoutingTable().getIndicesRouting());
+        assertEquals(clusterState.getNodes(), updatedClusterState.getNodes());
+        assertEquals(clusterState.getBlocks(), updatedClusterState.getBlocks());
+    }
+
+    public void testGetClusterStateUsingDiff() throws IOException {
+        ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        ClusterState.Builder expectedClusterStateBuilder = ClusterState.builder(clusterState);
+        Metadata.Builder mb = Metadata.builder(clusterState.metadata());
+        ClusterStateDiffManifest.Builder diffManifestBuilder = ClusterStateDiffManifest.builder();
+        ClusterMetadataManifest.Builder manifestBuilder = ClusterMetadataManifest.builder();
+        BlobContainer blobContainer = mockBlobStoreObjects();
+        if (randomBoolean()) {
+            // updated coordination metadata
+            CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder()
+                .term(clusterState.metadata().coordinationMetadata().term() + 1)
+                .build();
+            mb.coordinationMetadata(coordinationMetadata);
+            diffManifestBuilder.coordinationMetadataUpdated(true);
+            manifestBuilder.coordinationMetadata(new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination-metadata-file__1"));
+            when(blobContainer.readBlob("coordination-metadata-file__1")).thenAnswer(i -> {
+                BytesReference bytes = COORDINATION_METADATA_FORMAT.serialize(
+                    coordinationMetadata,
+                    "coordination-metadata-file__1",
+                    compressor,
+                    FORMAT_PARAMS
+                );
+                return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
+            });
+        }
+        if (randomBoolean()) {
+            // updated templates
+            TemplatesMetadata templatesMetadata = TemplatesMetadata.builder()
+                .put(
+                    IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
+                        .patterns(Arrays.asList("bar-*", "foo-*"))
+                        .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
+                        .build()
+                )
+                .build();
+            mb.templates(templatesMetadata);
+            diffManifestBuilder.templatesMetadataUpdated(true);
+            manifestBuilder.templatesMetadata(new UploadedMetadataAttribute(TEMPLATES_METADATA, "templates-metadata-file__1"));
+            when(blobContainer.readBlob("templates-metadata-file__1")).thenAnswer(i -> {
+                BytesReference bytes = TEMPLATES_METADATA_FORMAT.serialize(
+                    templatesMetadata,
+                    "templates-metadata-file__1",
+                    compressor,
+                    FORMAT_PARAMS
+                );
+                return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
+            });
+        }
+        if (randomBoolean()) {
+            // updated persistent settings
+            Settings persistentSettings = Settings.builder()
+                .put("random_persistent_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5))
+                .build();
+            mb.persistentSettings(persistentSettings);
+            diffManifestBuilder.settingsMetadataUpdated(true);
+            manifestBuilder.settingMetadata(new UploadedMetadataAttribute(SETTING_METADATA, "persistent-settings-file__1"));
+            when(blobContainer.readBlob("persistent-settings-file__1")).thenAnswer(i -> {
+                BytesReference bytes = RemotePersistentSettingsMetadata.SETTINGS_METADATA_FORMAT.serialize(
+                    persistentSettings,
+                    "persistent-settings-file__1",
+                    compressor,
+                    FORMAT_PARAMS
+                );
+                return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
+            });
+        }
+        if (randomBoolean()) {
+            // updated transient settings
+            Settings transientSettings = Settings.builder()
+                .put("random_transient_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5))
+                .build();
+            mb.transientSettings(transientSettings);
+            diffManifestBuilder.transientSettingsMetadataUpdate(true);
+            manifestBuilder.transientSettingsMetadata(
+                new UploadedMetadataAttribute(TRANSIENT_SETTING_METADATA, "transient-settings-file__1")
+            );
+            when(blobContainer.readBlob("transient-settings-file__1")).thenAnswer(i -> {
+                BytesReference bytes = RemoteTransientSettingsMetadata.SETTINGS_METADATA_FORMAT.serialize(
+                    transientSettings,
+                    "transient-settings-file__1",
+                    compressor,
+                    FORMAT_PARAMS
+                );
+                return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
+            });
+        }
+        if (randomBoolean()) {
+            // updated customs
+            CustomMetadata2 addedCustom = new CustomMetadata2(randomAlphaOfLength(10));
+            mb.putCustom(addedCustom.getWriteableName(), addedCustom);
+            diffManifestBuilder.customMetadataUpdated(Collections.singletonList(addedCustom.getWriteableName()));
+            manifestBuilder.customMetadataMap(
+                Map.of(addedCustom.getWriteableName(), new UploadedMetadataAttribute(addedCustom.getWriteableName(), "custom-md2-file__1"))
+            );
+            when(blobContainer.readBlob("custom-md2-file__1")).thenAnswer(i -> {
+                ChecksumWritableBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumWritableBlobStoreFormat<>(
+                    "custom",
+                    is -> readFrom(is, namedWriteableRegistry, addedCustom.getWriteableName())
+                );
+                BytesReference bytes = customMetadataFormat.serialize(addedCustom, "custom-md2-file__1", compressor);
+                return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
+            });
+        }
+        if (randomBoolean()) {
+            Set<String> customsToRemove = clusterState.metadata().customs().keySet();
+            customsToRemove.forEach(mb::removeCustom);
+            diffManifestBuilder.customMetadataDeleted(new ArrayList<>(customsToRemove));
+        }
+        if (randomBoolean()) {
+            // updated hashes of consistent settings
+            DiffableStringMap hashesOfConsistentSettings = new DiffableStringMap(Map.of("secure_setting_key", "secure_setting_value"));
+            mb.hashesOfConsistentSettings(hashesOfConsistentSettings);
+            diffManifestBuilder.hashesOfConsistentSettingsUpdated(true);
+            manifestBuilder.hashesOfConsistentSettings(
+                new UploadedMetadataAttribute(HASHES_OF_CONSISTENT_SETTINGS, "consistent-settings-hashes-file__1")
+            );
+            when(blobContainer.readBlob("consistent-settings-hashes-file__1")).thenAnswer(i -> {
+                BytesReference bytes = HASHES_OF_CONSISTENT_SETTINGS_FORMAT.serialize(
+                    hashesOfConsistentSettings,
+                    "consistent-settings-hashes-file__1",
+                    compressor
+                );
+                return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
+            });
+        }
+        if (randomBoolean()) {
+            // updated index metadata
+            IndexMetadata indexMetadata = new IndexMetadata.Builder("add-test-index").settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "add-test-index-uuid")
+                    .build()
+            ).numberOfShards(1).numberOfReplicas(0).build();
+            mb.put(indexMetadata, true);
+            diffManifestBuilder.indicesUpdated(Collections.singletonList(indexMetadata.getIndex().getName()));
+            manifestBuilder.indices(
+                List.of(
+                    new UploadedIndexMetadata(indexMetadata.getIndex().getName(), indexMetadata.getIndexUUID(), "add-test-index-file__2")
+                )
+            );
+            when(blobContainer.readBlob("add-test-index-file__2")).thenAnswer(i -> {
+                BytesReference bytes = INDEX_METADATA_FORMAT.serialize(indexMetadata, "add-test-index-file__2", compressor, FORMAT_PARAMS);
+                return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
+            });
+        }
+        if (randomBoolean()) {
+            // remove index metadata
+            Set<String> indicesToDelete = clusterState.metadata().getIndices().keySet();
+            indicesToDelete.forEach(mb::remove);
+            diffManifestBuilder.indicesDeleted(new ArrayList<>(indicesToDelete));
+        }
+        if (randomBoolean()) {
+            // update nodes
+            DiscoveryNode node = new DiscoveryNode("node_id", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes()).add(node);
+            expectedClusterStateBuilder.nodes(nodesBuilder.build());
+            diffManifestBuilder.discoveryNodesUpdated(true);
+            manifestBuilder.discoveryNodesMetadata(new UploadedMetadataAttribute(DISCOVERY_NODES, "nodes-file__1"));
+            when(blobContainer.readBlob("nodes-file__1")).thenAnswer(invocationOnMock -> {
+                BytesReference bytes = DISCOVERY_NODES_FORMAT.serialize(nodesBuilder.build(), "nodes-file__1", compressor);
+                return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
+            });
+        }
+        if (randomBoolean()) {
+            // update blocks
+            ClusterBlocks newClusterBlock = randomClusterBlocks();
+            expectedClusterStateBuilder.blocks(newClusterBlock);
+            diffManifestBuilder.clusterBlocksUpdated(true);
+            manifestBuilder.clusterBlocksMetadata(new UploadedMetadataAttribute(CLUSTER_BLOCKS, "blocks-file__1"));
+            when(blobContainer.readBlob("blocks-file__1")).thenAnswer(invocationOnMock -> {
+                BytesReference bytes = CLUSTER_BLOCKS_FORMAT.serialize(newClusterBlock, "blocks-file__1", compressor);
+                return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
+            });
+
+        }
+        ClusterState expectedClusterState = expectedClusterStateBuilder.metadata(mb).build();
+        ClusterStateDiffManifest diffManifest = diffManifestBuilder.build();
+        manifestBuilder.diffManifest(diffManifest)
+            .stateUUID(clusterState.stateUUID())
+            .stateVersion(clusterState.version())
+            .metadataVersion(clusterState.metadata().version())
+            .clusterUUID(clusterState.getMetadata().clusterUUID())
+            .routingTableVersion(clusterState.getRoutingTable().version());
+        remoteClusterStateService.start();
+        ClusterState updatedClusterState = remoteClusterStateService.getClusterStateUsingDiff(
+            manifestBuilder.build(),
+            clusterState,
+            "test-node"
+        );
+        assertEquals(expectedClusterState.getClusterName(), updatedClusterState.getClusterName());
+        assertEquals(expectedClusterState.stateUUID(), updatedClusterState.stateUUID());
+        assertEquals(expectedClusterState.version(), updatedClusterState.version());
+        assertEquals(expectedClusterState.metadata().clusterUUID(), updatedClusterState.metadata().clusterUUID());
+        assertEquals(expectedClusterState.getRoutingTable().version(), updatedClusterState.getRoutingTable().version());
+        assertNotEquals(diffManifest.isClusterBlocksUpdated(), updatedClusterState.getBlocks().equals(clusterState.getBlocks()));
+        assertNotEquals(diffManifest.isDiscoveryNodesUpdated(), updatedClusterState.getNodes().equals(clusterState.getNodes()));
+        assertNotEquals(
+            diffManifest.isCoordinationMetadataUpdated(),
+            updatedClusterState.getMetadata().coordinationMetadata().equals(clusterState.getMetadata().coordinationMetadata())
+        );
+        assertNotEquals(
+            diffManifest.isTemplatesMetadataUpdated(),
+            updatedClusterState.getMetadata().templates().equals(clusterState.getMetadata().getTemplates())
+        );
+        assertNotEquals(
+            diffManifest.isSettingsMetadataUpdated(),
+            updatedClusterState.getMetadata().persistentSettings().equals(clusterState.getMetadata().persistentSettings())
+        );
+        assertNotEquals(
+            diffManifest.isTransientSettingsMetadataUpdated(),
+            updatedClusterState.getMetadata().transientSettings().equals(clusterState.getMetadata().transientSettings())
+        );
+        diffManifest.getIndicesUpdated().forEach(indexName -> {
+            IndexMetadata updatedIndexMetadata = updatedClusterState.metadata().index(indexName);
+            IndexMetadata originalIndexMetadata = clusterState.metadata().index(indexName);
+            assertNotEquals(originalIndexMetadata, updatedIndexMetadata);
+        });
+        diffManifest.getCustomMetadataUpdated().forEach(customMetadataName -> {
+            Metadata.Custom updatedCustomMetadata = updatedClusterState.metadata().custom(customMetadataName);
+            Metadata.Custom originalCustomMetadata = clusterState.metadata().custom(customMetadataName);
+            assertNotEquals(originalCustomMetadata, updatedCustomMetadata);
+        });
+        diffManifest.getClusterStateCustomUpdated().forEach(clusterStateCustomName -> {
+            ClusterState.Custom updateClusterStateCustom = updatedClusterState.customs().get(clusterStateCustomName);
+            ClusterState.Custom originalClusterStateCustom = clusterState.customs().get(clusterStateCustomName);
+            assertNotEquals(originalClusterStateCustom, updateClusterStateCustom);
+        });
+        diffManifest.getIndicesRoutingUpdated().forEach(indexName -> {
+            IndexRoutingTable updatedIndexRoutingTable = updatedClusterState.getRoutingTable().getIndicesRouting().get(indexName);
+            IndexRoutingTable originalIndexingRoutingTable = clusterState.getRoutingTable().getIndicesRouting().get(indexName);
+            assertNotEquals(originalIndexingRoutingTable, updatedIndexRoutingTable);
+        });
+        diffManifest.getIndicesDeleted()
+            .forEach(indexName -> { assertFalse(updatedClusterState.metadata().getIndices().containsKey(indexName)); });
+        diffManifest.getCustomMetadataDeleted().forEach(customMetadataName -> {
+            assertFalse(updatedClusterState.metadata().customs().containsKey(customMetadataName));
+        });
+        diffManifest.getClusterStateCustomDeleted().forEach(clusterStateCustomName -> {
+            assertFalse(updatedClusterState.customs().containsKey(clusterStateCustomName));
+        });
+        diffManifest.getIndicesRoutingDeleted().forEach(indexName -> {
+            assertFalse(updatedClusterState.getRoutingTable().getIndicesRouting().containsKey(indexName));
+        });
     }
 
     /*
@@ -1744,7 +2060,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         BlobContainer[] mockBlobContainerOrderedArray = new BlobContainer[mockBlobContainerOrderedList.size()];
         mockBlobContainerOrderedList.toArray(mockBlobContainerOrderedArray);
         when(blobStore.blobContainer(ArgumentMatchers.any())).thenReturn(uuidBlobContainer, mockBlobContainerOrderedArray);
-        when(blobStoreRepository.getCompressor()).thenReturn(new DeflateCompressor());
+        when(blobStoreRepository.getCompressor()).thenReturn(compressor);
     }
 
     private ClusterMetadataManifest generateV1ClusterMetadataManifest(
@@ -1873,7 +2189,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 }
                 String fileName = uploadedIndexMetadata.getUploadedFilename();
                 when(blobContainer.readBlob(getFormattedIndexFileName(fileName))).thenAnswer((invocationOnMock) -> {
-                    BytesReference bytesIndexMetadata = RemoteIndexMetadata.INDEX_METADATA_FORMAT.serialize(
+                    BytesReference bytesIndexMetadata = INDEX_METADATA_FORMAT.serialize(
                         indexMetadata,
                         fileName,
                         blobStoreRepository.getCompressor(),
@@ -2034,28 +2350,4 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     static DiscoveryNodes nodesWithLocalNodeClusterManager() {
         return DiscoveryNodes.builder().clusterManagerNodeId("cluster-manager-id").localNodeId("cluster-manager-id").build();
     }
-
-    private static class CustomMetadata1 extends TestCustomMetadata {
-        public static final String TYPE = "custom_md_1";
-
-        CustomMetadata1(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY);
-        }
-    }
-
 }

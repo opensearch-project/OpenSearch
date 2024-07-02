@@ -25,6 +25,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -563,7 +564,16 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         private List<String> clusterStateCustomUpdated;
         private List<String> clusterStateCustomDeleted;
 
-        public Builder() {}
+        public Builder() {
+            customMetadataUpdated = Collections.emptyList();
+            customMetadataDeleted = Collections.emptyList();
+            indicesUpdated = Collections.emptyList();
+            indicesDeleted = Collections.emptyList();
+            indicesRoutingUpdated = Collections.emptyList();
+            indicesRoutingDeleted = Collections.emptyList();
+            clusterStateCustomUpdated = Collections.emptyList();
+            clusterStateCustomDeleted = Collections.emptyList();
+        }
 
         public Builder fromStateUUID(String fromStateUUID) {
             this.fromStateUUID = fromStateUUID;

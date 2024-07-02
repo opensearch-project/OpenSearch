@@ -1320,13 +1320,9 @@ public class RemoteClusterStateService implements Closeable {
 
     }
 
-    public ClusterState getClusterStateUsingDiff(
-        String clusterName,
-        ClusterMetadataManifest manifest,
-        ClusterState previousState,
-        String localNodeId
-    ) throws IOException {
-        assert manifest.getDiffManifest() != null;
+    public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId)
+        throws IOException {
+        assert manifest.getDiffManifest() != null : "Diff manifest null which is required for downloading cluster state";
         ClusterStateDiffManifest diff = manifest.getDiffManifest();
         List<UploadedIndexMetadata> updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {
             Optional<UploadedIndexMetadata> uploadedIndexMetadataOptional = manifest.getIndices()
