@@ -644,6 +644,25 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED), empty());
     }
 
+    public void testDoNotCancelForInactivePrimaryNode() {
+        RoutingAllocation allocation = oneInactivePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), null);
+        testBatchAllocator.addData(
+            node1,
+            null,
+            "MATCH",
+            null,
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        ).addData(node2, randomSyncId(), null, new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+
+        testBatchAllocator.processExistingRecoveries(
+            allocation,
+            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+        );
+
+        assertThat(allocation.routingNodesChanged(), equalTo(false));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED), empty());
+    }
+
     public void testAllocateUnassignedBatchThrottlingAllocationDeciderIsHonoured() throws InterruptedException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders allocationDeciders = randomAllocationDeciders(
@@ -861,6 +880,41 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        return new RoutingAllocation(
+            deciders,
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+    }
+
+    private RoutingAllocation oneInactivePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders, UnassignedInfo unassignedInfo) {
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.INITIALIZING);
+        RoutingTable routingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(shardId.getIndex())
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard)
+                            .addShard(
+                                TestShardRouting.newShardRouting(
+                                    shardId,
+                                    node2.getId(),
+                                    null,
+                                    false,
+                                    ShardRoutingState.INITIALIZING,
+                                    unassignedInfo
+                                )
+                            )
+                            .build()
+                    )
+            )
+            .build();
+        ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2))
             .build();
         return new RoutingAllocation(
             deciders,
