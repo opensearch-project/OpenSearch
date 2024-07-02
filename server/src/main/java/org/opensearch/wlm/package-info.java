@@ -6,8 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.wlm;
-
 /**
  * This package contains workload management constructs
  */
+
+package org.opensearch.wlm;

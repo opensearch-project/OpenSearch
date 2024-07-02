@@ -12,7 +12,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
 
-public class QueryGroupThreadContextStatePropagatorTest extends OpenSearchTestCase {
+public class QueryGroupThreadContextStatePropagatorTests extends OpenSearchTestCase {
 
     public void testTransients() {
         QueryGroupThreadContextStatePropagator sut = new QueryGroupThreadContextStatePropagator();

@@ -26,13 +26,12 @@ public class QueryGroupThreadContextStatePropagator implements ThreadContextStat
      * @return the map of header and their values to be propagated across request threadContexts
      */
     @Override
+    @SuppressWarnings("removal")
     public Map<String, Object> transients(Map<String, Object> source) {
         final Map<String, Object> transientHeaders = new HashMap<>();
 
         for (String headerName : PROPAGATED_HEADERS) {
-            if (source.containsKey(headerName)) {
-                transientHeaders.put(headerName, source.get(headerName));
-            }
+            transientHeaders.compute(headerName, (k, v) -> source.get(headerName));
         }
         return transientHeaders;
     }
@@ -42,13 +41,12 @@ public class QueryGroupThreadContextStatePropagator implements ThreadContextStat
      * @return map of header and their values to be propagated across nodes
      */
     @Override
+    @SuppressWarnings("removal")
     public Map<String, String> headers(Map<String, Object> source) {
         final Map<String, String> propagatedHeaders = new HashMap<>();
 
         for (String headerName : PROPAGATED_HEADERS) {
-            if (source.containsKey(headerName)) {
-                propagatedHeaders.put(headerName, (String) source.get(headerName));
-            }
+            propagatedHeaders.compute(headerName, (k, v) -> (String) source.get(headerName));
         }
         return propagatedHeaders;
     }
