@@ -28,9 +28,8 @@ import static org.opensearch.search.optimization.ranges.Helper.loggerName;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
- * Context for doing the optimization for range-type aggregation
+ * Context object for doing the filter rewrite optimization in ranges type aggregation
  * <p>
- * This object acts as a handle in aggregator to perform the optimization operations.
  * This holds the common business logic and delegate aggregator-specific logic to {@link AggregatorBridge}
  *
  * @opensearch.internal

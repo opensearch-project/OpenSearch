@@ -17,10 +17,13 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
- * This class holds aggregator-specific logic and provides access to some data from Aggregator
+ * This class holds aggregator-specific optimization logic and
+ * provides optimization necessary access to the data from Aggregator
  * <p>
- * To provide the access to data, you can implement this interface as an inner class of the aggregator.
- * Any business logic other than providing data access should stay in the base class of this package.
+ * To provide the access to data, instantiate this class inside the aggregator
+ * and send in data through the implemented methods
+ * <p>
+ * The optimization business logic other than providing data should stay in this package.
  *
  * @opensearch.internal
  */
