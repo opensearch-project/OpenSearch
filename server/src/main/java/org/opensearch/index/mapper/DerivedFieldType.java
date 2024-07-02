@@ -10,6 +10,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -24,10 +25,14 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.query.DerivedFieldQuery;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.script.AggregationScript;
 import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.Script;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -37,10 +42,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * MappedFieldType for Derived Fields
  * Contains logic to execute different type of queries on a derived field of given type.
+ *
  * @opensearch.internal
  */
 
@@ -48,6 +55,11 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     final DerivedField derivedField;
     final FieldMapper typeFieldMapper;
     final Function<Object, IndexableField> indexableFieldGenerator;
+
+    @Override
+    public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+        return typeFieldMapper.mappedFieldType.docValueFormat(format, timeZone);
+    }
 
     public DerivedFieldType(
         DerivedField derivedField,
@@ -132,6 +144,11 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             getDerivedFieldLeafFactory(derivedField.getScript(), context, searchLookup == null ? context.lookup() : searchLookup),
             valueForDisplay
         );
+    }
+
+    @Override
+    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return typeFieldMapper.mappedFieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
     }
 
     @Override
@@ -503,7 +520,7 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
 
     @Override
     public boolean isAggregatable() {
-        return false;
+        return true;
     }
 
     private Query createConjuctionQuery(Query filterQuery, DerivedFieldQuery derivedFieldQuery) {
@@ -528,5 +545,34 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         }
         DerivedFieldScript.Factory factory = context.compile(script, DerivedFieldScript.CONTEXT);
         return factory.newFactory(script.getParams(), searchLookup);
+    }
+
+    public AggregationScript.LeafFactory getAggregationScript(QueryShardContext context) {
+        return new AggregationScript.LeafFactory() {
+            @Override
+            public AggregationScript newInstance(LeafReaderContext ctx) throws IOException {
+                final DerivedFieldValueFetcher derivedFieldValueFetcher = valueFetcher(context, context.lookup(), null);
+                derivedFieldValueFetcher.setNextReader(ctx);
+                final LeafSearchLookup leafSearchLookup = context.lookup().getLeafSearchLookup(ctx);
+
+                return new AggregationScript(derivedField.getScript().getParams(), context.lookup(), ctx) {
+                    @Override
+                    public Object execute() {
+                        return derivedFieldValueFetcher.fetchValuesInternal(leafSearchLookup.source());
+                    }
+
+                    @Override
+                    public void setDocument(int docid) {
+                        super.setDocument(docid);
+                        leafSearchLookup.source().setSegmentAndDocument(ctx, docid);
+                    }
+                };
+            }
+
+            @Override
+            public boolean needs_score() {
+                return false;
+            }
+        };
     }
 }
