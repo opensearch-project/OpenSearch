@@ -147,11 +147,11 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         XContentBuilder builder = JsonXContent.contentBuilder();
         queryGroup.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
-            String.format(
-                "{\"_id\":\"%s\",\"name\":\"TestQueryGroup\",\"resiliency_mode\":\"enforced\",\"updatedAt\":%d,\"resourceLimits\":{\"cpu\":0.3,\"memory\":0.4}}",
-                queryGroupId,
-                currentTimeInMillis
-            ),
+            "{\"_id\":\""
+                + queryGroupId
+                + "\",\"name\":\"TestQueryGroup\",\"resiliency_mode\":\"enforced\",\"updatedAt\":"
+                + currentTimeInMillis
+                + ",\"resourceLimits\":{\"cpu\":0.3,\"memory\":0.4}}",
             builder.toString()
         );
     }
