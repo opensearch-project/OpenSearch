@@ -234,8 +234,8 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     }
 
     /**
-     * builder method for this {@link QueryGroup}
-     * @return
+     * builder method for the {@link QueryGroup}
+     * @return Builder object
      */
     public static Builder builder() {
         return new Builder();
