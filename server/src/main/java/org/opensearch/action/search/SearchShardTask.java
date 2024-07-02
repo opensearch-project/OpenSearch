@@ -37,6 +37,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.sandboxing.SandboxTask;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
 
@@ -50,9 +51,10 @@ import java.util.function.Supplier;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class SearchShardTask extends CancellableTask implements SearchBackpressureTask {
+public class SearchShardTask extends CancellableTask implements SearchBackpressureTask, SandboxTask {
     // generating metadata in a lazy way since source can be quite big
     private final MemoizedSupplier<String> metadataSupplier;
+    private String sandboxId;
 
     public SearchShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, () -> "");
@@ -83,5 +85,15 @@ public class SearchShardTask extends CancellableTask implements SearchBackpressu
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return false;
+    }
+
+    @Override
+    public void setSandboxId(String sandboxId) {
+        this.sandboxId = sandboxId;
+    }
+
+    @Override
+    public String getSandboxId() {
+        return "sandboxId";
     }
 }
