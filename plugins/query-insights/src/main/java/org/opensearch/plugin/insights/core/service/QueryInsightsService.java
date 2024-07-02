@@ -122,13 +122,6 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
         this.metricsRegistry = metricsRegistry;
     }
 
-    private void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
-        this.searchQueryMetricsEnabled = searchQueryMetricsEnabled;
-        if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
-            this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
-        }
-    }
-
     /**
      * Ingest the query data into in-memory stores
      *
@@ -175,7 +168,6 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
                 logger.error("Error while trying to categorize the queries.", e);
             }
         }
-
     }
 
     /**
@@ -280,6 +272,25 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
         if (topQueriesServices.containsKey(type)) {
             topQueriesServices.get(type).setExporter(settings);
         }
+    }
+
+    /**
+     * Set search query metrics enabled to enable collection of search query categorization metrics
+     * @param searchQueryMetricsEnabled boolean flag
+     */
+    public void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
+        this.searchQueryMetricsEnabled = searchQueryMetricsEnabled;
+        if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
+            this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
+        }
+    }
+
+    public boolean isSearchQueryMetricsEnabled() {
+        return this.searchQueryMetricsEnabled;
+    }
+
+    public SearchQueryCategorizer getSearchQueryCategorizer() {
+        return this.searchQueryCategorizer;
     }
 
     /**

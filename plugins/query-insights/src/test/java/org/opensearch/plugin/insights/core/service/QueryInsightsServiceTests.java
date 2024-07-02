@@ -63,4 +63,25 @@ public class QueryInsightsServiceTests extends OpenSearchTestCase {
             fail("No exception expected when closing query insights service");
         }
     }
+
+    public void testSearchQueryMetricsEnabled() {
+        // Initially, searchQueryMetricsEnabled should be false and searchQueryCategorizer should be null
+        assertFalse(queryInsightsService.isSearchQueryMetricsEnabled());
+        assertNull(queryInsightsService.getSearchQueryCategorizer());
+
+        // Enable search query metrics
+        queryInsightsService.setSearchQueryMetricsEnabled(true);
+
+        // Assert that searchQueryMetricsEnabled is true and searchQueryCategorizer is initialized
+        assertTrue(queryInsightsService.isSearchQueryMetricsEnabled());
+        assertNotNull(queryInsightsService.getSearchQueryCategorizer());
+
+        // Disable search query metrics
+        queryInsightsService.setSearchQueryMetricsEnabled(false);
+
+        // Assert that searchQueryMetricsEnabled is false and searchQueryCategorizer is not null
+        assertFalse(queryInsightsService.isSearchQueryMetricsEnabled());
+        assertNotNull(queryInsightsService.getSearchQueryCategorizer());
+
+    }
 }
