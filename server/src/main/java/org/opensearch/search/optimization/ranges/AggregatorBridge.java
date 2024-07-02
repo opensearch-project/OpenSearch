@@ -11,7 +11,8 @@ package org.opensearch.search.optimization.ranges;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.search.optimization.ranges.OptimizationContext.Ranges;
+import org.opensearch.search.optimization.Bridge;
+import org.opensearch.search.optimization.Context;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -25,13 +26,13 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public abstract class AggregatorBridge {
+public abstract class AggregatorBridge implements Bridge {
 
     OptimizationContext optimizationContext;
     MappedFieldType fieldType;
 
-    void setOptimizationContext(OptimizationContext optimizationContext) {
-        this.optimizationContext = optimizationContext;
+    public void setOptimizationContext(Context context) {
+        this.optimizationContext = (OptimizationContext) context;
     }
 
     /**
@@ -40,13 +41,13 @@ public abstract class AggregatorBridge {
      *
      * @return result will be saved in optimization context
      */
-    protected abstract boolean canOptimize();
+    public abstract boolean canOptimize();
 
-    protected abstract void prepare() throws IOException;
+    public abstract void prepare() throws IOException;
 
-    abstract void prepareFromSegment(LeafReaderContext leaf) throws IOException;
+    public abstract void prepareFromSegment(LeafReaderContext leaf) throws IOException;
 
-    abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, Ranges ranges) throws IOException;
+    public abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException;
 
     protected abstract Function<Object, Long> bucketOrdProducer();
 

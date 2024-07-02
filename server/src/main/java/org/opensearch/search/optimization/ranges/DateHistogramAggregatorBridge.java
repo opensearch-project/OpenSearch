@@ -69,7 +69,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    void prepareFromSegment(LeafReaderContext leaf) throws IOException {
+    public void prepareFromSegment(LeafReaderContext leaf) throws IOException {
         long[] bounds = Helper.getSegmentBounds(leaf, fieldType.name());
         optimizationContext.setRangesFromSegment(buildRanges(bounds));
     }
@@ -141,19 +141,19 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, OptimizationContext.Ranges ranges)
+    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount)
         throws IOException {
         int size = getSize();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
-            long rangeStart = LongPoint.decodeDimension(ranges.lowers[activeIndex], 0);
+            long rangeStart = LongPoint.decodeDimension(optimizationContext.getRanges().lowers[activeIndex], 0);
             rangeStart = fieldType.convertNanosToMillis(rangeStart);
             long ord = getBucketOrd(bucketOrdProducer().apply(rangeStart));
             incrementDocCount.accept(ord, (long) docCount);
         };
 
-        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size));
+        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), incrementFunc, size));
     }
 
     private static long getBucketOrd(long bucketOrd) {

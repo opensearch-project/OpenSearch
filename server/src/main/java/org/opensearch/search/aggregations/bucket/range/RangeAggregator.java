@@ -283,12 +283,12 @@ public class RangeAggregator extends BucketsAggregator {
 
         optimizationContext = new OptimizationContext(new RangeAggregatorBridge() {
             @Override
-            protected boolean canOptimize() {
+            public boolean canOptimize() {
                 return canOptimize(config, RangeAggregator.this.ranges);
             }
 
             @Override
-            protected void prepare() {
+            public void prepare() {
                 buildRanges(RangeAggregator.this.ranges);
             }
 

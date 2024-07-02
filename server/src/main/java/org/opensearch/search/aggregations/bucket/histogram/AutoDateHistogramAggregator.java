@@ -159,12 +159,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         optimizationContext = new OptimizationContext(new DateHistogramAggregatorBridge() {
             @Override
-            protected boolean canOptimize() {
+            public boolean canOptimize() {
                 return canOptimize(valuesSourceConfig);
             }
 
             @Override
-            protected void prepare() throws IOException {
+            public void prepare() throws IOException {
                 buildRanges(context);
             }
 

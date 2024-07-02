@@ -20,6 +20,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.optimization.Context;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -35,14 +36,13 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  *
  * @opensearch.internal
  */
-public final class OptimizationContext {
+public final class OptimizationContext extends Context {
 
     private static final Logger logger = LogManager.getLogger(loggerName);
 
-    private boolean rewriteable = false;
+    private boolean canOptimize = false;
     private boolean preparedAtShardLevel = false;
 
-    private final AggregatorBridge aggregatorBridge;
     int maxAggRewriteFilters;
     String shardId;
 
@@ -56,24 +56,26 @@ public final class OptimizationContext {
     private int optimizedSegments;
 
     public OptimizationContext(AggregatorBridge aggregatorBridge) {
-        this.aggregatorBridge = aggregatorBridge;
+        super(aggregatorBridge);
     }
 
+    @Override
     public boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) {
         if (context.maxAggRewriteFilters() == 0) return false;
 
         if (parent != null || subAggLength != 0) return false;
 
-        this.rewriteable = aggregatorBridge.canOptimize();
-        if (rewriteable) {
+        this.canOptimize = aggregatorBridge.canOptimize();
+        if (canOptimize) {
             aggregatorBridge.setOptimizationContext(this);
             this.maxAggRewriteFilters = context.maxAggRewriteFilters();
             this.shardId = context.indexShard().shardId().toString();
         }
-        logger.debug("Fast filter rewriteable: {} for shard {}", rewriteable, shardId);
-        return rewriteable;
+        logger.debug("Fast filter rewriteable: {} for shard {}", canOptimize, shardId);
+        return canOptimize;
     }
 
+    @Override
     public void prepare() throws IOException {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
         aggregatorBridge.prepare();
@@ -82,7 +84,7 @@ public final class OptimizationContext {
         }
     }
 
-    private void prepareFromSegment(LeafReaderContext leaf) throws IOException {
+    public void prepareFromSegment(LeafReaderContext leaf) throws IOException {
         aggregatorBridge.prepareFromSegment(leaf);
     }
 
@@ -94,6 +96,11 @@ public final class OptimizationContext {
         this.rangesFromSegment = ranges;
     }
 
+    Ranges getRanges() {
+        if (rangesFromSegment != null) return rangesFromSegment;
+        return ranges;
+    }
+
     /**
      * Try to populate the bucket doc counts for aggregation
      * <p>
@@ -103,7 +110,7 @@ public final class OptimizationContext {
      */
     public boolean tryOptimize(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount) throws IOException {
         segments++;
-        if (!rewriteable) {
+        if (!canOptimize) {
             return false;
         }
 
@@ -127,11 +134,13 @@ public final class OptimizationContext {
         Ranges ranges = prepare(leafCtx);
         if (ranges == null) return false;
 
-        aggregatorBridge.tryOptimize(values, incrementDocCount, ranges);
+        aggregatorBridge.tryOptimize(values, incrementDocCount);
 
         optimizedSegments++;
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
         logger.debug("crossed leaf nodes: {}, inner nodes: {}", leaf, inner);
+
+        rangesFromSegment = null;
         return true;
     }
 
