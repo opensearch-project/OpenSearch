@@ -104,6 +104,10 @@ public class SystemIndices {
         return runAutomaton.run(indexName);
     }
 
+    public List<String> getAllSystemIndexPatterns() {
+        return systemIndexDescriptors.stream().map(SystemIndexDescriptor::getIndexPattern).collect(Collectors.toList());
+    }
+
     /**
      * Finds a single matching {@link SystemIndexDescriptor}, if any, for the given index name.
      * @param name the name of the index

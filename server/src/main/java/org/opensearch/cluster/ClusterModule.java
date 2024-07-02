@@ -93,6 +93,7 @@ import org.opensearch.core.common.io.stream.Writeable.Reader;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.ingest.IngestMetadata;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
 import org.opensearch.persistent.PersistentTasksNodeService;
@@ -146,14 +147,15 @@ public class ClusterModule extends AbstractModule {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ThreadContext threadContext,
-        ClusterManagerMetrics clusterManagerMetrics
+        ClusterManagerMetrics clusterManagerMetrics,
+        SystemIndices systemIndices
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
         this.allocationService = new AllocationService(
             allocationDeciders,
             shardsAllocator,

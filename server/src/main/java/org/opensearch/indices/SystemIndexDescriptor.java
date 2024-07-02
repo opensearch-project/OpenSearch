@@ -33,6 +33,7 @@
 package org.opensearch.indices;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.regex.Regex;
 
 import java.util.Objects;
@@ -40,8 +41,9 @@ import java.util.Objects;
 /**
  * Describes a system index. Provides the information required to create and maintain the system index.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.16.0")
 public class SystemIndexDescriptor {
     private final String indexPattern;
     private final String description;
