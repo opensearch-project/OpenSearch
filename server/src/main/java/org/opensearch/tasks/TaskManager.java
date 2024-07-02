@@ -517,10 +517,10 @@ public class TaskManager implements ClusterStateApplier {
      * @param onChildTasksCompleted called when all child tasks are completed or failed
      * @return the set of current nodes that have outstanding child tasks
      */
-    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted) {
+    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted, String reason) {
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
-            return holder.startBan(onChildTasksCompleted);
+            return holder.startBan(onChildTasksCompleted, reason);
         } else {
             onChildTasksCompleted.run();
             return Collections.emptySet();
@@ -585,6 +585,7 @@ public class TaskManager implements ClusterStateApplier {
         private List<Runnable> cancellationListeners = null;
         private Map<DiscoveryNode, Integer> childTasksPerNode = null;
         private boolean banChildren = false;
+        private String banReason;
         private List<Runnable> childTaskCompletedListeners = null;
 
         CancellableTaskHolder(CancellableTask task) {
@@ -662,7 +663,7 @@ public class TaskManager implements ClusterStateApplier {
 
         synchronized void registerChildNode(DiscoveryNode node) {
             if (banChildren) {
-                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
+                throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks, reason:" + banReason);
             }
             if (childTasksPerNode == null) {
                 childTasksPerNode = new HashMap<>();
@@ -686,11 +687,12 @@ public class TaskManager implements ClusterStateApplier {
             notifyListeners(listeners);
         }
 
-        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted) {
+        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted, String reason) {
             final Set<DiscoveryNode> pendingChildNodes;
             final Runnable toRun;
             synchronized (this) {
                 banChildren = true;
+                banReason = reason;
                 if (childTasksPerNode == null) {
                     pendingChildNodes = Collections.emptySet();
                 } else {
