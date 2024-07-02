@@ -2529,23 +2529,40 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
     public void testSystemIndexMatching() {
         SystemIndexPlugin plugin1 = new SystemIndexPlugin1();
         SystemIndexPlugin plugin2 = new SystemIndexPlugin2();
+        SystemIndexPlugin plugin3 = new SystemIndexPatternPlugin();
         SystemIndices pluginSystemIndices = new SystemIndices(
             Map.of(
                 SystemIndexPlugin1.class.getCanonicalName(),
                 plugin1.getSystemIndexDescriptors(Settings.EMPTY),
                 SystemIndexPlugin2.class.getCanonicalName(),
-                plugin2.getSystemIndexDescriptors(Settings.EMPTY)
+                plugin2.getSystemIndexDescriptors(Settings.EMPTY),
+                SystemIndexPatternPlugin.class.getCanonicalName(),
+                plugin3.getSystemIndexDescriptors(Settings.EMPTY)
             )
         );
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(threadContext, pluginSystemIndices);
 
         assertThat(
-            resolver.concreteSystemIndices(".system-index1", ".system-index2"),
+            resolver.matchesSystemIndexPattern(".system-index1", ".system-index2"),
             equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2))
         );
-        assertThat(resolver.concreteSystemIndices(".system-index1"), equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1)));
-        assertThat(resolver.concreteSystemIndices(".system-index2"), equalTo(List.of(SystemIndexPlugin2.SYSTEM_INDEX_2)));
-        assertThat(resolver.concreteSystemIndices(".not-exists"), equalTo(Collections.emptyList()));
+        assertThat(resolver.matchesSystemIndexPattern(".system-index1"), equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1)));
+        assertThat(resolver.matchesSystemIndexPattern(".system-index2"), equalTo(List.of(SystemIndexPlugin2.SYSTEM_INDEX_2)));
+        assertThat(resolver.matchesSystemIndexPattern(".system-index-pattern1"), equalTo(List.of(".system-index-pattern1")));
+        assertThat(resolver.matchesSystemIndexPattern(".system-index-pattern-sub*"), equalTo(List.of(".system-index-pattern-sub*")));
+        assertThat(
+            resolver.matchesSystemIndexPattern(".system-index-pattern1", ".system-index-pattern2"),
+            equalTo(List.of(".system-index-pattern1", ".system-index-pattern2"))
+        );
+        assertThat(
+            resolver.matchesSystemIndexPattern(".system-index1", ".system-index-pattern1"),
+            equalTo(List.of(".system-index1", ".system-index-pattern1"))
+        );
+        assertThat(
+            resolver.matchesSystemIndexPattern(".system-index1", ".system-index-pattern1", ".not-system"),
+            equalTo(List.of(".system-index1", ".system-index-pattern1"))
+        );
+        assertThat(resolver.matchesSystemIndexPattern(".not-system"), equalTo(Collections.emptyList()));
     }
 
     public void testRegisteredSystemIndexExpansion() {
@@ -2575,7 +2592,7 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertTrue(
             Arrays.asList(results).containsAll(List.of("foo", "bar", SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2))
         );
-        List<String> systemIndices = resolver.concreteSystemIndices(results);
+        List<String> systemIndices = resolver.matchesSystemIndexPattern(results);
         assertEquals(2, systemIndices.size());
         assertTrue(systemIndices.containsAll(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2)));
     }
@@ -2611,6 +2628,16 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_2, "System index 2");
+            return Collections.singletonList(systemIndexDescriptor);
+        }
+    }
+
+    static final class SystemIndexPatternPlugin extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_INDEX_PATTERN = ".system-index-pattern*";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_PATTERN, "System index pattern");
             return Collections.singletonList(systemIndexDescriptor);
         }
     }

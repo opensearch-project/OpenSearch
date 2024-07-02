@@ -175,8 +175,8 @@ public class IndexNameExpressionResolver {
         return concreteIndexNames(context, request.indices());
     }
 
-    public List<String> concreteSystemIndices(String... concreteIndices) {
-        return Arrays.stream(concreteIndices).filter(idx -> Regex.simpleMatch(systemIndices, idx)).collect(Collectors.toList());
+    public List<String> matchesSystemIndexPattern(String... indexExpressions) {
+        return Arrays.stream(indexExpressions).filter(pattern -> Regex.simpleMatch(systemIndices, pattern)).collect(Collectors.toList());
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
