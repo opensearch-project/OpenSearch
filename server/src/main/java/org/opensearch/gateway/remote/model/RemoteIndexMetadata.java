@@ -31,14 +31,14 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAM
  */
 public class RemoteIndexMetadata extends AbstractRemoteWritableBlobEntity<IndexMetadata> {
 
-    public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 1;
+    public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 2;
 
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_PLAIN_FORMAT,
         IndexMetadata::fromXContent
     );
-    public static final String INDEX_PATH_TOKEN = "index";
+    public static final String INDEX = "index";
 
     private IndexMetadata indexMetadata;
 
@@ -64,7 +64,12 @@ public class RemoteIndexMetadata extends AbstractRemoteWritableBlobEntity<IndexM
 
     @Override
     public BlobPathParameters getBlobPathParameters() {
-        return new BlobPathParameters(List.of(INDEX_PATH_TOKEN, indexMetadata.getIndexUUID()), "metadata");
+        return new BlobPathParameters(List.of(INDEX, indexMetadata.getIndexUUID()), "metadata");
+    }
+
+    @Override
+    public String getType() {
+        return INDEX;
     }
 
     @Override

@@ -8,6 +8,8 @@
 
 package org.opensearch.remotemigration;
 
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -471,7 +473,6 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
      * exclude docrep nodes, assert that remote index path file exists
      * when shards start relocating to the remote nodes.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13939")
     public void testRemoteIndexPathFileExistsAfterMigration() throws Exception {
         String docrepClusterManager = internalCluster().startClusterManagerOnlyNode();
 
@@ -518,7 +519,11 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
                 .isAcknowledged()
         );
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(docrepClusterManager));
+        // elect cluster manager with remote-cluster state enabled
+        internalCluster().client()
+            .execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(docrepClusterManager))
+            .get();
+
         internalCluster().validateClusterFormed();
 
         logger.info("---> Excluding docrep nodes from allocation");

@@ -1083,6 +1083,7 @@ setup:
           settings:
             number_of_replicas: 0
             number_of_shards: 1
+            refresh_interval: -1
           mappings:
             properties:
               date:
@@ -1100,6 +1101,12 @@ setup:
           - '{"date": "2016-02-01"}'
           - '{"index": {}}'
           - '{"date": "2016-03-01"}'
+
+  - do:
+      indices.forcemerge:
+        index: test_2
+        max_num_segments: 1
+
   - do:
       search:
         index: test_2

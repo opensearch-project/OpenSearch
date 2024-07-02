@@ -55,6 +55,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.io.IOUtils;
@@ -72,6 +73,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.query.QueryCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
@@ -91,8 +93,10 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -188,6 +192,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
+    private final FileCache fileCache;
+    private final CompositeIndexSettings compositeIndexSettings;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -223,7 +229,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        FileCache fileCache,
+        CompositeIndexSettings compositeIndexSettings
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -301,7 +309,85 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
+        this.compositeIndexSettings = compositeIndexSettings;
+        this.fileCache = fileCache;
         updateFsyncTaskIfNecessary();
+    }
+
+    public IndexService(
+        IndexSettings indexSettings,
+        IndexCreationContext indexCreationContext,
+        NodeEnvironment nodeEnv,
+        NamedXContentRegistry xContentRegistry,
+        SimilarityService similarityService,
+        ShardStoreDeleter shardStoreDeleter,
+        IndexAnalyzers indexAnalyzers,
+        EngineFactory engineFactory,
+        EngineConfigFactory engineConfigFactory,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        QueryCache queryCache,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexEventListener eventListener,
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        List<SearchOperationListener> searchOperationListeners,
+        List<IndexingOperationListener> indexingOperationListeners,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        BooleanSupplier allowExpensiveQueries,
+        IndexNameExpressionResolver expressionResolver,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings
+    ) {
+        this(
+            indexSettings,
+            indexCreationContext,
+            nodeEnv,
+            xContentRegistry,
+            similarityService,
+            shardStoreDeleter,
+            indexAnalyzers,
+            engineFactory,
+            engineConfigFactory,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            queryCache,
+            directoryFactory,
+            remoteDirectoryFactory,
+            eventListener,
+            wrapperFactory,
+            mapperRegistry,
+            indicesFieldDataCache,
+            searchOperationListeners,
+            indexingOperationListeners,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            allowExpensiveQueries,
+            expressionResolver,
+            valuesSourceRegistry,
+            recoveryStateFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            recoverySettings,
+            remoteStoreSettings,
+            null,
+            null
+        );
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
@@ -495,9 +581,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             };
             Store remoteStore = null;
+            Directory remoteDirectory = null;
             boolean seedRemote = false;
             if (targetNode.isRemoteStoreNode()) {
-                final Directory remoteDirectory;
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
@@ -530,7 +616,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             }
 
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            Directory directory = null;
+            if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING) &&
+            // TODO : Need to remove this check after support for hot indices is added in Composite Directory
+                this.indexSettings.isStoreLocalityPartial()) {
+                Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);
+                directory = new CompositeDirectory(localDirectory, remoteDirectory, fileCache);
+            } else {
+                directory = directoryFactory.newDirectory(this.indexSettings, path);
+            }
+
             store = new Store(
                 shardId,
                 this.indexSettings,
@@ -1018,6 +1113,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             refreshTask = new AsyncRefreshTask(this);
         }
+    }
+
+    public CompositeIndexSettings getCompositeIndexSettings() {
+        return compositeIndexSettings;
     }
 
     /**

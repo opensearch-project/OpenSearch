@@ -37,8 +37,12 @@ import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V0;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.DISCOVERY_NODES;
-import static org.opensearch.gateway.remote.RemoteClusterStateServiceTests.generateClusterStateWithOneIndex;
+import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
+import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_DELIMITER;
+import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettings.HASHES_OF_CONSISTENT_SETTINGS;
+import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata.SETTING_METADATA;
+import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLATES_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA;
 
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
@@ -110,24 +114,22 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .indices(Collections.singletonList(uploadedIndexMetadata))
             .previousClusterUUID("prev-cluster-uuid")
             .clusterUUIDCommitted(true)
-            .coordinationMetadata(new UploadedMetadataAttribute(RemoteClusterStateService.COORDINATION_METADATA, "coordination-file"))
-            .settingMetadata(new UploadedMetadataAttribute(RemoteClusterStateService.SETTING_METADATA, "setting-file"))
-            .templatesMetadata(new UploadedMetadataAttribute(RemoteClusterStateService.TEMPLATES_METADATA, "templates-file"))
+            .coordinationMetadata(new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination-file"))
+            .settingMetadata(new UploadedMetadataAttribute(SETTING_METADATA, "setting-file"))
+            .templatesMetadata(new UploadedMetadataAttribute(TEMPLATES_METADATA, "templates-file"))
             .customMetadataMap(
                 Collections.unmodifiableList(
                     Arrays.asList(
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
-                                + RepositoriesMetadata.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + RepositoriesMetadata.TYPE,
                             "custom--repositories-file"
                         ),
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER + IndexGraveyard.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + IndexGraveyard.TYPE,
                             "custom--index_graveyard-file"
                         ),
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
-                                + WeightedRoutingMetadata.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + WeightedRoutingMetadata.TYPE,
                             "custom--weighted_routing_netadata-file"
                         )
                     )
@@ -159,24 +161,22 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .indices(randomUploadedIndexMetadataList())
             .previousClusterUUID("yfObdx8KSMKKrXf8UyHhM")
             .clusterUUIDCommitted(true)
-            .coordinationMetadata(new UploadedMetadataAttribute(RemoteClusterStateService.COORDINATION_METADATA, "coordination-file"))
-            .settingMetadata(new UploadedMetadataAttribute(RemoteClusterStateService.SETTING_METADATA, "setting-file"))
-            .templatesMetadata(new UploadedMetadataAttribute(RemoteClusterStateService.TEMPLATES_METADATA, "templates-file"))
+            .coordinationMetadata(new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination-file"))
+            .settingMetadata(new UploadedMetadataAttribute(SETTING_METADATA, "setting-file"))
+            .templatesMetadata(new UploadedMetadataAttribute(TEMPLATES_METADATA, "templates-file"))
             .customMetadataMap(
                 Collections.unmodifiableList(
                     Arrays.asList(
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
-                                + RepositoriesMetadata.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + RepositoriesMetadata.TYPE,
                             "custom--repositories-file"
                         ),
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER + IndexGraveyard.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + IndexGraveyard.TYPE,
                             "custom--index_graveyard-file"
                         ),
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
-                                + WeightedRoutingMetadata.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + WeightedRoutingMetadata.TYPE,
                             "custom--weighted_routing_netadata-file"
                         )
                     )
@@ -188,7 +188,12 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .transientSettingsMetadata(new UploadedMetadataAttribute(TRANSIENT_SETTING_METADATA, "transient-settings-file"))
             .hashesOfConsistentSettings(new UploadedMetadataAttribute(HASHES_OF_CONSISTENT_SETTINGS, "hashes-of-consistent-settings-file"))
             .clusterStateCustomMetadataMap(Collections.emptyMap())
-            .diffManifest(new ClusterStateDiffManifest(generateClusterStateWithOneIndex().build(), ClusterState.EMPTY_STATE))
+            .diffManifest(
+                new ClusterStateDiffManifest(
+                    RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
+                    ClusterState.EMPTY_STATE
+                )
+            )
             .build();
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -494,17 +499,15 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 Collections.unmodifiableList(
                     Arrays.asList(
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
-                                + RepositoriesMetadata.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + RepositoriesMetadata.TYPE,
                             "custom--repositories-file"
                         ),
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER + IndexGraveyard.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + IndexGraveyard.TYPE,
                             "custom--index_graveyard-file"
                         ),
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
-                                + WeightedRoutingMetadata.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + WeightedRoutingMetadata.TYPE,
                             "custom--weighted_routing_netadata-file"
                         )
                     )
@@ -517,7 +520,12 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .transientSettingsMetadata(uploadedMetadataAttribute)
             .hashesOfConsistentSettings(uploadedMetadataAttribute)
             .clusterStateCustomMetadataMap(Collections.emptyMap())
-            .diffManifest(new ClusterStateDiffManifest(generateClusterStateWithOneIndex().build(), ClusterState.EMPTY_STATE))
+            .diffManifest(
+                new ClusterStateDiffManifest(
+                    RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
+                    ClusterState.EMPTY_STATE
+                )
+            )
             .build();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -558,17 +566,15 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 Collections.unmodifiableList(
                     Arrays.asList(
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
-                                + RepositoriesMetadata.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + RepositoriesMetadata.TYPE,
                             "custom--repositories-file"
                         ),
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER + IndexGraveyard.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + IndexGraveyard.TYPE,
                             "custom--index_graveyard-file"
                         ),
                         new UploadedMetadataAttribute(
-                            RemoteClusterStateService.CUSTOM_METADATA + RemoteClusterStateService.CUSTOM_DELIMITER
-                                + WeightedRoutingMetadata.TYPE,
+                            CUSTOM_METADATA + CUSTOM_DELIMITER + WeightedRoutingMetadata.TYPE,
                             "custom--weighted_routing_netadata-file"
                         )
                     )
@@ -587,7 +593,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         }
     }
 
-    private List<UploadedIndexMetadata> randomUploadedIndexMetadataList() {
+    public static List<UploadedIndexMetadata> randomUploadedIndexMetadataList() {
         final int size = randomIntBetween(1, 10);
         final List<UploadedIndexMetadata> uploadedIndexMetadataList = new ArrayList<>(size);
         while (uploadedIndexMetadataList.size() < size) {
@@ -596,7 +602,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         return uploadedIndexMetadataList;
     }
 
-    private UploadedIndexMetadata randomUploadedIndexMetadata() {
+    private static UploadedIndexMetadata randomUploadedIndexMetadata() {
         return new UploadedIndexMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 

@@ -10,6 +10,7 @@ package org.opensearch.cluster.routing.remote;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
@@ -32,8 +33,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
-import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -43,15 +45,19 @@ import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled;
 
 /**
@@ -87,7 +93,6 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
     public static final String INDEX_ROUTING_PATH_TOKEN = "index-routing";
     public static final String INDEX_ROUTING_FILE_PREFIX = "index_routing";
-    public static final String DELIMITER = "__";
     public static final String INDEX_ROUTING_METADATA_PREFIX = "indexRouting--";
 
     private static final Logger logger = LogManager.getLogger(InternalRemoteRoutingTableService.class);
@@ -96,11 +101,13 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     private BlobStoreRepository blobStoreRepository;
     private RemoteStoreEnums.PathType pathType;
     private RemoteStoreEnums.PathHashAlgorithm pathHashAlgo;
+    private ThreadPool threadPool;
 
     public InternalRemoteRoutingTableService(
         Supplier<RepositoriesService> repositoriesService,
         Settings settings,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        ThreadPool threadpool
     ) {
         assert isRemoteRoutingTableEnabled(settings) : "Remote routing table is not enabled";
         this.repositoriesService = repositoriesService;
@@ -109,6 +116,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         this.pathHashAlgo = clusterSettings.get(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING, this::setPathTypeSetting);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING, this::setPathHashAlgoSetting);
+        this.threadPool = threadpool;
     }
 
     private void setPathTypeSetting(RemoteStoreEnums.PathType pathType) {
@@ -175,10 +183,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
                 )
             ),
             ex -> latchedActionListener.onFailure(
-                new RemoteClusterStateService.RemoteStateTransferException(
-                    "Exception in writing index to remote store: " + indexRouting.getIndex().toString(),
-                    ex
-                )
+                new RemoteStateTransferException("Exception in writing index to remote store: " + indexRouting.getIndex().toString(), ex)
             )
         );
 
@@ -268,6 +273,68 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         }
     }
 
+    @Override
+    public CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+        String uploadedFilename,
+        Index index,
+        LatchedActionListener<IndexRoutingTable> latchedActionListener
+    ) {
+        int idx = uploadedFilename.lastIndexOf("/");
+        String blobFileName = uploadedFilename.substring(idx + 1);
+        BlobContainer blobContainer = blobStoreRepository.blobStore()
+            .blobContainer(BlobPath.cleanPath().add(uploadedFilename.substring(0, idx)));
+
+        return () -> readAsync(
+            blobContainer,
+            blobFileName,
+            index,
+            threadPool.executor(ThreadPool.Names.REMOTE_STATE_READ),
+            ActionListener.wrap(
+                response -> latchedActionListener.onResponse(response.getIndexRoutingTable()),
+                latchedActionListener::onFailure
+            )
+        );
+    }
+
+    private void readAsync(
+        BlobContainer blobContainer,
+        String name,
+        Index index,
+        ExecutorService executorService,
+        ActionListener<RemoteIndexRoutingTable> listener
+    ) {
+        executorService.execute(() -> {
+            try {
+                listener.onResponse(read(blobContainer, name, index));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private RemoteIndexRoutingTable read(BlobContainer blobContainer, String path, Index index) {
+        try {
+            return new RemoteIndexRoutingTable(blobContainer.readBlob(path), index);
+        } catch (IOException | AssertionError e) {
+            logger.error(() -> new ParameterizedMessage("RoutingTable read failed for path {}", path), e);
+            throw new RemoteStateTransferException("Failed to read RemoteRoutingTable from Manifest with error ", e);
+        }
+    }
+
+    @Override
+    public List<ClusterMetadataManifest.UploadedIndexMetadata> getUpdatedIndexRoutingTableMetadata(
+        List<String> updatedIndicesRouting,
+        List<ClusterMetadataManifest.UploadedIndexMetadata> allIndicesRouting
+    ) {
+        return updatedIndicesRouting.stream().map(idx -> {
+            Optional<ClusterMetadataManifest.UploadedIndexMetadata> uploadedIndexMetadataOptional = allIndicesRouting.stream()
+                .filter(idx2 -> idx2.getIndexName().equals(idx))
+                .findFirst();
+            assert uploadedIndexMetadataOptional.isPresent() == true;
+            return uploadedIndexMetadataOptional.get();
+        }).collect(Collectors.toList());
+    }
+
     private String getIndexRoutingFileName(long term, long version) {
         return String.join(
             DELIMITER,
@@ -299,5 +366,16 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
     @Override
     protected void doStop() {}
+
+    @Override
+    public void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException {
+        try {
+            logger.debug(() -> "Deleting stale index routing files from remote - " + stalePaths);
+            blobStoreRepository.blobStore().blobContainer(BlobPath.cleanPath()).deleteBlobsIgnoringIfNotExists(stalePaths);
+        } catch (IOException e) {
+            logger.error(() -> new ParameterizedMessage("Failed to delete some stale index routing paths from {}", stalePaths), e);
+            throw e;
+        }
+    }
 
 }
