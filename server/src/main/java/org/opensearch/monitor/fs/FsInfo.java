@@ -81,8 +81,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         public Path() {}
 
         /**
-         * Please notice that this constructor will use value of <code>0</code>
-         * for <code>fileCacheReserved</code> and <code>fileCacheUtilized</code> variables.
+         * Please notice that this constructor will set value of <code>0</code>
+         * to <code>fileCacheReserved</code> and <code>fileCacheUtilized</code> variables.
          *
          * See {@link #getFileCacheReserved()}, {@link #getFileCacheUtilized()}
          */
@@ -90,6 +90,11 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             new Path(path, mount, total, free, available, 0, 0);
         }
 
+        /**
+         * Do not assign negative values to variables <code>total</code>, <code>free</code>, <code>available</code>,
+         * <code>fileCacheReserved</code> and <code>fileCacheUtilized</code>. The only exception is value <code>-1</code>
+         * which is interpreted as an uninitialized value.
+         */
         @InternalApi
         public Path(
             String path,
@@ -107,6 +112,12 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             this.available = available;
             this.fileCacheReserved = fileCacheReserved;
             this.fileCacheUtilized = fileCacheUtilized;
+
+            assert (this.total == -1 || this.total >= 0) : "Total value can not be negative";
+            assert (this.free == -1 || this.free >= 0) : "Free value can not be negative";
+            assert (this.available == -1 || this.available >= 0) : "Available value can not be negative";
+            assert (this.fileCacheReserved == -1 || this.fileCacheReserved >= 0) : "File cache reserved value can not be negative";
+            assert (this.fileCacheUtilized == -1 || this.fileCacheUtilized >= 0) : "File cache utilization value can not be negative";
         }
 
         /**
