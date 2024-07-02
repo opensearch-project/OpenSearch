@@ -9,6 +9,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Anas Alkouz              | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross              | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko             | [reta](https://github.com/reta)                         | Aiven       |
+| Ashish Singh             | [ashking94](https://github.com/ashking94)               | Amazon      |
 | Bukhtawar Khan           | [Bukhtawar](https://github.com/Bukhtawar)               | Amazon      |
 | Charlotte Henkle         | [CEHENKLE](https://github.com/CEHENKLE)                 | Amazon      |
 | Dan Widdis               | [dbwiddis](https://github.com/dbwiddis)                 | Amazon      |
@@ -26,18 +27,18 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Sarat Vemulapalli        | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja           | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
 | Sorabh Hamirwasia        | [sohami](https://github.com/sohami)                     | Amazon      |
-| Suraj Singh              | [dreamer-89](https://github.com/dreamer-89)             | Amazon      |
-| Tianli Feng              | [tlfeng](https://github.com/tlfeng)                     | Amazon      |
 | Vacha Shah               | [VachaShah](https://github.com/VachaShah)               | Amazon      |
 
 ## Emeritus
 
-| Maintainer            | GitHub ID                                 | Affiliation |
-| --------------------- | ----------------------------------------- | ----------- |
-| Megha Sai Kavikondala | [meghasaik](https://github.com/meghasaik) | Amazon      |
-| Xue Zhou              | [xuezhou25](https://github.com/xuezhou25) | Amazon      |
-| Kartik Ganesh         | [kartg](https://github.com/kartg)         | Amazon      |
-| Abbas Hussain         | [abbashus](https://github.com/abbashus)   | Meta        |
-| Himanshu Setia        | [setiah](https://github.com/setiah)       | Amazon      |
-| Ryan Bogan            | [ryanbogan](https://github.com/ryanbogan) | Amazon      |
-| Rabi Panda            | [adnapibar](https://github.com/adnapibar) | Independent |
+| Maintainer             | GitHub ID                                   | Affiliation |
+| ---------------------- |-------------------------------------------- | ----------- |
+| Megha Sai Kavikondala  | [meghasaik](https://github.com/meghasaik)   | Amazon      |
+| Xue Zhou               | [xuezhou25](https://github.com/xuezhou25)   | Amazon      |
+| Kartik Ganesh          | [kartg](https://github.com/kartg)           | Amazon      |
+| Abbas Hussain          | [abbashus](https://github.com/abbashus)     | Meta        |
+| Himanshu Setia         | [setiah](https://github.com/setiah)         | Amazon      |
+| Ryan Bogan             | [ryanbogan](https://github.com/ryanbogan)   | Amazon      |
+| Rabi Panda             | [adnapibar](https://github.com/adnapibar)   | Independent |
+| Tianli Feng            | [tlfeng](https://github.com/tlfeng)         | Amazon      |
+| Suraj Singh            | [dreamer-89](https://github.com/dreamer-89) | Amazon      |
