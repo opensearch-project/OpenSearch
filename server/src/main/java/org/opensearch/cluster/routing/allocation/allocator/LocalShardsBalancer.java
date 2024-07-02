@@ -781,12 +781,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
          */
         ShardRouting[] unassignedShards = unassigned.drain();
         List<ShardRouting> allUnassignedShards = Arrays.stream(unassignedShards).collect(Collectors.toList());
-        List<ShardRouting> localUnassignedShards = allUnassignedShards.stream()
-            .filter(shard -> RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)))
+        List<ShardRouting> nonLocalUnassignedShards = allUnassignedShards.stream()
+            .filter(shard -> !RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)))
             .collect(Collectors.toList());
-        allUnassignedShards.removeAll(localUnassignedShards);
-        allUnassignedShards.forEach(shard -> routingNodes.unassigned().add(shard));
-        unassignedShards = localUnassignedShards.toArray(new ShardRouting[0]);
+
+        nonLocalUnassignedShards.forEach(shard -> routingNodes.unassigned().add(shard));
+        unassignedShards = allUnassignedShards.stream()
+            .filter(shard -> RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)))
+            .toArray(ShardRouting[]::new);
         ShardRouting[] primary = unassignedShards;
         ShardRouting[] secondary = new ShardRouting[primary.length];
         int secondaryLength = 0;
