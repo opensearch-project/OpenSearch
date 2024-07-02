@@ -1232,7 +1232,6 @@ public class RemoteClusterStateService implements Closeable {
                     metadataBuilder.transientSettings((Settings) remoteReadResult.getObj());
                     break;
                 case TEMPLATES_METADATA:
-                    metadataBuilder.removeAllTemplates();
                     metadataBuilder.templates((TemplatesMetadata) remoteReadResult.getObj());
                     break;
                 case HASHES_OF_CONSISTENT_SETTINGS:

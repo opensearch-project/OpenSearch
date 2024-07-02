@@ -1508,20 +1508,8 @@ public class MetadataTests extends OpenSearchTestCase {
         Map<String, IndexTemplateMetadata> allTemplates = new HashMap<>(templatesMetadata1.getTemplates());
         allTemplates.putAll(templatesMetadata2.getTemplates());
 
-        assertThat(metadata2.templates(), is(allTemplates));
+        assertThat(metadata2.templates(), is(templatesMetadata2.getTemplates()));
 
-        TemplatesMetadata templatesMetadata3 = TemplatesMetadata.builder()
-            .put(
-                IndexTemplateMetadata.builder("template_3")
-                    .patterns(Arrays.asList("bar-*", "foo-*"))
-                    .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
-                    .build()
-            )
-            .build();
-
-        Metadata metadata3 = Metadata.builder(metadata2).removeAllTemplates().templates(templatesMetadata3).build();
-
-        assertThat(metadata3.templates(), is(templatesMetadata3.getTemplates()));
     }
 
     public static Metadata randomMetadata() {
