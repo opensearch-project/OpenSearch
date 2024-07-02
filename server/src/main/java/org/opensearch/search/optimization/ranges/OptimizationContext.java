@@ -47,6 +47,7 @@ public final class OptimizationContext {
     String shardId;
 
     private Ranges ranges;
+    private Ranges rangesFromSegment;
 
     // debug info related fields
     private int leaf;
@@ -75,18 +76,22 @@ public final class OptimizationContext {
 
     public void prepare() throws IOException {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
-        this.aggregatorBridge.prepare();
+        aggregatorBridge.prepare();
         if (ranges != null) {
             preparedAtShardLevel = true;
         }
     }
 
-    private Ranges prepare(LeafReaderContext leaf) throws IOException {
-        return this.aggregatorBridge.prepare(leaf);
+    private void prepareFromSegment(LeafReaderContext leaf) throws IOException {
+        aggregatorBridge.prepareFromSegment(leaf);
     }
 
     void setRanges(Ranges ranges) {
         this.ranges = ranges;
+    }
+
+    void setRangesFromSegment(Ranges ranges) {
+        this.rangesFromSegment = ranges;
     }
 
     /**
@@ -119,7 +124,7 @@ public final class OptimizationContext {
             return false;
         }
 
-        Ranges ranges = prepareFromSegment(leafCtx);
+        Ranges ranges = prepare(leafCtx);
         if (ranges == null) return false;
 
         aggregatorBridge.tryOptimize(values, incrementDocCount, ranges);
@@ -134,15 +139,15 @@ public final class OptimizationContext {
      * Even when ranges cannot be built at shard level, we can still build ranges
      * at segment level when it's functionally match-all at segment level
      */
-    private Ranges prepareFromSegment(LeafReaderContext leafCtx) throws IOException {
+    private Ranges prepare(LeafReaderContext leafCtx) throws IOException {
         if (!preparedAtShardLevel && !aggregatorBridge.segmentMatchAll(leafCtx)) {
             return null;
         }
 
-        Ranges ranges = this.ranges;
         if (ranges == null) { // not built at shard level but segment match all
             logger.debug("Shard {} segment {} functionally match all documents. Build the fast filter", shardId, leafCtx.ord);
-            ranges = prepare(leafCtx);
+            prepareFromSegment(leafCtx);
+            return rangesFromSegment;
         }
         return ranges;
     }

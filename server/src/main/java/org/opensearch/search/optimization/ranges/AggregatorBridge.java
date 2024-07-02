@@ -44,7 +44,7 @@ public abstract class AggregatorBridge {
 
     protected abstract void prepare() throws IOException;
 
-    abstract Ranges prepare(LeafReaderContext leaf) throws IOException;
+    abstract void prepareFromSegment(LeafReaderContext leaf) throws IOException;
 
     abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, Ranges ranges) throws IOException;
 

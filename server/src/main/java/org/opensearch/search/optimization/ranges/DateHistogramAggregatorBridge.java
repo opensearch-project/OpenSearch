@@ -65,13 +65,13 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
 
     protected void buildRanges(SearchContext context) throws IOException {
         long[] bounds = Helper.getDateHistoAggBounds(context, fieldType.name());
-        this.optimizationContext.setRanges(buildRanges(bounds));
+        optimizationContext.setRanges(buildRanges(bounds));
     }
 
     @Override
-    OptimizationContext.Ranges prepare(LeafReaderContext leaf) throws IOException {
+    void prepareFromSegment(LeafReaderContext leaf) throws IOException {
         long[] bounds = Helper.getSegmentBounds(leaf, fieldType.name());
-        return buildRanges(bounds);
+        optimizationContext.setRangesFromSegment(buildRanges(bounds));
     }
 
     private OptimizationContext.Ranges buildRanges(long[] bounds) {
@@ -97,7 +97,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
             getRoundingPrepared(),
             bounds[0],
             bounds[1],
-            this.optimizationContext.maxAggRewriteFilters
+            optimizationContext.maxAggRewriteFilters
         );
     }
 
@@ -153,7 +153,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
             incrementDocCount.accept(ord, (long) docCount);
         };
 
-        this.optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size));
+        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size));
     }
 
     private static long getBucketOrd(long bucketOrd) {
