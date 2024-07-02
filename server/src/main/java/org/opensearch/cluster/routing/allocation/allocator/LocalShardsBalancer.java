@@ -32,7 +32,6 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -41,7 +40,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -779,15 +777,16 @@ public class LocalShardsBalancer extends ShardsBalancer {
          * if we allocate for instance (0, R, IDX1) we move the second replica to the secondary array and proceed with
          * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ignoreUnassigned.
          */
-        ShardRouting[] unassignedShards = unassigned.drain();
-        List<ShardRouting> allUnassignedShards = Arrays.stream(unassignedShards).collect(Collectors.toList());
-        List<ShardRouting> localUnassignedShards = allUnassignedShards.stream()
-            .filter(shard -> RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)))
-            .collect(Collectors.toList());
-        allUnassignedShards.removeAll(localUnassignedShards);
-        allUnassignedShards.forEach(shard -> routingNodes.unassigned().add(shard));
-        unassignedShards = localUnassignedShards.toArray(new ShardRouting[0]);
-        ShardRouting[] primary = unassignedShards;
+        List<ShardRouting> primaryList = new ArrayList<>();
+        for (ShardRouting shard : unassigned.drain()) {
+            if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation))) {
+                primaryList.add(shard);
+            } else {
+                routingNodes.unassigned().add(shard);
+            }
+        }
+
+        ShardRouting[] primary = primaryList.toArray(new ShardRouting[0]);
         ShardRouting[] secondary = new ShardRouting[primary.length];
         int secondaryLength = 0;
         int primaryLength = primary.length;
