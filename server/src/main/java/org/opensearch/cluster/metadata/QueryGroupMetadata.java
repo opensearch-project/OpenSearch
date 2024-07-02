@@ -91,22 +91,13 @@ public class QueryGroupMetadata implements Metadata.Custom {
         return Version.V_3_0_0;
     }
 
-    /**
-     * Write this into the {@linkplain StreamOutput}.
-     *
-     * @param out
-     */
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(queryGroups, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
     }
 
-    /**
-     * @param builder
-     * @param params
-     * @return
-     * @throws IOException
-     */
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, QueryGroup> entry : queryGroups.entrySet()) {
@@ -119,21 +110,13 @@ public class QueryGroupMetadata implements Metadata.Custom {
         return PARSER.parse(parser, null);
     }
 
-    /**
-     * Returns serializable object representing differences between this and previousState
-     *
-     * @param previousState
-     */
+
     @Override
     public Diff<Metadata.Custom> diff(final Metadata.Custom previousState) {
         return new QueryGroupMetadataDiff((QueryGroupMetadata) previousState, this);
     }
 
-    /**
-     * @param in
-     * @return the metadata diff for {@link QueryGroupMetadata} objects
-     * @throws IOException
-     */
+
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new QueryGroupMetadataDiff(in);
     }
@@ -188,21 +171,13 @@ public class QueryGroupMetadata implements Metadata.Custom {
             return TYPE;
         }
 
-        /**
-         * Write this into the {@linkplain StreamOutput}.
-         *
-         * @param out
-         */
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             dataStreamDiff.writeTo(out);
         }
 
-        /**
-         * Applies difference to the specified part and returns the resulted part
-         *
-         * @param part
-         */
+
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
             return new QueryGroupMetadata(new HashMap<>(dataStreamDiff.apply(((QueryGroupMetadata) part).queryGroups)));

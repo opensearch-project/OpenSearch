@@ -97,11 +97,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         );
     }
 
-    /**
-     * Write this into the {@linkplain StreamOutput}.
-     *
-     * @param out
-     */
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
@@ -123,12 +119,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         }
     }
 
-    /**
-     * @param builder
-     * @param params
-     * @return
-     * @throws IOException
-     */
+
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
