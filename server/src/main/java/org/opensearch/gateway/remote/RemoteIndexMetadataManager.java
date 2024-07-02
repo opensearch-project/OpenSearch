@@ -136,24 +136,6 @@ public class RemoteIndexMetadataManager {
         }
     }
 
-    /**
-     * Fetch latest index metadata from remote cluster state
-     *
-     * @param clusterMetadataManifest manifest file of cluster
-     * @param clusterUUID             uuid of cluster state to refer to in remote
-     * @return {@code Map<String, IndexMetadata>} latest IndexUUID to IndexMetadata map
-     */
-    Map<String, IndexMetadata> getIndexMetadataMap(String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
-        assert Objects.equals(clusterUUID, clusterMetadataManifest.getClusterUUID())
-            : "Corrupt ClusterMetadataManifest found. Cluster UUID mismatch.";
-        Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
-        for (ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata : clusterMetadataManifest.getIndices()) {
-            IndexMetadata indexMetadata = getIndexMetadata(uploadedIndexMetadata, clusterUUID);
-            remoteIndexMetadata.put(uploadedIndexMetadata.getIndexUUID(), indexMetadata);
-        }
-        return remoteIndexMetadata;
-    }
-
     public TimeValue getIndexMetadataUploadTimeout() {
         return this.indexMetadataUploadTimeout;
     }
