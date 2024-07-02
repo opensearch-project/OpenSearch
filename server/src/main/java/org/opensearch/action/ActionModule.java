@@ -288,6 +288,9 @@ import org.opensearch.action.termvectors.TermVectorsAction;
 import org.opensearch.action.termvectors.TransportMultiTermVectorsAction;
 import org.opensearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.opensearch.action.termvectors.TransportTermVectorsAction;
+import org.opensearch.action.tiering.RestWarmTieringAction;
+import org.opensearch.action.tiering.TransportWarmTieringAction;
+import org.opensearch.action.tiering.WarmTieringAction;
 import org.opensearch.action.update.TransportUpdateAction;
 import org.opensearch.action.update.UpdateAction;
 import org.opensearch.client.node.NodeClient;
@@ -634,6 +637,9 @@ public class ActionModule extends AbstractModule {
         actions.register(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
+        if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)) {
+            actions.register(WarmTieringAction.INSTANCE, TransportWarmTieringAction.class);
+        }
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
 
         actions.register(ClusterAddWeightedRoutingAction.INSTANCE, TransportAddWeightedRoutingAction.class);
@@ -966,6 +972,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodeAttrsAction());
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
+        if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)) {
+            registerHandler.accept(new RestWarmTieringAction());
+        }
         registerHandler.accept(new RestTemplatesAction());
 
         // Point in time API

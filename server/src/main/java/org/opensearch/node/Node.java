@@ -254,6 +254,7 @@ import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.tiering.HotToWarmTieringService;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -1182,6 +1183,14 @@ public class Node implements Closeable {
                 remoteClusterStateService
             );
 
+            HotToWarmTieringService tieringService = new HotToWarmTieringService(
+                settings,
+                clusterService,
+                clusterModule.getIndexNameExpressionResolver(),
+                clusterModule.getAllocationService(),
+                clusterInfoService
+            );
+
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,
                 clusterService::state,
@@ -1378,6 +1387,7 @@ public class Node implements Closeable {
                 b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);
                 b.bind(RestoreService.class).toInstance(restoreService);
                 b.bind(RemoteStoreRestoreService.class).toInstance(remoteStoreRestoreService);
+                b.bind(HotToWarmTieringService.class).toInstance(tieringService);
                 b.bind(RerouteService.class).toInstance(rerouteService);
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
