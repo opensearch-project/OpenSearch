@@ -9,16 +9,20 @@
 package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.routingtable.RemoteIndexShardRoutingTableDiff;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -28,16 +32,38 @@ import java.util.Map;
  * @opensearch.internal
  */
 public interface RemoteRoutingTableService extends LifecycleComponent {
-    public static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
-        new DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable>() {
+
+    public static final DiffableUtils.DiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_DIFFABLE_VALUE_SERIALIZER =
+        new DiffableUtils.DiffableValueSerializer<String, IndexRoutingTable>() {
+            @Override
+            public IndexRoutingTable read(StreamInput in, String key) throws IOException {
+                return IndexRoutingTable.readFrom(in);
+            }
+
             @Override
             public void write(IndexRoutingTable value, StreamOutput out) throws IOException {
                 value.writeTo(out);
             }
 
             @Override
-            public IndexRoutingTable read(StreamInput in, String key) throws IOException {
-                return IndexRoutingTable.readFrom(in);
+            public Diff<IndexRoutingTable> readDiff(StreamInput in, String key) throws IOException {
+                return IndexRoutingTable.readDiffFrom(in);
+            }
+
+            @Override
+            public Diff<IndexRoutingTable> diff(IndexRoutingTable currentState, IndexRoutingTable previousState) {
+                List<IndexShardRoutingTable> diffs = new ArrayList<>();
+                for (Map.Entry<Integer, IndexShardRoutingTable> entry : currentState.getShards().entrySet()) {
+                    Integer index = entry.getKey();
+                    IndexShardRoutingTable currentShardRoutingTable = entry.getValue();
+                    IndexShardRoutingTable previousShardRoutingTable = previousState.shard(index);
+                    if (previousShardRoutingTable == null) {
+                        diffs.add(currentShardRoutingTable);
+                    } else if (!previousShardRoutingTable.equals(currentShardRoutingTable)) {
+                        diffs.add(currentShardRoutingTable);
+                    }
+                }
+                return new RemoteIndexShardRoutingTableDiff(diffs);
             }
         };
 
@@ -47,6 +73,12 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
+    );
+
+    CheckedRunnable<IOException> getAsyncIndexRoutingTableDiffReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<Map<String, Diff<IndexRoutingTable>>> latchedActionListener
     );
 
     List<ClusterMetadataManifest.UploadedIndexMetadata> getUpdatedIndexRoutingTableMetadata(
@@ -64,6 +96,14 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         long term,
         long version,
         IndexRoutingTable indexRouting,
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+    );
+
+    CheckedRunnable<IOException> getAsyncIndexRoutingDiffWriteAction(
+        String clusterUUID,
+        long term,
+        long version,
+        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     );
 

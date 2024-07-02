@@ -191,7 +191,7 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         }
         ClusterState updatedClusterState = clusterStateBuilder.metadata(metadataBuilder.build()).build();
 
-        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(updatedClusterState, initialState);
+        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(updatedClusterState, initialState, null);
         assertEquals(indicesToAdd.stream().map(im -> im.getIndex().getName()).collect(toList()), manifest.getIndicesUpdated());
         assertEquals(indicesToRemove, manifest.getIndicesDeleted());
         assertEquals(new ArrayList<>(customsToAdd.keySet()), manifest.getCustomMetadataUpdated());

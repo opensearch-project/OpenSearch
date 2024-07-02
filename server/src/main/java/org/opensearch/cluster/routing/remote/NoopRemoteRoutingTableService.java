@@ -9,6 +9,7 @@
 package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -35,7 +36,12 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         RoutingTable before,
         RoutingTable after
     ) {
-        return DiffableUtils.diff(Map.of(), Map.of(), DiffableUtils.getStringKeySerializer(), CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER);
+        return DiffableUtils.diff(
+            Map.of(),
+            Map.of(),
+            DiffableUtils.getStringKeySerializer(),
+            CUSTOM_ROUTING_TABLE_DIFFABLE_VALUE_SERIALIZER
+        );
     }
 
     @Override
@@ -44,6 +50,17 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         long term,
         long version,
         IndexRoutingTable indexRouting,
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+    ) {
+        // noop
+        return () -> {};
+    }
+
+    public CheckedRunnable<IOException> getAsyncIndexRoutingDiffWriteAction(
+        String clusterUUID,
+        long term,
+        long version,
+        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
         // noop
@@ -65,6 +82,15 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
+    ) {
+        // noop
+        return () -> {};
+    }
+
+    public CheckedRunnable<IOException> getAsyncIndexRoutingTableDiffReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<Map<String, Diff<IndexRoutingTable>>> latchedActionListener
     ) {
         // noop
         return () -> {};
