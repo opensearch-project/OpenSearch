@@ -12,6 +12,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
@@ -34,33 +35,35 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
     private final LongSupplier thresholdSupplier;
 
     public CpuUsageTracker(LongSupplier thresholdSupplier) {
+        this(thresholdSupplier, (task) -> {
+            long usage = task.getTotalResourceStats().getCpuTimeInNanos();
+            long threshold = thresholdSupplier.getAsLong();
+
+            if (usage < threshold) {
+                return Optional.empty();
+            }
+
+            return Optional.of(
+                new TaskCancellation.Reason(
+                    "cpu usage exceeded ["
+                        + new TimeValue(usage, TimeUnit.NANOSECONDS)
+                        + " >= "
+                        + new TimeValue(threshold, TimeUnit.NANOSECONDS)
+                        + "]",
+                    1  // TODO: fine-tune the cancellation score/weight
+                )
+            );
+        });
+    }
+
+    public CpuUsageTracker(LongSupplier thresholdSupplier, ResourceUsageBreachEvaluator resourceUsageBreachEvaluator) {
         this.thresholdSupplier = thresholdSupplier;
+        this.resourceUsageBreachEvaluator = resourceUsageBreachEvaluator;
     }
 
     @Override
     public String name() {
         return CPU_USAGE_TRACKER.getName();
-    }
-
-    @Override
-    public Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task) {
-        long usage = task.getTotalResourceStats().getCpuTimeInNanos();
-        long threshold = thresholdSupplier.getAsLong();
-
-        if (usage < threshold) {
-            return Optional.empty();
-        }
-
-        return Optional.of(
-            new TaskCancellation.Reason(
-                "cpu usage exceeded ["
-                    + new TimeValue(usage, TimeUnit.NANOSECONDS)
-                    + " >= "
-                    + new TimeValue(threshold, TimeUnit.NANOSECONDS)
-                    + "]",
-                1  // TODO: fine-tune the cancellation score/weight
-            )
-        );
     }
 
     @Override

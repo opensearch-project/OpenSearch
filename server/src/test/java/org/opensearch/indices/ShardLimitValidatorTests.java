@@ -214,6 +214,25 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         );
     }
 
+    public void testComputedMaxShardsOfClusterIntOverFlow() {
+        final int maxShardLimitPerNode = 500_000_000;
+        ClusterState state = createClusterForShardLimitTest(15, 1, 1);
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(2, state, maxShardLimitPerNode, -1);
+        assertFalse(errorMessage.isPresent());
+
+        errorMessage = ShardLimitValidator.checkShardLimit(Integer.MAX_VALUE - 1, state, maxShardLimitPerNode, -1);
+        assertEquals(
+            "this action would add ["
+                + (Integer.MAX_VALUE - 1)
+                + "] total shards, but this cluster currently has ["
+                + 2
+                + "]/["
+                + Integer.MAX_VALUE
+                + "] maximum shards open",
+            errorMessage.get()
+        );
+    }
+
     public void testNonSystemIndexCreationPassesWithMaxShardLimitOnCluster() {
         final int maxShardLimitOnCluster = 5;
         Settings limitOnlySettings = Settings.builder()

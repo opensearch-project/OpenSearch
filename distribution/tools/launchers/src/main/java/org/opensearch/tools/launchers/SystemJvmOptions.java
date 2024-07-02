@@ -105,13 +105,8 @@ final class SystemJvmOptions {
            SPI setting is used to allow loading custom CalendarDataProvider
            in jdk8 it has to be loaded from jre/lib/ext,
            in jdk9+ it is already within ES project and on a classpath
-
-           Due to internationalization enhancements in JDK 9 OpenSearch need to set the provider to COMPAT otherwise time/date
-           parsing will break in an incompatible way for some date patterns and locales.
-           //TODO COMPAT will be deprecated in at some point, see please https://bugs.openjdk.java.net/browse/JDK-8232906
-          See also: documentation in <code>server/org.opensearch.common.time.IsoCalendarDataProvider</code>
          */
-        return "-Djava.locale.providers=SPI,COMPAT";
+        return "-Djava.locale.providers=SPI,CLDR";
     }
 
 }

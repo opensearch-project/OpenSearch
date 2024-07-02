@@ -106,6 +106,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
@@ -136,6 +137,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -354,6 +356,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
     private volatile TimeValue clusterDefaultRefreshInterval;
     private final SearchRequestStats searchRequestStats;
+    private final FileCache fileCache;
+    private final CompositeIndexSettings compositeIndexSettings;
 
     @Override
     protected void doStart() {
@@ -388,7 +392,9 @@ public class IndicesService extends AbstractLifecycleComponent
         @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
         RecoverySettings recoverySettings,
         CacheService cacheService,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        FileCache fileCache,
+        CompositeIndexSettings compositeIndexSettings
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -495,6 +501,70 @@ public class IndicesService extends AbstractLifecycleComponent
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_REFRESH_INTERVAL_SETTING, this::onRefreshIntervalUpdate);
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
+        this.compositeIndexSettings = compositeIndexSettings;
+        this.fileCache = fileCache;
+    }
+
+    public IndicesService(
+        Settings settings,
+        PluginsService pluginsService,
+        NodeEnvironment nodeEnv,
+        NamedXContentRegistry xContentRegistry,
+        AnalysisRegistry analysisRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MapperRegistry mapperRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
+        ThreadPool threadPool,
+        IndexScopedSettings indexScopedSettings,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        MetaStateService metaStateService,
+        Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
+        Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        ValuesSourceRegistry valuesSourceRegistry,
+        Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        SearchRequestStats searchRequestStats,
+        @Nullable RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        RecoverySettings recoverySettings,
+        CacheService cacheService,
+        RemoteStoreSettings remoteStoreSettings
+    ) {
+        this(
+            settings,
+            pluginsService,
+            nodeEnv,
+            xContentRegistry,
+            analysisRegistry,
+            indexNameExpressionResolver,
+            mapperRegistry,
+            namedWriteableRegistry,
+            threadPool,
+            indexScopedSettings,
+            circuitBreakerService,
+            bigArrays,
+            scriptService,
+            clusterService,
+            client,
+            metaStateService,
+            engineFactoryProviders,
+            directoryFactories,
+            valuesSourceRegistry,
+            recoveryStateFactories,
+            remoteDirectoryFactory,
+            repositoriesServiceSupplier,
+            searchRequestStats,
+            remoteStoreStatsTrackerFactory,
+            recoverySettings,
+            cacheService,
+            remoteStoreSettings,
+            null,
+            null
+        );
     }
 
     /**
@@ -873,7 +943,9 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            fileCache,
+            compositeIndexSettings
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -963,7 +1035,9 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            fileCache,
+            compositeIndexSettings
         );
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
@@ -2030,5 +2104,9 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public RemoteStoreSettings getRemoteStoreSettings() {
         return this.remoteStoreSettings;
+    }
+
+    public CompositeIndexSettings getCompositeIndexSettings() {
+        return this.compositeIndexSettings;
     }
 }

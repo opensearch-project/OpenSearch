@@ -864,6 +864,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return ensureColor(ClusterHealthStatus.GREEN, timeout, false, indices);
     }
 
+    public ClusterHealthStatus ensureGreen(TimeValue timeout, boolean waitForNoRelocatingShards, String... indices) {
+        return ensureColor(ClusterHealthStatus.GREEN, timeout, waitForNoRelocatingShards, false, indices);
+    }
+
     /**
      * Ensures the cluster has a yellow state via the cluster health API.
      */
@@ -892,6 +896,16 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         boolean waitForNoInitializingShards,
         String... indices
     ) {
+        return ensureColor(clusterHealthStatus, timeout, true, waitForNoInitializingShards, indices);
+    }
+
+    private ClusterHealthStatus ensureColor(
+        ClusterHealthStatus clusterHealthStatus,
+        TimeValue timeout,
+        boolean waitForNoRelocatingShards,
+        boolean waitForNoInitializingShards,
+        String... indices
+    ) {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
@@ -899,7 +913,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
-            .waitForNoRelocatingShards(true)
+            .waitForNoRelocatingShards(waitForNoRelocatingShards)
             .waitForNoInitializingShards(waitForNoInitializingShards)
             // We currently often use ensureGreen or ensureYellow to check whether the cluster is back in a good state after shutting down
             // a node. If the node that is stopped is the cluster-manager node, another node will become cluster-manager and publish a
@@ -2077,6 +2091,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return true;
     }
 
+    protected boolean addMockIndexStorePlugin() {
+        return true;
+    }
+
     /** Returns {@code true} iff this test cluster should use a dummy http transport */
     protected boolean addMockHttpTransport() {
         return true;
@@ -2119,7 +2137,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             if (randomBoolean() && addMockTransportService()) {
                 mocks.add(MockTransportService.TestPlugin.class);
             }
-            if (randomBoolean()) {
+            if (randomBoolean() && addMockIndexStorePlugin()) {
                 mocks.add(MockFSIndexStore.TestPlugin.class);
             }
             if (randomBoolean()) {

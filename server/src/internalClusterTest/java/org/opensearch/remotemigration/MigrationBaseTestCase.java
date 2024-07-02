@@ -9,6 +9,8 @@
 package org.opensearch.remotemigration;
 
 import org.opensearch.action.DocWriteResponse;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.opensearch.action.bulk.BulkRequest;
@@ -16,11 +18,15 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
@@ -39,6 +45,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_D
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.fs.ReloadableFsRepository.REPOSITORIES_FAILRATE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
     protected static final String REPOSITORY_NAME = "test-remote-store-repo";
@@ -114,6 +121,10 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         );
     }
 
+    public ClusterHealthStatus ensureGreen(String... indices) {
+        return ensureGreen(TimeValue.timeValueSeconds(60), indices);
+    }
+
     public BulkResponse indexBulk(String indexName, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
@@ -181,14 +192,12 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                     long currentDocCount = indexedDocs.incrementAndGet();
                     if (currentDocCount > 0 && currentDocCount % refreshFrequency == 0) {
                         if (rarely()) {
-                            logger.info("--> [iteration {}] flushing index", currentDocCount);
                             client().admin().indices().prepareFlush(indexName).get();
+                            logger.info("Completed ingestion of {} docs. Flushing now", currentDocCount);
                         } else {
-                            logger.info("--> [iteration {}] refreshing index", currentDocCount);
                             client().admin().indices().prepareRefresh(indexName).get();
                         }
                     }
-                    logger.info("Completed ingestion of {} docs", currentDocCount);
                 }
             });
         }
@@ -217,5 +226,39 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none").build())
                 .get()
         );
+    }
+
+    public ClusterHealthStatus waitForRelocation() {
+        ClusterHealthRequest request = Requests.clusterHealthRequest()
+            .waitForNoRelocatingShards(true)
+            .timeout(TimeValue.timeValueSeconds(60))
+            .waitForEvents(Priority.LANGUID);
+        ClusterHealthResponse actionGet = client().admin().cluster().health(request).actionGet();
+        if (actionGet.isTimedOut()) {
+            logger.info(
+                "waitForRelocation timed out, cluster state:\n{}\n{}",
+                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get()
+            );
+            assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
+        }
+        return actionGet.getStatus();
+    }
+
+    public ClusterHealthStatus waitForRelocation(TimeValue t) {
+        ClusterHealthRequest request = Requests.clusterHealthRequest()
+            .waitForNoRelocatingShards(true)
+            .timeout(t)
+            .waitForEvents(Priority.LANGUID);
+        ClusterHealthResponse actionGet = client().admin().cluster().health(request).actionGet();
+        if (actionGet.isTimedOut()) {
+            logger.info(
+                "waitForRelocation timed out, cluster state:\n{}\n{}",
+                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get()
+            );
+            assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
+        }
+        return actionGet.getStatus();
     }
 }

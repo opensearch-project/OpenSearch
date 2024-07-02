@@ -253,6 +253,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
+
+        default Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext, ObjectMapper.Builder objBuilder)
+            throws MapperParsingException {
+            throw new UnsupportedOperationException("should not be invoked");
+        }
     }
 
     private final String simpleName;

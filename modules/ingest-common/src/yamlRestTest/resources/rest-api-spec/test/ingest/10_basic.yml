@@ -86,3 +86,19 @@
     - do:
           nodes.info: {}
     - contains:  { nodes.$cluster_manager.ingest.processors: { type: community_id } }
+
+---
+"Fingerprint processor exists":
+  - skip:
+      version: " - 2.15.99"
+      features: contains
+      reason: "fingerprint processor was introduced in 2.16.0 and contains is a newly added assertion"
+  - do:
+      cluster.state: {}
+
+  # Get cluster-manager node id
+  - set: { cluster_manager_node: cluster_manager }
+
+  - do:
+      nodes.info: {}
+  - contains:  { nodes.$cluster_manager.ingest.processors: { type: fingerprint } }

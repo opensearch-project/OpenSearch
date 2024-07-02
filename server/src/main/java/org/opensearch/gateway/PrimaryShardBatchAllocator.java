@@ -14,6 +14,7 @@ import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.AsyncShardFetch.FetchResult;
 import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewayStartedShard;
 import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.NodeGatewayStartedShard;
@@ -61,50 +62,59 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
 
     @Override
     public AllocateUnassignedDecision makeAllocationDecision(ShardRouting unassignedShard, RoutingAllocation allocation, Logger logger) {
-        return makeAllocationDecision(Collections.singletonList(unassignedShard), allocation, logger).get(unassignedShard);
+        AllocateUnassignedDecision decision = getInEligibleShardDecision(unassignedShard, allocation);
+        if (decision != null) {
+            return decision;
+        }
+        final FetchResult<NodeGatewayStartedShardsBatch> shardsState = fetchData(
+            List.of(unassignedShard),
+            Collections.emptyList(),
+            allocation
+        );
+        List<NodeGatewayStartedShard> nodeGatewayStartedShards = adaptToNodeShardStates(unassignedShard, shardsState);
+        return getAllocationDecision(unassignedShard, allocation, nodeGatewayStartedShards, logger);
     }
 
     /**
-     * Build allocation decisions for all the shards present in the batch identified by batchId.
+     * Allocate Batch of unassigned shard  to nodes where valid copies of the shard already exists
      *
-     * @param shards     set of shards given for allocation
-     * @param allocation current allocation of all the shards
-     * @param logger     logger used for logging
-     * @return shard to allocation decision map
+     * @param shardRoutings the shards to allocate
+     * @param allocation    the allocation state container object
      */
-    @Override
-    public HashMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
-        List<ShardRouting> shards,
-        RoutingAllocation allocation,
-        Logger logger
-    ) {
-        HashMap<ShardRouting, AllocateUnassignedDecision> shardAllocationDecisions = new HashMap<>();
+    public void allocateUnassignedBatch(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+        HashMap<ShardId, AllocateUnassignedDecision> ineligibleShardAllocationDecisions = new HashMap<>();
         List<ShardRouting> eligibleShards = new ArrayList<>();
         List<ShardRouting> inEligibleShards = new ArrayList<>();
         // identify ineligible shards
-        for (ShardRouting shard : shards) {
+        for (ShardRouting shard : shardRoutings) {
             AllocateUnassignedDecision decision = getInEligibleShardDecision(shard, allocation);
             if (decision != null) {
+                ineligibleShardAllocationDecisions.put(shard.shardId(), decision);
                 inEligibleShards.add(shard);
-                shardAllocationDecisions.put(shard, decision);
             } else {
                 eligibleShards.add(shard);
             }
         }
-        // Do not call fetchData if there are no eligible shards
-        if (eligibleShards.isEmpty()) {
-            return shardAllocationDecisions;
-        }
+
         // only fetch data for eligible shards
         final FetchResult<NodeGatewayStartedShardsBatch> shardsState = fetchData(eligibleShards, inEligibleShards, allocation);
 
-        // process the received data
-        for (ShardRouting unassignedShard : eligibleShards) {
-            List<NodeGatewayStartedShard> nodeShardStates = adaptToNodeShardStates(unassignedShard, shardsState);
-            // get allocation decision for this shard
-            shardAllocationDecisions.put(unassignedShard, getAllocationDecision(unassignedShard, allocation, nodeShardStates, logger));
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        while (iterator.hasNext()) {
+            ShardRouting unassignedShard = iterator.next();
+            AllocateUnassignedDecision allocationDecision;
+
+            if (shardRoutings.contains(unassignedShard)) {
+                assert unassignedShard.primary();
+                if (ineligibleShardAllocationDecisions.containsKey(unassignedShard.shardId())) {
+                    allocationDecision = ineligibleShardAllocationDecisions.get(unassignedShard.shardId());
+                } else {
+                    List<NodeGatewayStartedShard> nodeShardStates = adaptToNodeShardStates(unassignedShard, shardsState);
+                    allocationDecision = getAllocationDecision(unassignedShard, allocation, nodeShardStates, logger);
+                }
+                executeDecision(unassignedShard, allocationDecision, allocation, iterator);
+            }
         }
-        return shardAllocationDecisions;
     }
 
     /**

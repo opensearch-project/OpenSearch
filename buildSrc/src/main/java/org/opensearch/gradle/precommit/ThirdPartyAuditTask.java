@@ -37,6 +37,7 @@ import org.apache.commons.io.output.NullOutputStream;
 import org.opensearch.gradle.LoggedExec;
 import org.opensearch.gradle.OS;
 import org.opensearch.gradle.dependencies.CompileOnlyResolvePlugin;
+import org.opensearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.artifacts.Configuration;
@@ -203,11 +204,13 @@ public class ThirdPartyAuditTask extends DefaultTask {
         // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
         // err on the side of scanning these to make sure we don't miss anything
         Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null && dep.getGroup().startsWith("org.opensearch") == false;
-        Set<File> jars = getRuntimeConfiguration().getResolvedConfiguration().getFiles(reallyThirdParty);
-        Set<File> compileOnlyConfiguration = getProject().getConfigurations()
-            .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
-            .getResolvedConfiguration()
-            .getFiles(reallyThirdParty);
+
+        Set<File> jars = GradleUtils.getFiles(getProject(), getRuntimeConfiguration(), reallyThirdParty).getFiles();
+        Set<File> compileOnlyConfiguration = GradleUtils.getFiles(
+            getProject(),
+            getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME),
+            reallyThirdParty
+        ).getFiles();
         // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
         if (compileOnlyConfiguration != null) {
             jars.removeAll(compileOnlyConfiguration);

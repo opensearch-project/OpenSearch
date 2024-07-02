@@ -72,7 +72,9 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
     public T read(final U entity) throws IOException {
         // TODO Add timing logs and tracing
         assert entity.getFullBlobName() != null;
-        return entity.deserialize(transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName()));
+        try (InputStream inputStream = transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName())) {
+            return entity.deserialize(inputStream);
+        }
     }
 
     @Override

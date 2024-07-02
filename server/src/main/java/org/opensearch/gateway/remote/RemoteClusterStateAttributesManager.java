@@ -10,12 +10,13 @@ package org.opensearch.gateway.remote;
 
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.DiffableUtils;
+import org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.common.remote.RemoteWritableEntityStore;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.model.RemoteClusterBlocks;
 import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteClusterStateCustoms;
@@ -26,10 +27,9 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * A Manager which provides APIs to upload and download attributes of ClusterState to the {@link RemoteClusterStateBlobStore}
@@ -121,24 +121,41 @@ public class RemoteClusterStateAttributesManager {
         LatchedActionListener<RemoteReadResult> listener
     ) {
         final ActionListener actionListener = ActionListener.wrap(
-            response -> listener.onResponse(new RemoteReadResult((ToXContent) response, CLUSTER_STATE_ATTRIBUTE, component)),
+            response -> listener.onResponse(new RemoteReadResult(response, CLUSTER_STATE_ATTRIBUTE, component)),
             listener::onFailure
         );
         return () -> getStore(blobEntity).readAsync(blobEntity, actionListener);
     }
 
-    public Map<String, ClusterState.Custom> getUpdatedCustoms(ClusterState clusterState, ClusterState previousClusterState) {
-        Map<String, ClusterState.Custom> updatedCustoms = new HashMap<>();
-        Set<String> currentCustoms = new HashSet<>(clusterState.customs().keySet());
-        for (Map.Entry<String, ClusterState.Custom> entry : previousClusterState.customs().entrySet()) {
-            if (currentCustoms.contains(entry.getKey()) && !entry.getValue().equals(clusterState.customs().get(entry.getKey()))) {
-                updatedCustoms.put(entry.getKey(), clusterState.customs().get(entry.getKey()));
-            }
-            currentCustoms.remove(entry.getKey());
+    public DiffableUtils.MapDiff<String, ClusterState.Custom, Map<String, ClusterState.Custom>> getUpdatedCustoms(
+        ClusterState clusterState,
+        ClusterState previousClusterState,
+        boolean isRemotePublicationEnabled,
+        boolean isFirstUpload
+    ) {
+        if (!isRemotePublicationEnabled) {
+            // When isRemotePublicationEnabled is false, we do not want store any custom objects
+            return DiffableUtils.diff(
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                DiffableUtils.getStringKeySerializer(),
+                NonDiffableValueSerializer.getAbstractInstance()
+            );
         }
-        for (String custom : currentCustoms) {
-            updatedCustoms.put(custom, clusterState.customs().get(custom));
+        if (isFirstUpload) {
+            // For first upload of ephemeral metadata, we want to upload all customs
+            return DiffableUtils.diff(
+                Collections.emptyMap(),
+                clusterState.customs(),
+                DiffableUtils.getStringKeySerializer(),
+                NonDiffableValueSerializer.getAbstractInstance()
+            );
         }
-        return updatedCustoms;
+        return DiffableUtils.diff(
+            previousClusterState.customs(),
+            clusterState.customs(),
+            DiffableUtils.getStringKeySerializer(),
+            NonDiffableValueSerializer.getAbstractInstance()
+        );
     }
 }

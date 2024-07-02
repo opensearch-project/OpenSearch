@@ -232,7 +232,7 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
         }
     }
 
-    private Custom getCustomMetadata() {
+    public static Custom getCustomMetadata() {
         return IndexGraveyard.builder().addTombstone(new Index("test-index", "3q2423")).build();
     }
 

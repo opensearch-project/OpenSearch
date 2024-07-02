@@ -229,7 +229,7 @@ public class RemoteCoordinationMetadataTests extends OpenSearchTestCase {
         }
     }
 
-    private CoordinationMetadata getCoordinationMetadata() {
+    public static CoordinationMetadata getCoordinationMetadata() {
         return CoordinationMetadata.builder()
             .term(TERM)
             .lastAcceptedConfiguration(new VotingConfiguration(Set.of("node1")))

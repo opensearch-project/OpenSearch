@@ -66,7 +66,7 @@ public class UpdateShasTask extends DefaultTask {
     public void updateShas() throws NoSuchAlgorithmException, IOException {
         Set<File> shaFiles = parentTask.get().getShaFiles();
 
-        for (File dependency : parentTask.get().getDependencies()) {
+        for (File dependency : parentTask.get().getDependencies().get()) {
             String jarName = dependency.getName();
             File shaFile = parentTask.get().getShaFile(jarName);
 
