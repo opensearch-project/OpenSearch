@@ -73,6 +73,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.cache.query.QueryCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
@@ -192,6 +193,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
     private final FileCache fileCache;
+    private final CompositeIndexSettings compositeIndexSettings;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -228,7 +230,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        FileCache fileCache
+        FileCache fileCache,
+        CompositeIndexSettings compositeIndexSettings
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -306,6 +309,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
+        this.compositeIndexSettings = compositeIndexSettings;
         this.fileCache = fileCache;
         updateFsyncTaskIfNecessary();
     }
@@ -381,6 +385,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             clusterDefaultRefreshIntervalSupplier,
             recoverySettings,
             remoteStoreSettings,
+            null,
             null
         );
     }
@@ -1108,6 +1113,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             refreshTask = new AsyncRefreshTask(this);
         }
+    }
+
+    public CompositeIndexSettings getCompositeIndexSettings() {
+        return compositeIndexSettings;
     }
 
     /**
