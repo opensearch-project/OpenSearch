@@ -141,8 +141,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount)
-        throws IOException {
+    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
         int size = getSize();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
@@ -153,7 +152,9 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
             incrementDocCount.accept(ord, (long) docCount);
         };
 
-        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), incrementFunc, size));
+        optimizationContext.consumeDebugInfo(
+            multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), incrementFunc, size)
+        );
     }
 
     private static long getBucketOrd(long bucketOrd) {

@@ -73,8 +73,7 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount)
-        throws IOException {
+    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
         int size = Integer.MAX_VALUE;
 
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
@@ -82,6 +81,8 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             incrementDocCount.accept(ord, (long) docCount);
         };
 
-        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), incrementFunc, size));
+        optimizationContext.consumeDebugInfo(
+            multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), incrementFunc, size)
+        );
     }
 }

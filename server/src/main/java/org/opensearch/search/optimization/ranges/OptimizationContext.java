@@ -20,7 +20,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.Context;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -36,13 +35,14 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  *
  * @opensearch.internal
  */
-public final class OptimizationContext extends Context {
+public final class OptimizationContext {
 
     private static final Logger logger = LogManager.getLogger(loggerName);
 
     private boolean canOptimize = false;
     private boolean preparedAtShardLevel = false;
 
+    final AggregatorBridge aggregatorBridge;
     int maxAggRewriteFilters;
     String shardId;
 
@@ -56,10 +56,9 @@ public final class OptimizationContext extends Context {
     private int optimizedSegments;
 
     public OptimizationContext(AggregatorBridge aggregatorBridge) {
-        super(aggregatorBridge);
+        this.aggregatorBridge = aggregatorBridge;
     }
 
-    @Override
     public boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) {
         if (context.maxAggRewriteFilters() == 0) return false;
 
@@ -75,7 +74,6 @@ public final class OptimizationContext extends Context {
         return canOptimize;
     }
 
-    @Override
     public void prepare() throws IOException {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
         aggregatorBridge.prepare();
@@ -131,7 +129,7 @@ public final class OptimizationContext extends Context {
             return false;
         }
 
-        Ranges ranges = prepare(leafCtx);
+        Ranges ranges = buildRangesFromSegment(leafCtx);
         if (ranges == null) return false;
 
         aggregatorBridge.tryOptimize(values, incrementDocCount);
@@ -148,7 +146,7 @@ public final class OptimizationContext extends Context {
      * Even when ranges cannot be built at shard level, we can still build ranges
      * at segment level when it's functionally match-all at segment level
      */
-    private Ranges prepare(LeafReaderContext leafCtx) throws IOException {
+    private Ranges buildRangesFromSegment(LeafReaderContext leafCtx) throws IOException {
         if (!preparedAtShardLevel && !aggregatorBridge.segmentMatchAll(leafCtx)) {
             return null;
         }
@@ -287,12 +285,7 @@ public final class OptimizationContext extends Context {
             logger.debug("No ranges match the query, skip the fast filter optimization");
             return debugInfo;
         }
-        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(
-            incrementDocCount,
-            maxNumNonZeroRanges,
-            ranges,
-            activeIndex
-        );
+        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(incrementDocCount, maxNumNonZeroRanges, ranges, activeIndex);
         PointValues.IntersectVisitor visitor = getIntersectVisitor(collector);
         try {
             intersectWithRanges(visitor, tree, collector, debugInfo);

@@ -11,8 +11,6 @@ package org.opensearch.search.optimization.ranges;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.search.optimization.Bridge;
-import org.opensearch.search.optimization.Context;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -26,13 +24,13 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public abstract class AggregatorBridge implements Bridge {
+public abstract class AggregatorBridge {
 
     OptimizationContext optimizationContext;
     MappedFieldType fieldType;
 
-    public void setOptimizationContext(Context context) {
-        this.optimizationContext = (OptimizationContext) context;
+    void setOptimizationContext(OptimizationContext context) {
+        this.optimizationContext = context;
     }
 
     /**
