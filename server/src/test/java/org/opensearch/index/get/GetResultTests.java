@@ -224,7 +224,7 @@ public class GetResultTests extends OpenSearchTestCase {
         );
     }
 
-    public void testFomXContentEmbeddedFoundParsingException() throws IOException {
+    public void testFromXContentEmbeddedFoundParsingException() throws IOException {
         String json = "{\"_index\":\"foo\",\"_id\":\"bar\"}";
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
