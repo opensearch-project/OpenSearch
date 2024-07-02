@@ -201,17 +201,17 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Check if query insights service is enabled including TopN and categorization.
+     * Check if Top N feature is enabled for query insights service for any metric type
      *
      * @return if query insights service is enabled
      */
-    public boolean isEnabled() {
+    public boolean isTopNEnabledForAnyMetric() {
         for (MetricType t : MetricType.allMetricTypes()) {
             if (isCollectionEnabled(t)) {
                 return true;
             }
         }
-        return searchQueryMetricsEnabled;
+        return false;
     }
 
     /**
@@ -285,10 +285,18 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * Is search query metrics feature enabled.
+     * @return boolean flag
+     */
     public boolean isSearchQueryMetricsEnabled() {
         return this.searchQueryMetricsEnabled;
     }
 
+    /**
+     * Get search query categorizer object
+     * @return SearchQueryCategorizer object
+     */
     public SearchQueryCategorizer getSearchQueryCategorizer() {
         return this.searchQueryCategorizer;
     }
@@ -307,7 +315,7 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        if (isEnabled()) {
+        if (isTopNEnabledForAnyMetric()) {
             scheduledFuture = threadPool.scheduleWithFixedDelay(
                 this::drainRecords,
                 QueryInsightsSettings.QUERY_RECORD_QUEUE_DRAIN_INTERVAL,

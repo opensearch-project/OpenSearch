@@ -96,11 +96,14 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
      * @param enabled boolean
      */
     public void setEnableTopQueries(final MetricType metricType, final boolean enabled) {
-        boolean isAllMetricsDisabled = !queryInsightsService.isEnabled();
+        boolean isAllMetricsDisabled = !queryInsightsService.isTopNEnabledForAnyMetric();
+        boolean isQueryMetricsDisabled = !queryInsightsService.isSearchQueryMetricsEnabled();
         this.queryInsightsService.enableCollection(metricType, enabled);
+
         if (!enabled) {
-            // disable QueryInsightsListener only if all metrics collections are disabled now.
-            if (!queryInsightsService.isEnabled()) {
+            // disable QueryInsightsListener only if all metrics collections are disabled now
+            // and search query metrics is disabled.
+            if (!queryInsightsService.isTopNEnabledForAnyMetric() && isQueryMetricsDisabled) {
                 super.setEnabled(false);
                 this.queryInsightsService.stop();
             }
