@@ -126,6 +126,7 @@ public final class NodeEnvironment implements Closeable {
         public final Path indicesPath;
         /** Cached FileStore from path */
         public final FileStore fileStore;
+        /* ${data.paths}/nodes/{node.id}/cache */
         public final Path fileCachePath;
         /*
           Cache reserved size can default to a different value depending on configuration
@@ -178,6 +179,8 @@ public final class NodeEnvironment implements Closeable {
                 + indicesPath
                 + ", fileStore="
                 + fileStore
+                + ", fileCachePath="
+                + fileCachePath
                 + ", majorDeviceNumber="
                 + majorDeviceNumber
                 + ", minorDeviceNumber="

@@ -95,6 +95,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -291,12 +293,23 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertNull(deserializedFs);
                 } else {
                     assertEquals(fs.getTimestamp(), deserializedFs.getTimestamp());
-                    assertEquals(fs.getTotal().getAvailable(), deserializedFs.getTotal().getAvailable());
-                    assertEquals(fs.getTotal().getTotal(), deserializedFs.getTotal().getTotal());
-                    assertEquals(fs.getTotal().getFree(), deserializedFs.getTotal().getFree());
-                    assertEquals(fs.getTotal().getMount(), deserializedFs.getTotal().getMount());
-                    assertEquals(fs.getTotal().getPath(), deserializedFs.getTotal().getPath());
-                    assertEquals(fs.getTotal().getType(), deserializedFs.getTotal().getType());
+                    compareFsInfo(fs.getTotal(), deserializedFs.getTotal());
+
+                    FsInfo.Path[] fsPaths = StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(fs.iterator(), Spliterator.ORDERED),
+                        false
+                    ).toArray(FsInfo.Path[]::new);
+
+                    FsInfo.Path[] deserializedFsPaths = StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(deserializedFs.iterator(), Spliterator.ORDERED),
+                        false
+                    ).toArray(FsInfo.Path[]::new);
+
+                    assertEquals(fsPaths.length, deserializedFsPaths.length);
+                    for (int i = 0; i < fsPaths.length; i++) {
+                        compareFsInfo(fsPaths[i], deserializedFsPaths[i]);
+                    }
+
                     FsInfo.IoStats ioStats = fs.getIoStats();
                     FsInfo.IoStats deserializedIoStats = deserializedFs.getIoStats();
                     assertEquals(ioStats.getTotalOperations(), deserializedIoStats.getTotalOperations());
@@ -595,11 +608,22 @@ public class NodeStatsTests extends OpenSearchTestCase {
         }
     }
 
+    private void compareFsInfo(FsInfo.Path path, FsInfo.Path otherPath) {
+        assertEquals(path.getAvailable(), otherPath.getAvailable());
+        assertEquals(path.getTotal(), otherPath.getTotal());
+        assertEquals(path.getFree(), otherPath.getFree());
+        assertEquals(path.getFileCacheReserved(), otherPath.getFileCacheReserved());
+        assertEquals(path.getFileCacheUtilized(), otherPath.getFileCacheUtilized());
+        assertEquals(path.getMount(), otherPath.getMount());
+        assertEquals(path.getPath(), otherPath.getPath());
+        assertEquals(path.getType(), otherPath.getType());
+    }
+
     public static NodeStats createNodeStats() throws IOException {
         return createNodeStats(false);
     }
 
-    public static NodeStats createNodeStats(boolean remoteStoreStats) throws IOException {
+    private static NodeStats createNodeStats(boolean remoteStoreStats) throws IOException {
         DiscoveryNode node = new DiscoveryNode(
             "test_node",
             buildNewFakeTransportAddress(),
@@ -762,6 +786,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 paths[i] = new FsInfo.Path(
                     randomAlphaOfLengthBetween(3, 10),
                     randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong()
