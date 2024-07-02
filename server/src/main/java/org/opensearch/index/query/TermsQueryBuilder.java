@@ -54,6 +54,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.indices.TermsLookup;
+import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -473,7 +474,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        return fieldType.termsQuery(values, context);
+
+        RoaringBitmap bm = new RoaringBitmap();
+        for (Object value : values) {
+            bm.add(((Long) value).intValue());
+        }
+
+        return fieldType.termsQuery(List.of(bm), context);
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {

@@ -68,6 +68,8 @@ import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.query.BitMapFilterQuery;
+import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -788,6 +790,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public Query termsQuery(String field, List<Object> values, boolean hasDocValues, boolean isSearchable) {
+                if (values.get(0) instanceof RoaringBitmap) {
+                    RoaringBitmap bm = (RoaringBitmap) values.get(0);
+                    return new BitMapFilterQuery(field, bm);
+                }
+
                 int[] v = new int[values.size()];
                 int upTo = 0;
 
