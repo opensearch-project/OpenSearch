@@ -91,12 +91,10 @@ public class QueryGroupMetadata implements Metadata.Custom {
         return Version.V_3_0_0;
     }
 
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(queryGroups, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
     }
-
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -110,12 +108,10 @@ public class QueryGroupMetadata implements Metadata.Custom {
         return PARSER.parse(parser, null);
     }
 
-
     @Override
     public Diff<Metadata.Custom> diff(final Metadata.Custom previousState) {
         return new QueryGroupMetadataDiff((QueryGroupMetadata) previousState, this);
     }
-
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new QueryGroupMetadataDiff(in);
@@ -171,12 +167,10 @@ public class QueryGroupMetadata implements Metadata.Custom {
             return TYPE;
         }
 
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             dataStreamDiff.writeTo(out);
         }
-
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {

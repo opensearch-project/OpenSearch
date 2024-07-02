@@ -97,7 +97,6 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         );
     }
 
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
@@ -118,7 +117,6 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             }
         }
     }
-
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
