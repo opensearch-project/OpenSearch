@@ -11,7 +11,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -37,10 +37,10 @@ import java.util.Objects;
  *              "updatedAt": 4513232415
  * }
  */
-@PublicApi(since = "2.15")
+@ExperimentalApi
 public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXContentObject {
 
-    public static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
+    private static final int MAX_CHARS_ALLOWED_IN_NAME = 50;
     private final String name;
     private final String _id;
     private final ResiliencyMode resiliencyMode;
@@ -154,7 +154,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         String fieldName = "";
         // Map to hold resources
         final Map<ResourceType, Object> resourceLimits = new HashMap<>();
-        while ((token = parser.nextToken()) != null) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
@@ -245,7 +245,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
      * ENFORCED - means that it will never breach the assigned limits and will cancel as soon as the limits are breached
      * MONITOR - it will not cause any cancellation but just log the eligible task cancellations
      */
-    @PublicApi(since = "2.15")
+    @ExperimentalApi
     public enum ResiliencyMode {
         SOFT("soft"),
         ENFORCED("enforced"),
@@ -274,7 +274,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     /**
      * Builder class for {@link QueryGroup}
      */
-    @PublicApi(since = "2.15")
+    @ExperimentalApi
     public static class Builder {
         private String name;
         private String _id;

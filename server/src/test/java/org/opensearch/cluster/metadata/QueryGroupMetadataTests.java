@@ -8,15 +8,46 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.cluster.Diff;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.test.AbstractNamedWriteableTestCase;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.ResourceType;
+import org.opensearch.test.AbstractDiffableSerializationTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
 import static org.opensearch.cluster.metadata.QueryGroupTests.createRandomQueryGroup;
 
-public class QueryGroupMetadataTests extends AbstractNamedWriteableTestCase<QueryGroupMetadata> {
+public class QueryGroupMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
+
+    public void testToXContent() throws IOException {
+        long updatedAt = 1720047207;
+        QueryGroupMetadata queryGroupMetadata = new QueryGroupMetadata(
+            Map.of(
+                "ajakgakg983r92_4242",
+                new QueryGroup(
+                    "test",
+                    "ajakgakg983r92_4242",
+                    QueryGroup.ResiliencyMode.ENFORCED,
+                    Map.of(ResourceType.MEMORY, 0.5),
+                    updatedAt
+                )
+            )
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        queryGroupMetadata.toXContent(builder, null);
+        builder.endObject();
+        assertEquals(
+            "{\"ajakgakg983r92_4242\":{\"_id\":\"ajakgakg983r92_4242\",\"name\":\"test\",\"resiliency_mode\":\"enforced\",\"updatedAt\":1720047207,\"resourceLimits\":{\"memory\":0.5}}}",
+            builder.toString()
+        );
+    }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -28,8 +59,25 @@ public class QueryGroupMetadataTests extends AbstractNamedWriteableTestCase<Quer
     }
 
     @Override
-    protected Class<QueryGroupMetadata> categoryClass() {
-        return QueryGroupMetadata.class;
+    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
+        final QueryGroup queryGroup = createRandomQueryGroup("asdfakgjwrir23r25");
+        final QueryGroupMetadata queryGroupMetadata = new QueryGroupMetadata(Map.of(queryGroup.get_id(), queryGroup));
+        return queryGroupMetadata;
+    }
+
+    @Override
+    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+        return QueryGroupMetadata::readDiffFrom;
+    }
+
+    @Override
+    protected Metadata.Custom doParseInstance(XContentParser parser) throws IOException {
+        return QueryGroupMetadata.fromXContent(parser);
+    }
+
+    @Override
+    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+        return QueryGroupMetadata::new;
     }
 
     @Override

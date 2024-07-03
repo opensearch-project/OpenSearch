@@ -16,7 +16,7 @@ import java.io.IOException;
 /**
  * Enum to hold the resource type
  */
-@PublicApi(since = "1.3")
+@PublicApi(since = "2.x")
 public enum ResourceType {
     CPU("cpu"),
     MEMORY("memory");
