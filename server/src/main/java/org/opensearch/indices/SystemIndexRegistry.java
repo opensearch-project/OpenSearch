@@ -28,6 +28,13 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
 
+/**
+ * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the
+ * node knows about. This class also contains static methods that identify if index expressions match
+ * registered system index patterns
+ *
+ * @opensearch.api
+ */
 public class SystemIndexRegistry {
     private static final SystemIndexDescriptor TASK_INDEX_DESCRIPTOR = new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index");
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
