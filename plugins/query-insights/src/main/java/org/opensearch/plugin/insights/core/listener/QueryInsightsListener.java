@@ -109,8 +109,9 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
             }
         } else {
             super.setEnabled(true);
-            // restart QueryInsightsListener only if none of metrics collections is enabled before.
-            if (isAllMetricsDisabled) {
+            // restart QueryInsightsListener only if none of metrics collections is enabled before and
+            // search query metrics is disabled before.
+            if (isAllMetricsDisabled && isQueryMetricsDisabled) {
                 this.queryInsightsService.stop();
                 this.queryInsightsService.start();
             }
