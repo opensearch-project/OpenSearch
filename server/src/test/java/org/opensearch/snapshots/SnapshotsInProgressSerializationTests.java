@@ -124,7 +124,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             null,
             SnapshotInfoTests.randomUserMetadata(),
             VersionUtils.randomVersion(random()),
-            remoteStoreIndexShallowCopy
+            remoteStoreIndexShallowCopy,
+            false
         );
     }
 
@@ -197,7 +198,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             null,
             SnapshotInfoTests.randomUserMetadata(),
             randomVersion(random()),
-            true
+            true,
+            false
         );
         final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>();
         newEntries.add(entry);

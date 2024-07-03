@@ -223,6 +223,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // This is a snapshot clone, it will be executed on the current master
                 continue;
             }
+            if (entry.isCentralSnap()) {
+                continue;
+            }
             if (entryState == State.STARTED) {
                 Map<ShardId, IndexShardSnapshotStatus> startedShards = null;
                 final Snapshot snapshot = entry.snapshot();

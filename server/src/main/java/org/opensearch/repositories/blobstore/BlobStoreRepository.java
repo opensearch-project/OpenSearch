@@ -125,6 +125,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.IndexId;
@@ -645,6 +646,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 compressor
             );
             return newGen;
+
         }));
     }
 
@@ -2739,6 +2741,118 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    @Override
+    public void snapshotRemoteStoreIndexShardOnClusterManager(
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId shardId,
+        IndexShardSnapshotStatus snapshotStatus,
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        Settings settings,
+        String indexUUID,
+        long startTime,
+        RemoteStorePathStrategy remoteStorePathStrategy,
+        ActionListener<String> listener
+    ) {
+        if (isReadOnly()) {
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
+            return;
+        }
+        try {
+            final String generation = snapshotStatus.generation();
+            logger.info("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
+            final BlobContainer shardContainer = shardContainer(indexId, shardId);
+
+            String remoteStoreRepoForIndex = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
+
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
+                remoteStoreRepoForIndex,
+                indexUUID,
+                shardId,
+                remoteStorePathStrategy
+            );
+            RemoteSegmentMetadata remoteSegmentMetadata = remoteSegmentStoreDirectory.readLatestMetadataFile();
+
+            long primaryTerm = remoteSegmentMetadata.getPrimaryTerm();
+            long commitGeneration = remoteSegmentMetadata.getGeneration();
+            try {
+                remoteSegmentStoreDirectory.acquireLock(
+                    remoteSegmentMetadata.getPrimaryTerm(),
+                    remoteSegmentMetadata.getGeneration(),
+                    snapshotId.getUUID()
+                );
+            } catch (NoSuchFileException e) {
+                logger.error("Exception while acquiring lock on primaryTerm = {} and generation = {}", primaryTerm, commitGeneration);
+                throw new IndexShardSnapshotFailedException(
+                    shardId,
+                    "Failed to write commit point for snapshot " + snapshotId.getName() + "(" + snapshotId.getUUID() + ")",
+                    e
+                );
+            }
+
+            Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> segmentMetadataMap = remoteSegmentMetadata.getMetadata();
+
+            long indexTotalFileSize = 0;
+            // local store is being used here to fetch the files metadata instead of remote store as currently
+            // remote store is mirroring the local store.
+            List<String> fileNames = new ArrayList<>();
+            for (RemoteSegmentStoreDirectory.UploadedSegmentMetadata segmentMetadata : segmentMetadataMap.values()) {
+                indexTotalFileSize += segmentMetadata.getLength();
+                fileNames.add(segmentMetadata.getOriginalFilename());
+            }
+            int indexTotalNumberOfFiles = fileNames.size();
+
+            snapshotStatus.moveToStarted(
+                startTime,
+                0, // incremental File Count is zero as we are storing the data as part of remote store.
+                indexTotalNumberOfFiles,
+                0, // incremental File Size is zero as we are storing the data as part of remote store.
+                indexTotalFileSize
+            );
+
+            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(remoteSegmentMetadata.getGeneration());
+
+            // now create and write the commit point
+            logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+            try {
+                RemoteStorePathStrategy pathStrategy = remoteStorePathStrategy;
+                REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
+                    new RemoteStoreShardShallowCopySnapshot(
+                        snapshotId.getName(),
+                        lastSnapshotStatus.getIndexVersion(),
+                        remoteSegmentMetadata.getPrimaryTerm(),
+                        remoteSegmentMetadata.getGeneration(),
+                        lastSnapshotStatus.getStartTime(),
+                        threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
+                        indexTotalNumberOfFiles,
+                        indexTotalFileSize,
+                        indexUUID,
+                        remoteStoreRepoForIndex,
+                        this.basePath().toString(),
+                        fileNames,
+                        pathStrategy.getType(),
+                        pathStrategy.getHashAlgorithm()
+                    ),
+                    shardContainer,
+                    snapshotId.getUUID(),
+                    compressor
+                );
+            } catch (IOException e) {
+                throw new IndexShardSnapshotFailedException(
+                    shardId,
+                    "Failed to write commit point for snapshot " + snapshotId.getName() + "(" + snapshotId.getUUID() + ")",
+                    e
+                );
+            }
+            snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), generation);
+            listener.onResponse(generation);
+
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+
     }
 
     @Override

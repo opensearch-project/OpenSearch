@@ -44,11 +44,14 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -332,6 +335,21 @@ public interface Repository extends LifecycleComponent {
         IndexShardSnapshotStatus snapshotStatus,
         long primaryTerm,
         long startTime,
+        ActionListener<String> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    default void snapshotRemoteStoreIndexShardOnClusterManager(
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId shardId,
+        IndexShardSnapshotStatus snapshotStatus,
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        Settings settings,
+        String indexUUID,
+        long startTime,
+        RemoteStorePathStrategy remoteStorePathStrategy,
         ActionListener<String> listener
     ) {
         throw new UnsupportedOperationException();

@@ -991,6 +991,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             null,
             SnapshotInfoTests.randomUserMetadata(),
             VersionUtils.randomVersion(random()),
+            false,
             false
         );
         return ClusterState.builder(state)

@@ -440,6 +440,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             null,
             SnapshotInfoTests.randomUserMetadata(),
             VersionUtils.randomVersion(random()),
+            false,
             false
         );
         return ClusterState.builder(newState)
