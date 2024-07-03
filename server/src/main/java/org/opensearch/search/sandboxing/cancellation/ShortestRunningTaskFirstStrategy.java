@@ -24,6 +24,6 @@ public class ShortestRunningTaskFirstStrategy extends AbstractTaskSelectionStrat
      */
     @Override
     public Comparator<Task> sortingCondition() {
-        return Comparator.comparingLong(Task::getStartTime);
+        return Comparator.comparingLong(Task::getStartTime).reversed();
     }
 }

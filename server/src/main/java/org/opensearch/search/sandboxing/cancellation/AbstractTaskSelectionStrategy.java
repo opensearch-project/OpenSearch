@@ -8,8 +8,10 @@
 
 package org.opensearch.search.sandboxing.cancellation;
 
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
+import org.opensearch.search.sandboxing.resourcetype.SystemResource;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskCancellation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,7 +45,7 @@ public abstract class AbstractTaskSelectionStrategy implements TaskSelectionStra
      * @throws IllegalArgumentException If the limit is less than zero
      */
     @Override
-    public List<Task> selectTasksForCancellation(List<Task> tasks, long limit, SandboxResourceType resourceType) {
+    public List<TaskCancellation> selectTasksForCancellation(List<Task> tasks, long limit, SystemResource resourceType) {
         if (limit < 0) {
             throw new IllegalArgumentException("reduceBy has to be greater than zero");
         }
@@ -53,16 +55,27 @@ public abstract class AbstractTaskSelectionStrategy implements TaskSelectionStra
 
         List<Task> sortedTasks = tasks.stream().sorted(sortingCondition()).collect(Collectors.toList());
 
-        List<Task> selectedTasks = new ArrayList<>();
+        List<TaskCancellation> selectedTasks = new ArrayList<>();
         long accumulated = 0;
 
         for (Task task : sortedTasks) {
-            selectedTasks.add(task);
-            accumulated += resourceType.getResourceUsage(task);
-            if (accumulated >= limit) {
-                break;
+            if (task instanceof CancellableTask) {
+                selectedTasks.add(createTaskCancellation((CancellableTask) task));
+                accumulated += resourceType.getResourceUsage(task);
+                if (accumulated >= limit) {
+                    break;
+                }
             }
         }
         return selectedTasks;
+    }
+
+    private TaskCancellation createTaskCancellation(CancellableTask task) {
+        // todo add correct reason and callbacks
+        return new TaskCancellation(task, List.of(new TaskCancellation.Reason("limits exceeded", 5)), List.of(this::callbackOnCancel));
+    }
+
+    private void callbackOnCancel() {
+        // todo Implement callback logic here
     }
 }

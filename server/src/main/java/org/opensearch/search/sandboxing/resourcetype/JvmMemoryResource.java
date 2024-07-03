@@ -11,27 +11,27 @@ package org.opensearch.search.sandboxing.resourcetype;
 import org.opensearch.tasks.Task;
 
 /**
- * Represents the CPU time resource type.
+ * Represents the JVM memory resource type.
  */
-public class CpuTimeResourceType extends SandboxResourceType {
+public class JvmMemoryResource extends SystemResource {
     /**
-     * Returns the CPU time usage of the provided task.
+     * Returns the memory usage of the provided task.
      *
-     * @param task The task whose CPU time usage is to be returned
-     * @return The CPU time usage of the task
+     * @param task The task whose memory usage is to be returned
+     * @return The memory usage of the task
      */
     @Override
     public long getResourceUsage(Task task) {
-        return task.getTotalResourceStats().getCpuTimeInNanos();
+        return task.getTotalResourceStats().getMemoryInBytes();
     }
 
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof CpuTimeResourceType;
+        return obj instanceof JvmMemoryResource;
     }
 
     @Override
     public int hashCode() {
-        return "CPU".hashCode();
+        return "JVM".hashCode();
     }
 }

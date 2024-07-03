@@ -16,12 +16,13 @@ import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
 import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.search.sandboxing.SandboxLevelResourceUsageView;
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
+import org.opensearch.search.sandboxing.resourcetype.SystemResource;
 import org.opensearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.mockito.Mockito;
 
@@ -37,7 +38,7 @@ public class SandboxTestHelpers {
 
         while (totalMemory > 0) {
             long id = randomLong();
-            final Task task = getRandomTask(id);
+            final Task task = getRandomSearchTask(id);
             long initial_memory = randomLongBetween(1, 100);
 
             ResourceUsageMetric[] initialTaskResourceMetrics = new ResourceUsageMetric[] {
@@ -92,7 +93,7 @@ public class SandboxTestHelpers {
 
     public static Sandbox.ResourceLimit createResourceLimitMock(String resourceTypeStr, Long threshold) {
         Sandbox.ResourceLimit resourceLimitMock = mock(Sandbox.ResourceLimit.class);
-        SandboxResourceType resourceType = SandboxResourceType.fromString(resourceTypeStr);
+        SystemResource resourceType = SystemResource.fromString(resourceTypeStr);
         when(resourceLimitMock.getResourceType()).thenReturn(resourceType);
         when(resourceLimitMock.getThreshold()).thenReturn(threshold);
         when(resourceLimitMock.getThresholdInLong()).thenReturn(threshold);
@@ -101,9 +102,13 @@ public class SandboxTestHelpers {
 
     public static SandboxLevelResourceUsageView createResourceUsageViewMock(String resourceTypeStr, Long usage) {
         SandboxLevelResourceUsageView mockView = mock(SandboxLevelResourceUsageView.class);
-        SandboxResourceType resourceType = SandboxResourceType.fromString(resourceTypeStr);
+        SystemResource resourceType = SystemResource.fromString(resourceTypeStr);
         when(mockView.getResourceUsageData()).thenReturn(Collections.singletonMap(resourceType, usage));
         when(mockView.getActiveTasks()).thenReturn(List.of(getRandomSearchTask(1234), getRandomSearchTask(4321)));
         return mockView;
+    }
+
+    private static Supplier<String> descriptionSupplier() {
+        return () -> "test description";
     }
 }

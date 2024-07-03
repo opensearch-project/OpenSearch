@@ -9,7 +9,7 @@
 package org.opensearch.search.sandboxing;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
+import org.opensearch.search.sandboxing.resourcetype.SystemResource;
 import org.opensearch.tasks.Task;
 
 import java.util.ArrayList;
@@ -19,14 +19,17 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Represents the resource usage view at the sandbox level.
+ * Represents the point in time view of resource usage of a sandbox and
+ * has a 1:1 relation with a sandbox.
  * This class holds the sandbox ID, the resource usage data, and the list of active tasks.
  */
 @ExperimentalApi
 public class SandboxLevelResourceUsageView {
 
     private final String sandboxId;
-    private final Map<SandboxResourceType, Long> resourceUsage;
+    // resourceUsage holds the resource usage data for a sandbox at a point in time
+    private final Map<SystemResource, Long> resourceUsage;
+    // activeTasks holds the list of active tasks for a sandbox at a point in time
     private final List<Task> activeTasks;
 
     public SandboxLevelResourceUsageView(String sandboxId) {
@@ -35,7 +38,7 @@ public class SandboxLevelResourceUsageView {
         this.activeTasks = new ArrayList<>();
     }
 
-    public SandboxLevelResourceUsageView(String sandboxId, Map<SandboxResourceType, Long> resourceUsage, List<Task> activeTasks) {
+    public SandboxLevelResourceUsageView(String sandboxId, Map<SystemResource, Long> resourceUsage, List<Task> activeTasks) {
         this.sandboxId = sandboxId;
         this.resourceUsage = resourceUsage;
         this.activeTasks = activeTasks;
@@ -46,7 +49,7 @@ public class SandboxLevelResourceUsageView {
      *
      * @return The map of resource usage data
      */
-    public Map<SandboxResourceType, Long> getResourceUsageData() {
+    public Map<SystemResource, Long> getResourceUsageData() {
         return resourceUsage;
     }
 

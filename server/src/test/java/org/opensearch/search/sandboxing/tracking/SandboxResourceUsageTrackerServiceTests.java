@@ -14,7 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.search.sandboxing.SandboxLevelResourceUsageView;
 import org.opensearch.search.sandboxing.SandboxTask;
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
+import org.opensearch.search.sandboxing.resourcetype.SystemResource;
 import org.opensearch.search.sandboxing.tracker.SandboxResourceUsageTrackerService;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
@@ -68,9 +68,7 @@ public class SandboxResourceUsageTrackerServiceTests extends OpenSearchTestCase 
         for (String sandboxId : sandboxIds) {
             assertEquals(
                 400,
-                (long) stringSandboxLevelResourceUsageViewMap.get(sandboxId)
-                    .getResourceUsageData()
-                    .get(SandboxResourceType.fromString("JVM"))
+                (long) stringSandboxLevelResourceUsageViewMap.get(sandboxId).getResourceUsageData().get(SystemResource.fromString("JVM"))
             );
             assertEquals(2, stringSandboxLevelResourceUsageViewMap.get(sandboxId).getActiveTasks().size());
         }
@@ -90,7 +88,7 @@ public class SandboxResourceUsageTrackerServiceTests extends OpenSearchTestCase 
 
         Map<String, SandboxLevelResourceUsageView> sandboxViews = sandboxResourceUsageTrackerService.constructSandboxLevelUsageViews();
 
-        assertEquals(600, (long) sandboxViews.get("sandbox1").getResourceUsageData().get(SandboxResourceType.fromString("JVM")));
+        assertEquals(600, (long) sandboxViews.get("sandbox1").getResourceUsageData().get(SystemResource.fromString("JVM")));
         assertEquals(2, sandboxViews.get("sandbox1").getActiveTasks().size());
     }
 

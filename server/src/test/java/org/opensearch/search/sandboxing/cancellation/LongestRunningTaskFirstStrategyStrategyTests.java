@@ -26,9 +26,9 @@ public class LongestRunningTaskFirstStrategyStrategyTests extends OpenSearchTest
         when(task2.getStartTime()).thenReturn(200L);
         when(task3.getStartTime()).thenReturn(300L);
 
-        List<Task> tasks = Arrays.asList(task1, task3, task2);
+        List<Task> tasks = Arrays.asList(task2, task1, task3);
         tasks.sort(new LongestRunningTaskFirstStrategy().sortingCondition());
 
-        assertEquals(Arrays.asList(task3, task2, task1), tasks);
+        assertEquals(Arrays.asList(task1, task2, task3), tasks);
     }
 }
