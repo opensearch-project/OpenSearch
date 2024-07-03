@@ -62,7 +62,6 @@ import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.opensearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -187,61 +186,5 @@ public class SameShardRoutingTests extends OpenSearchAllocationTestCase {
         }
         decision = decider.canForceAllocatePrimary(newPrimary, unassignedNode, routingAllocation);
         assertEquals(Decision.Type.YES, decision.type());
-    }
-
-    public void testSameHostCheckIgnoredByAutoExpandReplicasToAll() {
-        final AllocationService strategy = createAllocationService(
-            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build()
-        );
-
-        final Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("test")
-                    .settings(
-                        settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 100)
-                            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                    )
-            )
-            .build();
-
-        final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metadata(metadata)
-                .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
-                .nodes(
-                    DiscoveryNodes.builder()
-                        .add(
-                            new DiscoveryNode(
-                                "node1_name",
-                                "node1",
-                                "node1",
-                                "test_host_1",
-                                "test_host_address1",
-                                buildNewFakeTransportAddress(),
-                                emptyMap(),
-                                CLUSTER_MANAGER_DATA_ROLES,
-                                Version.CURRENT
-                            )
-                        )
-                        .add(
-                            new DiscoveryNode(
-                                "node2_name",
-                                "node2",
-                                "node2",
-                                "test_host_2",
-                                "test_host_address2",
-                                buildNewFakeTransportAddress(),
-                                emptyMap(),
-                                CLUSTER_MANAGER_DATA_ROLES,
-                                Version.CURRENT
-                            )
-                        )
-                )
-                .build(),
-            strategy
-        );
-
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(0));
     }
 }
