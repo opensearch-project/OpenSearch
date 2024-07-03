@@ -48,7 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
 - Fix compression support for h2c protocol ([#4944](https://github.com/opensearch-project/OpenSearch/pull/4944))
 - Don't over-allocate in HeapBufferedAsyncEntityConsumer in order to consume the response ([#9993](https://github.com/opensearch-project/OpenSearch/pull/9993))
-- Fix condition and parameter order for field cache utilization metric ([#13232](https://github.com/opensearch-project/OpenSearch/pull/13232))
+- Display all file cache metrics in NodeStats and use the correct human-readable field name ([#13232](https://github.com/opensearch-project/OpenSearch/pull/13232))
 
 ### Security
 

@@ -5,8 +5,8 @@
 ---
 "File Cache stats":
   - skip:
-      version: " - 2.15.99"
-      reason: "file cache fields were added in 2.7 but #13232 was not back-ported yet"
+      version: " - 2.16.0"
+      reason: "file cache statistics fields were added in 2.7 (#6485) but the fix (#13232) was merged after 2.16.0"
       features: [arbitrary_key]
 
   - do:
