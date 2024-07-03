@@ -44,8 +44,6 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import org.opensearch.node.remotestore.RemoteStoreNodeService.Direction;
 
-import java.util.Locale;
-
 /**
  * A new allocation decider for migration of document replication clusters to remote store backed clusters:
  * - For STRICT compatibility mode, the decision is always YES
@@ -101,7 +99,7 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
         if (migrationDirection.equals(Direction.NONE)) {
             // remote backed indices on docrep nodes and non remote backed indices on remote nodes are not allowed
             boolean isNoDecision = remoteSettingsBackedIndex ^ targetNode.isRemoteStoreNode();
-            String reason = String.format(Locale.ROOT, " for %sremote store backed index", remoteSettingsBackedIndex ? "" : "non ");
+            String reason = " for " + (remoteSettingsBackedIndex ? "" : "non ") + "remote store backed index";
             return allocation.decision(
                 isNoDecision ? Decision.NO : Decision.YES,
                 NAME,
@@ -114,11 +112,9 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
             // check for remote store backed indices
             if (remoteSettingsBackedIndex && targetNode.isRemoteStoreNode() == false) {
                 // allocations and relocations must be to a remote node
-                String reason = String.format(
-                    Locale.ROOT,
-                    " because a remote store backed index's shard copy can only be %s to a remote node",
-                    ((shardRouting.assignedToNode() == false) ? "allocated" : "relocated")
-                );
+                String reason = new StringBuilder(" because a remote store backed index's shard copy can only be ").append(
+                    (shardRouting.assignedToNode() == false) ? "allocated" : "relocated"
+                ).append(" to a remote node").toString();
                 return allocation.decision(Decision.NO, NAME, getDecisionDetails(false, shardRouting, targetNode, reason));
             }
 
@@ -168,16 +164,18 @@ public class RemoteStoreMigrationAllocationDecider extends AllocationDecider {
 
     // get detailed reason for the decision
     private String getDecisionDetails(boolean isYes, ShardRouting shardRouting, DiscoveryNode targetNode, String reason) {
-        return String.format(
-            Locale.ROOT,
-            "[%s migration_direction]: %s shard copy %s be %s to a %s node%s",
-            migrationDirection.direction,
-            (shardRouting.primary() ? "primary" : "replica"),
-            (isYes ? "can" : "can not"),
-            ((shardRouting.assignedToNode() == false) ? "allocated" : "relocated"),
-            (targetNode.isRemoteStoreNode() ? "remote" : "non-remote"),
-            reason
-        );
+        return new StringBuilder("[").append(migrationDirection.direction)
+            .append(" migration_direction]: ")
+            .append(shardRouting.primary() ? "primary" : "replica")
+            .append(" shard copy ")
+            .append(isYes ? "can" : "can not")
+            .append(" be ")
+            .append((shardRouting.assignedToNode() == false) ? "allocated" : "relocated")
+            .append(" to a ")
+            .append(targetNode.isRemoteStoreNode() ? "remote" : "non-remote")
+            .append(" node")
+            .append(reason)
+            .toString();
     }
 
 }
