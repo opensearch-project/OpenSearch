@@ -5,16 +5,20 @@
 ---
 "File Cache stats":
   - skip:
-      version: " - 2.16.0"
+      version: " - 2.16.99"
       reason: "file cache statistics fields were added in 2.7 (#6485) but the fix (#13232) was merged after 2.16.0"
-      features: [arbitrary_key]
+      features: [arbitrary_key, node_selector]
 
   - do:
+      node_selector:
+        version: "3.0.0 - "
       nodes.info: {}
   - set:
       nodes._arbitrary_key_: node_id
 
   - do:
+      node_selector:
+        version: "3.0.0 - "
       nodes.stats:
         metric: [ fs ]
 
