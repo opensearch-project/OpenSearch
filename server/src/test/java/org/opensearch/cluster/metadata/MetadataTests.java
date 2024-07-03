@@ -1505,9 +1505,6 @@ public class MetadataTests extends OpenSearchTestCase {
 
         Metadata metadata2 = Metadata.builder(metadata1).templates(templatesMetadata2).build();
 
-        Map<String, IndexTemplateMetadata> allTemplates = new HashMap<>(templatesMetadata1.getTemplates());
-        allTemplates.putAll(templatesMetadata2.getTemplates());
-
         assertThat(metadata2.templates(), is(templatesMetadata2.getTemplates()));
 
     }

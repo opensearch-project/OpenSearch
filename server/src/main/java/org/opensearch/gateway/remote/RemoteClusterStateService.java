@@ -476,7 +476,8 @@ public class RemoteClusterStateService implements Closeable {
         return manifestDetails;
     }
 
-    private UploadedMetadataResults writeMetadataInParallel(
+    // package private for testing
+    UploadedMetadataResults writeMetadataInParallel(
         ClusterState clusterState,
         List<IndexMetadata> indexToUpload,
         Map<String, IndexMetadata> prevIndexMetadataByName,
