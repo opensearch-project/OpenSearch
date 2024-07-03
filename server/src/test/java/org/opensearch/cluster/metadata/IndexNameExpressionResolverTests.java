@@ -53,20 +53,14 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.InvalidIndexNameException;
-import org.opensearch.indices.SystemIndexDescriptor;
-import org.opensearch.indices.SystemIndices;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -2526,77 +2520,6 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         assertThat(names, empty());
     }
 
-    public void testSystemIndexMatching() {
-        SystemIndexPlugin plugin1 = new SystemIndexPlugin1();
-        SystemIndexPlugin plugin2 = new SystemIndexPlugin2();
-        SystemIndexPlugin plugin3 = new SystemIndexPatternPlugin();
-        SystemIndices pluginSystemIndices = new SystemIndices(
-            Map.of(
-                SystemIndexPlugin1.class.getCanonicalName(),
-                plugin1.getSystemIndexDescriptors(Settings.EMPTY),
-                SystemIndexPlugin2.class.getCanonicalName(),
-                plugin2.getSystemIndexDescriptors(Settings.EMPTY),
-                SystemIndexPatternPlugin.class.getCanonicalName(),
-                plugin3.getSystemIndexDescriptors(Settings.EMPTY)
-            )
-        );
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(threadContext, pluginSystemIndices);
-
-        assertThat(
-            resolver.matchesSystemIndexPattern(".system-index1", ".system-index2"),
-            equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2))
-        );
-        assertThat(resolver.matchesSystemIndexPattern(".system-index1"), equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1)));
-        assertThat(resolver.matchesSystemIndexPattern(".system-index2"), equalTo(List.of(SystemIndexPlugin2.SYSTEM_INDEX_2)));
-        assertThat(resolver.matchesSystemIndexPattern(".system-index-pattern1"), equalTo(List.of(".system-index-pattern1")));
-        assertThat(resolver.matchesSystemIndexPattern(".system-index-pattern-sub*"), equalTo(List.of(".system-index-pattern-sub*")));
-        assertThat(
-            resolver.matchesSystemIndexPattern(".system-index-pattern1", ".system-index-pattern2"),
-            equalTo(List.of(".system-index-pattern1", ".system-index-pattern2"))
-        );
-        assertThat(
-            resolver.matchesSystemIndexPattern(".system-index1", ".system-index-pattern1"),
-            equalTo(List.of(".system-index1", ".system-index-pattern1"))
-        );
-        assertThat(
-            resolver.matchesSystemIndexPattern(".system-index1", ".system-index-pattern1", ".not-system"),
-            equalTo(List.of(".system-index1", ".system-index-pattern1"))
-        );
-        assertThat(resolver.matchesSystemIndexPattern(".not-system"), equalTo(Collections.emptyList()));
-    }
-
-    public void testRegisteredSystemIndexExpansion() {
-        SystemIndexPlugin plugin1 = new SystemIndexPlugin1();
-        SystemIndexPlugin plugin2 = new SystemIndexPlugin2();
-        SystemIndices pluginSystemIndices = new SystemIndices(
-            Map.of(
-                SystemIndexPlugin1.class.getCanonicalName(),
-                plugin1.getSystemIndexDescriptors(Settings.EMPTY),
-                SystemIndexPlugin2.class.getCanonicalName(),
-                plugin2.getSystemIndexDescriptors(Settings.EMPTY)
-            )
-        );
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(threadContext, pluginSystemIndices);
-        Metadata.Builder mdBuilder = Metadata.builder()
-            .put(indexBuilder("foo"))
-            .put(indexBuilder("bar"))
-            .put(indexBuilder(SystemIndexPlugin1.SYSTEM_INDEX_1))
-            .put(indexBuilder(SystemIndexPlugin2.SYSTEM_INDEX_2));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
-        // Only closed
-        IndicesOptions options = IndicesOptions.strictExpand();
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options, true);
-        String[] results = resolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
-        assertEquals(4, results.length);
-        assertTrue(
-            Arrays.asList(results).containsAll(List.of("foo", "bar", SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2))
-        );
-        List<String> systemIndices = resolver.matchesSystemIndexPattern(results);
-        assertEquals(2, systemIndices.size());
-        assertTrue(systemIndices.containsAll(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2)));
-    }
-
     private ClusterState systemIndexTestClusterState() {
         Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()
@@ -2610,35 +2533,5 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
         return Arrays.stream(indexNameExpressionResolver.concreteIndices(state, request))
             .map(i -> i.getName())
             .collect(Collectors.toList());
-    }
-
-    static final class SystemIndexPlugin1 extends Plugin implements SystemIndexPlugin {
-        public static final String SYSTEM_INDEX_1 = ".system-index1";
-
-        @Override
-        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_1, "System index 1");
-            return Collections.singletonList(systemIndexDescriptor);
-        }
-    }
-
-    static final class SystemIndexPlugin2 extends Plugin implements SystemIndexPlugin {
-        public static final String SYSTEM_INDEX_2 = ".system-index2";
-
-        @Override
-        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_2, "System index 2");
-            return Collections.singletonList(systemIndexDescriptor);
-        }
-    }
-
-    static final class SystemIndexPatternPlugin extends Plugin implements SystemIndexPlugin {
-        public static final String SYSTEM_INDEX_PATTERN = ".system-index-pattern*";
-
-        @Override
-        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_PATTERN, "System index pattern");
-            return Collections.singletonList(systemIndexDescriptor);
-        }
     }
 }

@@ -38,7 +38,6 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -54,7 +53,6 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.InvalidIndexNameException;
-import org.opensearch.indices.SystemIndices;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -93,18 +91,9 @@ public class IndexNameExpressionResolver {
     private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
 
     private final ThreadContext threadContext;
-    private final String[] systemIndices;
 
     public IndexNameExpressionResolver(ThreadContext threadContext) {
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
-        this.systemIndices = new String[0];
-    }
-
-    @InternalApi
-    public IndexNameExpressionResolver(ThreadContext threadContext, SystemIndices systemIndices) {
-        this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
-        List<String> allSystemIndexPatterns = systemIndices.getAllSystemIndexPatterns();
-        this.systemIndices = allSystemIndexPatterns.toArray(new String[0]);
     }
 
     /**
@@ -173,10 +162,6 @@ public class IndexNameExpressionResolver {
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, IndicesRequest request) {
         Context context = new Context(state, options, false, false, request.includeDataStreams(), isSystemIndexAccessAllowed());
         return concreteIndexNames(context, request.indices());
-    }
-
-    public List<String> matchesSystemIndexPattern(String... indexExpressions) {
-        return Arrays.stream(indexExpressions).filter(pattern -> Regex.simpleMatch(systemIndices, pattern)).collect(Collectors.toList());
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
