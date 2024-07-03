@@ -16,6 +16,7 @@ import org.opensearch.tasks.TaskResultsService;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -27,17 +28,17 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
 
-class SystemIndexRegistry {
-    private static SystemIndexRegistry INSTANCE = null;
+public class SystemIndexRegistry {
     private static final SystemIndexDescriptor TASK_INDEX_DESCRIPTOR = new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index");
-    static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
+    private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
         TaskResultsService.class.getName(),
         singletonList(TASK_INDEX_DESCRIPTOR)
     );
-    private static String[] SYSTEM_INDEX_PATTERNS = new String[0];
-    static Collection<SystemIndexDescriptor> SYSTEM_INDEX_DESCRIPTORS;
 
-    private SystemIndexRegistry(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
+    private volatile static String[] SYSTEM_INDEX_PATTERNS = new String[0];
+    volatile static Collection<SystemIndexDescriptor> SYSTEM_INDEX_DESCRIPTORS = Collections.emptyList();
+
+    static void register(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
         final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
         checkForOverlappingPatterns(descriptorsMap);
         List<SystemIndexDescriptor> descriptors = pluginAndModulesDescriptors.values()
@@ -45,15 +46,9 @@ class SystemIndexRegistry {
             .flatMap(Collection::stream)
             .collect(Collectors.toList());
         descriptors.add(TASK_INDEX_DESCRIPTOR);
+
         SYSTEM_INDEX_DESCRIPTORS = descriptors.stream().collect(Collectors.toUnmodifiableList());
         SYSTEM_INDEX_PATTERNS = descriptors.stream().map(SystemIndexDescriptor::getIndexPattern).toArray(String[]::new);
-    }
-
-    public static synchronized SystemIndexRegistry initialize(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
-        if (INSTANCE == null) {
-            INSTANCE = new SystemIndexRegistry(pluginAndModulesDescriptors);
-        }
-        return INSTANCE;
     }
 
     public static List<String> matchesSystemIndexPattern(String... indexExpressions) {
@@ -122,10 +117,5 @@ class SystemIndexRegistry {
             }
         });
         return unmodifiableMap(map);
-    }
-
-    // visible for testing
-    static void clear() {
-        INSTANCE = null;
     }
 }

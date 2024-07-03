@@ -37,7 +37,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.tasks.TaskResultsService;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,11 +54,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class SystemIndicesTests extends OpenSearchTestCase {
-
-    @Before
-    public void setup() {
-        SystemIndexRegistry.clear();
-    }
 
     public void testBasicOverlappingPatterns() {
         SystemIndexDescriptor broadPattern = new SystemIndexDescriptor(".a*c*", "test");

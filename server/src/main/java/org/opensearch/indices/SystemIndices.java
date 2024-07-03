@@ -62,8 +62,7 @@ public class SystemIndices {
     private final CharacterRunAutomaton runAutomaton;
 
     public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
-        SystemIndexRegistry.initialize(pluginAndModulesDescriptors);
-        SystemIndexRegistry.initialize(pluginAndModulesDescriptors);
+        SystemIndexRegistry.register(pluginAndModulesDescriptors);
         this.runAutomaton = buildCharacterRunAutomaton(SystemIndexRegistry.SYSTEM_INDEX_DESCRIPTORS);
     }
 
