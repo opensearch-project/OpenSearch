@@ -16,7 +16,7 @@ import org.opensearch.tasks.Task;
  * This class is abstract and requires the implementation of the getResourceUsage method.
  */
 @ExperimentalApi
-public abstract class SandboxResourceType {
+public abstract class SystemResource {
     /**
      * Returns the resource usage of the provided task.
      * The specific resource that this method returns depends on the implementation.
@@ -27,20 +27,20 @@ public abstract class SandboxResourceType {
     public abstract long getResourceUsage(Task task);
 
     /**
-     * Creates a SandboxResourceType from a string.
-     * If the string is "JVM", a JvmMemoryResourceType is returned.
-     * If the string is "CPU", a CpuTimeResourceType is returned.
+     * Creates a SystemResource from a string.
+     * If the string is "JVM", a JvmMemoryResource is returned.
+     * If the string is "CPU", a CpuTimeResource is returned.
      * If the string is not recognized, an IllegalArgumentException is thrown.
      *
-     * @param type The string from which to create a SandboxResourceType
-     * @return The created SandboxResourceType
+     * @param type The string from which to create a SystemResource
+     * @return The created SystemResource
      * @throws IllegalArgumentException If the string is not recognized
      */
-    public static SandboxResourceType fromString(String type) {
+    public static SystemResource fromString(String type) {
         if (type.equalsIgnoreCase("JVM")) {
-            return new JvmMemoryResourceType();
+            return new JvmMemoryResource();
         } else if (type.equalsIgnoreCase("CPU")) {
-            return new CpuTimeResourceType();
+            return new CpuTimeResource();
         } else {
             throw new IllegalArgumentException("Unsupported resource type: " + type);
         }

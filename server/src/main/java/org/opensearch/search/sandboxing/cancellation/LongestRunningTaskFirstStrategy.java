@@ -24,6 +24,6 @@ public class LongestRunningTaskFirstStrategy extends AbstractTaskSelectionStrate
      */
     @Override
     public Comparator<Task> sortingCondition() {
-        return Comparator.comparingLong(Task::getStartTime).reversed();
+        return Comparator.comparingLong(Task::getStartTime);
     }
 }

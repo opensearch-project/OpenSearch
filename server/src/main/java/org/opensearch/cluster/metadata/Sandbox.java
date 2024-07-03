@@ -9,7 +9,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
+import org.opensearch.search.sandboxing.resourcetype.SystemResource;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +27,7 @@ public class Sandbox {
         return mode;
     }
 
-    public ResourceLimit getResourceLimitFor(SandboxResourceType resourceType) {
+    public ResourceLimit getResourceLimitFor(SystemResource resourceType) {
         return null;
     }
 
@@ -52,10 +52,10 @@ public class Sandbox {
         /*
         Stub class only
         */
-        SandboxResourceType resourceType;
+        SystemResource resourceType;
         Long threshold;
 
-        ResourceLimit(SandboxResourceType resourceType, Long threshold) {
+        ResourceLimit(SystemResource resourceType, Long threshold) {
             this.resourceType = resourceType;
             this.threshold = threshold;
         }
@@ -64,7 +64,7 @@ public class Sandbox {
             return threshold;
         }
 
-        public SandboxResourceType getResourceType() {
+        public SystemResource getResourceType() {
             return resourceType;
         }
 

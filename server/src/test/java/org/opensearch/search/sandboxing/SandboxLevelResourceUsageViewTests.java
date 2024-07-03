@@ -8,7 +8,7 @@
 
 package org.opensearch.search.sandboxing;
 
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
+import org.opensearch.search.sandboxing.resourcetype.SystemResource;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -18,24 +18,24 @@ import java.util.Map;
 import static org.opensearch.search.sandboxing.cancellation.SandboxTestHelpers.getRandomTask;
 
 public class SandboxLevelResourceUsageViewTests extends OpenSearchTestCase {
-    Map<SandboxResourceType, Long> resourceUsage;
+    Map<SystemResource, Long> resourceUsage;
     List<Task> activeTasks;
 
     public void setUp() throws Exception {
         super.setUp();
-        resourceUsage = Map.of(SandboxResourceType.fromString("JVM"), 34L, SandboxResourceType.fromString("CPU"), 12L);
+        resourceUsage = Map.of(SystemResource.fromString("JVM"), 34L, SystemResource.fromString("CPU"), 12L);
         activeTasks = List.of(getRandomTask(4321));
     }
 
     public void testGetResourceUsageData() {
         SandboxLevelResourceUsageView sandboxLevelResourceUsageView = new SandboxLevelResourceUsageView("1234", resourceUsage, activeTasks);
-        Map<SandboxResourceType, Long> resourceUsageData = sandboxLevelResourceUsageView.getResourceUsageData();
+        Map<SystemResource, Long> resourceUsageData = sandboxLevelResourceUsageView.getResourceUsageData();
         assertTrue(assertResourceUsageData(resourceUsageData));
     }
 
     public void testGetResourceUsageDataDefault() {
         SandboxLevelResourceUsageView sandboxLevelResourceUsageView = new SandboxLevelResourceUsageView("1234");
-        Map<SandboxResourceType, Long> resourceUsageData = sandboxLevelResourceUsageView.getResourceUsageData();
+        Map<SystemResource, Long> resourceUsageData = sandboxLevelResourceUsageView.getResourceUsageData();
         assertTrue(resourceUsageData.isEmpty());
     }
 
@@ -52,8 +52,8 @@ public class SandboxLevelResourceUsageViewTests extends OpenSearchTestCase {
         assertTrue(activeTasks.isEmpty());
     }
 
-    private boolean assertResourceUsageData(Map<SandboxResourceType, Long> resourceUsageData) {
-        return resourceUsageData.get(SandboxResourceType.fromString("JVM")) == 34L
-            && resourceUsageData.get(SandboxResourceType.fromString("CPU")) == 12L;
+    private boolean assertResourceUsageData(Map<SystemResource, Long> resourceUsageData) {
+        return resourceUsageData.get(SystemResource.fromString("JVM")) == 34L
+            && resourceUsageData.get(SystemResource.fromString("CPU")) == 12L;
     }
 }

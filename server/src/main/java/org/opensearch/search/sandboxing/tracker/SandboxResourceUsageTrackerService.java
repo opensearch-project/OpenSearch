@@ -11,7 +11,7 @@ package org.opensearch.search.sandboxing.tracker;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.search.sandboxing.SandboxLevelResourceUsageView;
 import org.opensearch.search.sandboxing.SandboxTask;
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
+import org.opensearch.search.sandboxing.resourcetype.SystemResource;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -27,9 +27,9 @@ import java.util.stream.Collectors;
 // @ExperimentalApi
 public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, TaskManager.TaskEventListeners {
 
-    public static final List<SandboxResourceType> TRACKED_RESOURCES = List.of(
-        SandboxResourceType.fromString("JVM"),
-        SandboxResourceType.fromString("CPU")
+    public static final List<SystemResource> TRACKED_RESOURCES = List.of(
+        SystemResource.fromString("JVM"),
+        SystemResource.fromString("CPU")
     );
 
     private final TaskManager taskManager;
@@ -60,7 +60,7 @@ public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, 
         Map<String, SandboxLevelResourceUsageView> sandboxViews = new HashMap<>();
 
         Map<String, List<Task>> tasksBySandbox = getTasksGroupedBySandbox();
-        Map<String, Map<SandboxResourceType, Long>> sandboxResourceUsage = getResourceUsageOfSandboxes(tasksBySandbox);
+        Map<String, Map<SystemResource, Long>> sandboxResourceUsage = getResourceUsageOfSandboxes(tasksBySandbox);
 
         for (String sandboxId : tasksBySandbox.keySet()) {
             SandboxLevelResourceUsageView sandboxLevelResourceUsageView = new SandboxLevelResourceUsageView(
@@ -93,8 +93,8 @@ public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, 
      * @param tasksBySandbox Map of tasks grouped by sandbox
      * @return Map of resource usage for each sandbox
      */
-    private Map<String, Map<SandboxResourceType, Long>> getResourceUsageOfSandboxes(Map<String, List<Task>> tasksBySandbox) {
-        Map<String, Map<SandboxResourceType, Long>> resourceUsageOfSandboxes = new HashMap<>();
+    private Map<String, Map<SystemResource, Long>> getResourceUsageOfSandboxes(Map<String, List<Task>> tasksBySandbox) {
+        Map<String, Map<SystemResource, Long>> resourceUsageOfSandboxes = new HashMap<>();
 
         // Iterate over each sandbox entry
         for (Map.Entry<String, List<Task>> sandboxEntry : tasksBySandbox.entrySet()) {
@@ -102,11 +102,11 @@ public class SandboxResourceUsageTrackerService implements SandboxUsageTracker, 
             List<Task> tasks = sandboxEntry.getValue();
 
             // Prepare a usage map for the current sandbox, or retrieve the existing one
-            Map<SandboxResourceType, Long> sandboxUsage = resourceUsageOfSandboxes.computeIfAbsent(sandboxId, k -> new HashMap<>());
+            Map<SystemResource, Long> sandboxUsage = resourceUsageOfSandboxes.computeIfAbsent(sandboxId, k -> new HashMap<>());
 
             // Accumulate resource usage for each task in the sandbox
             for (Task task : tasks) {
-                for (SandboxResourceType resourceType : TRACKED_RESOURCES) {
+                for (SystemResource resourceType : TRACKED_RESOURCES) {
                     long currentUsage = sandboxUsage.getOrDefault(resourceType, 0L);
                     long taskUsage = resourceType.getResourceUsage(task);
                     sandboxUsage.put(resourceType, currentUsage + taskUsage);

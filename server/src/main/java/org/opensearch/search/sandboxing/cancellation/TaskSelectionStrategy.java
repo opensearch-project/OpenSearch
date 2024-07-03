@@ -8,8 +8,9 @@
 
 package org.opensearch.search.sandboxing.cancellation;
 
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
+import org.opensearch.search.sandboxing.resourcetype.SystemResource;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskCancellation;
 
 import java.util.List;
 
@@ -27,5 +28,5 @@ public interface TaskSelectionStrategy {
      *
      * @return List of tasks that should be cancelled.
      */
-    List<Task> selectTasksForCancellation(List<Task> tasks, long limit, SandboxResourceType resourceType);
+    List<TaskCancellation> selectTasksForCancellation(List<Task> tasks, long limit, SystemResource resourceType);
 }

@@ -9,8 +9,9 @@
 package org.opensearch.search.sandboxing.cancellation;
 
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
-import org.opensearch.search.sandboxing.resourcetype.SandboxResourceType;
+import org.opensearch.search.sandboxing.resourcetype.SystemResource;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Comparator;
@@ -29,10 +30,10 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
         long threshold = 100L;
         long reduceBy = 50L;
-        SandboxResourceType resourceType = SandboxResourceType.fromString("JVM");
+        SystemResource resourceType = SystemResource.fromString("JVM");
         List<Task> tasks = SandboxTestHelpers.getListOfTasks(threshold);
 
-        List<Task> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
+        List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         assertFalse(selectedTasks.isEmpty());
         assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
     }
@@ -41,7 +42,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
         long threshold = 100L;
         long reduceBy = -50L;
-        SandboxResourceType resourceType = SandboxResourceType.fromString("JVM");
+        SystemResource resourceType = SystemResource.fromString("JVM");
         List<Task> tasks = SandboxTestHelpers.getListOfTasks(threshold);
 
         try {
@@ -56,17 +57,17 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
         long threshold = 100L;
         long reduceBy = 0;
-        SandboxResourceType resourceType = SandboxResourceType.fromString("JVM");
+        SystemResource resourceType = SystemResource.fromString("JVM");
         List<Task> tasks = SandboxTestHelpers.getListOfTasks(threshold);
 
-        List<Task> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
+        List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
         assertTrue(selectedTasks.isEmpty());
     }
 
-    private boolean tasksUsageMeetsThreshold(List<Task> selectedTasks, long threshold) {
+    private boolean tasksUsageMeetsThreshold(List<TaskCancellation> selectedTasks, long threshold) {
         long memory = 0;
-        for (Task task : selectedTasks) {
-            memory += task.getTotalResourceUtilization(ResourceStats.MEMORY);
+        for (TaskCancellation task : selectedTasks) {
+            memory += task.getTask().getTotalResourceUtilization(ResourceStats.MEMORY);
             if (memory > threshold) {
                 return true;
             }
