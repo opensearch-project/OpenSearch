@@ -36,14 +36,31 @@ public final class SearchQueryCategorizer {
     private final SearchQueryCounters searchQueryCounters;
 
     final SearchQueryAggregationCategorizer searchQueryAggregationCategorizer;
+    private static SearchQueryCategorizer instance;
 
     /**
      * Constructor for SearchQueryCategorizor
      * @param metricsRegistry opentelemetry metrics registry
      */
-    public SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
+    private SearchQueryCategorizer(MetricsRegistry metricsRegistry) {
         searchQueryCounters = new SearchQueryCounters(metricsRegistry);
         searchQueryAggregationCategorizer = new SearchQueryAggregationCategorizer(searchQueryCounters);
+    }
+
+    /**
+     * Get singleton instance of SearchQueryCategorizer
+     * @param metricsRegistry metric registry
+     * @return singleton instance
+     */
+    public static SearchQueryCategorizer getInstance(MetricsRegistry metricsRegistry) {
+        if (instance == null) {
+            synchronized (SearchQueryCategorizer.class) {
+                if (instance == null) {
+                    instance = new SearchQueryCategorizer(metricsRegistry);
+                }
+            }
+        }
+        return instance;
     }
 
     /**
@@ -95,12 +112,14 @@ public final class SearchQueryCategorizer {
     }
 
     private void logQueryShape(QueryBuilder topLevelQueryBuilder) {
-        if (topLevelQueryBuilder == null) {
-            return;
+        if (log.isTraceEnabled()) {
+            if (topLevelQueryBuilder == null) {
+                return;
+            }
+            QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
+            topLevelQueryBuilder.visit(shapeVisitor);
+            log.trace("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
         }
-        QueryShapeVisitor shapeVisitor = new QueryShapeVisitor();
-        topLevelQueryBuilder.visit(shapeVisitor);
-        log.trace("Query shape : {}", shapeVisitor.prettyPrintTree("  "));
     }
 
     /**

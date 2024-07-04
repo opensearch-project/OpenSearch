@@ -45,7 +45,7 @@ public class SearchQueryRecord implements ToXContentObject, Writeable {
         measurements = new HashMap<>();
         in.readMap(MetricType::readFromStream, StreamInput::readGenericValue)
             .forEach(((metricType, o) -> measurements.put(metricType, metricType.parseValue(o))));
-        this.attributes = Attribute.readAttributeMap(in);
+        this.attributes = in.readMap(Attribute::readFromStream, StreamInput::readGenericValue);
     }
 
     /**

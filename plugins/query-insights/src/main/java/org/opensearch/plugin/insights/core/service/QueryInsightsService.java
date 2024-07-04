@@ -81,8 +81,6 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
 
     private SearchQueryCategorizer searchQueryCategorizer;
 
-    private MetricsRegistry metricsRegistry;
-
     /**
      * Constructor of the QueryInsightsService
      *
@@ -117,9 +115,8 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
         }
 
         this.searchQueryMetricsEnabled = clusterSettings.get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
+        this.searchQueryCategorizer = SearchQueryCategorizer.getInstance(metricsRegistry);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
-
-        this.metricsRegistry = metricsRegistry;
     }
 
     /**
@@ -201,17 +198,17 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Check if Top N feature is enabled for query insights service for any metric type
+     * Check if any feature of Query Insights service is enabled, right now includes Top N and Categorization.
      *
      * @return if query insights service is enabled
      */
-    public boolean isTopNEnabledForAnyMetric() {
+    public boolean isEnabled() {
         for (MetricType t : MetricType.allMetricTypes()) {
             if (isCollectionEnabled(t)) {
                 return true;
             }
         }
-        return false;
+        return this.searchQueryMetricsEnabled;
     }
 
     /**
@@ -280,9 +277,6 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
      */
     public void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
         this.searchQueryMetricsEnabled = searchQueryMetricsEnabled;
-        if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
-            this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
-        }
     }
 
     /**
@@ -315,7 +309,7 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        if (isTopNEnabledForAnyMetric()) {
+        if (isEnabled()) {
             scheduledFuture = threadPool.scheduleWithFixedDelay(
                 this::drainRecords,
                 QueryInsightsSettings.QUERY_RECORD_QUEUE_DRAIN_INTERVAL,
