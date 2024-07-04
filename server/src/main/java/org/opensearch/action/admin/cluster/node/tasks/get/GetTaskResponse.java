@@ -57,8 +57,6 @@ public class GetTaskResponse extends ActionResponse implements ToXContentObject 
 
     private final TaskResult task;
 
-    private Task new_task;
-
     public GetTaskResponse(TaskResult task) {
         this.task = requireNonNull(task, "task is required");
     }
@@ -78,14 +76,6 @@ public class GetTaskResponse extends ActionResponse implements ToXContentObject 
      */
     public TaskResult getTask() {
         return task;
-    }
-
-    public void setNewTask(Task task) {
-        this.new_task = task;
-    }
-
-    public Task getNewTask() {
-        return new_task;
     }
 
     @Override

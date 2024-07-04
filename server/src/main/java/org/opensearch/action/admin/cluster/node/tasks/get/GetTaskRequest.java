@@ -39,11 +39,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.rest.action.admin.cluster.ClusterTask;
-import org.opensearch.tasks.Task;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -57,9 +54,6 @@ public class GetTaskRequest extends ActionRequest {
     private TaskId taskId = TaskId.EMPTY_TASK_ID;
     private boolean waitForCompletion = false;
     private TimeValue timeout = null;
-    private TimeValue cancelAfterTimeInterval = null;
-
-    private Task task;
 
     /**
      * Get the TaskId to look up.
@@ -113,19 +107,6 @@ public class GetTaskRequest extends ActionRequest {
     public GetTaskRequest setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
-    }
-
-    @Override
-    public ClusterTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new ClusterTask(id, type, action, parentTaskId, headers, cancelAfterTimeInterval);
-    }
-
-    public void setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
-        this.cancelAfterTimeInterval = cancelAfterTimeInterval;
-    }
-
-    public TimeValue getCancelAfterTimeInterval() {
-        return cancelAfterTimeInterval;
     }
 
     GetTaskRequest nodeRequest(String thisNodeId, long thisTaskId) {

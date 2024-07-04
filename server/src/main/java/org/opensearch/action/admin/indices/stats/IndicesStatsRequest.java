@@ -68,7 +68,7 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     @Override
     public ClusterTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new ClusterTask(id, type, action, parentTaskId, headers);
+        return new ClusterTask(id, type, action, parentTaskId, headers, this.getCancelAfterTimeInterval());
     }
     /**
      * Sets all flags to return all stats.

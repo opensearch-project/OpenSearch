@@ -70,10 +70,13 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.cluster.node.tasks.create.CreateTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.create.CreateTaskResponse;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.create.CreateTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
@@ -82,6 +85,9 @@ import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.opensearch.action.admin.cluster.node.tasks.unregister.UnregisterTaskAction;
+import org.opensearch.action.admin.cluster.node.tasks.unregister.UnregisterTaskRequest;
+import org.opensearch.action.admin.cluster.node.tasks.unregister.UnregisterTaskResponse;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
@@ -1002,8 +1008,13 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void createTask(final GetTaskRequest request, final ActionListener<GetTaskResponse> listener) {
-            execute(ShardsAction.INSTANCE, request, listener);
+        public void createTask(final CreateTaskRequest request, final ActionListener<CreateTaskResponse> listener) {
+            execute(CreateTaskAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public void UnregisterTask(final UnregisterTaskRequest request, final ActionListener<UnregisterTaskResponse> listener) {
+            execute(UnregisterTaskAction.INSTANCE, request, listener);
         }
 
         @Override

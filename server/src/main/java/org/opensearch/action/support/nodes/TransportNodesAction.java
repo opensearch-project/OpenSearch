@@ -43,6 +43,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -211,16 +212,6 @@ public abstract class TransportNodesAction<
 
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
-
-        if (task instanceof CancellableTask){
-            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
-                client,
-                (CancellableTask) task,
-//                clusterService.getClusterSettings(),
-                listener
-            );
-        }
-
         new AsyncAction(task, request, listener).start();
     }
 
@@ -327,9 +318,6 @@ public abstract class TransportNodesAction<
                 final DiscoveryNode node = nodes[i];
                 final String nodeId = node.getId();
                 try {
-//                    if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()){
-//                        throw new TaskCancelledException("cancelled task with reason: " + ((CancellableTask) task).getReasonCancelled());
-//                    }
                     TransportRequest nodeRequest = newNodeRequest(request);
                     if (task != null) {
                         nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());

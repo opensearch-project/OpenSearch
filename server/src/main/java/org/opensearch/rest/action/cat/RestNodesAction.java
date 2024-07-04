@@ -77,7 +77,6 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;

@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RestShardsActionTests extends OpenSearchTestCase {
+public class RestCreateTaskActionTests extends OpenSearchTestCase {
 
     public void testBuildTable() {
         final int numShards = randomIntBetween(1, 5);
