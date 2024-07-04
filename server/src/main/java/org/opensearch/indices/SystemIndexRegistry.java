@@ -10,6 +10,7 @@ package org.opensearch.indices;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.tasks.TaskResultsService;
@@ -35,6 +36,7 @@ import static org.opensearch.tasks.TaskResultsService.TASK_INDEX;
  *
  * @opensearch.api
  */
+@ExperimentalApi
 public class SystemIndexRegistry {
     private static final SystemIndexDescriptor TASK_INDEX_DESCRIPTOR = new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index");
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
