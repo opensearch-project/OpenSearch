@@ -171,7 +171,9 @@ public class NRTReplicationEngine extends Engine {
             // a lower gen from a newly elected primary shard that is behind this shard's last commit gen.
             // In that case we still commit into the next local generation.
             if (incomingGeneration != this.lastReceivedPrimaryGen) {
-                flush(false, true);
+                if(engineConfig.getIndexSettings().isStoreLocalityPartial() == false) {
+                    flush(false, true);
+                }
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }

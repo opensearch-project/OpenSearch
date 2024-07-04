@@ -117,8 +117,12 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 final List<String> toDownloadSegmentNames = new ArrayList<>();
                 for (StoreFileMetadata fileMetadata : filesToFetch) {
                     String file = fileMetadata.name();
-                    assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
+                    assert directoryFiles.contains(file) == false || indexShard.indexSettings().isStoreLocalityPartial() : "Local store already contains the file " + file;
                     toDownloadSegmentNames.add(file);
+                }
+                if(indexShard.indexSettings().isStoreLocalityPartial()) {
+                    listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+                    return;
                 }
                 indexShard.getFileDownloader()
                     .downloadAsync(
