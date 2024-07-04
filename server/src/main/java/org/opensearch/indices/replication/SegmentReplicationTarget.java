@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import java.util.Map;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
@@ -170,14 +171,22 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
         final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
 
+        Map<String, StoreFileMetadata> replicaMd = null;
+        try {
+            replicaMd = indexShard.getSegmentMetadataMap();
+        } catch (IOException e) {
+            listener.onFailure(new RuntimeException(e));
+        }
+
         logger.trace(new ParameterizedMessage("Starting Replication Target: {}", description()));
         // Get list of files to copy from this checkpoint.
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
         cancellableThreads.checkForCancel();
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
+        Map<String, StoreFileMetadata> finalReplicaMd = replicaMd;
         checkpointInfoListener.whenComplete(checkpointInfo -> {
-            final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo);
+            final List<StoreFileMetadata> filesToFetch = getFiles(checkpointInfo, finalReplicaMd);
             state.setStage(SegmentReplicationState.Stage.GET_FILES);
             cancellableThreads.checkForCancel();
             source.getSegmentFiles(
@@ -196,31 +205,38 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }, listener::onFailure);
     }
 
-    private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo) throws IOException {
+    private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo, Map<String, StoreFileMetadata> finalReplicaMd) throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), finalReplicaMd);
         // local files
         final Set<String> localFiles = Set.of(indexShard.store().directory().listAll());
-        // set of local files that can be reused
-        final Set<String> reuseFiles = diff.missing.stream()
-            .filter(storeFileMetadata -> localFiles.contains(storeFileMetadata.name()))
-            .filter(this::validateLocalChecksum)
-            .map(StoreFileMetadata::name)
-            .collect(Collectors.toSet());
+        final List<StoreFileMetadata> missingFiles;
+        // Skip reuse logic for warm indices
+        if (indexShard.indexSettings().isStoreLocalityPartial() == true) {
+            missingFiles = diff.missing;
+        } else {
+            // set of local files that can be reused
+            final Set<String> reuseFiles = diff.missing.stream()
+                .filter(storeFileMetadata -> localFiles.contains(storeFileMetadata.name()))
+                .filter(this::validateLocalChecksum)
+                .map(StoreFileMetadata::name)
+                .collect(Collectors.toSet());
 
-        final List<StoreFileMetadata> missingFiles = diff.missing.stream()
-            .filter(md -> reuseFiles.contains(md.name()) == false)
-            .collect(Collectors.toList());
+            missingFiles = diff.missing.stream()
+                .filter(md -> reuseFiles.contains(md.name()) == false)
+                .collect(Collectors.toList());
 
-        logger.trace(
-            () -> new ParameterizedMessage(
-                "Replication diff for checkpoint {} {} {}",
-                checkpointInfo.getCheckpoint(),
-                missingFiles,
-                diff.different
-            )
-        );
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Replication diff for checkpoint {} {} {}",
+                    checkpointInfo.getCheckpoint(),
+                    missingFiles,
+                    diff.different
+                )
+            );
+        }
+
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
          * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an

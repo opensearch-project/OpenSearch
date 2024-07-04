@@ -20,6 +20,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -430,7 +432,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ) {
             indexer.start(initialDocCount);
             waitForDocs(initialDocCount, indexer);
-
             flush(INDEX_NAME);
             waitForSearchableDocs(initialDocCount, nodeA, nodeB);
 
@@ -450,7 +451,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             assertThat(forceMergeResponse.getFailedShards(), is(0));
             assertThat(forceMergeResponse.getSuccessfulShards(), is(expectedSuccessfulShards));
             refresh(INDEX_NAME);
-            verifyStoreContent();
+            //skipping verify store content over here as readLastCommittedSegmentsInfo files are not present in latest metadata of remote store.
+            if(!warmIndexSegmentReplicationEnabled()) {
+                verifyStoreContent();
+            }
         }
     }
 
@@ -623,7 +627,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // this test stubs transport calls specific to node-node replication.
         assumeFalse(
             "Skipping the test as its not compatible with segment replication with remote store.",
-            segmentReplicationWithRemoteEnabled()
+            segmentReplicationWithRemoteEnabled() || warmIndexSegmentReplicationEnabled()
         );
         final String primaryNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
@@ -957,7 +961,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(docCount, primaryNode, replicaNode);
-        verifyStoreContent();
+        //skipping verify store content over here as readLastCommittedSegmentsInfo files are not present in latest metadata of remote store.
+        if (!warmIndexSegmentReplicationEnabled()) {
+            verifyStoreContent();
+        }
         final IndexShard replicaAfterFailure = getIndexShard(replicaNode, INDEX_NAME);
         assertNotEquals(replicaAfterFailure.routingEntry().allocationId().getId(), replicaShard.routingEntry().allocationId().getId());
     }
@@ -1068,6 +1075,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * @throws Exception when issue is encountered
      */
     public void testScrollCreatedOnReplica() throws Exception {
+        // Skipping this test in case of remote store enabled warm index
+        assumeFalse(
+            "Skipping the test as its not compatible with segment replication with remote store.",
+            warmIndexSegmentReplicationEnabled()
+        );
+
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
         final String primary = internalCluster().startDataOnlyNode();
         prepareCreate(
@@ -1179,7 +1192,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // this test stubs transport calls specific to node-node replication.
         assumeFalse(
             "Skipping the test as its not compatible with segment replication with remote store.",
-            segmentReplicationWithRemoteEnabled()
+            segmentReplicationWithRemoteEnabled() || warmIndexSegmentReplicationEnabled()
         );
 
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
@@ -1306,6 +1319,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testPitCreatedOnReplica() throws Exception {
+        //// Skipping this test in case of remote store enabled warm index
+        assumeFalse(
+            "Skipping the test as its not compatible with segment replication with remote store.",
+            warmIndexSegmentReplicationEnabled()
+        );
+
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
