@@ -1424,7 +1424,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
             .setRequestCache(false)
             .get();
-        PitTestsUtil.assertUsingGetAllPits(client(replica), pitResponse.getId(), pitResponse.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(replica), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
         assertSegments(false, INDEX_NAME, 1, client(replica), pitResponse.getId());
 
         List<String> currentFiles = List.of(replicaShard.store().directory().listAll());

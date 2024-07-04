@@ -227,11 +227,11 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
                 .build()
-        ).numberOfShards(randomInt(1000)).numberOfReplicas(randomInt(10)).build();
+        ).numberOfShards(between(1, 1000)).numberOfReplicas(randomInt(10)).build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
 
         String indexName2 = randomAlphaOfLength(randomIntBetween(1, 50));
-        int noOfShards = randomInt(1000);
+        int noOfShards = between(1, 1000);
         int noOfReplicas = randomInt(10);
         final IndexMetadata indexMetadata2 = new IndexMetadata.Builder(indexName2).settings(
             Settings.builder()
@@ -252,8 +252,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
     public void testGetIndicesRoutingMapDiffShardChanged() {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        final Index index = new Index(indexName, "uuid");
-        int noOfShards = randomInt(1000);
+        int noOfShards = between(1, 1000);
         int noOfReplicas = randomInt(10);
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
             Settings.builder()
@@ -299,8 +298,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
     public void testGetIndicesRoutingMapDiffShardDetailChanged() {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        final Index index = new Index(indexName, "uuid");
-        int noOfShards = randomInt(1000);
+        int noOfShards = between(1, 1000);
         int noOfReplicas = randomInt(10);
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
             Settings.builder()
@@ -328,7 +326,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
                 .build()
-        ).numberOfShards(randomInt(1000)).numberOfReplicas(randomInt(10)).build();
+        ).numberOfShards(between(1, 1000)).numberOfReplicas(randomInt(10)).build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
 
         String indexName2 = randomAlphaOfLength(randomIntBetween(1, 50));
@@ -337,7 +335,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
                 .build()
-        ).numberOfShards(randomInt(1000)).numberOfReplicas(randomInt(10)).build();
+        ).numberOfShards(between(1, 1000)).numberOfReplicas(randomInt(10)).build();
         RoutingTable routingTable2 = RoutingTable.builder().addAsNew(indexMetadata2).build();
 
         DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
@@ -732,7 +730,6 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < numberOfIndices; i++) {
             String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-            final Index index = new Index(indexName, "uuid");
             final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -751,7 +748,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
                 .build()
-        ).numberOfShards(randomInt(1000)).numberOfReplicas(randomInt(10)).build();
+        ).numberOfShards(between(1, 1000)).numberOfReplicas(randomInt(10)).build();
         RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
         return ClusterState.builder(ClusterName.DEFAULT)
             .routingTable(routingTable)

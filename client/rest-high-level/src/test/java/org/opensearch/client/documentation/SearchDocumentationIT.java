@@ -998,7 +998,7 @@ public class SearchDocumentationIT extends OpenSearchRestHighLevelClientTestCase
 
     protected void registerQueryScript(RestClient restClient) throws IOException {
         // tag::register-script
-        Request scriptRequest = new Request("POST", "_scripts/title_search");
+        Request scriptRequest = new Request("POST", "/_scripts/title_search");
         scriptRequest.setJsonEntity(
             "{" +
             "  \"script\": {" +

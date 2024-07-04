@@ -33,6 +33,9 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
   - [Bad practices](#bad-practices)
     - [Use randomized-testing for coverage](#use-randomized-testing-for-coverage)
     - [Abuse randomization in multi-threaded tests](#abuse-randomization-in-multi-threaded-tests)
+    - [Use `Thread.sleep`](#use-threadsleep)
+    - [Expect a specific segment topology](#expect-a-specific-segment-topology)
+    - [Leave environment in an unstable state after test](#leave-environment-in-an-unstable-state-after-test)
 - [Test coverage analysis](#test-coverage-analysis)
 - [Building with extra plugins](#building-with-extra-plugins)
 - [Environment misc](#environment-misc)
@@ -88,21 +91,23 @@ This will instruct all JVMs (including any that run cli tools such as creating t
 
 ## Test case filtering
 
--   `tests.class` is a class-filtering shell-like glob pattern
--   `tests.method` is a method-filtering glob pattern.
+To be able to run a single test you need to specify the module where you're running the tests from.
+
+Example: `./gradlew server:test --tests "*.ReplicaShardBatchAllocatorTests.testNoAsyncFetchData"`
 
 Run a single test case (variants)
 
-    ./gradlew test -Dtests.class=org.opensearch.package.ClassName
-    ./gradlew test "-Dtests.class=*.ClassName"
+    ./gradlew module:test --tests org.opensearch.package.ClassName
+    ./gradlew module:test --tests org.opensearch.package.ClassName.testName
+    ./gradlew module:test --tests "*.ClassName"
 
 Run all tests in a package and its sub-packages
 
-    ./gradlew test "-Dtests.class=org.opensearch.package.*"
+    ./gradlew module:test --tests "org.opensearch.package.*"
 
 Run any test methods that contain *esi* (e.g.: .r*esi*ze.)
 
-    ./gradlew test "-Dtests.method=*esi*"
+    ./gradlew module:test --tests "*esi*"
 
 Run all tests that are waiting for a bugfix (disabled by default)
 
@@ -455,7 +460,7 @@ Unit tests are the preferred way to test some functionality: most of the time th
 
 The reason why `OpenSearchSingleNodeTestCase` exists is that all our components used to be very hard to set up in isolation, which had led us to having a number of integration tests but close to no unit tests. `OpenSearchSingleNodeTestCase` is a workaround for this issue which provides an easy way to spin up a node and get access to components that are hard to instantiate like `IndicesService`. Whenever practical, you should prefer unit tests.
 
-Finally, if the the functionality under test needs to be run in a cluster, there are two test classes to consider:
+Finally, if the functionality under test needs to be run in a cluster, there are two test classes to consider:
   * `OpenSearchRestTestCase` will connect to an external cluster. This is a good option if the tests cases don't rely on a specific configuration of the test cluster. A test cluster is set up as part of the Gradle task running integration tests, and test cases using this class can connect to it. The configuration of the cluster is provided in the Gradle files.
   * `OpenSearchIntegTestCase` will create a local cluster as part of each test case. The configuration of the cluster is controlled by the test class. This is a good option if different tests cases depend on different cluster configurations, as it would be impractical (and limit parallelization) to keep re-configuring (and re-starting) the external cluster for each test case. A good example of when this class might come in handy is for testing security features, where different cluster configurations are needed to fully test each one.
 
@@ -476,6 +481,27 @@ However, it should not be used for coverage. For instance if you are testing a p
 ### Abuse randomization in multi-threaded tests
 
 Multi-threaded tests are often not reproducible due to the fact that there is no guarantee on the order in which operations occur across threads. Adding randomization to the mix usually makes things worse and should be done with care.
+
+### Use `Thread.sleep`
+
+`Thread.sleep()` is almost always a bad idea because it is very difficult to know that you've waited long enough. Using primitives like `waitUntil` or `assertBusy`, which use Thread.sleep internally, is okay to wait for a specific condition. However, it is almost always better to instrument your code with concurrency primitives like a `CountDownLatch` that will allow you to deterministically wait for a specific condition, without waiting longer than necessary that will happen with a polling approach used by `assertBusy`.
+
+Example:
+- [PrimaryShardAllocatorIT](https://github.com/opensearch-project/OpenSearch/blob/7ffcd6500e0bd5956cef5c289ee66d9f99d533fc/server/src/internalClusterTest/java/org/opensearch/gateway/ReplicaShardAllocatorIT.java#L208-L235): This test is using two latches: one to wait for a recovery to start and one to block that recovery so that it can deterministically test things that happen during a recovery.
+
+### Expect a specific segment topology
+
+By design, OpenSearch integration tests will vary how the merge policy works because in almost all scenarios you should not depend on a specific segment topology (in the real world your code will see a huge diversity of indexing workloads with OpenSearch merging things in the background all the time!). If you do in fact need to care about the segment topology (e.g. for testing statistics that might vary slightly depending on number of segments), then you must take care to ensure that segment topology is deterministic by doing things like disabling background refreshes, force merging after indexing data, etc.
+
+Example:
+- [SegmentReplicationResizeRequestIT](https://github.com/opensearch-project/OpenSearch/blob/f715ee1a485e550802accc1c2e3d8101208d4f0b/server/src/internalClusterTest/java/org/opensearch/indices/replication/SegmentReplicationResizeRequestIT.java#L102-L109): This test disables refreshes to prevent interfering with the segment replication behavior under test.
+
+### Leave environment in an unstable state after test
+
+The default test case will ensure that no open file handles or running threads are left after tear down. You must ensure that all resources are cleaned up at the end of each test case, or else the cleanup may end up racing with the tear down logic in the base test class in a way that is very difficult to reproduce.
+
+Example:
+- [AwarenessAttributeDecommissionIT](https://github.com/opensearch-project/OpenSearch/blob/main/server/src/internalClusterTest/java/org/opensearch/cluster/coordination/AwarenessAttributeDecommissionIT.java#L951): Recommissions any decommissioned nodes at the end of the test to ensure the after-test checks succeed.
 
 # Test coverage analysis
 

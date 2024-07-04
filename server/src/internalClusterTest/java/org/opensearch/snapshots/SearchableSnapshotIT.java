@@ -17,6 +17,7 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotRespon
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
@@ -53,11 +54,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -132,21 +135,24 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testSnapshottingSearchableSnapshots() throws Exception {
         final String repoName = "test-repo";
+        final String initSnapName = "initial-snapshot";
         final String indexName = "test-idx";
+        final String repeatSnapNamePrefix = "test-repeated-snap-";
+        final String repeatIndexNamePrefix = indexName + "-copy-";
         final Client client = client();
 
         // create an index, add data, snapshot it, then delete it
         internalCluster().ensureAtLeastNumDataNodes(1);
         createIndexWithDocsAndEnsureGreen(0, 100, indexName);
         createRepositoryWithSettings(null, repoName);
-        takeSnapshot(client, "initial-snapshot", repoName, indexName);
+        takeSnapshot(client, initSnapName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
         // restore the index as a searchable snapshot
         internalCluster().ensureAtLeastNumSearchNodes(1);
         client.admin()
             .cluster()
-            .prepareRestoreSnapshot(repoName, "initial-snapshot")
+            .prepareRestoreSnapshot(repoName, initSnapName)
             .setRenamePattern("(.+)")
             .setRenameReplacement("$1-copy-0")
             .setStorageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
@@ -159,7 +165,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Test that the searchable snapshot index can continue to be snapshotted and restored
         for (int i = 0; i < 4; i++) {
-            final String repeatedSnapshotName = "test-repeated-snap-" + i;
+            final String repeatedSnapshotName = repeatSnapNamePrefix + i;
             takeSnapshot(client, repeatedSnapshotName, repoName);
             deleteIndicesAndEnsureGreen(client, "_all");
             client.admin()
@@ -181,21 +187,34 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Map<String, List<String>> snapshotInfoMap = response.getSnapshots()
             .stream()
             .collect(Collectors.toMap(s -> s.snapshotId().getName(), SnapshotInfo::indices));
-        assertEquals(
-            Map.of(
-                "initial-snapshot",
-                List.of("test-idx"),
-                "test-repeated-snap-0",
-                List.of("test-idx-copy-0"),
-                "test-repeated-snap-1",
-                List.of("test-idx-copy-1"),
-                "test-repeated-snap-2",
-                List.of("test-idx-copy-2"),
-                "test-repeated-snap-3",
-                List.of("test-idx-copy-3")
-            ),
-            snapshotInfoMap
-        );
+        final Map<String, List<String>> expect = new HashMap<>();
+        expect.put(initSnapName, List.of(indexName));
+        IntStream.range(0, 4).forEach(i -> expect.put(repeatSnapNamePrefix + i, List.of(repeatIndexNamePrefix + i)));
+        assertEquals(expect, snapshotInfoMap);
+
+        String[] snapNames = new String[5];
+        IntStream.range(0, 4).forEach(i -> snapNames[i] = repeatSnapNamePrefix + i);
+        snapNames[4] = initSnapName;
+        SnapshotsStatusResponse snapshotsStatusResponse = client.admin()
+            .cluster()
+            .prepareSnapshotStatus(repoName)
+            .addSnapshots(snapNames)
+            .execute()
+            .actionGet();
+        snapshotsStatusResponse.getSnapshots().forEach(s -> {
+            String snapName = s.getSnapshot().getSnapshotId().getName();
+            assertEquals(1, s.getIndices().size());
+            assertEquals(1, s.getShards().size());
+            if (snapName.equals("initial-snapshot")) {
+                assertNotNull(s.getIndices().get("test-idx"));
+                assertTrue(s.getShards().get(0).getStats().getTotalFileCount() > 0);
+            } else {
+                assertTrue(snapName.startsWith(repeatSnapNamePrefix));
+                assertEquals(1, s.getIndices().size());
+                assertNotNull(s.getIndices().get(repeatIndexNamePrefix + snapName.substring(repeatSnapNamePrefix.length())));
+                assertEquals(0L, s.getShards().get(0).getStats().getTotalFileCount());
+            }
+        });
     }
 
     /**

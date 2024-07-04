@@ -29,7 +29,7 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  * Processor that generating community id flow hash for the network flow tuples, the algorithm is defined in
  * <a href="https://github.com/corelight/community-id-spec">Community ID Flow Hashing</a>.
  */
-public class CommunityIdProcessor extends AbstractProcessor {
+public final class CommunityIdProcessor extends AbstractProcessor {
     public static final String TYPE = "community_id";
     // the version of the community id flow hashing algorithm
     private static final String COMMUNITY_ID_HASH_VERSION = "1";

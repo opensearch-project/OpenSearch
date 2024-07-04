@@ -224,7 +224,7 @@ public class RemotePersistentSettingsMetadataTests extends OpenSearchTestCase {
         }
     }
 
-    private Settings getSettings() {
+    public static Settings getSettings() {
         return Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build();
     }
 }
