@@ -20,6 +20,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService;
@@ -92,6 +93,7 @@ import java.util.stream.Stream;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
@@ -111,6 +113,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_ST
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -118,6 +121,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -518,11 +522,13 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder().indices(Collections.emptyList()).build();
 
         remoteClusterStateService.start();
-        final ClusterMetadataManifest manifest = remoteClusterStateService.writeIncrementalMetadata(
+        final RemoteClusterStateService rcssSpy = Mockito.spy(remoteClusterStateService);
+        final RemoteClusterStateManifestInfo manifestInfo = rcssSpy.writeIncrementalMetadata(
             previousClusterState,
             clusterState,
             previousManifest
-        ).getClusterMetadataManifest();
+        );
+        final ClusterMetadataManifest manifest = manifestInfo.getClusterMetadataManifest();
         final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename__2");
         final List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
 
@@ -535,6 +541,24 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .previousClusterUUID("prev-cluster-uuid")
             .build();
 
+        Mockito.verify(rcssSpy)
+            .writeMetadataInParallel(
+                eq(clusterState),
+                eq(new ArrayList<IndexMetadata>(clusterState.metadata().indices().values())),
+                eq(Collections.singletonMap(indices.get(0).getIndexName(), null)),
+                eq(clusterState.metadata().customs()),
+                eq(true),
+                eq(true),
+                eq(true),
+                eq(false),
+                eq(false),
+                eq(false),
+                eq(Collections.emptyMap()),
+                eq(false),
+                eq(Collections.emptyList())
+            );
+
+        assertThat(manifestInfo.getManifestFileName(), notNullValue());
         assertThat(manifest.getIndices().size(), is(1));
         assertThat(manifest.getIndices().get(0).getIndexName(), is(uploadedIndexMetadata.getIndexName()));
         assertThat(manifest.getIndices().get(0).getIndexUUID(), is(uploadedIndexMetadata.getIndexUUID()));
@@ -543,6 +567,95 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getStateVersion(), is(expectedManifest.getStateVersion()));
         assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
         assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
+        assertThat(manifest.getHashesOfConsistentSettings(), nullValue());
+        assertThat(manifest.getDiscoveryNodesMetadata(), nullValue());
+        assertThat(manifest.getClusterBlocksMetadata(), nullValue());
+        assertThat(manifest.getClusterStateCustomMap(), anEmptyMap());
+        assertThat(manifest.getTransientSettingsMetadata(), nullValue());
+        assertThat(manifest.getTemplatesMetadata(), notNullValue());
+        assertThat(manifest.getCoordinationMetadata(), notNullValue());
+        assertThat(manifest.getCustomMetadataMap().size(), is(2));
+        assertThat(manifest.getIndicesRouting().size(), is(0));
+    }
+
+    public void testWriteIncrementalMetadataSuccessWhenPublicationEnabled() throws IOException {
+        publicationEnabled = true;
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, publicationEnabled).build();
+        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        remoteClusterStateService = new RemoteClusterStateService(
+            "test-node-id",
+            repositoriesServiceSupplier,
+            settings,
+            clusterService,
+            () -> 0L,
+            threadPool,
+            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+            writableRegistry()
+        );
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        mockBlobStoreObjects();
+        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
+        final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
+            .build();
+
+        final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder().indices(Collections.emptyList()).build();
+
+        remoteClusterStateService.start();
+        final RemoteClusterStateService rcssSpy = Mockito.spy(remoteClusterStateService);
+        final RemoteClusterStateManifestInfo manifestInfo = rcssSpy.writeIncrementalMetadata(
+            previousClusterState,
+            clusterState,
+            previousManifest
+        );
+        final ClusterMetadataManifest manifest = manifestInfo.getClusterMetadataManifest();
+        final UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "index-uuid", "metadata-filename__2");
+        final List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
+
+        final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
+            .indices(indices)
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .stateUUID("state-uuid")
+            .clusterUUID("cluster-uuid")
+            .previousClusterUUID("prev-cluster-uuid")
+            .build();
+
+        Mockito.verify(rcssSpy)
+            .writeMetadataInParallel(
+                eq(clusterState),
+                eq(new ArrayList<IndexMetadata>(clusterState.metadata().indices().values())),
+                eq(Collections.singletonMap(indices.get(0).getIndexName(), null)),
+                eq(clusterState.metadata().customs()),
+                eq(true),
+                eq(true),
+                eq(true),
+                eq(true),
+                eq(false),
+                eq(false),
+                eq(Collections.emptyMap()),
+                eq(true),
+                Mockito.anyList()
+            );
+
+        assertThat(manifestInfo.getManifestFileName(), notNullValue());
+        assertThat(manifest.getIndices().size(), is(1));
+        assertThat(manifest.getIndices().get(0).getIndexName(), is(uploadedIndexMetadata.getIndexName()));
+        assertThat(manifest.getIndices().get(0).getIndexUUID(), is(uploadedIndexMetadata.getIndexUUID()));
+        assertThat(manifest.getIndices().get(0).getUploadedFilename(), notNullValue());
+        assertThat(manifest.getClusterTerm(), is(expectedManifest.getClusterTerm()));
+        assertThat(manifest.getStateVersion(), is(expectedManifest.getStateVersion()));
+        assertThat(manifest.getClusterUUID(), is(expectedManifest.getClusterUUID()));
+        assertThat(manifest.getStateUUID(), is(expectedManifest.getStateUUID()));
+        assertThat(manifest.getHashesOfConsistentSettings(), notNullValue());
+        assertThat(manifest.getDiscoveryNodesMetadata(), notNullValue());
+        assertThat(manifest.getClusterBlocksMetadata(), nullValue());
+        assertThat(manifest.getClusterStateCustomMap(), anEmptyMap());
+        assertThat(manifest.getTransientSettingsMetadata(), nullValue());
+        assertThat(manifest.getTemplatesMetadata(), notNullValue());
+        assertThat(manifest.getCoordinationMetadata(), notNullValue());
+        assertThat(manifest.getCustomMetadataMap().size(), is(2));
+        assertThat(manifest.getIndicesRouting().size(), is(1));
     }
 
     /*
@@ -2012,7 +2125,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .build();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
         final Settings settings = Settings.builder().put("mock-settings", true).build();
-        final TemplatesMetadata templatesMetadata = TemplatesMetadata.EMPTY_METADATA;
+        final TemplatesMetadata templatesMetadata = TemplatesMetadata.builder()
+            .put(IndexTemplateMetadata.builder("template1").settings(idxSettings).patterns(List.of("test*")).build())
+            .build();
         final CustomMetadata1 customMetadata1 = new CustomMetadata1("custom-metadata-1");
         return ClusterState.builder(ClusterName.DEFAULT)
             .version(1L)
@@ -2025,6 +2140,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                     .coordinationMetadata(coordinationMetadata)
                     .persistentSettings(settings)
                     .templates(templatesMetadata)
+                    .hashesOfConsistentSettings(Map.of("key1", "value1", "key2", "value2"))
                     .putCustom(customMetadata1.getWriteableName(), customMetadata1)
                     .build()
             )
@@ -2032,7 +2148,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
     }
 
     static DiscoveryNodes nodesWithLocalNodeClusterManager() {
-        return DiscoveryNodes.builder().clusterManagerNodeId("cluster-manager-id").localNodeId("cluster-manager-id").build();
+        final DiscoveryNode localNode = new DiscoveryNode("cluster-manager-id", buildNewFakeTransportAddress(), Version.CURRENT);
+        return DiscoveryNodes.builder().clusterManagerNodeId("cluster-manager-id").localNodeId("cluster-manager-id").add(localNode).build();
     }
 
     private static class CustomMetadata1 extends TestCustomMetadata {
