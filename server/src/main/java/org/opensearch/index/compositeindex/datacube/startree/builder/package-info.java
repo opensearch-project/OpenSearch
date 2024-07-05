@@ -8,6 +8,7 @@
 
 /**
  * Builders for Composite Index Star Tree
+ *
  * @opensearch.experimental
  */
 package org.opensearch.index.compositeindex.datacube.startree.builder;

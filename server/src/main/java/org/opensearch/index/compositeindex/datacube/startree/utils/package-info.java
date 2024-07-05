@@ -8,6 +8,7 @@
 
 /**
  * Utility to support Composite Index Star Tree
+ *
  * @opensearch.experimental
  */
 package org.opensearch.index.compositeindex.datacube.startree.utils;

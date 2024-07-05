@@ -15,6 +15,7 @@ import java.io.IOException;
 
 /**
  * A star-tree builder that builds a single star-tree.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi

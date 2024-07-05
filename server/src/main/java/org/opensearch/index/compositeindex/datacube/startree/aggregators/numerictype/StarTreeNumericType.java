@@ -14,6 +14,7 @@ import java.util.function.Function;
 
 /**
  * Enum to map Star Tree Numeric Types to Lucene's Numeric Type
+ *
  * @opensearch.experimental
  */
 public enum StarTreeNumericType {

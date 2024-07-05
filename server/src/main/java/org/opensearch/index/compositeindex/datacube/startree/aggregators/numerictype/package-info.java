@@ -8,6 +8,7 @@
 
 /**
  * Numeric Types for Composite Index Star Tree
- * @opensearch.experimental
+ *
+ *  @opensearch.experimental
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype;

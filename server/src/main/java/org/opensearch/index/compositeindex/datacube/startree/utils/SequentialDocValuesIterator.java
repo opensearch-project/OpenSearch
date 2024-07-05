@@ -45,34 +45,6 @@ public class SequentialDocValuesIterator {
     }
 
     /**
-     * Creates a SequentialDocValuesIterator with an empty DocIdSetIterator.
-     *
-     */
-    public SequentialDocValuesIterator() {
-        this.docIdSetIterator = new DocIdSetIterator() {
-            @Override
-            public int docID() {
-                return NO_MORE_DOCS;
-            }
-
-            @Override
-            public int nextDoc() {
-                return NO_MORE_DOCS;
-            }
-
-            @Override
-            public int advance(int target) {
-                return NO_MORE_DOCS;
-            }
-
-            @Override
-            public long cost() {
-                return 0;
-            }
-        };
-    }
-
-    /**
      * Returns the value associated with the latest document.
      *
      * @return the value associated with the latest document

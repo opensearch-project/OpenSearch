@@ -14,6 +14,7 @@ import java.util.Arrays;
 
 /**
  * Star tree document
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi

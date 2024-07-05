@@ -21,9 +21,11 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * On heap single tree builder
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
@@ -64,9 +66,8 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
         return starTreeDocuments;
     }
 
-    // TODO: should this be just long?
     @Override
-    public long getDimensionValue(int docId, int dimensionId) throws IOException {
+    public Long getDimensionValue(int docId, int dimensionId) throws IOException {
         return starTreeDocuments.get(docId).dimensions[dimensionId];
     }
 
@@ -90,7 +91,7 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
         // sort the documents
         Arrays.sort(starTreeDocuments, (o1, o2) -> {
             for (int i = 0; i < numDimensions; i++) {
-                if (o1.dimensions[i] != o2.dimensions[i]) {
+                if (!Objects.equals(o1.dimensions[i], o2.dimensions[i])) {
                     return Long.compare(o1.dimensions[i], o2.dimensions[i]);
                 }
             }
@@ -154,7 +155,7 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
         }
         Arrays.sort(starTreeDocuments, (o1, o2) -> {
             for (int i = dimensionId + 1; i < numDimensions; i++) {
-                if (o1.dimensions[i] != o2.dimensions[i]) {
+                if (!Objects.equals(o1.dimensions[i], o2.dimensions[i])) {
                     return Long.compare(o1.dimensions[i], o2.dimensions[i]);
                 }
             }
@@ -167,7 +168,7 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
 
             private boolean hasSameDimensions(StarTreeDocument starTreeDocument1, StarTreeDocument starTreeDocument2) {
                 for (int i = dimensionId + 1; i < numDimensions; i++) {
-                    if (starTreeDocument1.dimensions[i] != starTreeDocument2.dimensions[i]) {
+                    if (!Objects.equals(starTreeDocument1.dimensions[i], starTreeDocument2.dimensions[i])) {
                         return false;
                     }
                 }

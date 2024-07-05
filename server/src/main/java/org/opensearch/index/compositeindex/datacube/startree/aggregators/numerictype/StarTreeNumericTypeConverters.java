@@ -15,6 +15,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * Numeric converters used during aggregations of metric values
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
