@@ -536,7 +536,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 anyList()
             )
         ).thenReturn(new RemoteClusterStateUtils.UploadedMetadataResults());
-        RemoteStateTransferException ex = expectThrows(RemoteStateTransferException.class, () -> spiedService.writeFullMetadata(clusterState, randomAlphaOfLength(10)));
+        RemoteStateTransferException ex = expectThrows(
+            RemoteStateTransferException.class,
+            () -> spiedService.writeFullMetadata(clusterState, randomAlphaOfLength(10))
+        );
         assertTrue(ex.getMessage().contains("Timed out waiting for transfer of manifest file to complete"));
     }
 
