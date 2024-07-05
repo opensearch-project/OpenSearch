@@ -14,6 +14,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 /**
  * Coordinates the reading of documents across multiple DocIdSetIterators.
  * It encapsulates a single DocIdSetIterator and maintains the latest document ID and its associated value.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
@@ -41,6 +42,34 @@ public class SequentialDocValuesIterator {
      */
     public SequentialDocValuesIterator(DocIdSetIterator docIdSetIterator) {
         this.docIdSetIterator = docIdSetIterator;
+    }
+
+    /**
+     * Creates a SequentialDocValuesIterator with an empty DocIdSetIterator.
+     *
+     */
+    public SequentialDocValuesIterator() {
+        this.docIdSetIterator = new DocIdSetIterator() {
+            @Override
+            public int docID() {
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public int nextDoc() {
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public int advance(int target) {
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
     }
 
     /**

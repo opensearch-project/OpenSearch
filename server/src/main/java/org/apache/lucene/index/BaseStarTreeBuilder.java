@@ -133,7 +133,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         for (Metric metric : this.starTreeField.getMetrics()) {
             for (MetricStat metricType : metric.getMetrics()) {
                 IndexNumericFieldData.NumericType numericType;
-                SequentialDocValuesIterator metricStatReader = null;
+                SequentialDocValuesIterator metricStatReader;
                 Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper(metric.getField());
                 if (fieldMapper instanceof NumberFieldMapper) {
                     numericType = ((NumberFieldMapper) fieldMapper).fieldType().numericType();
@@ -145,12 +145,14 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 FieldInfo metricFieldInfos = state.fieldInfos.fieldInfo(metric.getField());
                 DocValuesType metricDocValuesType = metricFieldInfos.getDocValuesType();
                 if (metricType != MetricStat.COUNT) {
-                    // Need not initialize the metric reader for COUNT metric type
+                    // Need not initialize the metric reader with relevant doc id set iterator for COUNT metric type
                     metricStatReader = starTreeDocValuesIteratorAdapter.getDocValuesIterator(
                         metricDocValuesType,
                         metricFieldInfos,
                         fieldProducerMap.get(metricFieldInfos.name)
                     );
+                } else {
+                    metricStatReader = new SequentialDocValuesIterator();
                 }
 
                 MetricAggregatorInfo metricAggregatorInfo = new MetricAggregatorInfo(
