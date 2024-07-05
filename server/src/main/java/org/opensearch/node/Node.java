@@ -84,6 +84,7 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.applicationtemplates.SystemTemplatesPlugin;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StopWatch;
 import org.opensearch.common.cache.module.CacheModule;
@@ -663,7 +664,8 @@ public class Node implements Closeable {
                 settings,
                 settingsModule.getClusterSettings(),
                 threadPool,
-                clusterManagerMetrics
+                clusterManagerMetrics,
+                pluginsService.filterPlugins(SystemTemplatesPlugin.class)
             );
             clusterService.addStateApplier(scriptService);
             resourcesToClose.add(clusterService);
