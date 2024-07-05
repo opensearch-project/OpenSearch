@@ -329,7 +329,7 @@ public class RootObjectMapper extends ObjectMapper {
      * @return a mapper builder, or null if there is no template for such a field
      */
     @SuppressWarnings("rawtypes")
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType, DateFormatter dateFormat) {
+    private Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType, DateFormatter dateFormat) {
         DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
         return findTemplateBuilderByTemplate(context, name, matchType, dateFormat, dynamicTemplate);
     }
