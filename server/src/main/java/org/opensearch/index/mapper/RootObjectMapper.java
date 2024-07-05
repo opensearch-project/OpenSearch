@@ -55,8 +55,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import reactor.util.annotation.NonNull;
-
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
@@ -313,6 +311,29 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicTemplates.value();
     }
 
+    @SuppressWarnings("rawtypes")
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
+        return findTemplateBuilder(context, name, matchType, null);
+    }
+
+    @SuppressWarnings("rawtypes")
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, DateFormatter dateFormatter) {
+        return findTemplateBuilder(context, name, XContentFieldType.DATE, dateFormatter);
+    }
+
+    /**
+     * Find a template. Returns {@code null} if no template could be found.
+     * @param name        the field name
+     * @param matchType   the type of the field in the json document or null if unknown
+     * @param dateFormat  a dateformatter to use if the type is a date, null if not a date or is using the default format
+     * @return a mapper builder, or null if there is no template for such a field
+     */
+    @SuppressWarnings("rawtypes")
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType, DateFormatter dateFormat) {
+        DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
+        return findTemplateBuilderByTemplate(context, name, matchType, dateFormat, dynamicTemplate);
+    }
+
     /**
      * Find a template. Returns {@code null} if no template could be found.
      * @param name        the field name
@@ -322,13 +343,16 @@ public class RootObjectMapper extends ObjectMapper {
      * @return a mapper builder, or null if there is no template for such a field
      */
     @SuppressWarnings("rawtypes")
-    public Mapper.Builder findTemplateBuilder(
+    public Mapper.Builder findTemplateBuilderByTemplate(
         ParseContext context,
         String name,
         XContentFieldType matchType,
         DateFormatter dateFormat,
-        @NonNull DynamicTemplate dynamicTemplate
+        DynamicTemplate dynamicTemplate
     ) {
+        if (dynamicTemplate == null) {
+            return null;
+        }
         String dynamicType = matchType.defaultMappingType();
         Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(dateFormat);
         String mappingType = dynamicTemplate.mappingType(dynamicType);

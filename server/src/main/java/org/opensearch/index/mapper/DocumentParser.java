@@ -1054,7 +1054,7 @@ final class DocumentParser {
             return null;
         }
 
-        return context.root().findTemplateBuilder(context, name, matchType, null, dynamicTemplate);
+        return context.root().findTemplateBuilderByTemplate(context, name, matchType, null, dynamicTemplate);
     }
 
     @SuppressWarnings("rawtypes")
@@ -1071,7 +1071,7 @@ final class DocumentParser {
             return null;
         }
 
-        return context.root().findTemplateBuilder(context, name, matchType, dateFormat, dynamicTemplate);
+        return context.root().findTemplateBuilderByTemplate(context, name, matchType, dateFormat, dynamicTemplate);
     }
 
     private static DynamicTemplate findTemplate(
