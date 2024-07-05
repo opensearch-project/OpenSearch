@@ -709,13 +709,14 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             if (warnings.isEmpty()) {
                 return false;
             }
-            boolean allSystemIndexWarning = true;
+            boolean allSystemIndexWarnings = true;
             for (String warning : warnings) {
                 if (!warning.startsWith("this request accesses system indices:")) {
-                    allSystemIndexWarning = false;
+                    allSystemIndexWarnings = false;
+                    break;
                 }
             }
-            return !allSystemIndexWarning;
+            return !allSystemIndexWarnings;
         });
         refreshRequest.setOptions(requestOptions);
         client().performRequest(refreshRequest);
