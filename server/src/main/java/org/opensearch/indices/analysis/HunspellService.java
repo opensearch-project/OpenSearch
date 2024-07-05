@@ -188,9 +188,7 @@ public class HunspellService {
      * @throws Exception when loading fails (due to IO errors or malformed dictionary files)
      */
     private Dictionary loadDictionary(String locale, Settings nodeSettings, Environment env) throws Exception {
-        if (logger.isDebugEnabled()) {
-            logger.debug("Loading hunspell dictionary [{}]...", locale);
-        }
+        logger.debug("Loading hunspell dictionary [{}]...", () -> locale);
         Path dicDir = hunspellDir.resolve(locale);
         if (FileSystemUtils.isAccessibleDirectory(dicDir, logger) == false) {
             throw new OpenSearchException(String.format(Locale.ROOT, "Could not find hunspell dictionary [%s]", locale));

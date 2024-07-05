@@ -317,9 +317,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         @Nullable SearchShardTarget searchShardTarget,
         Supplier<SearchPhase> nextPhaseSupplier
     ) {
-        if (logger.isDebugEnabled()) {
-            logger.debug(new ParameterizedMessage("[{}] Failed to execute {} phase", searchId, phaseName), failure);
-        }
+        logger.debug(() -> new ParameterizedMessage("[{}] Failed to execute {} phase", searchId, phaseName), failure);
         addShardFailure(new ShardSearchFailure(failure, searchShardTarget));
         int successfulOperations = successfulOps.decrementAndGet();
         assert successfulOperations >= 0 : "successfulOperations must be >= 0 but was: " + successfulOperations;

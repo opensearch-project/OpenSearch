@@ -55,41 +55,41 @@ public final class TransportLogger {
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
     static void logInboundMessage(TcpChannel channel, BytesReference message) {
-        if (logger.isTraceEnabled()) {
+        logger.trace(() -> {
             try {
-                String logMessage = format(channel, message, "READ");
-                logger.trace(logMessage);
+                return format(channel, message, "READ");
             } catch (IOException e) {
                 logger.warn("an exception occurred formatting a READ trace message", e);
+                return "";
             }
-        }
+        });
     }
 
     static void logInboundMessage(TcpChannel channel, NativeInboundMessage message) {
-        if (logger.isTraceEnabled()) {
+        logger.trace(() -> {
             try {
-                String logMessage = format(channel, message, "READ");
-                logger.trace(logMessage);
+                return format(channel, message, "READ");
             } catch (IOException e) {
                 logger.warn("an exception occurred formatting a READ trace message", e);
+                return "";
             }
-        }
+        });
     }
 
     static void logOutboundMessage(TcpChannel channel, BytesReference message) {
-        if (logger.isTraceEnabled()) {
+        if (message.get(0) != 'E') {
+            // This is not an OpenSearch transport message.
+            return;
+        }
+        logger.trace(() -> {
             try {
-                if (message.get(0) != 'E') {
-                    // This is not an OpenSearch transport message.
-                    return;
-                }
                 BytesReference withoutHeader = message.slice(HEADER_SIZE, message.length() - HEADER_SIZE);
-                String logMessage = format(channel, withoutHeader, "WRITE");
-                logger.trace(logMessage);
+                return format(channel, withoutHeader, "WRITE");
             } catch (IOException e) {
                 logger.warn("an exception occurred formatting a WRITE trace message", e);
+                return "";
             }
-        }
+        });
     }
 
     private static String format(TcpChannel channel, BytesReference message, String event) throws IOException {

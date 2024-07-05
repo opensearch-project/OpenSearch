@@ -403,14 +403,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Send a bulk request, handling retries.
      */
     void sendBulkRequest(BulkRequest request, Runnable onSuccess) {
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                "[{}]: sending [{}] entry, [{}] bulk request",
-                task.getId(),
-                request.requests().size(),
-                new ByteSizeValue(request.estimatedSizeInBytes())
-            );
-        }
+        logger.debug(
+            "[{}]: sending [{}] entry, [{}] bulk request",
+            () -> task.getId(),
+            () -> request.requests().size(),
+            () -> new ByteSizeValue(request.estimatedSizeInBytes())
+        );
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);

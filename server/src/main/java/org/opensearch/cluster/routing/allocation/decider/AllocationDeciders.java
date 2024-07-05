@@ -90,14 +90,12 @@ public class AllocationDeciders extends AllocationDecider {
             Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "Can not allocate [{}] on node [{}] due to [{}]",
-                        shardRouting,
-                        node.node(),
-                        allocationDecider.getClass().getSimpleName()
-                    );
-                }
+                logger.trace(
+                    "Can not allocate [{}] on node [{}] due to [{}]",
+                    () -> shardRouting,
+                    () -> node.node(),
+                    () -> allocationDecider.getClass().getSimpleName()
+                );
                 // short circuit only if debugging is not enabled
                 if (allocation.debugDecision() == false) {
                     return decision;
@@ -114,9 +112,7 @@ public class AllocationDeciders extends AllocationDecider {
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("Shard [{}] should be ignored for node [{}]", shardRouting, node.nodeId());
-            }
+            logger.trace("Shard [{}] should be ignored for node [{}]", () -> shardRouting, () -> node.nodeId());
             return Decision.NO;
         }
         Decision.Multi ret = new Decision.Multi();
@@ -124,14 +120,12 @@ public class AllocationDeciders extends AllocationDecider {
             Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "Shard [{}] can not remain on node [{}] due to [{}]",
-                        shardRouting,
-                        node.nodeId(),
-                        allocationDecider.getClass().getSimpleName()
-                    );
-                }
+                logger.trace(
+                    "Shard [{}] can not remain on node [{}] due to [{}]",
+                    () -> shardRouting,
+                    () -> node.nodeId(),
+                    () -> allocationDecider.getClass().getSimpleName()
+                );
                 if (allocation.debugDecision() == false) {
                     return decision;
                 } else {
@@ -232,14 +226,12 @@ public class AllocationDeciders extends AllocationDecider {
             Decision decision = decider.canForceAllocatePrimary(shardRouting, node, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
-                        shardRouting.shardId(),
-                        node.nodeId(),
-                        decider.getClass().getSimpleName()
-                    );
-                }
+                logger.trace(
+                    "Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
+                    () -> shardRouting.shardId(),
+                    () -> node.nodeId(),
+                    () -> decider.getClass().getSimpleName()
+                );
                 if (allocation.debugDecision() == false) {
                     return decision;
                 } else {
@@ -258,9 +250,11 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider decider : allocations) {
             Decision decision = decider.canAllocateAnyShardToNode(node, allocation);
             if (decision.type().canPreemptivelyReturn()) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Shard can not be allocated on node [{}] due to [{}]", node.nodeId(), decider.getClass().getSimpleName());
-                }
+                logger.trace(
+                    "Shard can not be allocated on node [{}] due to [{}]",
+                    () -> node.nodeId(),
+                    () -> decider.getClass().getSimpleName()
+                );
                 if (allocation.debugDecision() == false) {
                     return decision;
                 } else {
@@ -280,9 +274,7 @@ public class AllocationDeciders extends AllocationDecider {
             Decision decision = decider.canMoveAway(shardRouting, allocation);
             // short track if a NO is returned.
             if (decision.type().canPreemptivelyReturn()) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Shard [{}] can not be moved away due to [{}]", shardRouting, decider.getClass().getSimpleName());
-                }
+                logger.trace("Shard [{}] can not be moved away due to [{}]", () -> shardRouting, () -> decider.getClass().getSimpleName());
                 if (allocation.debugDecision() == false) {
                     return decision;
                 } else {

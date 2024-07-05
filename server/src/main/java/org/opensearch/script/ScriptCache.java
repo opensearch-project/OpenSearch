@@ -111,15 +111,13 @@ public class ScriptCache {
                 // If the script type is inline the name will be the same as the code for identification in exceptions
                 // but give the script engine the chance to be better, give it separate name + source code
                 // for the inline case, then its anonymous: null.
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "context [{}]: compiling script, type: [{}], lang: [{}], options: [{}]",
-                        context.name,
-                        type,
-                        lang,
-                        options
-                    );
-                }
+                logger.trace(
+                    "context [{}]: compiling script, type: [{}], lang: [{}], options: [{}]",
+                    () -> context.name,
+                    () -> type,
+                    () -> lang,
+                    () -> options
+                );
                 // Check whether too many compilations have happened
                 checkCompilationLimit();
                 Object compiledScript = scriptEngine.compile(id, idOrCode, context, options);
@@ -211,9 +209,7 @@ public class ScriptCache {
     private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, Object> {
         @Override
         public void onRemoval(RemovalNotification<CacheKey, Object> notification) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("removed [{}] from cache, reason: [{}]", notification.getValue(), notification.getRemovalReason());
-            }
+            logger.debug("removed [{}] from cache, reason: [{}]", () -> notification.getValue(), () -> notification.getRemovalReason());
             scriptMetrics.onCacheEviction();
         }
     }

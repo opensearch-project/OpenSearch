@@ -1700,9 +1700,8 @@ public final class IndexSettings {
         }
         assert mergePolicyProvider != null : "should not happen as validation for invalid merge policy values "
             + "are part of setting definition";
-        if (logger.isTraceEnabled()) {
-            logger.trace("Index: " + this.index.getName() + ", Merge policy used: " + mergePolicyProvider);
-        }
+        final MergePolicyProvider finalMergePolicyProvider = mergePolicyProvider;
+        logger.trace("Index: {}, Merge policy used: {}", () -> this.index.getName(), () -> finalMergePolicyProvider);
         return mergePolicyProvider.getMergePolicy();
     }
 

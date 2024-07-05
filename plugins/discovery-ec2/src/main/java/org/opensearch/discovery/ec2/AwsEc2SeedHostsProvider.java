@@ -107,16 +107,14 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
         instanceStates.add("running");
         instanceStates.add("pending");
 
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                "using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]",
-                hostType,
-                tags,
-                groups,
-                bindAnyGroup,
-                availabilityZones
-            );
-        }
+        logger.debug(
+            "using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]",
+            () -> hostType,
+            () -> tags,
+            () -> groups,
+            () -> bindAnyGroup,
+            () -> availabilityZones
+        );
     }
 
     @Override

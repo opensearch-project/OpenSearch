@@ -436,13 +436,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } catch (IOException e) {
             throw new BindTransportException("Failed to resolve host " + profileBindHosts, e);
         }
-        if (logger.isDebugEnabled()) {
+        logger.debug("binding server bootstrap to: {}", () -> {
             String[] addresses = new String[hostAddresses.length];
             for (int i = 0; i < hostAddresses.length; i++) {
                 addresses[i] = NetworkAddress.format(hostAddresses[i]);
             }
-            logger.debug("binding server bootstrap to: {}", (Object) addresses);
-        }
+            return (Object) addresses;
+        });
 
         assert hostAddresses.length > 0;
 
@@ -490,9 +490,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } finally {
             closeLock.writeLock().unlock();
         }
-        if (logger.isDebugEnabled()) {
-            logger.debug("Bound profile [{}] to address {{}}", name, NetworkAddress.format(boundSocket.get()));
-        }
+        logger.debug("Bound profile [{}] to address {{}}", () -> name, () -> NetworkAddress.format(boundSocket.get()));
 
         return boundSocket.get();
     }

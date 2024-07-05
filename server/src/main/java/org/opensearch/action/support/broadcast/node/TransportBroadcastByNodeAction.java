@@ -308,9 +308,7 @@ public abstract class TransportBroadcastByNodeAction<
                 throw requestBlockException;
             }
 
-            if (logger.isTraceEnabled()) {
-                logger.trace("resolving shards for [{}] based on cluster state version [{}]", actionName, clusterState.version());
-            }
+            logger.trace("resolving shards for [{}] based on cluster state version [{}]", () -> actionName, () -> clusterState.version());
             ShardsIterator shardIt = shards(clusterState, request, concreteIndices);
             nodeIds = new HashMap<>();
 
@@ -400,9 +398,7 @@ public abstract class TransportBroadcastByNodeAction<
         }
 
         protected void onNodeResponse(DiscoveryNode node, int nodeIndex, NodeResponse response) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("received response for [{}] from node [{}]", actionName, node.getId());
-            }
+            logger.trace("received response for [{}] from node [{}]", () -> actionName, () -> node.getId());
 
             // this is defensive to protect against the possibility of double invocation
             // the current implementation of TransportService#sendRequest guards against this
@@ -416,8 +412,8 @@ public abstract class TransportBroadcastByNodeAction<
 
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
             String nodeId = node.getId();
-            if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
-                logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
+            if (!(t instanceof NodeShouldNotConnectException)) {
+                logger.debug(() -> new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
             }
 
             // this is defensive to protect against the possibility of double invocation
@@ -458,9 +454,7 @@ public abstract class TransportBroadcastByNodeAction<
         public void messageReceived(final NodeRequest request, TransportChannel channel, Task task) throws Exception {
             List<ShardRouting> shards = request.getShards();
             final int totalShards = shards.size();
-            if (logger.isTraceEnabled()) {
-                logger.trace("[{}] executing operation on [{}] shards", actionName, totalShards);
-            }
+            logger.trace("[{}] executing operation on [{}] shards", () -> actionName, () -> totalShards);
             final Object[] shardResultOrExceptions = new Object[totalShards];
 
             int shardIndex = -1;
@@ -489,14 +483,10 @@ public abstract class TransportBroadcastByNodeAction<
             final ShardRouting shardRouting
         ) {
             try {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
-                }
+                logger.trace("[{}]  executing operation for shard [{}]", () -> actionName, () -> shardRouting.shortSummary());
                 ShardOperationResult result = shardOperation(request.indicesLevelRequest, shardRouting);
                 shardResults[shardIndex] = result;
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
-                }
+                logger.trace("[{}]  completed operation for shard [{}]", () -> actionName, () -> shardRouting.shortSummary());
             } catch (Exception e) {
                 BroadcastShardOperationFailedException failure = new BroadcastShardOperationFailedException(
                     shardRouting.shardId(),
@@ -517,16 +507,14 @@ public abstract class TransportBroadcastByNodeAction<
                         );
                     }
                 } else {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            new ParameterizedMessage(
-                                "[{}] failed to execute operation for shard [{}]",
-                                actionName,
-                                shardRouting.shortSummary()
-                            ),
-                            e
-                        );
-                    }
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "[{}] failed to execute operation for shard [{}]",
+                            actionName,
+                            shardRouting.shortSummary()
+                        ),
+                        e
+                    );
                 }
             }
         }

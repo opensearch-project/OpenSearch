@@ -365,9 +365,7 @@ public final class NodeEnvironment implements Closeable {
 
             this.nodeLockId = nodeLock.nodeId;
 
-            if (logger.isDebugEnabled()) {
-                logger.debug("using node location [{}], local_lock_id [{}]", nodePaths, nodeLockId);
-            }
+            logger.debug("using node location [{}], local_lock_id [{}]", () -> nodePaths, () -> nodeLockId);
 
             maybeLogPathDetails();
             maybeLogHeapDetails();

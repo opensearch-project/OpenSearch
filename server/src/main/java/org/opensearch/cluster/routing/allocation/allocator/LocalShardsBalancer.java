@@ -71,7 +71,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
-    private int totalShardCount = 0;
 
     public LocalShardsBalancer(
         Logger logger,
@@ -131,7 +130,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     public float avgShardsPerNode() {
-        return totalShardCount / nodes.size();
+        float totalShards = nodes.values().stream().map(BalancedShardsAllocator.ModelNode::numShards).reduce(0, Integer::sum);
+        return totalShards / nodes.size();
     }
 
     /**
@@ -169,9 +169,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     void balance() {
-        if (logger.isTraceEnabled()) {
-            logger.trace("Start balancing cluster");
-        }
+        logger.trace(() -> "Start balancing cluster");
         if (allocation.hasPendingAsyncFetch()) {
             /*
              * see https://github.com/elastic/elasticsearch/issues/14387
@@ -372,6 +370,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 final BalancedShardsAllocator.ModelNode maxNode = modelNodes[highIdx];
                 advance_range: if (maxNode.numShards(index) > 0) {
                     final float delta = absDelta(weights[lowIdx], weights[highIdx]);
+                    final int finalHighIdx = highIdx;
+                    final int finalLowIdx = lowIdx;
                     if (lessThan(delta, threshold)) {
                         if (lowIdx > 0
                             && highIdx - 1 > 0 // is there a chance for a higher delta?
@@ -389,29 +389,26 @@ public class LocalShardsBalancer extends ShardsBalancer {
                              */
                             break advance_range;
                         }
-                        if (logger.isTraceEnabled()) {
-                            logger.trace(
-                                "Stop balancing index [{}]  min_node [{}] weight: [{}]" + "  max_node [{}] weight: [{}]  delta: [{}]",
-                                index,
-                                maxNode.getNodeId(),
-                                weights[highIdx],
-                                minNode.getNodeId(),
-                                weights[lowIdx],
-                                delta
-                            );
-                        }
+
+                        logger.trace(
+                            "Stop balancing index [{}]  min_node [{}] weight: [{}]" + "  max_node [{}] weight: [{}]  delta: [{}]",
+                            () -> index,
+                            () -> maxNode.getNodeId(),
+                            () -> weights[finalHighIdx],
+                            () -> minNode.getNodeId(),
+                            () -> weights[finalLowIdx],
+                            () -> delta
+                        );
                         break;
                     }
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            "Balancing from node [{}] weight: [{}] to node [{}] weight: [{}]  delta: [{}]",
-                            maxNode.getNodeId(),
-                            weights[highIdx],
-                            minNode.getNodeId(),
-                            weights[lowIdx],
-                            delta
-                        );
-                    }
+                    logger.trace(
+                        "Balancing from node [{}] weight: [{}] to node [{}] weight: [{}]  delta: [{}]",
+                        () -> maxNode.getNodeId(),
+                        () -> weights[finalHighIdx],
+                        () -> minNode.getNodeId(),
+                        () -> weights[finalLowIdx],
+                        () -> delta
+                    );
                     if (delta <= 1.0f) {
                         /*
                          * prevent relocations that only swap the weights of the two nodes. a relocation must bring us closer to the
@@ -591,7 +588,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             // is not being throttled.
             Decision canMoveAwayDecision = allocation.deciders().canMoveAway(shardRouting, allocation);
             if (canMoveAwayDecision.type() != Decision.Type.YES) {
-                if (logger.isDebugEnabled()) logger.debug("Cannot move away shard [{}] Skipping this shard", shardRouting);
+                logger.debug("Cannot move away shard [{}] Skipping this shard", () -> shardRouting);
                 if (shardRouting.primary() && canMoveAwayDecision.type() == Decision.Type.THROTTLE) {
                     primariesThrottled = true;
                 }
@@ -603,7 +600,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 final BalancedShardsAllocator.ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
                 final BalancedShardsAllocator.ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
                 sourceNode.removeShard(shardRouting);
-                --totalShardCount;
                 Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
                     shardRouting,
                     targetNode.getNodeId(),
@@ -611,10 +607,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     allocation.changes()
                 );
                 targetNode.addShard(relocatingShards.v2());
-                ++totalShardCount;
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
-                }
+                logger.trace("Moved shard [{}] to node [{}]", () -> shardRouting, () -> targetNode.getRoutingNode());
 
                 // Verifying if this node can be considered ineligible for further iterations
                 if (targetNode != null) {
@@ -731,10 +724,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 /* we skip relocating shards here since we expect an initializing shard with the same id coming in */
                 if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)) && shard.state() != RELOCATING) {
                     node.addShard(shard);
-                    ++totalShardCount;
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("Assigned shard [{}] to node [{}]", shard, node.getNodeId());
-                    }
+                    logger.trace("Assigned shard [{}] to node [{}]", () -> shard, () -> node.getNodeId());
                 }
             }
         }
@@ -749,9 +739,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     void allocateUnassigned() {
         RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
         assert !nodes.isEmpty();
-        if (logger.isTraceEnabled()) {
-            logger.trace("Start allocating unassigned shards");
-        }
+        logger.trace(() -> "Start allocating unassigned shards");
         if (unassigned.isEmpty()) {
             return;
         }
@@ -807,11 +795,10 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     ? allocationDecision.getTargetNode().getId()
                     : null;
                 final BalancedShardsAllocator.ModelNode minNode = assignedNodeId != null ? nodes.get(assignedNodeId) : null;
+                final ShardRouting finalShard = shard;
 
                 if (allocationDecision.getAllocationDecision() == AllocationDecision.YES) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
-                    }
+                    logger.trace("Assigned shard [{}] to [{}]", () -> finalShard, () -> minNode.getNodeId());
 
                     final long shardSize = DiskThresholdDecider.getExpectedShardSize(
                         shard,
@@ -823,7 +810,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     );
                     shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
                     minNode.addShard(shard);
-                    ++totalShardCount;
                     if (!shard.primary()) {
                         // copy over the same replica shards to the secondary array so they will get allocated
                         // in a subsequent iteration, allowing replicas of other shards to be allocated first
@@ -833,13 +819,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     }
                 } else {
                     // did *not* receive a YES decision
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            "No eligible node found to assign shard [{}] allocation_status [{}]",
-                            shard,
-                            allocationDecision.getAllocationStatus()
-                        );
-                    }
+                    logger.trace(
+                        "No eligible node found to assign shard [{}] allocation_status [{}]",
+                        () -> finalShard,
+                        () -> allocationDecision.getAllocationStatus()
+                    );
 
                     if (minNode != null) {
                         // throttle decision scenario
@@ -853,11 +837,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
                             allocation.routingTable()
                         );
                         minNode.addShard(shard.initialize(minNode.getNodeId(), null, shardSize));
-                        ++totalShardCount;
                     } else {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("No Node found to assign shard [{}]", shard);
-                        }
+                        logger.trace("No Node found to assign shard [{}]", () -> finalShard);
                     }
 
                     unassigned.ignoreShard(shard, allocationDecision.getAllocationStatus(), allocation.changes());
@@ -923,7 +904,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 nodeExplanationMap.put(node.getNodeId(), new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
                 nodeWeights.add(Tuple.tuple(node.getNodeId(), currentWeight));
             }
-
             // For REMOTE_STORE recoveries, THROTTLE is as good as NO as we want faster recoveries
             // The side effect of this are increased relocations post these allocations.
             boolean considerThrottleAsNo = ignoreThrottleInRestore
@@ -1029,21 +1009,18 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 }
                 final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                 maxNode.removeShard(shard);
-                --totalShardCount;
                 long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
                 if (decision.type() == Decision.Type.YES) {
                     /* only allocate on the cluster if we are not throttled */
                     logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
-                    ++totalShardCount;
                     return true;
                 } else {
                     /* allocate on the model even if throttled */
                     logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     assert decision.type() == Decision.Type.THROTTLE;
                     minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
-                    ++totalShardCount;
                     return false;
                 }
             }

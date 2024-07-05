@@ -210,33 +210,30 @@ public final class QueueResizingOpenSearchThreadPoolExecutor extends OpenSearchT
                 final int desiredQueueSize = calculateL(lambda, targetedResponseTimeNanos);
                 final int oldCapacity = workQueue.capacity();
 
-                if (logger.isDebugEnabled()) {
-                    final long avgTaskTime = totalNanos / tasksPerFrame;
-                    logger.debug(
-                        "[{}]: there were [{}] tasks in [{}], avg task time [{}], EWMA task execution [{}], "
-                            + "[{} tasks/s], optimal queue is [{}], current capacity [{}]",
-                        getName(),
-                        tasksPerFrame,
-                        TimeValue.timeValueNanos(totalRuntime),
-                        TimeValue.timeValueNanos(avgTaskTime),
-                        TimeValue.timeValueNanos((long) executionEWMA.getAverage()),
-                        String.format(Locale.ROOT, "%.2f", lambda * TimeValue.timeValueSeconds(1).nanos()),
-                        desiredQueueSize,
-                        oldCapacity
-                    );
-                }
+                logger.debug(
+                    "[{}]: there were [{}] tasks in [{}], avg task time [{}], EWMA task execution [{}], "
+                        + "[{} tasks/s], optimal queue is [{}], current capacity [{}]",
+                    () -> getName(),
+                    () -> tasksPerFrame,
+                    () -> TimeValue.timeValueNanos(totalRuntime),
+                    () -> TimeValue.timeValueNanos(totalNanos / tasksPerFrame),
+                    () -> TimeValue.timeValueNanos((long) executionEWMA.getAverage()),
+                    () -> String.format(Locale.ROOT, "%.2f", lambda * TimeValue.timeValueSeconds(1).nanos()),
+                    () -> desiredQueueSize,
+                    () -> oldCapacity
+                );
 
                 // Adjust the queue size towards the desired capacity using an adjust of
                 // QUEUE_ADJUSTMENT_AMOUNT (either up or down), keeping in mind the min and max
                 // values the queue size can have.
                 final int newCapacity = workQueue.adjustCapacity(desiredQueueSize, QUEUE_ADJUSTMENT_AMOUNT, minQueueSize, maxQueueSize);
-                if (oldCapacity != newCapacity && logger.isDebugEnabled()) {
+                if (oldCapacity != newCapacity) {
                     logger.debug(
                         "adjusted [{}] queue size by [{}], old capacity: [{}], new capacity: [{}]",
-                        getName(),
-                        newCapacity > oldCapacity ? QUEUE_ADJUSTMENT_AMOUNT : -QUEUE_ADJUSTMENT_AMOUNT,
-                        oldCapacity,
-                        newCapacity
+                        () -> getName(),
+                        () -> newCapacity > oldCapacity ? QUEUE_ADJUSTMENT_AMOUNT : -QUEUE_ADJUSTMENT_AMOUNT,
+                        () -> oldCapacity,
+                        () -> newCapacity
                     );
                 }
             } catch (ArithmeticException e) {
