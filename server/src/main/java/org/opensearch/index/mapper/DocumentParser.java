@@ -771,14 +771,7 @@ final class DocumentParser {
                         // failure to parse this, continue
                         continue;
                     }
-                    Mapper.Builder builder = findTemplateBuilder(
-                        context,
-                        currentFieldName,
-                        XContentFieldType.DATE,
-                        dateTimeFormatter,
-                        dynamic,
-                        fullPath
-                    );
+                    Mapper.Builder builder = findTemplateBuilder(context, currentFieldName, dateTimeFormatter, dynamic, fullPath);
                     if (builder == null) {
                         boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
                         builder = new DateFieldMapper.Builder(
@@ -1041,6 +1034,7 @@ final class DocumentParser {
         return objectMapper.getMapper(subfields[subfields.length - 1]);
     }
 
+    // Throws exception if no dynamic templates found but `dynamic` is set to strict_allow_templates
     @SuppressWarnings("rawtypes")
     private static Mapper.Builder findTemplateBuilder(
         ParseContext context,
@@ -1049,42 +1043,27 @@ final class DocumentParser {
         ObjectMapper.Dynamic dynamic,
         String fieldFullPath
     ) {
-        DynamicTemplate dynamicTemplate = findTemplate(context, name, matchType, dynamic, fieldFullPath);
-        if (dynamicTemplate == null) {
-            return null;
+        Mapper.Builder builder = context.root().findTemplateBuilder(context, name, matchType);
+        if (builder == null && dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
+            throw new StrictDynamicMappingException(dynamic.toString(), fieldFullPath, name);
         }
 
-        return context.root().findTemplateBuilderByTemplate(context, name, matchType, null, dynamicTemplate);
+        return builder;
     }
 
+    // Throws exception if no dynamic templates found but `dynamic` is set to strict_allow_templates
     @SuppressWarnings("rawtypes")
     private static Mapper.Builder findTemplateBuilder(
         ParseContext context,
         String name,
-        XContentFieldType matchType,
         DateFormatter dateFormat,
         ObjectMapper.Dynamic dynamic,
         String fieldFullPath
     ) {
-        DynamicTemplate dynamicTemplate = findTemplate(context, name, matchType, dynamic, fieldFullPath);
-        if (dynamicTemplate == null) {
-            return null;
-        }
-
-        return context.root().findTemplateBuilderByTemplate(context, name, matchType, dateFormat, dynamicTemplate);
-    }
-
-    private static DynamicTemplate findTemplate(
-        ParseContext context,
-        String name,
-        XContentFieldType matchType,
-        ObjectMapper.Dynamic dynamic,
-        String fieldFullPath
-    ) {
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
-        if (dynamicTemplate == null && dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
+        Mapper.Builder builder = context.root().findTemplateBuilder(context, name, dateFormat);
+        if (builder == null && dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
             throw new StrictDynamicMappingException(dynamic.toString(), fieldFullPath, name);
         }
-        return dynamicTemplate;
+        return builder;
     }
 }
