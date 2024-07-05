@@ -100,6 +100,13 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
+    /**
+     * Gates the functionality of star tree index, which improves the performance of search
+     * aggregations.
+     */
+    public static final String STAR_TREE_INDEX = "opensearch.experimental.feature.composite_index.star_tree.enabled";
+    public static final Setting<Boolean> STAR_TREE_INDEX_SETTING = Setting.boolSetting(STAR_TREE_INDEX, false, Property.NodeScope);
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,
@@ -108,7 +115,8 @@ public class FeatureFlags {
         DATETIME_FORMATTER_CACHING_SETTING,
         TIERED_REMOTE_INDEX_SETTING,
         PLUGGABLE_CACHE_SETTING,
-        REMOTE_PUBLICATION_EXPERIMENTAL_SETTING
+        REMOTE_PUBLICATION_EXPERIMENTAL_SETTING,
+        STAR_TREE_INDEX_SETTING
     );
     /**
      * Should store the settings from opensearch.yml.
