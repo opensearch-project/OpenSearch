@@ -24,6 +24,7 @@ import org.opensearch.common.util.TestCapturingListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.NoneCompressor;
+import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -83,7 +84,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         threadPool.shutdown();
     }
 
-    public void testGetAsyncIndexMetadataWriteAction_Success() throws Exception {
+    public void testGetAsyncWriteRunnable_Success() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata(randomAlphaOfLength(10), randomBoolean(), randomAlphaOfLength(10));
         BlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         BlobStore blobStore = mock(BlobStore.class);
@@ -97,9 +98,9 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
             return null;
         })).when(blobStoreTransferService).uploadBlob(any(), any(), any(), eq(WritePriority.URGENT), any(ActionListener.class));
 
-        remoteIndexMetadataManager.getAsyncIndexMetadataWriteAction(
-            indexMetadata,
-            "cluster-uuid",
+        remoteIndexMetadataManager.getAsyncWriteRunnable(
+            INDEX,
+            new RemoteIndexMetadata(indexMetadata, "cluster-uuid", compressor, null),
             new LatchedActionListener<>(listener, latch)
         ).run();
         latch.await();
@@ -116,7 +117,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         assertTrue(pathTokens[6].startsWith(expectedFilePrefix));
     }
 
-    public void testGetAsyncIndexMetadataWriteAction_IOFailure() throws Exception {
+    public void testGetAsyncWriteRunnable_IOFailure() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata(randomAlphaOfLength(10), randomBoolean(), randomAlphaOfLength(10));
         BlobContainer blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         BlobStore blobStore = mock(BlobStore.class);
@@ -129,9 +130,9 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
             return null;
         })).when(blobStoreTransferService).uploadBlob(any(), any(), any(), eq(WritePriority.URGENT), any(ActionListener.class));
 
-        remoteIndexMetadataManager.getAsyncIndexMetadataWriteAction(
-            indexMetadata,
-            "cluster-uuid",
+        remoteIndexMetadataManager.getAsyncWriteRunnable(
+            INDEX,
+            new RemoteIndexMetadata(indexMetadata, "cluster-uuid", compressor, null),
             new LatchedActionListener<>(listener, latch)
         ).run();
         latch.await();
@@ -140,7 +141,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         assertTrue(listener.getFailure() instanceof RemoteStateTransferException);
     }
 
-    public void testGetAsyncIndexMetadataReadAction_Success() throws Exception {
+    public void testGetAsyncReadRunnable_Success() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata(randomAlphaOfLength(10), randomBoolean(), randomAlphaOfLength(10));
         String fileName = randomAlphaOfLength(10);
         fileName = fileName + DELIMITER + '2';
@@ -150,15 +151,18 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteIndexMetadataManager.getAsyncIndexMetadataReadAction("cluster-uuid", fileName, new LatchedActionListener<>(listener, latch))
-            .run();
+        remoteIndexMetadataManager.getAsyncReadRunnable(
+            INDEX,
+            new RemoteIndexMetadata(fileName, "cluster-uuid", compressor, null),
+            new LatchedActionListener<>(listener, latch)
+        ).run();
         latch.await();
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
         assertEquals(indexMetadata, listener.getResult().getObj());
     }
 
-    public void testGetAsyncIndexMetadataReadAction_IOFailure() throws Exception {
+    public void testGetAsyncReadRunnable_IOFailure() throws Exception {
         String fileName = randomAlphaOfLength(10);
         fileName = fileName + DELIMITER + '2';
         Exception exception = new IOException("testing failure");
@@ -166,12 +170,16 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteIndexMetadataManager.getAsyncIndexMetadataReadAction("cluster-uuid", fileName, new LatchedActionListener<>(listener, latch))
-            .run();
+        remoteIndexMetadataManager.getAsyncReadRunnable(
+            INDEX,
+            new RemoteIndexMetadata(fileName, "cluster-uuid", compressor, null),
+            new LatchedActionListener<>(listener, latch)
+        ).run();
         latch.await();
         assertNull(listener.getResult());
         assertNotNull(listener.getFailure());
-        assertEquals(exception, listener.getFailure());
+        assertEquals(exception, listener.getFailure().getCause());
+        assertTrue(listener.getFailure() instanceof RemoteStateTransferException);
     }
 
     private IndexMetadata getIndexMetadata(String name, @Nullable Boolean writeIndex, String... aliases) {

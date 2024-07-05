@@ -518,7 +518,8 @@ public class RemoteClusterStateService implements Closeable {
         if (uploadSettingsMetadata) {
             uploadTasks.put(
                 SETTING_METADATA,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
+                remoteGlobalMetadataManager.getAsyncWriteRunnable(
+                    SETTING_METADATA,
                     new RemotePersistentSettingsMetadata(
                         clusterState.metadata().persistentSettings(),
                         clusterState.metadata().version(),
@@ -533,7 +534,8 @@ public class RemoteClusterStateService implements Closeable {
         if (uploadTransientSettingMetadata) {
             uploadTasks.put(
                 TRANSIENT_SETTING_METADATA,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
+                remoteGlobalMetadataManager.getAsyncWriteRunnable(
+                    TRANSIENT_SETTING_METADATA,
                     new RemoteTransientSettingsMetadata(
                         clusterState.metadata().transientSettings(),
                         clusterState.metadata().version(),
@@ -548,7 +550,8 @@ public class RemoteClusterStateService implements Closeable {
         if (uploadCoordinationMetadata) {
             uploadTasks.put(
                 COORDINATION_METADATA,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
+                remoteGlobalMetadataManager.getAsyncWriteRunnable(
+                    COORDINATION_METADATA,
                     new RemoteCoordinationMetadata(
                         clusterState.metadata().coordinationMetadata(),
                         clusterState.metadata().version(),
@@ -563,7 +566,8 @@ public class RemoteClusterStateService implements Closeable {
         if (uploadTemplateMetadata) {
             uploadTasks.put(
                 TEMPLATES_METADATA,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
+                remoteGlobalMetadataManager.getAsyncWriteRunnable(
+                    TEMPLATES_METADATA,
                     new RemoteTemplatesMetadata(
                         clusterState.metadata().templatesMetadata(),
                         clusterState.metadata().version(),
@@ -578,7 +582,7 @@ public class RemoteClusterStateService implements Closeable {
         if (uploadDiscoveryNodes) {
             uploadTasks.put(
                 DISCOVERY_NODES,
-                remoteClusterStateAttributesManager.getAsyncMetadataWriteAction(
+                remoteClusterStateAttributesManager.getAsyncWriteRunnable(
                     RemoteDiscoveryNodes.DISCOVERY_NODES,
                     new RemoteDiscoveryNodes(
                         clusterState.nodes(),
@@ -593,7 +597,7 @@ public class RemoteClusterStateService implements Closeable {
         if (uploadClusterBlock) {
             uploadTasks.put(
                 CLUSTER_BLOCKS,
-                remoteClusterStateAttributesManager.getAsyncMetadataWriteAction(
+                remoteClusterStateAttributesManager.getAsyncWriteRunnable(
                     RemoteClusterBlocks.CLUSTER_BLOCKS,
                     new RemoteClusterBlocks(
                         clusterState.blocks(),
@@ -608,7 +612,8 @@ public class RemoteClusterStateService implements Closeable {
         if (uploadHashesOfConsistentSettings) {
             uploadTasks.put(
                 HASHES_OF_CONSISTENT_SETTINGS,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
+                remoteGlobalMetadataManager.getAsyncWriteRunnable(
+                    HASHES_OF_CONSISTENT_SETTINGS,
                     new RemoteHashesOfConsistentSettings(
                         (DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings(),
                         clusterState.metadata().version(),
@@ -623,7 +628,8 @@ public class RemoteClusterStateService implements Closeable {
             String customComponent = String.join(CUSTOM_DELIMITER, CUSTOM_METADATA, key);
             uploadTasks.put(
                 customComponent,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
+                remoteGlobalMetadataManager.getAsyncWriteRunnable(
+                    customComponent,
                     new RemoteCustomMetadata(
                         value,
                         key,
@@ -639,14 +645,23 @@ public class RemoteClusterStateService implements Closeable {
         indexToUpload.forEach(indexMetadata -> {
             uploadTasks.put(
                 indexMetadata.getIndex().getName(),
-                remoteIndexMetadataManager.getAsyncIndexMetadataWriteAction(indexMetadata, clusterState.metadata().clusterUUID(), listener)
+                remoteIndexMetadataManager.getAsyncWriteRunnable(
+                    indexMetadata.getIndex().getName(),
+                    new RemoteIndexMetadata(
+                        indexMetadata,
+                        clusterState.metadata().clusterUUID(),
+                        blobStoreRepository.getCompressor(),
+                        blobStoreRepository.getNamedXContentRegistry()
+                    ),
+                    listener
+                )
             );
         });
 
         clusterStateCustomToUpload.forEach((key, value) -> {
             uploadTasks.put(
                 key,
-                remoteClusterStateAttributesManager.getAsyncMetadataWriteAction(
+                remoteClusterStateAttributesManager.getAsyncWriteRunnable(
                     CLUSTER_STATE_CUSTOM,
                     new RemoteClusterStateCustoms(
                         value,
@@ -1013,7 +1028,16 @@ public class RemoteClusterStateService implements Closeable {
 
         for (UploadedIndexMetadata indexMetadata : indicesToRead) {
             asyncMetadataReadActions.add(
-                remoteIndexMetadataManager.getAsyncIndexMetadataReadAction(clusterUUID, indexMetadata.getUploadedFilename(), listener)
+                remoteIndexMetadataManager.getAsyncReadRunnable(
+                    indexMetadata.getIndexName(),
+                    new RemoteIndexMetadata(
+                        RemoteClusterStateUtils.getFormattedIndexFileName(indexMetadata.getUploadedFilename()),
+                        clusterUUID,
+                        blobStoreRepository.getCompressor(),
+                        blobStoreRepository.getNamedXContentRegistry()
+                    ),
+                    listener
+                )
             );
         }
 
@@ -1040,7 +1064,8 @@ public class RemoteClusterStateService implements Closeable {
 
         for (Map.Entry<String, UploadedMetadataAttribute> entry : customToRead.entrySet()) {
             asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+                remoteGlobalMetadataManager.getAsyncReadRunnable(
+                    entry.getValue().getAttributeName(),
                     new RemoteCustomMetadata(
                         entry.getValue().getUploadedFilename(),
                         entry.getKey(),
@@ -1048,7 +1073,6 @@ public class RemoteClusterStateService implements Closeable {
                         blobStoreRepository.getCompressor(),
                         namedWriteableRegistry
                     ),
-                    entry.getValue().getAttributeName(),
                     listener
                 )
             );
@@ -1056,14 +1080,14 @@ public class RemoteClusterStateService implements Closeable {
 
         if (readCoordinationMetadata) {
             asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+                remoteGlobalMetadataManager.getAsyncReadRunnable(
+                    COORDINATION_METADATA,
                     new RemoteCoordinationMetadata(
                         manifest.getCoordinationMetadata().getUploadedFilename(),
                         clusterUUID,
                         blobStoreRepository.getCompressor(),
                         blobStoreRepository.getNamedXContentRegistry()
                     ),
-                    COORDINATION_METADATA,
                     listener
                 )
             );
@@ -1071,14 +1095,14 @@ public class RemoteClusterStateService implements Closeable {
 
         if (readSettingsMetadata) {
             asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+                remoteGlobalMetadataManager.getAsyncReadRunnable(
+                    SETTING_METADATA,
                     new RemotePersistentSettingsMetadata(
                         manifest.getSettingsMetadata().getUploadedFilename(),
                         clusterUUID,
                         blobStoreRepository.getCompressor(),
                         blobStoreRepository.getNamedXContentRegistry()
                     ),
-                    SETTING_METADATA,
                     listener
                 )
             );
@@ -1086,14 +1110,14 @@ public class RemoteClusterStateService implements Closeable {
 
         if (readTransientSettingsMetadata) {
             asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+                remoteGlobalMetadataManager.getAsyncReadRunnable(
+                    TRANSIENT_SETTING_METADATA,
                     new RemoteTransientSettingsMetadata(
                         manifest.getTransientSettingsMetadata().getUploadedFilename(),
                         clusterUUID,
                         blobStoreRepository.getCompressor(),
                         blobStoreRepository.getNamedXContentRegistry()
                     ),
-                    TRANSIENT_SETTING_METADATA,
                     listener
                 )
             );
@@ -1101,14 +1125,14 @@ public class RemoteClusterStateService implements Closeable {
 
         if (readTemplatesMetadata) {
             asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+                remoteGlobalMetadataManager.getAsyncReadRunnable(
+                    TEMPLATES_METADATA,
                     new RemoteTemplatesMetadata(
                         manifest.getTemplatesMetadata().getUploadedFilename(),
                         clusterUUID,
                         blobStoreRepository.getCompressor(),
                         blobStoreRepository.getNamedXContentRegistry()
                     ),
-                    TEMPLATES_METADATA,
                     listener
                 )
             );
@@ -1116,7 +1140,7 @@ public class RemoteClusterStateService implements Closeable {
 
         if (readDiscoveryNodes) {
             asyncMetadataReadActions.add(
-                remoteClusterStateAttributesManager.getAsyncMetadataReadAction(
+                remoteClusterStateAttributesManager.getAsyncReadRunnable(
                     DISCOVERY_NODES,
                     new RemoteDiscoveryNodes(
                         manifest.getDiscoveryNodesMetadata().getUploadedFilename(),
@@ -1130,7 +1154,7 @@ public class RemoteClusterStateService implements Closeable {
 
         if (readClusterBlocks) {
             asyncMetadataReadActions.add(
-                remoteClusterStateAttributesManager.getAsyncMetadataReadAction(
+                remoteClusterStateAttributesManager.getAsyncReadRunnable(
                     CLUSTER_BLOCKS,
                     new RemoteClusterBlocks(
                         manifest.getClusterBlocksMetadata().getUploadedFilename(),
@@ -1144,13 +1168,13 @@ public class RemoteClusterStateService implements Closeable {
 
         if (readHashesOfConsistentSettings) {
             asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
+                remoteGlobalMetadataManager.getAsyncReadRunnable(
+                    HASHES_OF_CONSISTENT_SETTINGS,
                     new RemoteHashesOfConsistentSettings(
                         manifest.getHashesOfConsistentSettings().getUploadedFilename(),
                         clusterUUID,
                         blobStoreRepository.getCompressor()
                     ),
-                    HASHES_OF_CONSISTENT_SETTINGS,
                     listener
                 )
             );
@@ -1158,7 +1182,7 @@ public class RemoteClusterStateService implements Closeable {
 
         for (Map.Entry<String, UploadedMetadataAttribute> entry : clusterStateCustomToRead.entrySet()) {
             asyncMetadataReadActions.add(
-                remoteClusterStateAttributesManager.getAsyncMetadataReadAction(
+                remoteClusterStateAttributesManager.getAsyncReadRunnable(
                     // pass component name as cluster-state-custom--<custom_name>, so that we can interpret it later
                     String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, entry.getKey()),
                     new RemoteClusterStateCustoms(
