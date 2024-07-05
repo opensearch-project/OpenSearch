@@ -141,6 +141,9 @@ public class AzureStorageService implements AutoCloseable {
         // - https://github.com/Azure/azure-sdk-for-java/pull/25004
         // - https://github.com/Azure/azure-sdk-for-java/pull/24374
         Configuration.getGlobalConfiguration().put("AZURE_JACKSON_ADAPTER_USE_ACCESS_HELPER", "true");
+        // See please:
+        // - https://github.com/Azure/azure-sdk-for-java/issues/37464
+        Configuration.getGlobalConfiguration().put("AZURE_ENABLE_SHUTDOWN_HOOK_WITH_PRIVILEGE", "true");
     }
 
     public AzureStorageService(Settings settings) {
