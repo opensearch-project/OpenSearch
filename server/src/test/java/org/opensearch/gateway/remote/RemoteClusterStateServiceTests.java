@@ -536,12 +536,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 anyList()
             )
         ).thenReturn(new RemoteClusterStateUtils.UploadedMetadataResults());
-        try {
-            spiedService.writeFullMetadata(clusterState, randomAlphaOfLength(10));
-        } catch (Exception e) {
-            assertTrue(e instanceof RemoteStateTransferException);
-            assertTrue(e.getMessage().contains("Timed out waiting for transfer of manifest file to complete"));
-        }
+        RemoteStateTransferException ex = expectThrows(RemoteStateTransferException.class, () -> spiedService.writeFullMetadata(clusterState, randomAlphaOfLength(10)));
+        assertTrue(ex.getMessage().contains("Timed out waiting for transfer of manifest file to complete"));
     }
 
     public void testWriteFullMetadataInParallelFailureForIndexMetadata() throws IOException {
@@ -835,9 +831,9 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         remoteClusterStateService.setRemoteIndexMetadataManager(mockedIndexManager);
         remoteClusterStateService.setRemoteGlobalMetadataManager(mockedGlobalMetadataManager);
         remoteClusterStateService.setRemoteClusterStateAttributesManager(mockedClusterStateAttributeManager);
-        RemoteClusterStateService mockService = spy(remoteClusterStateService);
-        mockService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, false);
-        verify(mockService, times(1)).readClusterStateInParallel(
+        RemoteClusterStateService spiedService = spy(remoteClusterStateService);
+        spiedService.getClusterStateForManifest(ClusterName.DEFAULT.value(), manifest, NODE_ID, false);
+        verify(spiedService, times(1)).readClusterStateInParallel(
             any(),
             eq(manifest),
             eq(manifest.getClusterUUID()),
