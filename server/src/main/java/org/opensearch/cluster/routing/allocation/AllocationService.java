@@ -58,21 +58,17 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -100,6 +96,12 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private SnapshotsInfoService snapshotsInfoService;
     private final ClusterManagerMetrics clusterManagerMetrics;
+
+    private static final long MAX_ALLOCATION_BATCH_CAPACITY = 100;
+    private final Queue<Runnable> workQueue = new LinkedBlockingQueue<>();
+    AtomicBoolean primaryBatchExecution = new AtomicBoolean(true);
+    AtomicBoolean replicaBatchExecution = new AtomicBoolean(true);
+    AtomicBoolean replicaAfterPrimaryBatchExecution = new AtomicBoolean(true);
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -565,8 +567,14 @@ public class AllocationService {
         long rerouteStartTimeNS = System.nanoTime();
         removeDelayMarkers(allocation);
 
+        long startTime = System.nanoTime();
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
+        logger.info("Completing allocate unassigned, elapsed time: [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+        startTime = System.nanoTime();
         shardsAllocator.allocate(allocation);
+        logger.info("Shard allocator to allocate all shards, elapsed time: [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
         clusterManagerMetrics.recordLatency(
             clusterManagerMetrics.rerouteHistogram,
             (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - rerouteStartTimeNS))
@@ -616,11 +624,64 @@ public class AllocationService {
     }
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
+        replicaAfterPrimaryBatchExecution.set(true);
+        if (workQueue.isEmpty()) {
+            logger.info("Producing work item at allocateAllUnassignedShards");
+            produceWorkItem(allocation);
+        }
+        processWorkItemQueue(allocation);
+    }
+
+    private void processWorkItemQueue(RoutingAllocation allocation) {
+        long startTime = System.nanoTime();
+        //TODO replace with max time
+        while (workQueue.isEmpty() == false) {
+            if (System.nanoTime() - startTime > TimeValue.timeValueSeconds(30).nanos()) {
+                logger.info("Timed out while running process work item queue");
+                return;
+            }
+            logger.info("attempting to start work queue with size [{}], elapsed time [{}]",
+                workQueue.size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+            Runnable workItem = workQueue.poll();
+            if (workItem != null) {
+                workItem.run();
+            } else {
+                // null is marker to avoid hitting hot loops of after primary before replica
+                logger.info("Returning as there is no work item pending");
+                return;
+            }
+            if (workQueue.isEmpty()) {
+                logger.info("Producing work item at processWorkItemQueue");
+                produceWorkItem(allocation);
+            }
+        }
+    }
+
+    private void produceWorkItem(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        allocator.allocateAllUnassignedShards(allocation, true);
-        allocator.afterPrimariesBeforeReplicas(allocation);
-        // Replicas Assignment
-        allocator.allocateAllUnassignedShards(allocation, false);
+        long startTime = System.nanoTime();
+        List<Runnable> primaryRunnable = allocator.allocateAllUnassignedShards(allocation, true);
+        primaryBatchExecution.set(CollectionUtils.isEmpty(primaryRunnable) == false);
+        workQueue.addAll(primaryRunnable);
+        workQueue.add(
+            primaryBatchExecution.get() || replicaBatchExecution.get() || replicaAfterPrimaryBatchExecution.get() ? () -> {
+                long startTimeAPBR = System.nanoTime();
+                allocator.afterPrimariesBeforeReplicas(allocation);
+                logger.info("Adding after primary before replica runnable with elapsed time [{}]",
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeAPBR));
+            } : null);
+        replicaAfterPrimaryBatchExecution.set(false);
+        workQueue.add(() -> produceReplicaWorkItem(allocation));
+        logger.info("Produced work item with time taken [{}], with queue size [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime), workQueue.size());
+    }
+
+    private void produceReplicaWorkItem(RoutingAllocation allocation) {
+        ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
+        List<Runnable> replicaBatchRunnable = allocator.allocateAllUnassignedShards(allocation, false);
+        replicaBatchExecution.set(CollectionUtils.isEmpty(replicaBatchRunnable) == false);
+        logger.info("Inflating replica runnables now with size [{}]", replicaBatchRunnable.size());
+        workQueue.addAll(replicaBatchRunnable);
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {

@@ -102,9 +102,9 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
     };
 
     @Override
-    public void allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    public List<Runnable> allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         currentNodes = allocation.nodes();
-        innerAllocateUnassignedBatch(allocation, primaryBatchShardAllocator, replicaBatchShardAllocator, primary);
+        return innerAllocateUnassignedBatch(allocation, primaryBatchShardAllocator, replicaBatchShardAllocator, primary);
     }
 
     @Override

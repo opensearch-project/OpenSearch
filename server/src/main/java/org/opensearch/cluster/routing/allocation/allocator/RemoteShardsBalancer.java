@@ -288,7 +288,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
     }
 
     @Override
-    AllocateUnassignedDecision decideAllocateUnassigned(ShardRouting shardRouting) {
+    AllocateUnassignedDecision decideAllocateUnassigned(ShardRouting shardRouting, long startTime) {
         throw new UnsupportedOperationException("remote shards balancer does not support decision operations");
     }
 

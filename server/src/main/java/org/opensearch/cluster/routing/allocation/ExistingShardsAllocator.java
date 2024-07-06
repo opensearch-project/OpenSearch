@@ -41,6 +41,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -108,14 +109,16 @@ public interface ExistingShardsAllocator {
      *
      * Allocation service will currently run the default implementation of it implemented by {@link ShardsBatchGatewayAllocator}
      */
-    default void allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    default List<Runnable> allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        List<Runnable> runnables = new ArrayList<>();
         while (iterator.hasNext()) {
             ShardRouting shardRouting = iterator.next();
             if (shardRouting.primary() == primary) {
-                allocateUnassigned(shardRouting, allocation, iterator);
+                runnables.add(() -> allocateUnassigned(shardRouting, allocation, iterator));
             }
         }
+        return runnables;
     }
 
     /**

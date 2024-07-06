@@ -97,7 +97,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
 
     private void allocateAllUnassignedBatch(final RoutingAllocation allocation) {
         final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
-        List<ShardRouting> shardToBatch = new ArrayList<>();
+        Set<ShardRouting> shardToBatch = new HashSet<>();
         while (iterator.hasNext()) {
             shardToBatch.add(iterator.next());
         }
@@ -275,9 +275,9 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
         );
         Collection<ShardRouting> replicaShards = allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED);
-        List<ShardRouting> shardRoutingBatch = new ArrayList<>(replicaShards);
-        List<List<ShardRouting>> shardBatchList = Collections.singletonList(
-            new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING))
+        Set<ShardRouting> shardRoutingBatch = new HashSet<>(replicaShards);
+        List<Set<ShardRouting>> shardBatchList = Collections.singletonList(
+            new HashSet<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING))
         );
 
         testBatchAllocator.processExistingRecoveries(allocation, shardBatchList);
@@ -319,7 +319,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         );
         testBatchAllocator.processExistingRecoveries(
             allocation,
-            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+            Collections.singletonList(new HashSet<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
         );
         assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
@@ -348,7 +348,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         );
         testBatchAllocator.processExistingRecoveries(
             allocation,
-            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+            Collections.singletonList(new HashSet<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
         );
         assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
@@ -529,7 +529,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             .addData(node3, "MATCH", null, new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         testBatchAllocator.processExistingRecoveries(
             allocation,
-            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+            Collections.singletonList(new HashSet<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
         );
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
@@ -586,7 +586,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         );
         testBatchAllocator.processExistingRecoveries(
             allocation,
-            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+            Collections.singletonList(new HashSet<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
         );
         assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
@@ -598,7 +598,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             .addData(node2, "MATCH", null, new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         testBatchAllocator.processExistingRecoveries(
             allocation,
-            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+            Collections.singletonList(new HashSet<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
         );
         assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
@@ -638,7 +638,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             .addData(node3, randomSyncId(), null, new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         testBatchAllocator.processExistingRecoveries(
             allocation,
-            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+            Collections.singletonList(new HashSet<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
         );
         assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED), empty());

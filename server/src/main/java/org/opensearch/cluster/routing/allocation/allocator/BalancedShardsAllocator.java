@@ -297,6 +297,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
+        long startTime = System.nanoTime();
         ShardsBalancer localShardsBalancer = new LocalShardsBalancer(
             logger,
             allocation,
@@ -309,7 +310,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         if (shard.unassigned()) {
-            allocateUnassignedDecision = localShardsBalancer.decideAllocateUnassigned(shard);
+            allocateUnassignedDecision = localShardsBalancer.decideAllocateUnassigned(shard, startTime);
         } else {
             moveDecision = localShardsBalancer.decideMove(shard);
             if (moveDecision.isDecisionTaken() && moveDecision.canRemain()) {

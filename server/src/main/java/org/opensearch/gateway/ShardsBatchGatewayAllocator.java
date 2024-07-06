@@ -41,16 +41,9 @@ import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.No
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.Spliterators;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -167,7 +160,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     @Override
     public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
         assert replicaShardBatchAllocator != null;
-        List<List<ShardRouting>> storedShardBatches = batchIdToStoreShardBatch.values()
+        List<Set<ShardRouting>> storedShardBatches = batchIdToStoreShardBatch.values()
             .stream()
             .map(ShardsBatch::getBatchedShardRoutings)
             .collect(Collectors.toList());
@@ -187,14 +180,14 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
+    public List<Runnable> allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
 
         assert primaryShardBatchAllocator != null;
         assert replicaShardBatchAllocator != null;
-        innerAllocateUnassignedBatch(allocation, primaryShardBatchAllocator, replicaShardBatchAllocator, primary);
+        return innerAllocateUnassignedBatch(allocation, primaryShardBatchAllocator, replicaShardBatchAllocator, primary);
     }
 
-    protected void innerAllocateUnassignedBatch(
+    protected List<Runnable> innerAllocateUnassignedBatch(
         RoutingAllocation allocation,
         PrimaryShardBatchAllocator primaryBatchShardAllocator,
         ReplicaShardBatchAllocator replicaBatchShardAllocator,
@@ -203,20 +196,38 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         // create batches for unassigned shards
         Set<String> batchesToAssign = createAndUpdateBatches(allocation, primary);
         if (batchesToAssign.isEmpty()) {
-            return;
+            return Collections.emptyList();
         }
+        List<Runnable> runnables = new ArrayList<>();
+        logger.info("Total batches identified in this reroute cycle: [{}]", batchesToAssign.size());
         if (primary) {
             batchIdToStartedShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
                 .forEach(
-                    shardsBatch -> primaryBatchShardAllocator.allocateUnassignedBatch(shardsBatch.getBatchedShardRoutings(), allocation)
+                    shardsBatch -> runnables.add(() -> {
+                        long startTime = System.nanoTime();
+                        //TODO refresh single batch
+                        primaryBatchShardAllocator.allocateUnassignedBatch(shardsBatch.getBatchedShardRoutings(), allocation);
+                        logger.info("Time taken to allocate unassigned primary batch with id [{}], size : [{}] in this cycle:[{}ms]",
+                            shardsBatch.batchId, shardsBatch.getBatchedShardRoutings().size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+                    })
                 );
+            return runnables;
         } else {
             batchIdToStoreShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
-                .forEach(batch -> replicaBatchShardAllocator.allocateUnassignedBatch(batch.getBatchedShardRoutings(), allocation));
+                .forEach(
+                    batch -> runnables.add(() ->{
+                        long startTime = System.nanoTime();
+                        //TODO refresh single batch
+                        replicaBatchShardAllocator.allocateUnassignedBatch(batch.getBatchedShardRoutings(), allocation);
+                        logger.info("Time taken to allocate unassigned replica batch with id [{}], size : [{}] in this cycle:[{}ms]",
+                            batch.batchId, batch.getBatchedShardRoutings().size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+                    })
+                );
+            return runnables;
         }
     }
 
@@ -642,8 +653,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             asyncBatch.clearShard(shardId);
         }
 
-        public List<ShardRouting> getBatchedShardRoutings() {
-            return batchInfo.values().stream().map(ShardEntry::getShardRouting).collect(Collectors.toList());
+        public Set<ShardRouting> getBatchedShardRoutings() {
+            return batchInfo.values().stream().map(ShardEntry::getShardRouting).collect(Collectors.toSet());
         }
 
         public Set<ShardId> getBatchedShards() {

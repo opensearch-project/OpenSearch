@@ -13,13 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.routing.RoutingNode;
-import org.opensearch.cluster.routing.RoutingNodes;
-import org.opensearch.cluster.routing.RoutingPool;
-import org.opensearch.cluster.routing.ShardMovementStrategy;
-import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.ShardRoutingState;
-import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.*;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.AllocationDecision;
 import org.opensearch.cluster.routing.allocation.MoveDecision;
@@ -29,6 +23,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
@@ -40,6 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -739,6 +735,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     void allocateUnassigned() {
+        long startTime = System.nanoTime();
         RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
         assert !nodes.isEmpty();
         if (logger.isTraceEnabled()) {
@@ -794,7 +791,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         do {
             for (int i = 0; i < primaryLength; i++) {
                 ShardRouting shard = primary[i];
-                final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard);
+                final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard, startTime);
                 final String assignedNodeId = allocationDecision.getTargetNode() != null
                     ? allocationDecision.getTargetNode().getId()
                     : null;
@@ -865,6 +862,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
             secondaryLength = 0;
         } while (primaryLength > 0);
         // clear everything we have either added it or moved to ignoreUnassigned
+        logger.info("Time taken in allocate unassigned [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
     }
 
     /**
@@ -874,10 +873,21 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * is of type {@link Decision.Type#NO}, then the assigned node will be null.
      */
     @Override
-    AllocateUnassignedDecision decideAllocateUnassigned(final ShardRouting shard) {
+    AllocateUnassignedDecision decideAllocateUnassigned(final ShardRouting shard, long startTime) {
         if (shard.assignedToNode()) {
             // we only make decisions for unassigned shards here
             return AllocateUnassignedDecision.NOT_TAKEN;
+        }
+
+        if (System.nanoTime() - startTime > TimeValue.timeValueSeconds(30).nanos()) {
+            logger.info("Timed out while running Local shard balancer allocate unassigned - outer loop");
+            return AllocateUnassignedDecision.throttle(null);
+        }
+
+        if (shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE && shard.primary()) {
+            logger.debug("Skipping decide allocate unassigned for existing shard, shard primary : [{}], unassigned reason : [{}]",
+                shard.primary(), shard.unassignedInfo().getReason());
+            return AllocateUnassignedDecision.throttle(null);
         }
 
         final boolean explain = allocation.debugDecision();

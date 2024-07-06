@@ -20,11 +20,7 @@ import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewaySta
 import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.NodeGatewayStartedShard;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * PrimaryShardBatchAllocator is similar to {@link org.opensearch.gateway.PrimaryShardAllocator} only difference is
@@ -81,7 +77,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
      * @param shardRoutings the shards to allocate
      * @param allocation    the allocation state container object
      */
-    public void allocateUnassignedBatch(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+    public void allocateUnassignedBatch(Set<ShardRouting> shardRoutings, RoutingAllocation allocation) {
         HashMap<ShardId, AllocateUnassignedDecision> ineligibleShardAllocationDecisions = new HashMap<>();
         List<ShardRouting> eligibleShards = new ArrayList<>();
         List<ShardRouting> inEligibleShards = new ArrayList<>();

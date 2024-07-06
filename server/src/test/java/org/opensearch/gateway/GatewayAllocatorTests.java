@@ -129,7 +129,7 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
             .values()
             .stream()
             .map(ShardsBatchGatewayAllocator.ShardsBatch::getBatchedShardRoutings)
-            .flatMap(List::stream)
+            .flatMap(Set::stream)
             .collect(Collectors.toSet());
         primariesInAllBatches.forEach(shardRouting -> assertTrue(shardRouting.unassigned() && shardRouting.primary() == true));
 
@@ -137,7 +137,7 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
             .values()
             .stream()
             .map(ShardsBatchGatewayAllocator.ShardsBatch::getBatchedShardRoutings)
-            .flatMap(List::stream)
+            .flatMap(Set::stream)
             .collect(Collectors.toSet());
 
         replicasInAllBatches.forEach(shardRouting -> assertTrue(shardRouting.unassigned() && shardRouting.primary() == false));
