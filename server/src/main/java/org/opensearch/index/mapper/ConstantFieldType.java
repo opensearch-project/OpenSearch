@@ -76,7 +76,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
      */
     protected abstract boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context);
 
-    private static String valueToString(Object value) {
+    protected static String valueToString(Object value) {
         return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
     }
 
