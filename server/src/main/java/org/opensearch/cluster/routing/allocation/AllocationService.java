@@ -829,11 +829,6 @@ public class AllocationService {
         }
 
         @Override
-        public TimeValue getAllocatorTimeout() {
-            return null;
-        }
-
-        @Override
         public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation allocation) {
             assert unassignedShard.unassigned();
             assert allocation.debugDecision();

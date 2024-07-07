@@ -56,6 +56,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
     private final boolean preferPrimaryBalance;
     private final boolean preferPrimaryRebalance;
+    private final TimeValue allocateUnassignedTimeout;
     private final BalancedShardsAllocator.WeightFunction weight;
 
     private final float threshold;
@@ -72,7 +73,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         BalancedShardsAllocator.WeightFunction weight,
         float threshold,
         boolean preferPrimaryBalance,
-        boolean preferPrimaryRebalance
+        boolean preferPrimaryRebalance,
+        TimeValue allocateUnassignedTimeout
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -89,6 +91,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.preferPrimaryBalance = preferPrimaryBalance;
         this.preferPrimaryRebalance = preferPrimaryRebalance;
         this.shardMovementStrategy = shardMovementStrategy;
+        this.allocateUnassignedTimeout = allocateUnassignedTimeout;
     }
 
     /**
@@ -879,7 +882,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             return AllocateUnassignedDecision.NOT_TAKEN;
         }
 
-        if (System.nanoTime() - startTime > TimeValue.timeValueSeconds(30).nanos()) {
+        if (System.nanoTime() - startTime > allocateUnassignedTimeout.nanos()) {
             logger.info("Timed out while running Local shard balancer allocate unassigned - outer loop");
             return AllocateUnassignedDecision.throttle(null);
         }
