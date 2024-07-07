@@ -38,6 +38,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 
@@ -101,6 +102,10 @@ public interface ExistingShardsAllocator {
         RoutingAllocation allocation,
         UnassignedAllocationHandler unassignedAllocationHandler
     );
+
+    default TimeValue getAllocatorTimeout() {
+        return null;
+    }
 
     /**
      * Allocate all unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.

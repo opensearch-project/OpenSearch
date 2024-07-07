@@ -27,8 +27,10 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
@@ -60,6 +62,9 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     private static final Logger logger = LogManager.getLogger(ShardsBatchGatewayAllocator.class);
     private final long maxBatchSize;
     private static final short DEFAULT_SHARD_BATCH_SIZE = 2000;
+    private static final String BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY = "cluster.routing.allocation.shards_batch_gateway_allocator.allocator_timeout";
+
+    private TimeValue shardsBatchGatewayAllocatorTimeout;
 
     /**
      * Number of shards we send in one batch to data nodes for fetching metadata
@@ -70,6 +75,13 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         1,
         10000,
         Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> BATCH_ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
+        BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY,
+        TimeValue.timeValueSeconds(60),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private final RerouteService rerouteService;
@@ -90,7 +102,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         RerouteService rerouteService,
         TransportNodesListGatewayStartedShardsBatch batchStartedAction,
         TransportNodesListShardStoreMetadataBatch batchStoreAction,
-        Settings settings
+        Settings settings,
+        ClusterSettings clusterSettings
     ) {
         this.rerouteService = rerouteService;
         this.primaryShardBatchAllocator = new InternalPrimaryBatchShardAllocator();
@@ -98,6 +111,11 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         this.batchStartedAction = batchStartedAction;
         this.batchStoreAction = batchStoreAction;
         this.maxBatchSize = GATEWAY_ALLOCATOR_BATCH_SIZE.get(settings);
+        this.shardsBatchGatewayAllocatorTimeout = BATCH_ALLOCATOR_TIMEOUT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            BATCH_ALLOCATOR_TIMEOUT_SETTING,
+            this::setAllocatorTimeout
+        );
     }
 
     @Override
@@ -120,6 +138,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         this.batchStoreAction = null;
         this.replicaShardBatchAllocator = null;
         this.maxBatchSize = batchSize;
+        this.shardsBatchGatewayAllocatorTimeout = null;
     }
     // for tests
 
@@ -177,6 +196,15 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         UnassignedAllocationHandler unassignedAllocationHandler
     ) {
         throw new UnsupportedOperationException("ShardsBatchGatewayAllocator does not support allocating unassigned shards");
+    }
+
+    @Override
+    public TimeValue getAllocatorTimeout() {
+        return this.shardsBatchGatewayAllocatorTimeout;
+    }
+
+    public void setAllocatorTimeout(TimeValue shardsBatchGatewayAllocatorTimeout) {
+        this.shardsBatchGatewayAllocatorTimeout = shardsBatchGatewayAllocatorTimeout;
     }
 
     @Override

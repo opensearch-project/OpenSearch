@@ -633,10 +633,11 @@ public class AllocationService {
     }
 
     private void processWorkItemQueue(RoutingAllocation allocation) {
+        ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
         long startTime = System.nanoTime();
         //TODO replace with max time
         while (workQueue.isEmpty() == false) {
-            if (System.nanoTime() - startTime > TimeValue.timeValueSeconds(30).nanos()) {
+            if (System.nanoTime() - startTime > allocator.getAllocatorTimeout().nanos()) {
                 logger.info("Timed out while running process work item queue");
                 return;
             }
@@ -825,6 +826,11 @@ public class AllocationService {
             UnassignedAllocationHandler unassignedAllocationHandler
         ) {
             unassignedAllocationHandler.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
+        }
+
+        @Override
+        public TimeValue getAllocatorTimeout() {
+            return null;
         }
 
         @Override
