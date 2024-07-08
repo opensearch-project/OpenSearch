@@ -21,11 +21,7 @@ import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
-
-import static org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService.INDEX_ROUTING_PATH_TOKEN;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
 
 /**
  * Extends the RemoteClusterStateBlobStore to support {@link RemoteIndexRoutingTable}
@@ -60,7 +56,6 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractRe
         Setting.Property.Dynamic
     );
 
-    public static final String INDEX_ROUTING_FILE_PREFIX = "index_routing";
     private RemoteStoreEnums.PathType pathType;
     private RemoteStoreEnums.PathHashAlgorithm pathHashAlgo;
 
@@ -85,7 +80,7 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractRe
         BlobPath indexRoutingPath = getBasePath().add(RemoteClusterStateUtils.encodeString(getClusterName()))
             .add("cluster-state")
             .add(obj.clusterUUID())
-            .add(INDEX_ROUTING_PATH_TOKEN);
+            .add(INDEX_ROUTING_TABLE);
         BlobPath path = pathType.path(
             RemoteStorePathStrategy.PathInput.builder()
                 .basePath(indexRoutingPath)

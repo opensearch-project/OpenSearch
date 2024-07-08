@@ -19,27 +19,24 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.compress.DeflateCompressor;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.TestCapturingListener;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.compress.Compressor;
+import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
-import org.opensearch.gateway.remote.RemoteStateTransferException;
-import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.FilterRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -51,33 +48,34 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Supplier;
 
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import static org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService.INDEX_ROUTING_FILE_PREFIX;
-import static org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService.INDEX_ROUTING_PATH_TOKEN;
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.ClusterMetadataManifestTests.randomUploadedIndexMetadataList;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMITER;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_FORMAT;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -92,6 +90,8 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
     private BlobPath basePath;
     private ClusterSettings clusterSettings;
     private ClusterService clusterService;
+    private Compressor compressor;
+    private BlobStoreTransferService blobStoreTransferService;
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Before
@@ -105,6 +105,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             .build();
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterService = mock(ClusterService.class);
+        blobStoreTransferService = mock(BlobStoreTransferService.class);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         blobStoreRepository = mock(BlobStoreRepository.class);
         when(blobStoreRepository.getCompressor()).thenReturn(new DeflateCompressor());
@@ -114,14 +115,18 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         when(blobStoreRepository.blobStore()).thenReturn(blobStore);
         Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
-
+        compressor = new NoneCompressor();
         basePath = BlobPath.cleanPath().add("base-path");
-
+        when(blobStoreRepository.basePath()).thenReturn(basePath);
         remoteRoutingTableService = new InternalRemoteRoutingTableService(
             repositoriesServiceSupplier,
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            compressor,
+            blobStoreTransferService,
+            blobStoreRepository,
+            "test-cluster"
         );
 
     }
@@ -141,7 +146,11 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
                 repositoriesServiceSupplier,
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                compressor,
+                blobStoreTransferService,
+                blobStoreRepository,
+                "test-cluster"
             )
         );
     }
@@ -347,136 +356,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertEquals(indexName, diff.getDeletes().get(0));
     }
 
-    public void testGetIndexRoutingAsyncAction() throws IOException {
-        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        ClusterState clusterState = createClusterState(indexName);
-        BlobPath expectedPath = getPath();
-
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        when(blobStore.blobContainer(expectedPath)).thenReturn(blobContainer);
-
-        remoteRoutingTableService.start();
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getIndexRoutingAsyncAction(
-            clusterState,
-            clusterState.routingTable().getIndicesRouting().get(indexName),
-            listener,
-            basePath
-        );
-        assertNotNull(runnable);
-        runnable.run();
-
-        String expectedFilePrefix = String.join(
-            DELIMITER,
-            INDEX_ROUTING_FILE_PREFIX,
-            RemoteStoreUtils.invertLong(clusterState.term()),
-            RemoteStoreUtils.invertLong(clusterState.version())
-        );
-        verify(blobContainer, times(1)).writeBlob(startsWith(expectedFilePrefix), any(StreamInput.class), anyLong(), eq(true));
-        verify(listener, times(1)).onResponse(any(ClusterMetadataManifest.UploadedMetadata.class));
-    }
-
-    public void testGetIndexRoutingAsyncActionFailureInBlobRepo() throws IOException {
-        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        ClusterState clusterState = createClusterState(indexName);
-        BlobPath expectedPath = getPath();
-
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        when(blobStore.blobContainer(expectedPath)).thenReturn(blobContainer);
-        doThrow(new IOException("testing failure")).when(blobContainer).writeBlob(anyString(), any(StreamInput.class), anyLong(), eq(true));
-
-        remoteRoutingTableService.start();
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getIndexRoutingAsyncAction(
-            clusterState,
-            clusterState.routingTable().getIndicesRouting().get(indexName),
-            listener,
-            basePath
-        );
-        assertNotNull(runnable);
-        runnable.run();
-        String expectedFilePrefix = String.join(
-            DELIMITER,
-            INDEX_ROUTING_FILE_PREFIX,
-            RemoteStoreUtils.invertLong(clusterState.term()),
-            RemoteStoreUtils.invertLong(clusterState.version())
-        );
-        verify(blobContainer, times(1)).writeBlob(startsWith(expectedFilePrefix), any(StreamInput.class), anyLong(), eq(true));
-        verify(listener, times(1)).onFailure(any(RemoteStateTransferException.class));
-    }
-
-    public void testGetIndexRoutingAsyncActionAsyncRepo() throws IOException {
-        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        ClusterState clusterState = createClusterState(indexName);
-        BlobPath expectedPath = getPath();
-
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        blobContainer = mock(AsyncMultiStreamBlobContainer.class);
-        when(blobStore.blobContainer(expectedPath)).thenReturn(blobContainer);
-        ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        ArgumentCaptor<WriteContext> writeContextArgumentCaptor = ArgumentCaptor.forClass(WriteContext.class);
-        ConcurrentHashMap<String, WriteContext> capturedWriteContext = new ConcurrentHashMap<>();
-
-        doAnswer((i) -> {
-            actionListenerArgumentCaptor.getValue().onResponse(null);
-            WriteContext writeContext = writeContextArgumentCaptor.getValue();
-            capturedWriteContext.put(writeContext.getFileName().split(DELIMITER)[0], writeContextArgumentCaptor.getValue());
-            return null;
-        }).when((AsyncMultiStreamBlobContainer) blobContainer)
-            .asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
-
-        remoteRoutingTableService.start();
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getIndexRoutingAsyncAction(
-            clusterState,
-            clusterState.routingTable().getIndicesRouting().get(indexName),
-            listener,
-            basePath
-        );
-        assertNotNull(runnable);
-        runnable.run();
-
-        String expectedFilePrefix = String.join(
-            DELIMITER,
-            INDEX_ROUTING_FILE_PREFIX,
-            RemoteStoreUtils.invertLong(clusterState.term()),
-            RemoteStoreUtils.invertLong(clusterState.version())
-        );
-        assertEquals(1, actionListenerArgumentCaptor.getAllValues().size());
-        assertEquals(1, writeContextArgumentCaptor.getAllValues().size());
-        assertNotNull(capturedWriteContext.get("index_routing"));
-        assertEquals(capturedWriteContext.get("index_routing").getWritePriority(), WritePriority.URGENT);
-        assertTrue(capturedWriteContext.get("index_routing").getFileName().startsWith(expectedFilePrefix));
-    }
-
-    public void testGetIndexRoutingAsyncActionAsyncRepoFailureInRepo() throws IOException {
-        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        ClusterState clusterState = createClusterState(indexName);
-        BlobPath expectedPath = getPath();
-
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
-        blobContainer = mock(AsyncMultiStreamBlobContainer.class);
-        when(blobStore.blobContainer(expectedPath)).thenReturn(blobContainer);
-
-        doThrow(new IOException("Testing failure")).when((AsyncMultiStreamBlobContainer) blobContainer)
-            .asyncBlobUpload(any(WriteContext.class), any(ActionListener.class));
-
-        remoteRoutingTableService.start();
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getIndexRoutingAsyncAction(
-            clusterState,
-            clusterState.routingTable().getIndicesRouting().get(indexName),
-            listener,
-            basePath
-        );
-        assertNotNull(runnable);
-        runnable.run();
-        verify(listener, times(1)).onFailure(any(RemoteStateTransferException.class));
-    }
-
     public void testGetAllUploadedIndicesRouting() {
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder().build();
         final ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata = new ClusterMetadataManifest.UploadedIndexMetadata(
             "test-index",
             "index-uuid",
             "index-filename",
-            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            INDEX_ROUTING_TABLE_PREFIX
         );
 
         List<ClusterMetadataManifest.UploadedIndexMetadata> allIndiceRoutingMetadata = remoteRoutingTableService
@@ -491,7 +377,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            INDEX_ROUTING_TABLE_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata))
@@ -509,7 +395,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            INDEX_ROUTING_TABLE_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata))
@@ -518,7 +404,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index2",
             "index-uuid",
             "index-filename",
-            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            INDEX_ROUTING_TABLE_PREFIX
         );
 
         List<ClusterMetadataManifest.UploadedIndexMetadata> allIndiceRoutingMetadata = remoteRoutingTableService
@@ -534,13 +420,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            INDEX_ROUTING_TABLE_PREFIX
         );
         final ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata2 = new ClusterMetadataManifest.UploadedIndexMetadata(
             "test-index2",
             "index-uuid",
             "index-filename",
-            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            INDEX_ROUTING_TABLE_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata, uploadedIndexMetadata2))
@@ -558,13 +444,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            INDEX_ROUTING_TABLE_PREFIX
         );
         final ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata2 = new ClusterMetadataManifest.UploadedIndexMetadata(
             "test-index2",
             "index-uuid",
             "index-filename",
-            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            INDEX_ROUTING_TABLE_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata, uploadedIndexMetadata2))
@@ -640,69 +526,69 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         );
     }
 
-    public void testGetAsyncIndexMetadataReadAction() throws Exception {
+    public void testGetAsyncIndexRoutingReadAction() throws Exception {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
         String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
-        Index index = new Index(indexName, "uuid-01");
-
-        LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
-        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
-            clusterState.routingTable().getIndicesRouting().get(indexName)
+        when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
+            INDEX_ROUTING_TABLE_FORMAT.serialize(
+                clusterState.getRoutingTable().getIndicesRouting().get(indexName),
+                uploadedFileName,
+                compressor
+            ).streamInput()
         );
-        remoteIndexRoutingTable.writeTo(streamOutput);
-        when(blobContainer.readBlob(indexName)).thenReturn(streamOutput.bytes().streamInput());
-        remoteRoutingTableService.start();
+        TestCapturingListener<IndexRoutingTable> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
 
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, listener);
-        assertNotNull(runnable);
-        runnable.run();
+        remoteRoutingTableService.getAsyncIndexRoutingReadAction(
+            "cluster-uuid",
+            uploadedFileName,
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
 
-        assertBusy(() -> verify(blobContainer, times(1)).readBlob(any()));
-        assertBusy(() -> verify(listener, times(1)).onResponse(any(IndexRoutingTable.class)));
+        assertNull(listener.getFailure());
+        assertNotNull(listener.getResult());
+        IndexRoutingTable indexRoutingTable = listener.getResult();
+        assertEquals(clusterState.getRoutingTable().getIndicesRouting().get(indexName), indexRoutingTable);
     }
 
-    public void testGetAsyncIndexMetadataReadActionFailureForIncorrectIndex() throws Exception {
+    public void testGetAsyncIndexRoutingWriteAction() throws Exception {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
-        String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
-        Index index = new Index("incorrect-index", "uuid-01");
+        doAnswer(invocationOnMock -> {
+            invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
+            return null;
+        }).when(blobStoreTransferService)
+            .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(WritePriority.URGENT), any(ActionListener.class));
 
-        LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
-        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
-            clusterState.routingTable().getIndicesRouting().get(indexName)
-        );
-        remoteIndexRoutingTable.writeTo(streamOutput);
-        when(blobContainer.readBlob(anyString())).thenReturn(streamOutput.bytes().streamInput());
-        remoteRoutingTableService.doStart();
+        TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
 
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, listener);
-        assertNotNull(runnable);
-        runnable.run();
+        remoteRoutingTableService.getAsyncIndexRoutingWriteAction(
+            clusterState.metadata().clusterUUID(),
+            clusterState.term(),
+            clusterState.version(),
+            clusterState.getRoutingTable().indicesRouting().get(indexName),
+            new LatchedActionListener<>(listener, latch)
+        ).run();
+        latch.await();
+        assertNull(listener.getFailure());
+        assertNotNull(listener.getResult());
+        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.getResult();
 
-        assertBusy(() -> verify(blobContainer, times(1)).readBlob(any()));
-        assertBusy(() -> verify(listener, times(1)).onFailure(any(Exception.class)));
-    }
+        assertEquals(INDEX_ROUTING_TABLE_PREFIX + indexName, uploadedMetadata.getComponent());
+        String uploadedFileName = uploadedMetadata.getUploadedFilename();
+        String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
+        assertEquals(8, pathTokens.length);
+        assertEquals(pathTokens[1], "base-path");
+        String[] fileNameTokens = pathTokens[7].split(DELIMITER);
 
-    public void testGetAsyncIndexMetadataReadActionFailureInBlobRepo() throws Exception {
-        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
-        String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
-        Index index = new Index(indexName, "uuid-01");
-
-        LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
-        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-        doThrow(new IOException("testing failure")).when(blobContainer).readBlob(indexName);
-        remoteRoutingTableService.doStart();
-
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, listener);
-        assertNotNull(runnable);
-        runnable.run();
-
-        assertBusy(() -> verify(listener, times(1)).onFailure(any(RemoteStateTransferException.class)));
+        assertEquals(4, fileNameTokens.length);
+        assertEquals(fileNameTokens[0], INDEX_ROUTING_TABLE);
+        assertEquals(fileNameTokens[1], RemoteStoreUtils.invertLong(1L));
+        assertEquals(fileNameTokens[2], RemoteStoreUtils.invertLong(2L));
+        assertThat(RemoteStoreUtils.invertLong(fileNameTokens[3]), lessThanOrEqualTo(System.currentTimeMillis()));
     }
 
     public void testGetUpdatedIndexRoutingTableMetadataWhenNoChange() {
@@ -758,7 +644,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
     }
 
     private BlobPath getPath() {
-        BlobPath indexRoutingPath = basePath.add(INDEX_ROUTING_PATH_TOKEN);
+        BlobPath indexRoutingPath = basePath.add(INDEX_ROUTING_TABLE);
         return RemoteStoreEnums.PathType.HASHED_PREFIX.path(
             RemoteStorePathStrategy.PathInput.builder().basePath(indexRoutingPath).indexUUID("uuid").build(),
             RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64

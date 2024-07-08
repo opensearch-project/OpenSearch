@@ -9,7 +9,6 @@
 package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.action.LatchedActionListener;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -17,7 +16,6 @@ import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.IOException;
@@ -30,8 +28,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 public interface RemoteRoutingTableService extends LifecycleComponent {
-    public static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
-        new DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable>() {
+    DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
+        new DiffableUtils.NonDiffableValueSerializer<>() {
             @Override
             public void write(IndexRoutingTable value, StreamOutput out) throws IOException {
                 value.writeTo(out);
@@ -48,7 +46,6 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
     CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
-        Index index,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
     );
 
@@ -63,8 +60,9 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
     );
 
     CheckedRunnable<IOException> getAsyncIndexRoutingWriteAction(
-        ClusterState clusterState,
         String clusterUUID,
+        long term,
+        long version,
         IndexRoutingTable indexRouting,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     );

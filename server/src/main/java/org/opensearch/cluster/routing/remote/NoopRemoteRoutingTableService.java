@@ -9,13 +9,11 @@
 package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.action.LatchedActionListener;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.IOException;
@@ -42,8 +40,9 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
 
     @Override
     public CheckedRunnable<IOException> getAsyncIndexRoutingWriteAction(
-        ClusterState clusterState,
         String clusterUUID,
+        long term,
+        long version,
         IndexRoutingTable indexRouting,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
@@ -65,7 +64,6 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     public CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
-        Index index,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
     ) {
         // noop

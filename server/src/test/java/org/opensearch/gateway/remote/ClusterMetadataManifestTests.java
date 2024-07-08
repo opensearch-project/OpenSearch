@@ -13,7 +13,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
-import org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -44,6 +43,7 @@ import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettin
 import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata.SETTING_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLATES_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_PREFIX;
 
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
@@ -545,7 +545,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             "test-index",
             "test-uuid",
             "routing-path",
-            InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX
+            INDEX_ROUTING_TABLE_PREFIX
         );
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)

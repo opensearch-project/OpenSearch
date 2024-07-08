@@ -26,7 +26,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableServiceFactory;
 import org.opensearch.cluster.service.ClusterService;
@@ -43,7 +42,6 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
@@ -106,6 +104,8 @@ import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettin
 import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata.SETTING_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLATES_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -657,10 +657,11 @@ public class RemoteClusterStateService implements Closeable {
         });
         indicesRoutingToUpload.forEach(indexRoutingTable -> {
             uploadTasks.put(
-                InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX + indexRoutingTable.getIndex().getName(),
+                String.join(CUSTOM_DELIMITER, INDEX_ROUTING_TABLE, indexRoutingTable.getIndex().getName()),
                 remoteRoutingTableService.getAsyncIndexRoutingWriteAction(
-                    clusterState,
                     clusterState.metadata().clusterUUID(),
+                    clusterState.term(),
+                    clusterState.version(),
                     indexRoutingTable,
                     listener
                 )
@@ -713,7 +714,7 @@ public class RemoteClusterStateService implements Closeable {
         UploadedMetadataResults response = new UploadedMetadataResults();
         results.forEach((name, uploadedMetadata) -> {
             if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class)
-                && uploadedMetadata.getComponent().contains(InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX)) {
+                && uploadedMetadata.getComponent().contains(INDEX_ROUTING_TABLE_PREFIX)) {
                 response.uploadedIndicesRoutingMetadata.add((UploadedIndexMetadata) uploadedMetadata);
             } else if (name.startsWith(CUSTOM_METADATA)) {
                 // component name for custom metadata will look like custom--<metadata-attribute>
@@ -1039,7 +1040,6 @@ public class RemoteClusterStateService implements Closeable {
                 remoteRoutingTableService.getAsyncIndexRoutingReadAction(
                     clusterUUID,
                     indexRouting.getUploadedFilename(),
-                    new Index(indexRouting.getIndexName(), indexRouting.getIndexUUID()),
                     routingTableLatchedActionListener
                 )
             );
