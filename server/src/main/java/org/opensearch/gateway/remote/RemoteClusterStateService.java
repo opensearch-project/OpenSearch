@@ -356,7 +356,7 @@ public class RemoteClusterStateService implements Closeable {
             && clusterState.getNodes().delta(previousClusterState.getNodes()).hasChanges();
         final boolean updateClusterBlocks = isPublicationEnabled && !clusterState.blocks().equals(previousClusterState.blocks());
         final boolean updateHashesOfConsistentSettings = isPublicationEnabled
-            || Metadata.isHashesOfConsistentSettingsEqual(previousClusterState.metadata(), clusterState.metadata()) == false;
+            && Metadata.isHashesOfConsistentSettingsEqual(previousClusterState.metadata(), clusterState.metadata()) == false;
 
         uploadedMetadataResults = writeMetadataInParallel(
             clusterState,
@@ -476,7 +476,8 @@ public class RemoteClusterStateService implements Closeable {
         return manifestDetails;
     }
 
-    private UploadedMetadataResults writeMetadataInParallel(
+    // package private for testing
+    UploadedMetadataResults writeMetadataInParallel(
         ClusterState clusterState,
         List<IndexMetadata> indexToUpload,
         Map<String, IndexMetadata> prevIndexMetadataByName,

@@ -125,3 +125,7 @@ ${path.logs}
 # Gates the functionality of enabling Opensearch to use pluggable caches with respective store names via setting.
 #
 #opensearch.experimental.feature.pluggable.caching.enabled: false
+#
+# Gates the functionality of star tree index, which improves the performance of search aggregations.
+#
+#opensearch.experimental.feature.composite_index.star_tree.enabled: true
