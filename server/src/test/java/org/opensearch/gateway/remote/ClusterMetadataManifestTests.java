@@ -619,6 +619,25 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         );
     }
 
+    public void testUploadedIndexMetadataWithoutComponentPrefix() throws IOException {
+        final UploadedIndexMetadata originalUploadedIndexMetadata = new UploadedIndexMetadataV1(
+            "test-index",
+            "test-index-uuid",
+            "test_file_name"
+        );
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalUploadedIndexMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final UploadedIndexMetadata fromXContentUploadedIndexMetadata = UploadedIndexMetadata.fromXContent(parser);
+            assertEquals(originalUploadedIndexMetadata.getIndexName(), fromXContentUploadedIndexMetadata.getIndexName());
+            assertEquals(originalUploadedIndexMetadata.getIndexUUID(), fromXContentUploadedIndexMetadata.getIndexUUID());
+            assertEquals(originalUploadedIndexMetadata.getUploadedFilename(), fromXContentUploadedIndexMetadata.getUploadedFilename());
+        }
+    }
+
     private UploadedIndexMetadata randomlyChangingUploadedIndexMetadata(UploadedIndexMetadata uploadedIndexMetadata) {
         switch (randomInt(2)) {
             case 0:
@@ -641,5 +660,19 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 );
         }
         return uploadedIndexMetadata;
+    }
+
+    private static class UploadedIndexMetadataV1 extends UploadedIndexMetadata {
+
+        public UploadedIndexMetadataV1(String indexName, String indexUUID, String uploadedFileName) {
+            super(indexName, indexUUID, uploadedFileName);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field("index_name", getIndexName())
+                .field("index_uuid", getIndexUUID())
+                .field("uploaded_filename", getUploadedFilePath());
+        }
     }
 }
