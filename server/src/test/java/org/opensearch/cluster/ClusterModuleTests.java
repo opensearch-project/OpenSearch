@@ -33,6 +33,7 @@
 package org.opensearch.cluster;
 
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.QueryGroupMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -69,6 +70,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
@@ -324,6 +326,14 @@ public class ClusterModuleTests extends ModuleTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator(), new TestShardBatchGatewayAllocator())
+        );
+    }
+
+    public void testQueryGroupMetadataRegister() {
+        List<NamedWriteableRegistry.Entry> customEntries = ClusterModule.getNamedWriteables();
+        assertTrue(
+            customEntries.stream()
+                .anyMatch(entry -> entry.categoryClass == Metadata.Custom.class && entry.name.equals(QueryGroupMetadata.TYPE))
         );
     }
 
