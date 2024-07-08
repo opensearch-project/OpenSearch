@@ -25,7 +25,7 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class Composite90DocValuesFormat extends DocValuesFormat {
+public class Composite99DocValuesFormat extends DocValuesFormat {
     /**
      * Creates a new docvalues format.
      *
@@ -38,15 +38,15 @@ public class Composite90DocValuesFormat extends DocValuesFormat {
     private final MapperService mapperService;
 
     // needed for SPI
-    public Composite90DocValuesFormat() {
+    public Composite99DocValuesFormat() {
         this(new Lucene90DocValuesFormat(), null);
     }
 
-    public Composite90DocValuesFormat(MapperService mapperService) {
+    public Composite99DocValuesFormat(MapperService mapperService) {
         this(new Lucene90DocValuesFormat(), mapperService);
     }
 
-    public Composite90DocValuesFormat(DocValuesFormat delegate, MapperService mapperService) {
+    public Composite99DocValuesFormat(DocValuesFormat delegate, MapperService mapperService) {
         super(delegate.getName());
         this.delegate = delegate;
         this.mapperService = mapperService;
@@ -54,11 +54,11 @@ public class Composite90DocValuesFormat extends DocValuesFormat {
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new Composite90DocValuesWriter(delegate.fieldsConsumer(state), state, mapperService);
+        return new Composite99DocValuesWriter(delegate.fieldsConsumer(state), state, mapperService);
     }
 
     @Override
     public DocValuesProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new Composite90DocValuesReader(delegate.fieldsProducer(state), state);
+        return new Composite99DocValuesReader(delegate.fieldsProducer(state), state);
     }
 }

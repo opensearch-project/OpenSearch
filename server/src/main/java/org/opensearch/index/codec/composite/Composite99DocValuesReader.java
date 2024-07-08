@@ -28,10 +28,10 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class Composite90DocValuesReader extends DocValuesProducer implements CompositeIndexReader {
+public class Composite99DocValuesReader extends DocValuesProducer implements CompositeIndexReader {
     private DocValuesProducer delegate;
 
-    public Composite90DocValuesReader(DocValuesProducer producer, SegmentReadState state) throws IOException {
+    public Composite99DocValuesReader(DocValuesProducer producer, SegmentReadState state) throws IOException {
         this.delegate = producer;
         // TODO : read star tree files
     }

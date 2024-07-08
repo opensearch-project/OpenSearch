@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class write the star tree index and star tree doc values
@@ -31,18 +32,17 @@ import java.util.Set;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class Composite90DocValuesWriter extends DocValuesConsumer {
+public class Composite99DocValuesWriter extends DocValuesConsumer {
     private final DocValuesConsumer delegate;
     private final SegmentWriteState state;
     private final MapperService mapperService;
-    private MergeState mergeState = null;
+    AtomicReference<MergeState> mergeState = new AtomicReference<>();
     private final Set<CompositeMappedFieldType> compositeMappedFieldTypes;
     private final Set<String> compositeFieldSet;
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
 
-    public Composite90DocValuesWriter(DocValuesConsumer delegate, SegmentWriteState segmentWriteState, MapperService mapperService)
-        throws IOException {
+    public Composite99DocValuesWriter(DocValuesConsumer delegate, SegmentWriteState segmentWriteState, MapperService mapperService) {
 
         this.delegate = delegate;
         this.state = segmentWriteState;
@@ -73,7 +73,7 @@ public class Composite90DocValuesWriter extends DocValuesConsumer {
     public void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         delegate.addSortedNumericField(field, valuesProducer);
         // Perform this only during flush flow
-        if (mergeState == null) {
+        if (mergeState.get() == null) {
             createCompositeIndicesIfPossible(valuesProducer, field);
         }
     }
@@ -106,8 +106,7 @@ public class Composite90DocValuesWriter extends DocValuesConsumer {
 
     @Override
     public void merge(MergeState mergeState) throws IOException {
-        // TODO : check if class variable will cause concurrency issues
-        this.mergeState = mergeState;
+        this.mergeState.compareAndSet(null, mergeState);
         super.merge(mergeState);
         // TODO : handle merge star tree
         // mergeStarTreeFields(mergeState);

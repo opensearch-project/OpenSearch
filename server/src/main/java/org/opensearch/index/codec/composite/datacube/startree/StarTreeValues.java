@@ -25,7 +25,7 @@ public class StarTreeValues implements CompositeIndexValues {
     // TODO : come up with full set of vales such as dimensions and metrics doc values + star tree
     public StarTreeValues(List<String> dimensionsOrder) {
         super();
-        this.dimensionsOrder = dimensionsOrder;
+        this.dimensionsOrder = List.copyOf(dimensionsOrder);
     }
 
     @Override
