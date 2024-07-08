@@ -8,93 +8,113 @@
 
 package org.opensearch.gateway.remote.routingtable;
 
+
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;
-import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
-import org.opensearch.core.common.io.stream.InputStreamStreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.common.io.Streams;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.lucene.store.IndexOutputOutputStream;
+import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.BlobPathParameters;
+import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.index.Index;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.index.remote.RemoteStoreUtils;
+import org.opensearch.repositories.blobstore.ChecksumWritableBlobStoreFormat;
 
-import java.io.EOFException;
+
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
+
+import static org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
+import static org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore.INDEX_ROUTING_FILE_PREFIX;
 
 /**
  * Remote store object for IndexRoutingTable
  */
-public class RemoteIndexRoutingTable implements Writeable {
+public class RemoteIndexRoutingTable extends AbstractRemoteWritableBlobEntity<IndexRoutingTable> {
 
-    private final IndexRoutingTable indexRoutingTable;
+    public static final String INDEX_ROUTING_TABLE = "index_routing_table";
+    private IndexRoutingTable indexRoutingTable;
+    private final Index index;
+    private long term;
+    private long version;
+    public static final ChecksumWritableBlobStoreFormat<IndexRoutingTable> INDEX_ROUTING_TABLE_FORMAT = new ChecksumWritableBlobStoreFormat<>(
+        "index-routing-table",
+        IndexRoutingTable::readFrom
+    );
 
-    public RemoteIndexRoutingTable(IndexRoutingTable indexRoutingTable) {
+    public RemoteIndexRoutingTable(
+        IndexRoutingTable indexRoutingTable,
+        String clusterUUID,
+        Compressor compressor,
+        long term,
+        long version
+    ) {
+        super(clusterUUID, compressor, null);
+        this.index = indexRoutingTable.getIndex();
         this.indexRoutingTable = indexRoutingTable;
+        this.term = term;
+        this.version = version;
+        this.blobFileName = generateBlobFileName();
     }
 
     /**
      * Reads data from inputStream and creates RemoteIndexRoutingTable object with the {@link IndexRoutingTable}
-     * @param inputStream input stream with index routing data
+     * @param blobName name of the blob, which contains the index routing data
      * @param index index for the current routing data
-     * @throws IOException exception thrown on failing to read from stream.
      */
-    public RemoteIndexRoutingTable(InputStream inputStream, Index index) throws IOException {
-        try {
-            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(new InputStreamStreamInput(inputStream), "assertion")) {
-                // Read the Table Header first and confirm the index
-                IndexRoutingTableHeader indexRoutingTableHeader = new IndexRoutingTableHeader(in);
-                assert indexRoutingTableHeader.getIndexName().equals(index.getName());
-
-                int numberOfShardRouting = in.readVInt();
-                IndexRoutingTable.Builder indicesRoutingTable = IndexRoutingTable.builder(index);
-                for (int idx = 0; idx < numberOfShardRouting; idx++) {
-                    IndexShardRoutingTable indexShardRoutingTable = IndexShardRoutingTable.Builder.readFrom(in);
-                    indicesRoutingTable.addIndexShard(indexShardRoutingTable);
-                }
-                verifyCheckSum(in);
-                indexRoutingTable = indicesRoutingTable.build();
-            }
-        } catch (EOFException e) {
-            throw new IOException("Indices Routing table is corrupted", e);
-        }
+    public RemoteIndexRoutingTable(String blobName, Index index, String clusterUUID, Compressor compressor) {
+        super(clusterUUID, compressor, null);
+        this.index = index;
+        this.term = -1;
+        this.version = -1;
+        this.blobName = blobName;
     }
 
     public IndexRoutingTable getIndexRoutingTable() {
         return indexRoutingTable;
     }
 
-    /**
-     * Writes {@link IndexRoutingTable} to the given stream
-     * @param streamOutput output stream to write
-     * @throws IOException exception thrown on failing to write to stream.
-     */
-    @Override
-    public void writeTo(StreamOutput streamOutput) throws IOException {
-        try {
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput);
-            IndexRoutingTableHeader indexRoutingTableHeader = new IndexRoutingTableHeader(indexRoutingTable.getIndex().getName());
-            indexRoutingTableHeader.writeTo(out);
-            out.writeVInt(indexRoutingTable.shards().size());
-            for (IndexShardRoutingTable next : indexRoutingTable) {
-                IndexShardRoutingTable.Builder.writeTo(next, out);
-            }
-            out.writeLong(out.getChecksum());
-            out.flush();
-        } catch (IOException e) {
-            throw new IOException("Failed to write IndexRoutingTable to stream", e);
-        }
+    public Index getIndex() {
+        return index;
     }
 
-    private void verifyCheckSum(BufferedChecksumStreamInput in) throws IOException {
-        long expectedChecksum = in.getChecksum();
-        long readChecksum = in.readLong();
-        if (readChecksum != expectedChecksum) {
-            throw new IOException(
-                "checksum verification failed - expected: 0x"
-                    + Long.toHexString(expectedChecksum)
-                    + ", got: 0x"
-                    + Long.toHexString(readChecksum)
-            );
-        }
+    @Override
+    public BlobPathParameters getBlobPathParameters() {
+        return new BlobPathParameters(List.of(indexRoutingTable.getIndex().getUUID()), "");
+    }
+
+    @Override
+    public String getType() {
+        return INDEX_ROUTING_TABLE;
+    }
+
+    @Override
+    public String generateBlobFileName() {
+        return String.join(
+            DELIMITER,
+            INDEX_ROUTING_FILE_PREFIX,
+            RemoteStoreUtils.invertLong(term),
+            RemoteStoreUtils.invertLong(version),
+            RemoteStoreUtils.invertLong(System.currentTimeMillis())
+        );
+    }
+
+    @Override
+    public ClusterMetadataManifest.UploadedMetadata getUploadedMetadata() {
+        return new ClusterMetadataManifest.UploadedIndexMetadata(index.getName(), index.getUUID(), blobName, INDEX_ROUTING_METADATA_PREFIX);
+    }
+
+    @Override
+    public InputStream serialize() throws IOException {
+        return INDEX_ROUTING_TABLE_FORMAT.serialize(indexRoutingTable, generateBlobFileName(), getCompressor()).streamInput();
+    }
+
+    @Override
+    public IndexRoutingTable deserialize(InputStream in) throws IOException {
+        return INDEX_ROUTING_TABLE_FORMAT.deserialize(blobName, Streams.readFully(in));
     }
 }

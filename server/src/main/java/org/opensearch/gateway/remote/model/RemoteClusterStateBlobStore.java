@@ -31,7 +31,7 @@ import java.util.concurrent.ExecutorService;
  */
 public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlobEntity<T>> implements RemoteWritableEntityStore<T, U> {
 
-    private final BlobStoreTransferService transferService;
+    protected final BlobStoreTransferService transferService;
     private final BlobStoreRepository blobStoreRepository;
     private final String clusterName;
     private final ExecutorService executorService;
@@ -88,9 +88,16 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
         });
     }
 
-    private BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<T> obj) {
-        BlobPath blobPath = blobStoreRepository.basePath()
-            .add(RemoteClusterStateUtils.encodeString(clusterName))
+    public String getClusterName() {
+        return clusterName;
+    }
+
+    public BlobPath getBasePath() {
+        return blobStoreRepository.basePath();
+    }
+
+    public BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<T> obj) {
+        BlobPath blobPath = getBasePath().add(RemoteClusterStateUtils.encodeString(getClusterName()))
             .add("cluster-state")
             .add(obj.clusterUUID());
         for (String token : obj.getBlobPathParameters().getPathTokens()) {
@@ -99,7 +106,7 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
         return blobPath;
     }
 
-    private BlobPath getBlobPathForDownload(final AbstractRemoteWritableBlobEntity<T> obj) {
+    public BlobPath getBlobPathForDownload(final AbstractRemoteWritableBlobEntity<T> obj) {
         String[] pathTokens = obj.getBlobPathTokens();
         BlobPath blobPath = new BlobPath();
         if (pathTokens == null || pathTokens.length < 1) {

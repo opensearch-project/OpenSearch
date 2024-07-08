@@ -98,7 +98,6 @@ import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.UploadedMetadataResults;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.clusterUUIDContainer;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.getClusterMetadataBasePath;
 import static org.opensearch.gateway.remote.model.RemoteClusterStateCustoms.CLUSTER_STATE_CUSTOM;
 import static org.opensearch.gateway.remote.model.RemoteCoordinationMetadata.COORDINATION_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteCustomMetadata.CUSTOM_DELIMITER;
@@ -146,7 +145,7 @@ public class RemoteClusterStateService implements Closeable {
     private final List<IndexMetadataUploadListener> indexMetadataUploadListeners;
     private BlobStoreRepository blobStoreRepository;
     private BlobStoreTransferService blobStoreTransferService;
-    private final RemoteRoutingTableService remoteRoutingTableService;
+    private RemoteRoutingTableService remoteRoutingTableService;
     private volatile TimeValue slowWriteLoggingThreshold;
 
     private final RemotePersistenceStats remoteStateStats;
@@ -156,6 +155,7 @@ public class RemoteClusterStateService implements Closeable {
     private RemoteClusterStateAttributesManager remoteClusterStateAttributesManager;
     private RemoteManifestManager remoteManifestManager;
     private ClusterSettings clusterSettings;
+    private final ClusterService clusterService;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final String CLUSTER_STATE_UPLOAD_TIME_LOG_STRING = "writing cluster state for version [{}] took [{}ms]";
     private final String METADATA_UPDATE_LOG_STRING = "wrote metadata for [{}] indices and skipped [{}] unchanged "
@@ -197,13 +197,7 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
-        this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
-            repositoriesService,
-            settings,
-            clusterSettings,
-            threadPool
-        );
-        this.remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(this, clusterService, remoteRoutingTableService);
+        this.clusterService = clusterService;
         this.isPublicationEnabled = FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
             && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
             && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings);
@@ -664,15 +658,11 @@ public class RemoteClusterStateService implements Closeable {
         indicesRoutingToUpload.forEach(indexRoutingTable -> {
             uploadTasks.put(
                 InternalRemoteRoutingTableService.INDEX_ROUTING_METADATA_PREFIX + indexRoutingTable.getIndex().getName(),
-                remoteRoutingTableService.getIndexRoutingAsyncAction(
+                remoteRoutingTableService.getAsyncIndexRoutingWriteAction(
                     clusterState,
+                    clusterState.metadata().clusterUUID(),
                     indexRoutingTable,
-                    listener,
-                    getClusterMetadataBasePath(
-                        blobStoreRepository,
-                        clusterState.getClusterName().value(),
-                        clusterState.metadata().clusterUUID()
-                    )
+                    listener
                 )
             );
         });
@@ -897,9 +887,19 @@ public class RemoteClusterStateService implements Closeable {
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         blobStoreRepository = (BlobStoreRepository) repository;
-        this.remoteRoutingTableService.start();
-        blobStoreTransferService = new BlobStoreTransferService(getBlobStore(), threadpool);
         String clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
+
+        blobStoreTransferService = new BlobStoreTransferService(getBlobStore(), threadpool);
+        this.remoteRoutingTableService = RemoteRoutingTableServiceFactory.getService(
+            repositoriesService,
+            settings,
+            clusterSettings,
+            threadpool,
+            blobStoreRepository.getCompressor(),
+            blobStoreTransferService,
+            blobStoreRepository,
+            ClusterName.CLUSTER_NAME_SETTING.get(settings).value()
+        );
 
         remoteGlobalMetadataManager = new RemoteGlobalMetadataManager(
             clusterSettings,
@@ -931,7 +931,10 @@ public class RemoteClusterStateService implements Closeable {
             namedWriteableRegistry,
             threadpool
         );
+        remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(this, clusterService, remoteRoutingTableService);
+
         remoteClusterStateCleanupManager.start();
+        remoteRoutingTableService.start();
     }
 
     private void setSlowWriteLoggingThreshold(TimeValue slowWriteLoggingThreshold) {
@@ -1034,6 +1037,7 @@ public class RemoteClusterStateService implements Closeable {
         for (UploadedIndexMetadata indexRouting : indicesRoutingToRead) {
             asyncMetadataReadActions.add(
                 remoteRoutingTableService.getAsyncIndexRoutingReadAction(
+                    clusterUUID,
                     indexRouting.getUploadedFilename(),
                     new Index(indexRouting.getIndexName(), indexRouting.getIndexUUID()),
                     routingTableLatchedActionListener
