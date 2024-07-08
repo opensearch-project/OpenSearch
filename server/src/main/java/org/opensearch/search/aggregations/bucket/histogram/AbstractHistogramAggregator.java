@@ -40,6 +40,7 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
@@ -121,7 +122,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
                     buildEmptySubAggregations()
                 );
             }
-            return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
+            return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata(), (MultiBucketConsumerService.MultiBucketConsumer) multiBucketConsumer);
         });
     }
 
@@ -137,7 +138,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
                 buildEmptySubAggregations()
             );
         }
-        return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
+        return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metadata(), (MultiBucketConsumerService.MultiBucketConsumer) multiBucketConsumer);
     }
 
     @Override

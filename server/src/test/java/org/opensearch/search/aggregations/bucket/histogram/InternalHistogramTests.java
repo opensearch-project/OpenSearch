@@ -96,7 +96,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             }
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata, );
     }
 
     // issue 26787
@@ -211,6 +211,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata, );
     }
 }
