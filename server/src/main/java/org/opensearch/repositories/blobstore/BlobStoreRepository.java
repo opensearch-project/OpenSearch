@@ -2745,11 +2745,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void shardCheckpointFromRemoteStore(
+    public void shardCheckpointUsingRemoteStoreMetadata(
         SnapshotId snapshotId,
         IndexId indexId,
         ShardId shardId,
-        IndexShardSnapshotStatus snapshotStatus,
+        String generation,
         RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
         Settings settings,
         String indexUUID,
@@ -2762,12 +2762,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         try {
-            final String generation = snapshotStatus.generation();
-            logger.info("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
-            final BlobContainer shardContainer = shardContainer(indexId, shardId);
-
+            logger.info(
+                "[{}] [{}] fetching snapshot shard commit checkpoint [{}] [{}] from remote store ",
+                shardId,
+                snapshotId,
+                metadata.name(),
+                generation
+            );
             String remoteStoreRepoForIndex = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
-
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
                 remoteStoreRepoForIndex,
                 indexUUID,
@@ -2776,8 +2778,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
             RemoteSegmentMetadata remoteSegmentMetadata = remoteSegmentStoreDirectory.readLatestMetadataFile();
 
-            long primaryTerm = remoteSegmentMetadata.getPrimaryTerm();
-            long commitGeneration = remoteSegmentMetadata.getGeneration();
             try {
                 remoteSegmentStoreDirectory.acquireLock(
                     remoteSegmentMetadata.getPrimaryTerm(),
@@ -2785,10 +2785,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     snapshotId.getUUID()
                 );
             } catch (NoSuchFileException e) {
-                logger.error("Exception while acquiring lock on primaryTerm = {} and generation = {}", primaryTerm, commitGeneration);
+                logger.error(
+                    "Exception while acquiring lock on primaryTerm = {} and generation = {}",
+                    remoteSegmentMetadata.getPrimaryTerm(),
+                    remoteSegmentMetadata.getGeneration()
+                );
                 throw new IndexShardSnapshotFailedException(
                     shardId,
-                    "Failed to write commit point for snapshot " + snapshotId.getName() + "(" + snapshotId.getUUID() + ")",
+                    "Failed to write shard commit point lock file for snapshot " + snapshotId.getName() + "(" + snapshotId.getUUID() + ")",
                     e
                 );
             }
@@ -2796,32 +2800,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> segmentMetadataMap = remoteSegmentMetadata.getMetadata();
 
             long indexTotalFileSize = 0;
-            // local store is being used here to fetch the files metadata instead of remote store as currently
-            // remote store is mirroring the local store.
             List<String> fileNames = new ArrayList<>();
             for (RemoteSegmentStoreDirectory.UploadedSegmentMetadata segmentMetadata : segmentMetadataMap.values()) {
                 indexTotalFileSize += segmentMetadata.getLength();
                 fileNames.add(segmentMetadata.getOriginalFilename());
             }
-            int indexTotalNumberOfFiles = fileNames.size();
 
-            snapshotStatus.moveToStarted(
-                startTime,
-                0, // incremental File Count is zero as we are storing the data as part of remote store.
-                indexTotalNumberOfFiles,
-                0, // incremental File Size is zero as we are storing the data as part of remote store.
-                indexTotalFileSize
-            );
-
-            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(remoteSegmentMetadata.getGeneration());
             RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
                 snapshotId.getName(),
-                lastSnapshotStatus.getIndexVersion(),
+                remoteSegmentMetadata.getGeneration(),
                 remoteSegmentMetadata.getPrimaryTerm(),
                 remoteSegmentMetadata.getGeneration(),
-                lastSnapshotStatus.getStartTime(),
-                threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
-                indexTotalNumberOfFiles,
+                startTime,
+                threadPool.absoluteTimeInMillis() - startTime,
+                fileNames.size(),
                 indexTotalFileSize,
                 indexUUID,
                 remoteStoreRepoForIndex,
@@ -2830,45 +2822,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 remoteStorePathStrategy.getType(),
                 remoteStorePathStrategy.getHashAlgorithm()
             );
-            // now create and write the commit point
-            // logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-            // try {
-            // RemoteStorePathStrategy pathStrategy = remoteStorePathStrategy;
-            // REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
-            // new RemoteStoreShardShallowCopySnapshot(
-            // snapshotId.getName(),
-            // lastSnapshotStatus.getIndexVersion(),
-            // remoteSegmentMetadata.getPrimaryTerm(),
-            // remoteSegmentMetadata.getGeneration(),
-            // lastSnapshotStatus.getStartTime(),
-            // threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
-            // indexTotalNumberOfFiles,
-            // indexTotalFileSize,
-            // indexUUID,
-            // remoteStoreRepoForIndex,
-            // this.basePath().toString(),
-            // fileNames,
-            // pathStrategy.getType(),
-            // pathStrategy.getHashAlgorithm()
-            // ),
-            // shardContainer,
-            // snapshotId.getUUID(),
-            // compressor
-            // );
-            // } catch (IOException e) {
-            // throw new IndexShardSnapshotFailedException(
-            // shardId,
-            // "Failed to write commit point for snapshot " + snapshotId.getName() + "(" + snapshotId.getUUID() + ")",
-            // e
-            // );
-            // }
-            snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), generation);
             listener.onResponse(remoteStoreShardShallowCopySnapshot);
 
         } catch (Exception e) {
             listener.onFailure(e);
         }
-
     }
 
     public void writeSnapshotShardCheckpoint(
@@ -2877,10 +2835,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardId shardId,
         Snapshot snapshot
     ) {
-
         logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshot.getSnapshotId().getUUID());
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
-
         try {
             REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
                 remoteStoreShardShallowCopySnapshot,
@@ -2899,7 +2855,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 e
             );
         }
-
     }
 
     @Override

@@ -218,6 +218,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final boolean includeGlobalState;
         private final boolean remoteStoreIndexShallowCopy;
         private final boolean partial;
+        // centralSnap is set to true for centralized snapshots, snapshots executing completely in the cluster manager node
         private final boolean centralSnap;
         /**
          * Map of {@link ShardId} to {@link ShardSnapshotStatus} tracking the state of each shard snapshot operation.
@@ -349,7 +350,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 remoteStoreIndexShallowCopy = false;
             }
-            if (in.getVersion().onOrAfter(Version.V_2_15_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
                 centralSnap = in.readBoolean();
             } else {
                 centralSnap = false;
@@ -762,7 +763,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         @Override
         public String toString() {
-
             return Strings.toString(MediaTypeRegistry.JSON, this);
         }
 
@@ -829,7 +829,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
                 out.writeBoolean(remoteStoreIndexShallowCopy);
             }
-            if (out.getVersion().onOrAfter(Version.V_2_15_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
                 out.writeBoolean(centralSnap);
             }
 

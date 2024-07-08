@@ -94,7 +94,6 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
-import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
@@ -744,12 +743,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-            IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardSnapshotStatus.generation());
-            snapshotShardOnClusterManager(snapshot, indexId, shardId, snapshotStatus, new ActionListener<>() {
+            // IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardSnapshotStatus.generation());
+            snapshotShardOnClusterManager(snapshot, indexId, shardId, shardSnapshotStatus, new ActionListener<>() {
                 @Override
                 public void onResponse(RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot) {
 
-                    updateSuccessfulSnapshotShard(indexId, shardId, snapshotStatus.generation(), snapshotIdStr);
+                    updateSuccessfulSnapshotShard(indexId, shardId, shardSnapshotStatus.generation(), snapshotIdStr);
                     if (uploadPerShard) {
                         final Repository repository = repositoriesService.repository(snapshot.getRepository());
                         repository.writeSnapshotShardCheckpoint(remoteStoreShardShallowCopySnapshot, indexId, shardId, snapshot);
@@ -795,7 +794,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Snapshot snapshot,
         IndexId indexId,
         ShardId shardId,
-        IndexShardSnapshotStatus shardSnapshotStatus,
+        ShardSnapshotStatus shardSnapshotStatus,
         ActionListener<RemoteStoreShardShallowCopySnapshot> listener
     ) {
         // if primary is relocating (routing table entry) - currently throw exception
@@ -813,11 +812,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         long startTime = threadPool.relativeTimeInMillis();
         try {
-            repository.shardCheckpointFromRemoteStore(
+            repository.shardCheckpointUsingRemoteStoreMetadata(
                 snapshot.getSnapshotId(),
                 indexId,
                 shardId,
-                shardSnapshotStatus,
+                shardSnapshotStatus.generation(),
                 remoteDirectoryFactory,
                 indexMetadata.getSettings(),
                 indexMetadata.getIndexUUID(),

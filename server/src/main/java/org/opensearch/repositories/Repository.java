@@ -341,11 +341,27 @@ public interface Repository extends LifecycleComponent {
         throw new UnsupportedOperationException();
     }
 
-    default void shardCheckpointFromRemoteStore(
+    /**
+     *  Fetches commit checkpoint from remote store segment metadata file
+     *  Adds a lock in the remote store for the segment to be snapshotted,
+     *  so that it is not cleaned during garbage collection of stale segments.
+     *
+     * @param snapshotId                snapshot id
+     * @param indexId                   id for the index being snapshotted
+     * @param shardId                   id for the shard being snapshotted
+     * @param generation                current generation
+     * @param remoteDirectoryFactory    an instance of remoteDirectoryFactory
+     * @param settings                  the cluster settings
+     * @param indexUUID                 index uuid
+     * @param startTime                 start time of the snapshot commit, this will be used as the start time for snapshot.
+     * @param remoteStorePathStrategy   remote store path strategy
+     * @param listener                  listener invoked on completion
+     */
+    default void shardCheckpointUsingRemoteStoreMetadata(
         SnapshotId snapshotId,
         IndexId indexId,
         ShardId shardId,
-        IndexShardSnapshotStatus snapshotStatus,
+        String generation,
         RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
         Settings settings,
         String indexUUID,
@@ -356,6 +372,14 @@ public interface Repository extends LifecycleComponent {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Creates a snapshot of the shard based on the index commit point.
+     *
+     * @param remoteStoreShardShallowCopySnapshot   object containing shard commit checkpoint details
+     * @param indexId                               id for the index being snapshotted
+     * @param shardId                               id for the shard being snapshotted
+     * @param snapshot                              current snapshot object
+     */
     default void writeSnapshotShardCheckpoint(
         RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot,
         IndexId indexId,

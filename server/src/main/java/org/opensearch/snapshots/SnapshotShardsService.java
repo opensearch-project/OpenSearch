@@ -224,6 +224,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 continue;
             }
             if (entry.isCentralSnap()) {
+                // This is centralized snapshot creation, it will be executed on the current cluster manager
                 continue;
             }
             if (entryState == State.STARTED) {
