@@ -95,6 +95,7 @@ import org.opensearch.core.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.repositories.IndexId;
@@ -126,8 +127,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -208,7 +209,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Setting<Boolean> CENTRALIZED_CREATE_SNAPSHOT_OPERATION = Setting.boolSetting(
         "snapshot.centralized_create_operation",
-        true,
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -217,7 +218,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private volatile boolean isCentralSnap;
 
-    private Map<IndexId, Map<ShardId, ShardSnapshotStatus>> indexShardsStatusOnCreate = Collections.synchronizedMap(new HashMap<>());
+    // private Map<IndexId, Map<ShardId, ShardSnapshotStatus>> indexShardsStatusOnCreate = Collections.synchronizedMap(new HashMap<>());
+
+    // Map to maintain state for each snapshot create operation
+    private final ConcurrentMap<String, CreateSnapshotState> snapshotStatesForCreate = new ConcurrentHashMap<>();
+
+    private boolean uploadPerShard = true;
+
+    // Inner class to maintain state for each snapshot create operation
+    private static class CreateSnapshotState {
+        final Map<IndexId, Map<ShardId, ShardSnapshotStatus>> indexShardsStatusOnCreate = Collections.synchronizedMap(new HashMap<>());
+        final ConcurrentMap<IndexId, ConcurrentMap<ShardId, RemoteStoreShardShallowCopySnapshot>> shardSnapshotCopyMap =
+            new ConcurrentHashMap<>();
+        int processedBatches = 0;
+    }
 
     public SnapshotsService(
         Settings settings,
@@ -460,6 +474,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
 
+        // Create and store state for this snapshot operation
+        CreateSnapshotState snapshotState = new CreateSnapshotState();
+        snapshotStatesForCreate.put(snapshot.getSnapshotId().getUUID(), snapshotState);
+
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
             private SnapshotsInProgress.Entry newEntry;
             private List<IndexId> indexIds;
@@ -501,19 +519,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 indexIds = repositoryData.resolveNewIndices(indices, getInFlightIndexIds(runningSnapshots, repositoryName));
                 final Version version = minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null);
-                indexShardsStatusOnCreate = indexShardsStatusMap(
-                    snapshots,
-                    deletionsInProgress,
-                    currentState.metadata(),
-                    currentState.routingTable(),
-                    indexIds,
-                    repositoryData,
-                    repositoryName
+                snapshotState.indexShardsStatusOnCreate.putAll(
+                    indexShardsStatusMap(
+                        snapshots,
+                        deletionsInProgress,
+                        currentState.metadata(),
+                        currentState.routingTable(),
+                        indexIds,
+                        repositoryData,
+                        repositoryName
+                    )
                 );
                 if (request.partial() == false) {
                     Set<String> missing = new HashSet<>();
 
-                    for (Map.Entry<IndexId, Map<ShardId, ShardSnapshotStatus>> indexShards : indexShardsStatusOnCreate.entrySet()) {
+                    for (Map.Entry<IndexId, Map<ShardId, ShardSnapshotStatus>> indexShards : snapshotState.indexShardsStatusOnCreate
+                        .entrySet()) {
                         for (Map.Entry<ShardId, ShardSnapshotStatus> shard : indexShards.getValue().entrySet()) {
                             if (shard.getValue().state() == ShardState.MISSING) {
                                 missing.add(indexShards.getKey().getName());
@@ -562,6 +583,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
                 listener.onFailure(e);
+                snapshotStatesForCreate.remove(snapshot.getSnapshotId().getUUID());
             }
 
             @Override
@@ -574,37 +596,31 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 try {
                     logger.info("snapshot [{}] started", snapshot);
                     listener.onResponse(snapshot);
-                    CountDownLatch indexLatch = new CountDownLatch(indexShardsStatusOnCreate.keySet().size());
-
-                    // Process each shard asynchronously for each index
-                    for (Map.Entry<IndexId, Map<ShardId, ShardSnapshotStatus>> indexShards : indexShardsStatusOnCreate.entrySet()) {
-                        CountDownLatch latch = new CountDownLatch(indexShards.getValue().size());
-                        for (Map.Entry<ShardId, ShardSnapshotStatus> shard : indexShards.getValue().entrySet()) {
-                            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                                processShardSnapshot(snapshot, indexShards.getKey(), shard.getKey(), shard.getValue(), latch);
-                            });
+                    // Process all indices and shards
+                    processAllIndicesAndShards(snapshot, new ActionListener<Collection<Void>>() {
+                        @Override
+                        public void onResponse(Collection<Void> result) {
+                            // Final step after all shards are processed
+                            logger.info(
+                                "Centralized create snapshot [{}] operation completed for all indices, starting finalize",
+                                snapshotId.getUUID()
+                            );
+                            endSnapshot(newEntry, newState.metadata(), repositoryData);
+                            snapshotStatesForCreate.remove(snapshot.getSnapshotId().getUUID());
                         }
-                        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                            try {
-                                latch.await(); // Wait for all shard tasks of the current index to complete
-                                // Action to be taken once all shards of an index are completed
-                                // onIndexShardTasksCompleted(indexShards.getKey());
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                logger.error("Interrupted while waiting for shard snapshot tasks to complete", e);
-                            } finally {
-                                indexLatch.countDown();
-                            }
-                        });
-                    }
 
-                    try {
-                        indexLatch.await();
-                    } finally {
-                        endSnapshot(newEntry, newState.metadata(), repositoryData);
-                    }
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                            logger.info("Centralized create snapshot [{}] operation failed, starting cleanup", snapshotId.getUUID());
+
+                            snapshotStatesForCreate.remove(snapshot.getSnapshotId().getUUID());
+                        }
+                    });
                 } catch (Exception e) {
-                    System.out.println("Exception encountered");
+                    listener.onFailure(e);
+                    snapshotStatesForCreate.remove(snapshot.getSnapshotId().getUUID());
+
                 }
             }
 
@@ -615,53 +631,164 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
 
-    private void processShardSnapshot(
+    private void processAllIndicesAndShards(Snapshot snapshot, ActionListener<Collection<Void>> listener) {
+        CreateSnapshotState snapshotState = snapshotStatesForCreate.get(snapshot.getSnapshotId().getUUID());
+        if (snapshotState == null) {
+            listener.onFailure(new IllegalStateException("Snapshot state not found for ID: " + snapshot.getSnapshotId().getUUID()));
+            return;
+        }
+        logger.info("Centralized shallow snapshot started on cluster manager for snapshot [{}]", snapshot.getSnapshotId().getUUID());
+        GroupedActionListener<Void> indexListener = new GroupedActionListener<>(listener, snapshotState.indexShardsStatusOnCreate.size());
+
+        List<Map.Entry<IndexId, Map<ShardId, ShardSnapshotStatus>>> indexEntries = new ArrayList<>(
+            snapshotState.indexShardsStatusOnCreate.entrySet()
+        );
+        processIndexBatches(snapshot, snapshot.getSnapshotId().getUUID(), indexEntries, 0, indexListener);
+    }
+
+    private void processIndexBatches(
         Snapshot snapshot,
+        String snapshotIdStr,
+        List<Map.Entry<IndexId, Map<ShardId, ShardSnapshotStatus>>> indexEntries,
+        int batchStartIndex,
+        ActionListener<Void> finalListener
+    ) {
+        int batchSize = 100;
+        int batchEndIndex = Math.min(batchStartIndex + batchSize, indexEntries.size());
+        List<Map.Entry<IndexId, Map<ShardId, ShardSnapshotStatus>>> batch = indexEntries.subList(batchStartIndex, batchEndIndex);
+
+        GroupedActionListener<Void> batchListener = new GroupedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Collection<Void> voids) {
+                // try {
+                // uploadBatchStateToS3(snapshot, snapshotIdStr, batch);
+                // // create batch and write in snapshot repo
+                // System.out.println("Writing snapshot state");
+                // } catch (Exception e) {
+                // finalListener.onFailure(e);
+                // return;
+                // }
+                if (batchEndIndex < indexEntries.size()) {
+                    processIndexBatches(snapshot, snapshotIdStr, indexEntries, batchEndIndex, finalListener);
+                }
+                // } else {
+                // logger.info("Centralized create snapshot [{}] processed for all indices", snapshotIdStr);
+                // finalListener.onResponse(null);
+                // }
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                logger.info("Centralized create snapshot operation failed for snapshot [{}] with exception [{}]", snapshotIdStr, e);
+                finalListener.onFailure(e);
+            }
+        }, batch.size());
+
+        for (Map.Entry<IndexId, Map<ShardId, ShardSnapshotStatus>> entry : batch) {
+            processIndexShards(snapshot, snapshotIdStr, entry.getKey(), entry.getValue(), finalListener);
+        }
+    }
+
+    private void processIndexShards(
+        Snapshot snapshot,
+        String snapshotIdStr,
+        IndexId indexId,
+        Map<ShardId, ShardSnapshotStatus> shardStatusMap,
+        ActionListener<Void> listener
+    ) {
+        CreateSnapshotState snapshotState = snapshotStatesForCreate.get(snapshotIdStr);
+        if (snapshotState == null) {
+            listener.onFailure(new IllegalStateException("Snapshot state not found for ID: " + snapshotIdStr));
+            return;
+        }
+        GroupedActionListener<Void> shardListener = new GroupedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Collection<Void> voids) {
+                if (!uploadPerShard) {
+                    // List<RemoteStoreShardShallowCopySnapshot> shardSnapshotList = new
+                    // ArrayList<>(snapshotState.shardSnapshotsMap.getOrDefault(indexId, new ConcurrentHashMap<>()).values());
+                    // RemoteStoreShardShallowCopySnapshot indexSnapshot = new RemoteStoreShardShallowCopySnapshot(indexId,
+                    // shardSnapshotList);
+                    // uploadIndexResultToS3(indexSnapshot, listener);
+                    // merge and upload single index shard metadata file
+                } else {
+                    listener.onResponse(null);
+                }
+                logger.info("Centralized create snapshot [{}] operation completed for index [{}] ", snapshotIdStr, indexId.getName());
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
+                logger.info("Centralized create snapshot [{}] operation failed for index [{}] ", snapshotIdStr, indexId.getName());
+                listener.onFailure(e);
+            }
+        }, shardStatusMap.size());
+
+        for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shardStatusMap.entrySet()) {
+            processShardAndUpload(snapshot, snapshotIdStr, indexId, entry.getKey(), entry.getValue(), shardListener);
+        }
+    }
+
+    private void processShardAndUpload(
+        Snapshot snapshot,
+        String snapshotIdStr,
         IndexId indexId,
         ShardId shardId,
         ShardSnapshotStatus shardSnapshotStatus,
-        CountDownLatch latch
+        ActionListener<Void> listener
     ) {
-        IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardSnapshotStatus.generation());
-        snapshotShardOnClusterManager(snapshot, indexId, shardId, snapshotStatus, new ActionListener<>() {
-            @Override
-            public void onResponse(String newGeneration) {
-                try {
-                    assert newGeneration != null;
-                    assert newGeneration.equals(snapshotStatus.generation());
-                    if (logger.isDebugEnabled()) {
-                        final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                        logger.debug(
-                            "snapshot [{}] completed to [{}] with [{}] at generation [{}]",
-                            snapshot,
-                            snapshot.getRepository(),
-                            lastSnapshotStatus,
-                            snapshotStatus.generation()
-                        );
-                    }
-                    updateSuccessfulSnapshotShard(indexId, shardId, newGeneration);
-                } finally {
-                    latch.countDown();
-                }
-            }
+        CreateSnapshotState snapshotState = snapshotStatesForCreate.get(snapshotIdStr);
+        if (snapshotState == null) {
+            listener.onFailure(new IllegalStateException("Snapshot state not found for ID: " + snapshotIdStr));
+            return;
+        }
 
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    String failure = null;
-                    if (e instanceof AbortedSnapshotException) {
-                        failure = "aborted";
-                        logger.debug(() -> new ParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+            IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardSnapshotStatus.generation());
+            snapshotShardOnClusterManager(snapshot, indexId, shardId, snapshotStatus, new ActionListener<>() {
+                @Override
+                public void onResponse(RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot) {
+
+                    updateSuccessfulSnapshotShard(indexId, shardId, snapshotStatus.generation(), snapshotIdStr);
+                    if (uploadPerShard) {
+                        final Repository repository = repositoriesService.repository(snapshot.getRepository());
+                        repository.writeSnapshotShardCheckpoint(remoteStoreShardShallowCopySnapshot, indexId, shardId, snapshot);
+                        // mark shard status as successful
+
                     } else {
-                        logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
-                    }
-                    snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
+                        // synchronized (snapshotState.shardSnapshotsMap) {
+                        // snapshotState.shardSnapshotsMap.computeIfAbsent(indexId, k -> new ConcurrentHashMap<>()).put(shardId,
+                        // remoteStoreShardShallowCopySnapshot);
+                        // }
+                        // write per index shard snapshot file
+                        // write result in in-memory data structure
 
-                } finally {
-                    latch.countDown();
+                    }
+                    logger.info(
+                        "Centralized snapshot [{}] create operation completed for index shard [{}] [{}]",
+                        snapshotIdStr,
+                        indexId.getName(),
+                        shardId.getId()
+                    );
+                    // updateSuccessfulSnapshotShard(indexId,shardId,);
+                    listener.onResponse(null);
+
                 }
-            }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // markShardAsFailed(shardId, e);
+                    logger.info(
+                        "Centralized snapshot [{}] create operation failed for index shard [{}] [{}]",
+                        snapshotIdStr,
+                        indexId.getName(),
+                        shardId.getId()
+                    );
+                    listener.onFailure(e);
+                }
+            });
         });
+
     }
 
     private void snapshotShardOnClusterManager(
@@ -669,7 +796,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         IndexId indexId,
         ShardId shardId,
         IndexShardSnapshotStatus shardSnapshotStatus,
-        ActionListener<String> listener
+        ActionListener<RemoteStoreShardShallowCopySnapshot> listener
     ) {
         // if primary is relocating (routing table entry) - currently throw exception
         // shard has just been created or recovering (indexShard.state()) - currently throw exception
@@ -686,7 +813,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         long startTime = threadPool.relativeTimeInMillis();
         try {
-            repository.snapshotRemoteStoreIndexShardOnClusterManager(
+            repository.shardCheckpointFromRemoteStore(
                 snapshot.getSnapshotId(),
                 indexId,
                 shardId,
@@ -726,11 +853,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     }
 
-    private void updateSuccessfulSnapshotShard(IndexId indexId, ShardId shardId, String newGeneration) {
-        if (!indexShardsStatusOnCreate.containsKey(indexId)) {
+    private void updateSuccessfulSnapshotShard(IndexId indexId, ShardId shardId, String newGeneration, String snapshotUUID) {
+        CreateSnapshotState snapshotState = snapshotStatesForCreate.get(snapshotUUID);
+        if (snapshotState == null) {
+            throw new IllegalStateException("Snapshot state not found for ID: " + snapshotUUID);
+        }
+        if (!snapshotState.indexShardsStatusOnCreate.containsKey(indexId)) {
             logger.warn("cannot find index [{}] in memory to update shard snapshot status [{}]", indexId, shardId);
         }
-        Map<ShardId, ShardSnapshotStatus> shardMap = indexShardsStatusOnCreate.get(indexId);
+        Map<ShardId, ShardSnapshotStatus> shardMap = snapshotState.indexShardsStatusOnCreate.get(indexId);
         if (!shardMap.containsKey(shardId)) {
             logger.warn("cannot find shard [{}] in memory to update shard snapshot status for index [{}]", shardId, indexId);
         }
@@ -1791,11 +1922,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             Map<ShardId, ShardSnapshotStatus> shardsStatus = Collections.emptyMap();
             List<IndexId> indices;
             if (entry.isCentralSnap()) {
-                shardsStatus = indexShardsStatusOnCreate.values()
+                CreateSnapshotState createSnapshotState = snapshotStatesForCreate.get(snapshot.getSnapshotId().getUUID());
+                shardsStatus = createSnapshotState.indexShardsStatusOnCreate.values()
                     .stream()
                     .flatMap(shardMap -> shardMap.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                indices = indexShardsStatusOnCreate.keySet().stream().collect(Collectors.toList());
+                indices = createSnapshotState.indexShardsStatusOnCreate.keySet().stream().collect(Collectors.toList());
 
             } else {
                 shardsStatus = entry.shards();

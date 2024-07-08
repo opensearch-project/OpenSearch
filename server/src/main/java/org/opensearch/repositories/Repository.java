@@ -55,6 +55,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 
@@ -340,7 +341,7 @@ public interface Repository extends LifecycleComponent {
         throw new UnsupportedOperationException();
     }
 
-    default void snapshotRemoteStoreIndexShardOnClusterManager(
+    default void shardCheckpointFromRemoteStore(
         SnapshotId snapshotId,
         IndexId indexId,
         ShardId shardId,
@@ -350,7 +351,16 @@ public interface Repository extends LifecycleComponent {
         String indexUUID,
         long startTime,
         RemoteStorePathStrategy remoteStorePathStrategy,
-        ActionListener<String> listener
+        ActionListener<RemoteStoreShardShallowCopySnapshot> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    default void writeSnapshotShardCheckpoint(
+        RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot,
+        IndexId indexId,
+        ShardId shardId,
+        Snapshot snapshot
     ) {
         throw new UnsupportedOperationException();
     }

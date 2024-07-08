@@ -747,8 +747,10 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testCreateOnClusterManagerShallowCopyEnabled() throws Exception {
-        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
-        String primary = internalCluster().startDataOnlyNode();
+
+        Settings snapshotSettings = Settings.builder().put("snapshot.centralized_create_operation", true).build();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
+        String primary = internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String snapshotRepoName = "test-create-snapshot-repo";
@@ -762,10 +764,10 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
 
         Client client = client();
-        Settings indexSettings = getIndexSettings(10, 0).build();
+        Settings indexSettings = getIndexSettings(20, 0).build();
         createIndex(indexName1, indexSettings);
 
-        Settings indexSettings2 = getIndexSettings(10, 0).build();
+        Settings indexSettings2 = getIndexSettings(15, 0).build();
         createIndex(indexName2, indexSettings2);
 
         final int numDocsInIndex1 = 10;
@@ -774,7 +776,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDocuments(client, indexName2, numDocsInIndex2);
         ensureGreen(indexName1, indexName2);
 
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
         logger.info("--> snapshot");
 
         SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(Arrays.asList(indexName1, indexName2)));

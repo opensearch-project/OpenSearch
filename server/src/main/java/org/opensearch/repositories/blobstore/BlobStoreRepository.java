@@ -140,6 +140,7 @@ import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.RepositoryVerificationException;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.snapshots.AbortedSnapshotException;
+import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -2744,7 +2745,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshotRemoteStoreIndexShardOnClusterManager(
+    public void shardCheckpointFromRemoteStore(
         SnapshotId snapshotId,
         IndexId indexId,
         ShardId shardId,
@@ -2754,7 +2755,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String indexUUID,
         long startTime,
         RemoteStorePathStrategy remoteStorePathStrategy,
-        ActionListener<String> listener
+        ActionListener<RemoteStoreShardShallowCopySnapshot> listener
     ) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
@@ -2813,44 +2814,90 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
 
             final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(remoteSegmentMetadata.getGeneration());
-
+            RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
+                snapshotId.getName(),
+                lastSnapshotStatus.getIndexVersion(),
+                remoteSegmentMetadata.getPrimaryTerm(),
+                remoteSegmentMetadata.getGeneration(),
+                lastSnapshotStatus.getStartTime(),
+                threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
+                indexTotalNumberOfFiles,
+                indexTotalFileSize,
+                indexUUID,
+                remoteStoreRepoForIndex,
+                this.basePath().toString(),
+                fileNames,
+                remoteStorePathStrategy.getType(),
+                remoteStorePathStrategy.getHashAlgorithm()
+            );
             // now create and write the commit point
-            logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-            try {
-                RemoteStorePathStrategy pathStrategy = remoteStorePathStrategy;
-                REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
-                    new RemoteStoreShardShallowCopySnapshot(
-                        snapshotId.getName(),
-                        lastSnapshotStatus.getIndexVersion(),
-                        remoteSegmentMetadata.getPrimaryTerm(),
-                        remoteSegmentMetadata.getGeneration(),
-                        lastSnapshotStatus.getStartTime(),
-                        threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
-                        indexTotalNumberOfFiles,
-                        indexTotalFileSize,
-                        indexUUID,
-                        remoteStoreRepoForIndex,
-                        this.basePath().toString(),
-                        fileNames,
-                        pathStrategy.getType(),
-                        pathStrategy.getHashAlgorithm()
-                    ),
-                    shardContainer,
-                    snapshotId.getUUID(),
-                    compressor
-                );
-            } catch (IOException e) {
-                throw new IndexShardSnapshotFailedException(
-                    shardId,
-                    "Failed to write commit point for snapshot " + snapshotId.getName() + "(" + snapshotId.getUUID() + ")",
-                    e
-                );
-            }
+            // logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+            // try {
+            // RemoteStorePathStrategy pathStrategy = remoteStorePathStrategy;
+            // REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
+            // new RemoteStoreShardShallowCopySnapshot(
+            // snapshotId.getName(),
+            // lastSnapshotStatus.getIndexVersion(),
+            // remoteSegmentMetadata.getPrimaryTerm(),
+            // remoteSegmentMetadata.getGeneration(),
+            // lastSnapshotStatus.getStartTime(),
+            // threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
+            // indexTotalNumberOfFiles,
+            // indexTotalFileSize,
+            // indexUUID,
+            // remoteStoreRepoForIndex,
+            // this.basePath().toString(),
+            // fileNames,
+            // pathStrategy.getType(),
+            // pathStrategy.getHashAlgorithm()
+            // ),
+            // shardContainer,
+            // snapshotId.getUUID(),
+            // compressor
+            // );
+            // } catch (IOException e) {
+            // throw new IndexShardSnapshotFailedException(
+            // shardId,
+            // "Failed to write commit point for snapshot " + snapshotId.getName() + "(" + snapshotId.getUUID() + ")",
+            // e
+            // );
+            // }
             snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), generation);
-            listener.onResponse(generation);
+            listener.onResponse(remoteStoreShardShallowCopySnapshot);
 
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+
+    }
+
+    public void writeSnapshotShardCheckpoint(
+        RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot,
+        IndexId indexId,
+        ShardId shardId,
+        Snapshot snapshot
+    ) {
+
+        logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshot.getSnapshotId().getUUID());
+        final BlobContainer shardContainer = shardContainer(indexId, shardId);
+
+        try {
+            REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
+                remoteStoreShardShallowCopySnapshot,
+                shardContainer,
+                snapshot.getSnapshotId().getUUID(),
+                compressor
+            );
+        } catch (IOException e) {
+            throw new IndexShardSnapshotFailedException(
+                shardId,
+                "Failed to write commit point for snapshot "
+                    + snapshot.getSnapshotId().getName()
+                    + "("
+                    + snapshot.getSnapshotId().getUUID()
+                    + ")",
+                e
+            );
         }
 
     }
