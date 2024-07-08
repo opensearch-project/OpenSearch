@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -77,7 +78,7 @@ public class FsProbe {
         NodePath[] dataLocations = nodeEnv.nodePaths();
         FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
-            paths[i] = getFSInfo(dataLocations[i]);
+            paths[i] = getFSInfo(dataLocations[i], fileCache == null ? FileCache.NOOP_FILE_CACHE : fileCache);
             if (fileCache != null && dataLocations[i].fileCacheReservedSize.compareTo(ByteSizeValue.ZERO) >= 0) {
                 paths[i].fileCacheReserved = adjustForHugeFilesystems(dataLocations[i].fileCacheReservedSize.getBytes());
                 paths[i].fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage().usage());
@@ -203,6 +204,14 @@ public class FsProbe {
         return bytes;
     }
 
+    /**
+     * Retrieves information about the path associated with the given node path.
+     *
+     * @deprecated This method has been deprecated since version 2.16.0 and will be removed in version 3.0.0, use {@link #getFSInfo(NodePath, FileCache)} instead.
+     * @see #getFSInfo(NodePath, FileCache)
+     */
+    @Deprecated
+    @DeprecatedApi(since = "2.16.0", forRemoval = "3.0.0")
     public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {
         FsInfo.Path fsPath = new FsInfo.Path();
         fsPath.path = nodePath.path.toString();
@@ -214,11 +223,26 @@ public class FsProbe {
         fsPath.free = adjustForHugeFilesystems(nodePath.fileStore.getUnallocatedSpace());
         fsPath.available = adjustForHugeFilesystems(nodePath.fileStore.getUsableSpace());
         fsPath.fileCacheReserved = adjustForHugeFilesystems(nodePath.fileCacheReservedSize.getBytes());
-        // fsPath.fileCacheUtilized = adjustForHugeFilesystems(...);
-        // We can not do this ^^ here because information about utilization of file cache is hold by FileCache
-        // which is not accessible here and since this method is static we can not assume relevant context.
+        // The fsPath.fileCacheUtilized cannot be calculated because the information about file cache utilization
+        // is hold by FileCache which is not available in this context.
         fsPath.type = nodePath.fileStore.type();
         fsPath.mount = nodePath.fileStore.toString();
+        return fsPath;
+    }
+
+    /**
+     * Retrieves information about the path associated with the given node path.
+     *
+     * @param nodePath The node path to retrieve the path information for.
+     * @param fileCache The FileCache object used for adjusting the file cache utilization.
+     * @return The path information for the given node path.
+     * @throws IOException If an I/O error occurs while retrieving the path information.
+     */
+    public static FsInfo.Path getFSInfo(NodePath nodePath, FileCache fileCache) throws IOException {
+        assert fileCache != null : "FileCache cannot be null";
+        FsInfo.Path fsPath = getFSInfo(nodePath);
+        fsPath.fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage().usage());
+        fsPath.available -= (fsPath.fileCacheReserved - fsPath.fileCacheUtilized);
         return fsPath;
     }
 

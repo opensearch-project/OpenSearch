@@ -71,6 +71,7 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
@@ -424,7 +425,7 @@ public final class NodeEnvironment implements Closeable {
             for (NodePath nodePath : nodePaths) {
                 sb.append('\n').append(" -> ").append(nodePath.path.toAbsolutePath());
 
-                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
+                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath, FileCache.NOOP_FILE_CACHE);
                 sb.append(", free_space [")
                     .append(fsPath.getFree())
                     .append("], usable_space [")
@@ -443,7 +444,7 @@ public final class NodeEnvironment implements Closeable {
             Set<String> allTypes = new HashSet<>();
             Set<String> allMounts = new HashSet<>();
             for (NodePath nodePath : nodePaths) {
-                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
+                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath, FileCache.NOOP_FILE_CACHE);
                 String mount = fsPath.getMount();
                 if (allMounts.contains(mount) == false) {
                     allMounts.add(mount);
