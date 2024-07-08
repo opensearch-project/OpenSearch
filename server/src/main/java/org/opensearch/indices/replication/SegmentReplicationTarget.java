@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.replication;
 
-import java.util.Map;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
@@ -39,6 +38,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -205,7 +205,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }, listener::onFailure);
     }
 
-    private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo, Map<String, StoreFileMetadata> finalReplicaMd) throws IOException {
+    private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo, Map<String, StoreFileMetadata> finalReplicaMd)
+        throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
         final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), finalReplicaMd);
@@ -223,9 +224,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 .map(StoreFileMetadata::name)
                 .collect(Collectors.toSet());
 
-            missingFiles = diff.missing.stream()
-                .filter(md -> reuseFiles.contains(md.name()) == false)
-                .collect(Collectors.toList());
+            missingFiles = diff.missing.stream().filter(md -> reuseFiles.contains(md.name()) == false).collect(Collectors.toList());
 
             logger.trace(
                 () -> new ParameterizedMessage(

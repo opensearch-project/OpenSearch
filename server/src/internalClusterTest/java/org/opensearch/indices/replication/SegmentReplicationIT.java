@@ -20,8 +20,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -451,8 +449,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             assertThat(forceMergeResponse.getFailedShards(), is(0));
             assertThat(forceMergeResponse.getSuccessfulShards(), is(expectedSuccessfulShards));
             refresh(INDEX_NAME);
-            //skipping verify store content over here as readLastCommittedSegmentsInfo files are not present in latest metadata of remote store.
-            if(!warmIndexSegmentReplicationEnabled()) {
+            // skipping verify store content over here as readLastCommittedSegmentsInfo files are not present in latest metadata of remote
+            // store.
+            if (!warmIndexSegmentReplicationEnabled()) {
                 verifyStoreContent();
             }
         }
@@ -961,7 +960,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(docCount, primaryNode, replicaNode);
-        //skipping verify store content over here as readLastCommittedSegmentsInfo files are not present in latest metadata of remote store.
+        // skipping verify store content over here as readLastCommittedSegmentsInfo files are not present in latest metadata of remote
+        // store.
         if (!warmIndexSegmentReplicationEnabled()) {
             verifyStoreContent();
         }
