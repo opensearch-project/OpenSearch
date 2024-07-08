@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-storage-common` from 12.21.2 to 12.25.1 ([#14517](https://github.com/opensearch-project/OpenSearch/pull/14517))
 - Bump `com.microsoft.azure:msal4j` from 1.15.1 to 1.16.0 ([#14610](https://github.com/opensearch-project/OpenSearch/pull/14610))
 - Bump `com.github.spullara.mustache.java:compiler` from 0.9.13 to 0.9.14 ([#14672](https://github.com/opensearch-project/OpenSearch/pull/14672))
+- Bump `net.minidev:accessors-smart` from 2.5.0 to 2.5.1 ([#14673](https://github.com/opensearch-project/OpenSearch/pull/14673))
 
 ### Changed
 - [Tiered Caching] Move query recomputation logic outside write lock ([#14187](https://github.com/opensearch-project/OpenSearch/pull/14187))
