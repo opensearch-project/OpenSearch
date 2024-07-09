@@ -71,7 +71,7 @@ public class QueryGroupMetadata implements Metadata.Custom {
      */
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_3_0_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
