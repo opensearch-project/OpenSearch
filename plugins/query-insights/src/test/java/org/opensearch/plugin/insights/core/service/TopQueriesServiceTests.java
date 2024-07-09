@@ -78,6 +78,10 @@ public class TopQueriesServiceTests extends OpenSearchTestCase {
         assertThrows(IllegalArgumentException.class, () -> { topQueriesService.validateTopNSize(QueryInsightsSettings.MAX_N_SIZE + 1); });
     }
 
+    public void testValidateNegativeTopNSize() {
+        assertThrows(IllegalArgumentException.class, () -> { topQueriesService.validateTopNSize(-1); });
+    }
+
     public void testGetTopQueriesWhenNotEnabled() {
         topQueriesService.setEnabled(false);
         assertThrows(IllegalArgumentException.class, () -> { topQueriesService.getTopQueriesRecords(false); });
