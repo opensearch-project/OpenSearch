@@ -55,7 +55,7 @@ public class CreateQueryGroupResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return QueryGroup.writeToXContent(queryGroup, builder);
+        return queryGroup.toXContent(builder, params);
     }
 
     /**

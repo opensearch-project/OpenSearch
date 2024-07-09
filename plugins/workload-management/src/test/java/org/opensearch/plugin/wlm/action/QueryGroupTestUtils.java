@@ -16,7 +16,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.wlm.action.service.QueryGroupPersistenceService;
-import org.opensearch.search.ResourceType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;

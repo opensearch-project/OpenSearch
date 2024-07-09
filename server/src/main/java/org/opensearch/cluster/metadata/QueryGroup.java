@@ -120,18 +120,13 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        return writeToXContent(this, builder);
-    }
-
-    public static XContentBuilder writeToXContent(QueryGroup queryGroup, final XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.field("_id", queryGroup.get_id());
-        builder.field("name", queryGroup.getName());
-        builder.field("resiliency_mode", queryGroup.getResiliencyMode().getName());
-        builder.field("updatedAt", queryGroup.getUpdatedAtInMillis());
+        builder.field("_id", _id);
+        builder.field("name", name);
+        builder.field("resiliency_mode", resiliencyMode.getName());
+        builder.field("updatedAt", updatedAtInMillis);
         // write resource limits
         builder.startObject("resourceLimits");
-        Map<ResourceType, Object> resourceLimits = queryGroup.getResourceLimits();
         for (ResourceType resourceType : ResourceType.values()) {
             if (resourceLimits.containsKey(resourceType)) {
                 builder.field(resourceType.getName(), resourceLimits.get(resourceType));
