@@ -30,8 +30,8 @@ public class QueryGroupServiceSettings {
     public static final double NODE_LEVEL_REJECTION_THRESHOLD_MAX_VALUE = 0.90;
 
     private TimeValue runIntervalMillis;
-    private Double nodeLevelJvmCancellationThreshold;
-    private Double nodeLevelJvmRejectionThreshold;
+    private Double nodeLevelMemoryCancellationThreshold;
+    private Double nodeLevelMemoryRejectionThreshold;
     private volatile int maxQueryGroupCount;
     /**
      *  max QueryGroup count setting
@@ -97,15 +97,15 @@ public class QueryGroupServiceSettings {
      */
     public QueryGroupServiceSettings(Settings settings, ClusterSettings clusterSettings) {
         runIntervalMillis = new TimeValue(QUERY_GROUP_RUN_INTERVAL_SETTING.get(settings));
-        nodeLevelJvmCancellationThreshold = NODE_LEVEL_CANCELLATION_THRESHOLD.get(settings);
-        nodeLevelJvmRejectionThreshold = NODE_LEVEL_REJECTION_THRESHOLD.get(settings);
+        nodeLevelMemoryCancellationThreshold = NODE_LEVEL_CANCELLATION_THRESHOLD.get(settings);
+        nodeLevelMemoryRejectionThreshold = NODE_LEVEL_REJECTION_THRESHOLD.get(settings);
         maxQueryGroupCount = MAX_QUERY_GROUP_COUNT.get(settings);
 
-        ensureRejectionThresholdIsLessThanCancellation(nodeLevelJvmRejectionThreshold, nodeLevelJvmCancellationThreshold);
+        ensureRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
 
         clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxQueryGroupCount);
-        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CANCELLATION_THRESHOLD, this::setNodeLevelJvmCancellationThreshold);
-        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_REJECTION_THRESHOLD, this::setNodeLevelJvmRejectionThreshold);
+        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CANCELLATION_THRESHOLD, this::setNodeLevelMemoryCancellationThreshold);
+        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_REJECTION_THRESHOLD, this::setNodeLevelMemoryRejectionThreshold);
     }
 
     /**
@@ -131,57 +131,57 @@ public class QueryGroupServiceSettings {
      * Method to get the node level cancellation threshold
      * @return current node level cancellation threshold
      */
-    public Double getNodeLevelJvmCancellationThreshold() {
-        return nodeLevelJvmCancellationThreshold;
+    public Double getNodeLevelMemoryCancellationThreshold() {
+        return nodeLevelMemoryCancellationThreshold;
     }
 
     /**
      * Method to set the node level cancellation threshold
-     * @param nodeLevelJvmCancellationThreshold sets the new node level cancellation threshold
+     * @param nodeLevelMemoryCancellationThreshold sets the new node level cancellation threshold
      * @throws IllegalArgumentException if the value is &gt; 0.95 and cancellation &lt; rejection threshold
      */
-    public void setNodeLevelJvmCancellationThreshold(Double nodeLevelJvmCancellationThreshold) {
-        if (Double.compare(nodeLevelJvmCancellationThreshold, NODE_LEVEL_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
+    public void setNodeLevelMemoryCancellationThreshold(Double nodeLevelMemoryCancellationThreshold) {
+        if (Double.compare(nodeLevelMemoryCancellationThreshold, NODE_LEVEL_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
                 NODE_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be greater than 0.95 as it pose a threat of node drop"
             );
         }
 
-        ensureRejectionThresholdIsLessThanCancellation(nodeLevelJvmRejectionThreshold, nodeLevelJvmCancellationThreshold);
+        ensureRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
 
-        this.nodeLevelJvmCancellationThreshold = nodeLevelJvmCancellationThreshold;
+        this.nodeLevelMemoryCancellationThreshold = nodeLevelMemoryCancellationThreshold;
     }
 
     /**
      * Method to get the node level rejection threshold
      * @return the current node level rejection threshold
      */
-    public Double getNodeLevelJvmRejectionThreshold() {
-        return nodeLevelJvmRejectionThreshold;
+    public Double getNodeLevelMemoryRejectionThreshold() {
+        return nodeLevelMemoryRejectionThreshold;
     }
 
     /**
      * Method to set the node level rejection threshold
-     * @param nodeLevelJvmRejectionThreshold sets the new rejection threshold
+     * @param nodeLevelMemoryRejectionThreshold sets the new rejection threshold
      * @throws IllegalArgumentException if rejection &gt; 0.90 and rejection &lt; cancellation threshold
      */
-    public void setNodeLevelJvmRejectionThreshold(Double nodeLevelJvmRejectionThreshold) {
-        if (Double.compare(nodeLevelJvmRejectionThreshold, NODE_LEVEL_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
+    public void setNodeLevelMemoryRejectionThreshold(Double nodeLevelMemoryRejectionThreshold) {
+        if (Double.compare(nodeLevelMemoryRejectionThreshold, NODE_LEVEL_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
                 NODE_REJECTION_THRESHOLD_SETTING_NAME + " value not be greater than 0.90 as it pose a threat of node drop"
             );
         }
 
-        ensureRejectionThresholdIsLessThanCancellation(nodeLevelJvmRejectionThreshold, nodeLevelJvmCancellationThreshold);
+        ensureRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
 
-        this.nodeLevelJvmRejectionThreshold = nodeLevelJvmRejectionThreshold;
+        this.nodeLevelMemoryRejectionThreshold = nodeLevelMemoryRejectionThreshold;
     }
 
     private void ensureRejectionThresholdIsLessThanCancellation(
-        Double nodeLevelJvmRejectionThreshold,
-        Double nodeLevelJvmCancellationThreshold
+        Double nodeLevelMemoryRejectionThreshold,
+        Double nodeLevelMemoryCancellationThreshold
     ) {
-        if (Double.compare(nodeLevelJvmCancellationThreshold, nodeLevelJvmRejectionThreshold) < 0) {
+        if (Double.compare(nodeLevelMemoryCancellationThreshold, nodeLevelMemoryRejectionThreshold) < 0) {
             throw new IllegalArgumentException(
                 NODE_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be less than " + NODE_REJECTION_THRESHOLD_SETTING_NAME
             );
