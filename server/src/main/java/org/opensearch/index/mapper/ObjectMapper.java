@@ -90,21 +90,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
      */
     @PublicApi(since = "1.0.0")
     public enum Dynamic {
-        TRUE("true"),
-        FALSE("false"),
-        STRICT("strict"),
-        STRICT_ALLOW_TEMPLATES("strict_allow_templates");
-
-        private final String name;
-
-        Dynamic(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String toString() {
-            return this.name;
-        }
+        TRUE,
+        FALSE,
+        STRICT,
+        STRICT_ALLOW_TEMPLATES
     }
 
     /**

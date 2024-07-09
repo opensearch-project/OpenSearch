@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
@@ -546,7 +547,7 @@ final class DocumentParser {
             ObjectMapper parentMapper = parentMapperTuple.v2();
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(dynamic.toString(), mapper.fullPath(), currentFieldName);
+                throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), mapper.fullPath(), currentFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE || dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
                 Mapper.Builder builder = findTemplateBuilder(
                     context,
@@ -599,7 +600,11 @@ final class DocumentParser {
                 parentMapper = parentMapperTuple.v2();
                 ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
                 if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                    throw new StrictDynamicMappingException(dynamic.toString(), parentMapper.fullPath(), arrayFieldName);
+                    throw new StrictDynamicMappingException(
+                        dynamic.name().toLowerCase(Locale.ROOT),
+                        parentMapper.fullPath(),
+                        arrayFieldName
+                    );
                 } else if (dynamic == ObjectMapper.Dynamic.TRUE || dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
                     Mapper.Builder builder = findTemplateBuilder(
                         context,
@@ -710,7 +715,7 @@ final class DocumentParser {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
         } else if (dynamic == ObjectMapper.Dynamic.STRICT || dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
-            throw new StrictDynamicMappingException(dynamic.toString(), parentMapper.fullPath(), lastFieldName);
+            throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), parentMapper.fullPath(), lastFieldName);
         }
     }
 
@@ -848,7 +853,7 @@ final class DocumentParser {
     ) throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(dynamic.toString(), parentMapper.fullPath(), currentFieldName);
+            throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), parentMapper.fullPath(), currentFieldName);
         }
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
@@ -942,7 +947,7 @@ final class DocumentParser {
 
                 switch (dynamic) {
                     case STRICT:
-                        throw new StrictDynamicMappingException(dynamic.toString(), parent.fullPath(), paths[i]);
+                        throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), parent.fullPath(), paths[i]);
                     case STRICT_ALLOW_TEMPLATES:
                     case TRUE:
                         Mapper.Builder builder = findTemplateBuilder(
@@ -1045,7 +1050,7 @@ final class DocumentParser {
     ) {
         Mapper.Builder builder = context.root().findTemplateBuilder(context, name, matchType);
         if (builder == null && dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
-            throw new StrictDynamicMappingException(dynamic.toString(), fieldFullPath, name);
+            throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), fieldFullPath, name);
         }
 
         return builder;
@@ -1062,7 +1067,7 @@ final class DocumentParser {
     ) {
         Mapper.Builder builder = context.root().findTemplateBuilder(context, name, dateFormat);
         if (builder == null && dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
-            throw new StrictDynamicMappingException(dynamic.toString(), fieldFullPath, name);
+            throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), fieldFullPath, name);
         }
         return builder;
     }
