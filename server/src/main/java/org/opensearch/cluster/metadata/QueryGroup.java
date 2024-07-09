@@ -30,7 +30,7 @@ import java.util.Objects;
  * {
  *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga",
  *              "resourceLimits": {
- *                  "jvm": 0.4
+ *                  "memory": 0.4
  *              },
  *              "resiliency_mode": "enforced",
  *              "name": "analytics",
@@ -112,21 +112,26 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             Objects.requireNonNull(resource.getKey(), "resourceName can't be null");
             Objects.requireNonNull(threshold, "resource limit threshold for" + resource.getKey().getName() + " : can't be null");
 
-            if (Double.compare(threshold, 1.0) > 0) {
-                throw new IllegalArgumentException("resource value should be less than 1.0");
+            if (Double.compare(threshold, 0.0) <= 0 || Double.compare(threshold, 1.0) > 0) {
+                throw new IllegalArgumentException("resource value should be greater than 0 and less or equal to 1.0");
             }
         }
     }
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        return writeToXContent(this, builder);
+    }
+
+    public static XContentBuilder writeToXContent(QueryGroup queryGroup, final XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.field("_id", _id);
-        builder.field("name", name);
-        builder.field("resiliency_mode", resiliencyMode.getName());
-        builder.field("updatedAt", updatedAtInMillis);
+        builder.field("_id", queryGroup.get_id());
+        builder.field("name", queryGroup.getName());
+        builder.field("resiliency_mode", queryGroup.getResiliencyMode().getName());
+        builder.field("updatedAt", queryGroup.getUpdatedAtInMillis());
         // write resource limits
         builder.startObject("resourceLimits");
+        Map<ResourceType, Object> resourceLimits = queryGroup.getResourceLimits();
         for (ResourceType resourceType : ResourceType.values()) {
             if (resourceLimits.containsKey(resourceType)) {
                 builder.field(resourceType.getName(), resourceLimits.get(resourceType));
