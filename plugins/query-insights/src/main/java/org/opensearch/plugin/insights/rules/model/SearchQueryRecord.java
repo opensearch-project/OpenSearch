@@ -45,7 +45,7 @@ public class SearchQueryRecord implements ToXContentObject, Writeable {
         measurements = new HashMap<>();
         in.readMap(MetricType::readFromStream, StreamInput::readGenericValue)
             .forEach(((metricType, o) -> measurements.put(metricType, metricType.parseValue(o))));
-        this.attributes = in.readMap(Attribute::readFromStream, StreamInput::readGenericValue);
+        this.attributes = Attribute.readAttributeMap(in);
     }
 
     /**
@@ -134,7 +134,11 @@ public class SearchQueryRecord implements ToXContentObject, Writeable {
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeLong(timestamp);
         out.writeMap(measurements, (stream, metricType) -> MetricType.writeTo(out, metricType), StreamOutput::writeGenericValue);
-        out.writeMap(attributes, (stream, attribute) -> Attribute.writeTo(out, attribute), StreamOutput::writeGenericValue);
+        out.writeMap(
+            attributes,
+            (stream, attribute) -> Attribute.writeTo(out, attribute),
+            (stream, attributeValue) -> Attribute.writeValueTo(out, attributeValue)
+        );
     }
 
     /**
