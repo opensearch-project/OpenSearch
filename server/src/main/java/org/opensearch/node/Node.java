@@ -1109,6 +1109,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings(),
                 threadPool
             );
+            clusterService.setTaskResourceTrackingService(taskResourceTrackingService);
 
             final SearchBackpressureSettings searchBackpressureSettings = new SearchBackpressureSettings(
                 settings,
