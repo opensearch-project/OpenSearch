@@ -10,7 +10,12 @@ setup:
                 index_prefixes:
                   min_chars: 2
                   max_chars: 5
-
+              text_with_pos_inc_gap:
+                type: text
+                position_increment_gap: 201
+                index_prefixes:
+                  min_chars: 2
+                  max_chars: 5
   - do:
       index:
           index:  test
@@ -22,6 +27,18 @@ setup:
         index:  test
         id:     2
         body:   { text: sentence with UPPERCASE WORDS }
+
+  - do:
+      index:
+        index:  test
+        id:     3
+        body:   { text: ["foo", "b-12"] }
+
+  - do:
+      index:
+        index:  test
+        id:     4
+        body:   { text_with_pos_inc_gap: ["foo", "b-12"] }
 
   - do:
       indices.refresh:
@@ -114,5 +131,38 @@ setup:
                 { "span_term": { "text": "short" } },
                 { "span_multi": { "match": { "prefix": { "text": "word" } } } }
               ]
+
+  - match: {hits.total: 1}
+
+# related issue: https://github.com/opensearch-project/OpenSearch/issues/9203
+---
+"search index prefixes with multiple values":
+  - skip:
+      version: " - 2.99.99"
+      reason: "the bug was fixed in 3.0.0"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              text: "b-12"
+
+  - match: {hits.total: 1}
+
+---
+"search index prefixes with multiple values and custom position_increment_gap":
+  - skip:
+      version: " - 2.99.99"
+      reason: "the bug was fixed in 3.0.0"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              text_with_pos_inc_gap: "b-12"
 
   - match: {hits.total: 1}
