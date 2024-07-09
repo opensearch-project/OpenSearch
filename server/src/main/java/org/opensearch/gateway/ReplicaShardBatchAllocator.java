@@ -44,10 +44,10 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
      * @param allocation   the overall routing allocation
      * @param shardBatches a list of shard batches to check for existing recoveries
      */
-    public void processExistingRecoveries(RoutingAllocation allocation, List<Set<ShardRouting>> shardBatches) {
+    public void processExistingRecoveries(RoutingAllocation allocation, List<List<ShardRouting>> shardBatches) {
         List<Runnable> shardCancellationActions = new ArrayList<>();
         // iterate through the batches, each batch needs to be processed together as fetch call should be made for shards from same batch
-        for (Set<ShardRouting> shardBatch : shardBatches) {
+        for (List<ShardRouting> shardBatch : shardBatches) {
             List<ShardRouting> eligibleShards = new ArrayList<>();
             List<ShardRouting> ineligibleShards = new ArrayList<>();
             // iterate over shards to check for match for each of those
@@ -112,7 +112,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
      * @param shardRoutings the shards to allocate
      * @param allocation    the allocation state container object
      */
-    public void allocateUnassignedBatch(Set<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+    public void allocateUnassignedBatch(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
         List<ShardRouting> eligibleShards = new ArrayList<>();
         List<ShardRouting> ineligibleShards = new ArrayList<>();
         Map<ShardRouting, AllocateUnassignedDecision> ineligibleShardAllocationDecisions = new HashMap<>();

@@ -77,7 +77,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
      * @param shardRoutings the shards to allocate
      * @param allocation    the allocation state container object
      */
-    public void allocateUnassignedBatch(Set<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+    public void allocateUnassignedBatch(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
         HashMap<ShardId, AllocateUnassignedDecision> ineligibleShardAllocationDecisions = new HashMap<>();
         List<ShardRouting> eligibleShards = new ArrayList<>();
         List<ShardRouting> inEligibleShards = new ArrayList<>();

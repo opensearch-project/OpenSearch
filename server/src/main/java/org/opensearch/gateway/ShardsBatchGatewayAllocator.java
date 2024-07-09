@@ -179,7 +179,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     @Override
     public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
         assert replicaShardBatchAllocator != null;
-        List<Set<ShardRouting>> storedShardBatches = batchIdToStoreShardBatch.values()
+        List<List<ShardRouting>> storedShardBatches = batchIdToStoreShardBatch.values()
             .stream()
             .map(ShardsBatch::getBatchedShardRoutings)
             .collect(Collectors.toList());
@@ -684,8 +684,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
             asyncBatch.clearShard(shardId);
         }
 
-        public Set<ShardRouting> getBatchedShardRoutings() {
-            return batchInfo.values().stream().map(ShardEntry::getShardRouting).collect(Collectors.toSet());
+        public List<ShardRouting> getBatchedShardRoutings() {
+            return batchInfo.values().stream().map(ShardEntry::getShardRouting).collect(Collectors.toList());
         }
 
         public Set<ShardId> getBatchedShards() {
