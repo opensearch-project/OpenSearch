@@ -53,7 +53,6 @@ import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.junit.Before;
 
-import java.sql.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -277,8 +276,8 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         );
         Collection<ShardRouting> replicaShards = allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED);
         List<ShardRouting> shardRoutingBatch = new ArrayList<>(replicaShards);
-        List<Set<ShardRouting>> shardBatchList = Collections.singletonList(
-            new HashSet<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING))
+        List<List<ShardRouting>> shardBatchList = Collections.singletonList(
+            new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING))
         );
 
         testBatchAllocator.processExistingRecoveries(allocation, shardBatchList);
@@ -530,7 +529,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             .addData(node3, "MATCH", null, new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         testBatchAllocator.processExistingRecoveries(
             allocation,
-            Collections.singletonList(new HashSet<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
         );
         assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
