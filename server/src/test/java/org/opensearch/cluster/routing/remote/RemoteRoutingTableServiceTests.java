@@ -63,6 +63,8 @@ import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIM
 import static org.opensearch.gateway.remote.ClusterMetadataManifestTests.randomUploadedIndexMetadataList;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMITER;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_FILE;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_FORMAT;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_PREFIX;
@@ -577,7 +579,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertNotNull(listener.getResult());
         ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.getResult();
 
-        assertEquals(INDEX_ROUTING_TABLE_PREFIX + indexName, uploadedMetadata.getComponent());
+        assertEquals(INDEX_ROUTING_METADATA_PREFIX + indexName, uploadedMetadata.getComponent());
         String uploadedFileName = uploadedMetadata.getUploadedFilename();
         String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
         assertEquals(8, pathTokens.length);
@@ -585,7 +587,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         String[] fileNameTokens = pathTokens[7].split(DELIMITER);
 
         assertEquals(4, fileNameTokens.length);
-        assertEquals(fileNameTokens[0], INDEX_ROUTING_TABLE);
+        assertEquals(fileNameTokens[0], INDEX_ROUTING_FILE);
         assertEquals(fileNameTokens[1], RemoteStoreUtils.invertLong(1L));
         assertEquals(fileNameTokens[2], RemoteStoreUtils.invertLong(2L));
         assertThat(RemoteStoreUtils.invertLong(fileNameTokens[3]), lessThanOrEqualTo(System.currentTimeMillis()));

@@ -13,7 +13,6 @@ import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
 import org.opensearch.common.remote.RemoteWriteableEntity;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -77,10 +76,8 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractRe
     @Override
     public BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<IndexRoutingTable> obj) {
         assert obj.getBlobPathParameters().getPathTokens().size() == 1 : "Unexpected tokens in RemoteRoutingTableObject";
-        BlobPath indexRoutingPath = getBasePath().add(RemoteClusterStateUtils.encodeString(getClusterName()))
-            .add("cluster-state")
-            .add(obj.clusterUUID())
-            .add(INDEX_ROUTING_TABLE);
+        BlobPath indexRoutingPath = getBlobPathPrefix(obj.clusterUUID()).add(INDEX_ROUTING_TABLE);
+
         BlobPath path = pathType.path(
             RemoteStorePathStrategy.PathInput.builder()
                 .basePath(indexRoutingPath)

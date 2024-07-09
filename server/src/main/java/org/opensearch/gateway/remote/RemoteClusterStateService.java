@@ -104,8 +104,8 @@ import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettin
 import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata.SETTING_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLATES_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
 
 /**
@@ -714,7 +714,7 @@ public class RemoteClusterStateService implements Closeable {
         UploadedMetadataResults response = new UploadedMetadataResults();
         results.forEach((name, uploadedMetadata) -> {
             if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class)
-                && uploadedMetadata.getComponent().contains(INDEX_ROUTING_TABLE_PREFIX)) {
+                && uploadedMetadata.getComponent().contains(INDEX_ROUTING_METADATA_PREFIX)) {
                 response.uploadedIndicesRoutingMetadata.add((UploadedIndexMetadata) uploadedMetadata);
             } else if (name.startsWith(CUSTOM_METADATA)) {
                 // component name for custom metadata will look like custom--<metadata-attribute>

@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN;
+
 /**
  * Abstract class for a blob type storage
  *
@@ -31,7 +33,7 @@ import java.util.concurrent.ExecutorService;
  */
 public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlobEntity<T>> implements RemoteWritableEntityStore<T, U> {
 
-    protected final BlobStoreTransferService transferService;
+    private final BlobStoreTransferService transferService;
     private final BlobStoreRepository blobStoreRepository;
     private final String clusterName;
     private final ExecutorService executorService;
@@ -96,10 +98,12 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
         return blobStoreRepository.basePath();
     }
 
+    public BlobPath getBlobPathPrefix(String clusterUUID) {
+        return getBasePath().add(RemoteClusterStateUtils.encodeString(getClusterName())).add(CLUSTER_STATE_PATH_TOKEN).add(clusterUUID);
+    }
+
     public BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<T> obj) {
-        BlobPath blobPath = getBasePath().add(RemoteClusterStateUtils.encodeString(getClusterName()))
-            .add("cluster-state")
-            .add(obj.clusterUUID());
+        BlobPath blobPath = getBlobPathPrefix(obj.clusterUUID());
         for (String token : obj.getBlobPathParameters().getPathTokens()) {
             blobPath = blobPath.add(token);
         }

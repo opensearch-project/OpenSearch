@@ -28,7 +28,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public interface RemoteRoutingTableService extends LifecycleComponent {
-    DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
+    public static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
         new DiffableUtils.NonDiffableValueSerializer<>() {
             @Override
             public void write(IndexRoutingTable value, StreamOutput out) throws IOException {

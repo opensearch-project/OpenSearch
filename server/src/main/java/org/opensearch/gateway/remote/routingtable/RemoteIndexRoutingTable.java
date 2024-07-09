@@ -47,7 +47,7 @@ public class RemoteIndexRoutingTable extends AbstractRemoteWritableBlobEntity<In
         long term,
         long version
     ) {
-        super(clusterUUID, compressor, null);
+        super(clusterUUID, compressor);
         this.index = indexRoutingTable.getIndex();
         this.indexRoutingTable = indexRoutingTable;
         this.term = term;
@@ -61,15 +61,11 @@ public class RemoteIndexRoutingTable extends AbstractRemoteWritableBlobEntity<In
      * @param compressor Compressor object
      */
     public RemoteIndexRoutingTable(String blobName, String clusterUUID, Compressor compressor) {
-        super(clusterUUID, compressor, null);
+        super(clusterUUID, compressor);
         this.index = null;
         this.term = -1;
         this.version = -1;
         this.blobName = blobName;
-    }
-
-    public IndexRoutingTable getIndexRoutingTable() {
-        return indexRoutingTable;
     }
 
     public Index getIndex() {
@@ -78,7 +74,7 @@ public class RemoteIndexRoutingTable extends AbstractRemoteWritableBlobEntity<In
 
     @Override
     public BlobPathParameters getBlobPathParameters() {
-        return new BlobPathParameters(List.of(indexRoutingTable.getIndex().getUUID()));
+        return new BlobPathParameters(List.of(indexRoutingTable.getIndex().getUUID()), INDEX_ROUTING_FILE);
     }
 
     @Override
@@ -91,7 +87,7 @@ public class RemoteIndexRoutingTable extends AbstractRemoteWritableBlobEntity<In
         if (blobFileName == null) {
             blobFileName = String.join(
                 DELIMITER,
-                INDEX_ROUTING_FILE,
+                getBlobPathParameters().getFilePrefix(),
                 RemoteStoreUtils.invertLong(term),
                 RemoteStoreUtils.invertLong(version),
                 RemoteStoreUtils.invertLong(System.currentTimeMillis())

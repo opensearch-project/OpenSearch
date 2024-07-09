@@ -36,9 +36,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CUSTOM_DELIMITER;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_PREFIX;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_FILE;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -206,7 +205,7 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
 
             BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
             assertThat(params.getPathTokens(), is(List.of(indexRoutingTable.getIndex().getUUID())));
-            String expectedPrefix = "";
+            String expectedPrefix = INDEX_ROUTING_FILE;
             assertThat(params.getFilePrefix(), is(expectedPrefix));
         });
     }
@@ -237,7 +236,7 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
 
             String blobFileName = remoteObjectForUpload.generateBlobFileName();
             String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
-            assertEquals(nameTokens[0], INDEX_ROUTING_TABLE_PREFIX);
+            assertEquals(nameTokens[0], INDEX_ROUTING_FILE);
             assertEquals(nameTokens[1], RemoteStoreUtils.invertLong(STATE_TERM));
             assertEquals(nameTokens[2], RemoteStoreUtils.invertLong(STATE_VERSION));
             assertThat(RemoteStoreUtils.invertLong(nameTokens[3]), lessThanOrEqualTo(System.currentTimeMillis()));
@@ -273,7 +272,7 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
             try (InputStream inputStream = remoteObjectForUpload.serialize()) {
                 remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
                 ClusterMetadataManifest.UploadedMetadata uploadedMetadata = remoteObjectForUpload.getUploadedMetadata();
-                String expectedPrefix = String.join(CUSTOM_DELIMITER, INDEX_ROUTING_TABLE, indexRoutingTable.getIndex().getName());
+                String expectedPrefix = INDEX_ROUTING_METADATA_PREFIX + indexRoutingTable.getIndex().getName();
                 assertThat(uploadedMetadata.getComponent(), is(expectedPrefix));
                 assertThat(uploadedMetadata.getUploadedFilename(), is(remoteObjectForUpload.getFullBlobName()));
             } catch (IOException e) {
