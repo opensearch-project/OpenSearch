@@ -32,12 +32,17 @@
 
 package org.opensearch.indices;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.tasks.TaskResultsService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -67,7 +72,7 @@ public class SystemIndicesTests extends OpenSearchTestCase {
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> SystemIndices.checkForOverlappingPatterns(descriptors)
+            () -> SystemIndexRegistry.checkForOverlappingPatterns(descriptors)
         );
         assertThat(
             exception.getMessage(),
@@ -104,7 +109,7 @@ public class SystemIndicesTests extends OpenSearchTestCase {
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> SystemIndices.checkForOverlappingPatterns(descriptors)
+            () -> SystemIndexRegistry.checkForOverlappingPatterns(descriptors)
         );
         assertThat(
             exception.getMessage(),
@@ -132,5 +137,95 @@ public class SystemIndicesTests extends OpenSearchTestCase {
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));
+    }
+
+    public void testSystemIndexMatching() {
+        SystemIndexPlugin plugin1 = new SystemIndexPlugin1();
+        SystemIndexPlugin plugin2 = new SystemIndexPlugin2();
+        SystemIndexPlugin plugin3 = new SystemIndexPatternPlugin();
+        SystemIndices pluginSystemIndices = new SystemIndices(
+            Map.of(
+                SystemIndexPlugin1.class.getCanonicalName(),
+                plugin1.getSystemIndexDescriptors(Settings.EMPTY),
+                SystemIndexPlugin2.class.getCanonicalName(),
+                plugin2.getSystemIndexDescriptors(Settings.EMPTY),
+                SystemIndexPatternPlugin.class.getCanonicalName(),
+                plugin3.getSystemIndexDescriptors(Settings.EMPTY)
+            )
+        );
+
+        assertThat(
+            SystemIndexRegistry.matchesSystemIndexPattern(".system-index1", ".system-index2"),
+            equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2))
+        );
+        assertThat(SystemIndexRegistry.matchesSystemIndexPattern(".system-index1"), equalTo(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1)));
+        assertThat(SystemIndexRegistry.matchesSystemIndexPattern(".system-index2"), equalTo(List.of(SystemIndexPlugin2.SYSTEM_INDEX_2)));
+        assertThat(SystemIndexRegistry.matchesSystemIndexPattern(".system-index-pattern1"), equalTo(List.of(".system-index-pattern1")));
+        assertThat(
+            SystemIndexRegistry.matchesSystemIndexPattern(".system-index-pattern-sub*"),
+            equalTo(List.of(".system-index-pattern-sub*"))
+        );
+        assertThat(
+            SystemIndexRegistry.matchesSystemIndexPattern(".system-index-pattern1", ".system-index-pattern2"),
+            equalTo(List.of(".system-index-pattern1", ".system-index-pattern2"))
+        );
+        assertThat(
+            SystemIndexRegistry.matchesSystemIndexPattern(".system-index1", ".system-index-pattern1"),
+            equalTo(List.of(".system-index1", ".system-index-pattern1"))
+        );
+        assertThat(
+            SystemIndexRegistry.matchesSystemIndexPattern(".system-index1", ".system-index-pattern1", ".not-system"),
+            equalTo(List.of(".system-index1", ".system-index-pattern1"))
+        );
+        assertThat(SystemIndexRegistry.matchesSystemIndexPattern(".not-system"), equalTo(Collections.emptyList()));
+    }
+
+    public void testRegisteredSystemIndexExpansion() {
+        SystemIndexPlugin plugin1 = new SystemIndexPlugin1();
+        SystemIndexPlugin plugin2 = new SystemIndexPlugin2();
+        SystemIndices pluginSystemIndices = new SystemIndices(
+            Map.of(
+                SystemIndexPlugin1.class.getCanonicalName(),
+                plugin1.getSystemIndexDescriptors(Settings.EMPTY),
+                SystemIndexPlugin2.class.getCanonicalName(),
+                plugin2.getSystemIndexDescriptors(Settings.EMPTY)
+            )
+        );
+        List<String> systemIndices = SystemIndexRegistry.matchesSystemIndexPattern(
+            SystemIndexPlugin1.SYSTEM_INDEX_1,
+            SystemIndexPlugin2.SYSTEM_INDEX_2
+        );
+        assertEquals(2, systemIndices.size());
+        assertTrue(systemIndices.containsAll(List.of(SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2)));
+    }
+
+    static final class SystemIndexPlugin1 extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_INDEX_1 = ".system-index1";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_1, "System index 1");
+            return Collections.singletonList(systemIndexDescriptor);
+        }
+    }
+
+    static final class SystemIndexPlugin2 extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_INDEX_2 = ".system-index2";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_2, "System index 2");
+            return Collections.singletonList(systemIndexDescriptor);
+        }
+    }
+
+    static final class SystemIndexPatternPlugin extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_INDEX_PATTERN = ".system-index-pattern*";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(SYSTEM_INDEX_PATTERN, "System index pattern");
+            return Collections.singletonList(systemIndexDescriptor);
+        }
     }
 }
