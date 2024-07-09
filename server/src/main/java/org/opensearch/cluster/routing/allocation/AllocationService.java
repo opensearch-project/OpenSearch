@@ -97,11 +97,7 @@ public class AllocationService {
     private SnapshotsInfoService snapshotsInfoService;
     private final ClusterManagerMetrics clusterManagerMetrics;
 
-    private static final long MAX_ALLOCATION_BATCH_CAPACITY = 100;
     private final Queue<Runnable> workQueue = new LinkedBlockingQueue<>();
-    AtomicBoolean primaryBatchExecution = new AtomicBoolean(true);
-    AtomicBoolean replicaBatchExecution = new AtomicBoolean(true);
-    AtomicBoolean replicaAfterPrimaryBatchExecution = new AtomicBoolean(true);
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -624,7 +620,6 @@ public class AllocationService {
     }
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
-        replicaAfterPrimaryBatchExecution.set(true);
         if (workQueue.isEmpty()) {
             logger.info("Producing work item at allocateAllUnassignedShards");
             produceWorkItem(allocation);
@@ -644,16 +639,18 @@ public class AllocationService {
             logger.info("attempting to start work queue with size [{}], elapsed time [{}]",
                 workQueue.size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
             Runnable workItem = workQueue.poll();
-            if (workItem != null) {
-                workItem.run();
-            } else {
-                // null is marker to avoid hitting hot loops of after primary before replica
-                logger.info("Returning as there is no work item pending");
-                return;
-            }
+            assert workItem != null;
+            workItem.run();
             if (workQueue.isEmpty()) {
                 logger.info("Producing work item at processWorkItemQueue");
                 produceWorkItem(allocation);
+                if (workQueue.size() == 1) {
+                    workQueue.poll().run();
+                    if (workQueue.isEmpty()) {
+                        logger.info("Returning as there is no work item pending");
+                        return;
+                    }
+                }
             }
         }
     }
@@ -662,16 +659,7 @@ public class AllocationService {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
         long startTime = System.nanoTime();
         List<Runnable> primaryRunnable = allocator.allocateAllUnassignedShards(allocation, true);
-        primaryBatchExecution.set(CollectionUtils.isEmpty(primaryRunnable) == false);
         workQueue.addAll(primaryRunnable);
-        workQueue.add(
-            primaryBatchExecution.get() || replicaBatchExecution.get() || replicaAfterPrimaryBatchExecution.get() ? () -> {
-                long startTimeAPBR = System.nanoTime();
-                allocator.afterPrimariesBeforeReplicas(allocation);
-                logger.info("Adding after primary before replica runnable with elapsed time [{}]",
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeAPBR));
-            } : null);
-        replicaAfterPrimaryBatchExecution.set(false);
         workQueue.add(() -> produceReplicaWorkItem(allocation));
         logger.info("Produced work item with time taken [{}], with queue size [{}]",
             TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime), workQueue.size());
@@ -680,7 +668,6 @@ public class AllocationService {
     private void produceReplicaWorkItem(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
         List<Runnable> replicaBatchRunnable = allocator.allocateAllUnassignedShards(allocation, false);
-        replicaBatchExecution.set(CollectionUtils.isEmpty(replicaBatchRunnable) == false);
         logger.info("Inflating replica runnables now with size [{}]", replicaBatchRunnable.size());
         workQueue.addAll(replicaBatchRunnable);
     }

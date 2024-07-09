@@ -221,6 +221,9 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         ReplicaShardBatchAllocator replicaBatchShardAllocator,
         boolean primary
     ) {
+        if (primary == false) {
+            afterPrimariesBeforeReplicas(allocation);
+        }
         // create batches for unassigned shards
         Set<String> batchesToAssign = createAndUpdateBatches(allocation, primary);
         if (batchesToAssign.isEmpty()) {
