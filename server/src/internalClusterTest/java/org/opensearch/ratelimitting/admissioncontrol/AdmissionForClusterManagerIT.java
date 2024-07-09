@@ -15,8 +15,8 @@ import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
 import org.opensearch.action.support.clustermanager.term.GetTermVersionResponse;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.coordination.ClusterStateTermVersion;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -92,15 +92,32 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
 
         // Enable admission control
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(ENFORCE_ADMISSION_CONTROL).execute().actionGet();
+        MockTransportService primaryService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            clusterManagerNode
+        );
+
+        // Force always fetch from ClusterManager
+        ClusterService clusterService = internalCluster().clusterService();
+        GetTermVersionResponse oosTerm = new GetTermVersionResponse(
+            new ClusterStateTermVersion(
+                clusterService.state().getClusterName(),
+                clusterService.state().metadata().clusterUUID(),
+                clusterService.state().term() - 1,
+                clusterService.state().version() - 1
+            )
+        );
+        primaryService.addRequestHandlingBehavior(
+            GetTermVersionAction.NAME,
+            (handler, request, channel, task) -> channel.sendResponse(oosTerm)
+        );
     }
 
     public void testAdmissionControlEnforced() throws Exception {
-        stubClusterTermResponse(internalCluster().getClusterManagerName());
         cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 99, new IoUsageStats(98));
 
         // Write API on ClusterManager
         assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("{\"alias1\" : {}}"));
-        stubClusterTermResponse(internalCluster().getClusterManagerName());
         // Read API on ClusterManager
 
         GetAliasesRequest aliasesRequest = new GetAliasesRequest();
@@ -171,7 +188,6 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
     }
 
     public void testAdmissionControlResponseStatus() throws Exception {
-        stubClusterTermResponse(internalCluster().getClusterManagerName());
         cMResourceCollector.collectNodeResourceUsageStats(clusterManagerNodeId, System.currentTimeMillis(), 97, 99, new IoUsageStats(98));
 
         // Write API on ClusterManager
@@ -211,12 +227,4 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
         }
         return acStats;
     }
-
-    private void stubClusterTermResponse(String master) {
-        MockTransportService primaryService = (MockTransportService) internalCluster().getInstance(TransportService.class, master);
-        primaryService.addRequestHandlingBehavior(GetTermVersionAction.NAME, (handler, request, channel, task) -> {
-            channel.sendResponse(new GetTermVersionResponse(new ClusterStateTermVersion(new ClusterName("test"), "1", -1, -1)));
-        });
-    }
-
 }

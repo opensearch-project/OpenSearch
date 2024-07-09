@@ -51,6 +51,8 @@ public abstract class TransportClusterManagerNodeReadAction<
     Request extends ClusterManagerNodeReadRequest<Request>,
     Response extends ActionResponse> extends TransportClusterManagerNodeAction<Request, Response> {
 
+    protected boolean localExecuteSupported = false;
+
     protected TransportClusterManagerNodeReadAction(
         String actionName,
         TransportService transportService,
@@ -58,7 +60,8 @@ public abstract class TransportClusterManagerNodeReadAction<
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean localExecuteSupported
     ) {
         this(
             actionName,
@@ -71,6 +74,19 @@ public abstract class TransportClusterManagerNodeReadAction<
             request,
             indexNameExpressionResolver
         );
+        this.localExecuteSupported = localExecuteSupported;
+    }
+
+    protected TransportClusterManagerNodeReadAction(
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        this(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, false);
     }
 
     protected TransportClusterManagerNodeReadAction(
@@ -126,7 +142,7 @@ public abstract class TransportClusterManagerNodeReadAction<
     }
 
     protected boolean localExecuteSupportedByAction() {
-        return true;
+        return localExecuteSupported;
     }
 
 }
