@@ -206,6 +206,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         if (o == null || getClass() != o.getClass()) return false;
         QueryGroup that = (QueryGroup) o;
         return Objects.equals(name, that.name)
+            && Objects.equals(resiliencyMode, that.resiliencyMode)
             && Objects.equals(resourceLimits, that.resourceLimits)
             && Objects.equals(_id, that._id)
             && updatedAtInMillis == that.updatedAtInMillis;
@@ -273,7 +274,6 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             }
             throw new IllegalArgumentException("Invalid value for QueryGroupMode: " + s);
         }
-
     }
 
     /**

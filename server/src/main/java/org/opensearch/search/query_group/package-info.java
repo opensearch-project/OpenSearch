@@ -7,6 +7,6 @@
  */
 
 /**
- * Query Sandboxing related artifacts
+ * QueryGroup related artifacts
  */
 package org.opensearch.search.query_group;

@@ -12,18 +12,17 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.metadata.QueryGroup.ResiliencyMode;
-
 import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
-import org.joda.time.Instant;
 import org.opensearch.search.ResourceType;
+import org.joda.time.Instant;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A request for create QueryGroup

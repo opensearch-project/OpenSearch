@@ -19,17 +19,33 @@ import org.opensearch.search.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
-import static org.mockito.Mockito.mock;
-import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.*;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.MEMORY_STRING;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.MONITOR_STRING;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.NAME_NONE_EXISTED;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.NAME_ONE;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.NAME_TWO;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils._ID_ONE;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.assertInflightValuesAreZero;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.compareQueryGroups;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.preparePersistenceServiceSetup;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupList;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupOne;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupPersistenceService;
+import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupTwo;
 import static org.opensearch.search.query_group.QueryGroupServiceSettings.QUERY_GROUP_COUNT_SETTING_NAME;
+import static org.mockito.Mockito.mock;
 
 public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
 
     public void testCreateQueryGroup() {
-        List<Object> setup = prepareSandboxPersistenceService(new HashMap<>());
+        List<Object> setup = preparePersistenceServiceSetup(new HashMap<>());
         QueryGroupPersistenceService queryGroupPersistenceService1 = (QueryGroupPersistenceService) setup.get(0);
         ClusterState clusterState = (ClusterState) setup.get(1);
         ClusterState newClusterState = queryGroupPersistenceService1.saveQueryGroupInClusterState(queryGroupOne, clusterState);
@@ -45,7 +61,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testCreateAnotherQueryGroup() {
-        List<Object> setup = prepareSandboxPersistenceService(Map.of(NAME_ONE, queryGroupOne));
+        List<Object> setup = preparePersistenceServiceSetup(Map.of(NAME_ONE, queryGroupOne));
         QueryGroupPersistenceService queryGroupPersistenceService1 = (QueryGroupPersistenceService) setup.get(0);
         ClusterState clusterState = (ClusterState) setup.get(1);
         ClusterState newClusterState = queryGroupPersistenceService1.saveQueryGroupInClusterState(queryGroupTwo, clusterState);
@@ -57,24 +73,24 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testCreateQueryGroupDuplicateName() {
-        List<Object> setup = prepareSandboxPersistenceService(Map.of(NAME_ONE, queryGroupOne));
+        List<Object> setup = preparePersistenceServiceSetup(Map.of(NAME_ONE, queryGroupOne));
         QueryGroupPersistenceService queryGroupPersistenceService1 = (QueryGroupPersistenceService) setup.get(0);
         ClusterState clusterState = (ClusterState) setup.get(1);
         QueryGroup toCreate = builder().name(NAME_ONE)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
             .mode(MONITOR_STRING)
-            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING),  0.3))
+            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.3))
             .updatedAt(1690934400000L)
             .build();
         assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveQueryGroupInClusterState(toCreate, clusterState));
     }
 
     public void testCreateQueryGroupOverflowAllocation() {
-        List<Object> setup = prepareSandboxPersistenceService(Map.of(NAME_TWO, queryGroupOne));
+        List<Object> setup = preparePersistenceServiceSetup(Map.of(NAME_TWO, queryGroupOne));
         QueryGroup toCreate = builder().name(NAME_TWO)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
             .mode(MONITOR_STRING)
-            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING),  0.5))
+            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.5))
             .updatedAt(1690934400000L)
             .build();
         QueryGroupPersistenceService queryGroupPersistenceService1 = (QueryGroupPersistenceService) setup.get(0);
@@ -86,7 +102,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         QueryGroup toCreate = builder().name(NAME_NONE_EXISTED)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
             .mode(MONITOR_STRING)
-            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING),  0.5))
+            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.5))
             .updatedAt(1690934400000L)
             .build();
         Metadata metadata = Metadata.builder().queryGroups(Map.of(NAME_ONE, queryGroupOne, NAME_TWO, queryGroupTwo)).build();

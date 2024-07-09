@@ -129,7 +129,7 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
      * @param resourceLimits  - the resource limit from which to get the allocation value for resourceName
      */
     private double getResourceLimitValue(String resourceName, final Map<ResourceType, Object> resourceLimits) {
-        for (ResourceType resourceType: resourceLimits.keySet()) {
+        for (ResourceType resourceType : resourceLimits.keySet()) {
             if (resourceType.getName().equals(resourceName)) {
                 return (double) resourceLimits.get(resourceType);
             }

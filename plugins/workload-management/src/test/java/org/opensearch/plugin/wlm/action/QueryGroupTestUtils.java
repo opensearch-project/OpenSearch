@@ -19,14 +19,17 @@ import org.opensearch.plugin.wlm.action.service.QueryGroupPersistenceService;
 import org.opensearch.search.ResourceType;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.DoubleAdder;
 
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
+import static org.opensearch.search.ResourceType.fromName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.opensearch.search.ResourceType.fromName;
 
 public class QueryGroupTestUtils {
     public static final String NAME_ONE = "query_group_one";
@@ -79,7 +82,7 @@ public class QueryGroupTestUtils {
         return new QueryGroupPersistenceService(clusterService, settings(), clusterSettings());
     }
 
-    public static List<Object> prepareSandboxPersistenceService(Map<String, QueryGroup> queryGroups) {
+    public static List<Object> preparePersistenceServiceSetup(Map<String, QueryGroup> queryGroups) {
         Metadata metadata = Metadata.builder().queryGroups(queryGroups).build();
         Settings settings = Settings.builder().build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -91,19 +94,6 @@ public class QueryGroupTestUtils {
             clusterSettings
         );
         return List.of(queryGroupPersistenceService, clusterState);
-    }
-
-    public static void compareResourceTypes(Map<ResourceType, Object> resourceLimitMapOne, Map<ResourceType, Object> resourceLimitMapTwo) {
-        assertTrue(resourceLimitMapOne.keySet().containsAll(resourceLimitMapTwo.keySet()));
-        assertTrue(resourceLimitMapOne.values().containsAll(resourceLimitMapTwo.values()));
-//        for (Map.Entry<ResourceType, Object> entryOne : resourceLimitMapOne.entrySet()) {
-//            String resourceName = entryOne.getKey().getName();
-//            Optional<Map.Entry<ResourceType, Object>> entryTwo = resourceLimitMapTwo.entrySet().stream()
-//                .filter(e -> e.getKey().getName().equals(resourceName))
-//                .findFirst();
-//            assertTrue(entryTwo.isPresent());
-//            assertEquals(entryOne.getValue(), entryTwo.get().getValue());
-//        }
     }
 
     public static void compareResourceLimits(Map<String, Object> resourceLimitMapOne, Map<String, Object> resourceLimitMapTwo) {
