@@ -523,6 +523,16 @@ public class Task {
         return headers.get(header);
     }
 
+    /**
+     * sets the header value, It is currently not possible to determine the query group for the task at the task creation
+     * time, hence we need this method to add the headers to task
+     * @param name header name
+     * @param value header value
+     */
+    public void putHeader(String name, String value) {
+        this.headers.put(name, value);
+    }
+
     public TaskResult result(final String nodeId, Exception error) throws IOException {
         return new TaskResult(taskInfo(nodeId, true, true), error);
     }
