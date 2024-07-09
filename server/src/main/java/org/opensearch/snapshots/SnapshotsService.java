@@ -222,7 +222,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     // Map to maintain state for each snapshot create operation
     private final ConcurrentMap<String, CreateSnapshotState> snapshotStatesForCreate = new ConcurrentHashMap<>();
 
-    private boolean uploadPerShard = true;
+    private boolean perShardSnapshotMetadata = true;
 
     // Inner class to maintain state for each snapshot create operation
     private static class CreateSnapshotState {
@@ -704,7 +704,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         GroupedActionListener<Void> shardListener = new GroupedActionListener<>(new ActionListener<>() {
             @Override
             public void onResponse(Collection<Void> voids) {
-                if (!uploadPerShard) {
+                if (!perShardSnapshotMetadata) {
                     // merge and upload single index shard metadata file
                 } else {
                     listener.onResponse(null);
@@ -743,7 +743,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 public void onResponse(RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot) {
 
                     updateSuccessfulSnapshotShard(indexId, shardId, shardSnapshotStatus.generation(), snapshotIdStr);
-                    if (uploadPerShard) {
+                    if (perShardSnapshotMetadata) {
                         final Repository repository = repositoriesService.repository(snapshot.getRepository());
                         repository.writeSnapshotShardCheckpoint(remoteStoreShardShallowCopySnapshot, indexId, shardId, snapshot);
                     } else {
