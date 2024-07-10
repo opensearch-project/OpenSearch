@@ -17,6 +17,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.Stack;
 
 import static java.util.Collections.singletonList;
 import static org.opensearch.rest.RestRequest.Method.GET;
@@ -42,8 +43,8 @@ public class TestGetExecutionContextRestAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String pluginMainClass = threadPool.getThreadContext().getExecutionContext();
-        RestResponse response = new BytesRestResponse(RestStatus.OK, pluginMainClass);
+        Stack<String> pluginExecutionStack = threadPool.getThreadContext().getPluginExecutionStack();
+        RestResponse response = new BytesRestResponse(RestStatus.OK, pluginExecutionStack.peek());
         return channel -> channel.sendResponse(response);
     }
 }

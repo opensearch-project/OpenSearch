@@ -8,7 +8,9 @@
 
 package org.opensearch.rest;
 
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.lang.reflect.InvocationHandler;
@@ -42,15 +44,12 @@ public class RestHandlerProxy implements InvocationHandler {
     @Override
     public Object invoke(Object proxy, Method m, Object[] args) throws Throwable {
         Object result;
-        try {
-            threadPool.getThreadContext().setExecutionContext(plugin.getClass().getName());
+        try (ThreadContext.StoredContext threadContext = threadPool.getThreadContext().switchContext((Plugin) plugin)) {
             result = m.invoke(restHandler, args);
         } catch (InvocationTargetException e) {
             throw e.getTargetException();
         } catch (Exception e) {
             throw new RuntimeException("unexpected invocation exception: " + e.getMessage());
-        } finally {
-            threadPool.getThreadContext().clearExecutionContext();
         }
         return result;
     }

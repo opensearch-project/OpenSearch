@@ -45,6 +45,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskThreadContextStatePropagator;
 
@@ -60,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Stack;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
@@ -110,6 +112,7 @@ public final class ThreadContext implements Writeable {
      * Name for the {@link #stashWithOrigin origin} attribute.
      */
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+    private static final String PLUGIN_EXECUTION_CONTEXT_HEADER = "_plugin_execution_context";
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
@@ -141,16 +144,16 @@ public final class ThreadContext implements Writeable {
         propagators.remove(Objects.requireNonNull(propagator));
     }
 
-    public void setExecutionContext(String pluginName) {
-        this.executionContext.set(pluginName);
+    void delegateExecutionToPlugin(Plugin plugin) {
+        this.executionContext.add(plugin);
     }
 
-    public String getExecutionContext() {
+    public Stack<String> getPluginExecutionStack() {
         return this.executionContext.get();
     }
 
-    public void clearExecutionContext() {
-        this.executionContext.clear();
+    void returnToCore() {
+        this.executionContext.pop();
     }
 
     /**
@@ -186,6 +189,25 @@ public final class ThreadContext implements Writeable {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an
             // uncaught exception
+            threadLocal.set(context);
+        };
+    }
+
+    /**
+     * Keeps the current context and also adds an entry into the plugin execution stack with the
+     * main class name of the plugin being delegated to
+     */
+    public StoredContext switchContext(Plugin plugin) {
+        final ThreadContextStruct context = threadLocal.get();
+
+        delegateExecutionToPlugin(plugin);
+        threadLocal.set(context);
+
+        return () -> {
+            // If the node and thus the threadLocal get closed while this task
+            // is still executing, we don't want this runnable to fail with an
+            // uncaught exception
+            returnToCore();
             threadLocal.set(context);
         };
     }

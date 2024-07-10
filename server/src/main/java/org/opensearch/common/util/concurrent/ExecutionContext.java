@@ -8,25 +8,41 @@
 
 package org.opensearch.common.util.concurrent;
 
+import org.opensearch.plugins.Plugin;
+
+import java.util.Stack;
+
 /**
- * An ExecutionContext is a singular header within ThreadLocal that contains the identity of a plugin that is on
- * the path of execution.
+ * An ExecutionContext is a singular header within ThreadLocal that contains the chain of plugins on the execution path
  */
 public class ExecutionContext {
-    private final ThreadLocal<String> context = new ThreadLocal<>();
+    private final ThreadLocal<Stack<String>> context = new ThreadLocal<>();
 
-    public void set(String value) {
-        if (context.get() != null) {
-            throw new IllegalArgumentException("ExecutionContext already present");
+    public void add(Plugin plugin) {
+        if (context.get() == null) {
+            context.set(new Stack<>());
         }
-        context.set(value);
+        context.get().add(plugin.getClass().getCanonicalName());
     }
 
-    public String get() {
+    public Stack<String> get() {
+        if (context.get() == null) {
+            return null;
+        }
         return context.get();
     }
 
-    public void clear() {
-        context.remove();
+    public String peek() {
+        if (context.get() == null || context.get().isEmpty()) {
+            return null;
+        }
+        return context.get().peek();
+    }
+
+    public String pop() {
+        if (context.get() == null || context.get().isEmpty()) {
+            return null;
+        }
+        return context.get().pop();
     }
 }

@@ -62,6 +62,6 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return List.of(new TestSetExecutionContextRestAction(threadPool), new TestGetExecutionContextRestAction(threadPool));
+        return List.of(new TestGetExecutionContextRestAction(threadPool));
     }
 }
