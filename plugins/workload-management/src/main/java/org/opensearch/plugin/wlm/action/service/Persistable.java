@@ -18,8 +18,8 @@ public interface Persistable<T> {
 
     /**
      * persists the QueryGroup in a durable storage
-     * @param queryGroup
-     * @param listener
+     * @param queryGroup - queryGroup to be persisted
+     * @param listener - ActionListener for CreateQueryGroupResponse
      */
     void persist(T queryGroup, ActionListener<CreateQueryGroupResponse> listener);
 }

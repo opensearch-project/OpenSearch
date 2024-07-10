@@ -25,7 +25,7 @@ public class CreateQueryGroupAction extends ActionType<CreateQueryGroupResponse>
     /**
      * Name for CreateQueryGroupAction
      */
-    public static final String NAME = "cluster:admin/opensearch/query_group/wlm/_create";
+    public static final String NAME = "cluster:admin/opensearch/wlm/query_group/_create";
 
     /**
      * Default constructor
