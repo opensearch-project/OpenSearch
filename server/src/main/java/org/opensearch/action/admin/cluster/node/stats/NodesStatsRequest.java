@@ -130,8 +130,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     /**
      * Use Optimized Response filtered based on level
      */
-    public NodesStatsRequest useOptimizedNodeIndicesStats(boolean useOptimizedNodeIndicesStats){
-        if (this.indices!=null) {
+    public NodesStatsRequest useOptimizedNodeIndicesStats(boolean useOptimizedNodeIndicesStats) {
+        if (this.indices != null) {
             this.indices.optimizeNodeIndicesStatsOnLevel(true);
         }
         return this;

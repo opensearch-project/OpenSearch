@@ -69,7 +69,6 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     private String[] levels = new String[0];
     private boolean optimizeNodeIndicesStatsOnLevel = false;
 
-
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
      */
@@ -102,7 +101,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             includeCaches = in.readEnumSet(CacheType.class);
             levels = in.readStringArray();
         }
-        if (in.getVersion().onOrAfter(Version.V_2_15_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
             optimizeNodeIndicesStatsOnLevel = in.readBoolean();
         }
     }
@@ -129,7 +128,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             out.writeEnumSet(includeCaches);
             out.writeStringArrayNullable(levels);
         }
-        if (out.getVersion().onOrAfter(Version.V_2_15_0)){
+        if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
             out.writeBoolean(optimizeNodeIndicesStatsOnLevel);
         }
     }

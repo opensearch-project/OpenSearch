@@ -32,8 +32,6 @@
 
 package org.opensearch.indices;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexShardStats;
@@ -78,13 +76,13 @@ import java.util.Map;
  */
 @PublicApi(since = "1.0.0")
 public class NodeIndicesStats implements Writeable, ToXContentFragment {
-    private CommonStats stats;
-    private Map<Index, CommonStats> statsByIndex;
-    private Map<Index, List<IndexShardStats>> statsByShard;
+    protected CommonStats stats;
+    protected Map<Index, CommonStats> statsByIndex;
+    protected Map<Index, List<IndexShardStats>> statsByShard;
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
-        if (in.getVersion().onOrAfter(Version.V_2_15_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
             // contains statsByIndex
             if (in.readBoolean()) {
                 statsByIndex = new HashMap<>();
@@ -136,11 +134,17 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         if (levels != null) {
-            if (Arrays.stream(levels).anyMatch(NodeIndicesStats.levels.indices::equals)) {
-                this.statsByIndex = createStatsByIndex(statsByShard);
-            } else if (Arrays.stream(levels).anyMatch(NodeIndicesStats.levels.shards::equals)) {
-                this.statsByShard = statsByShard;
-            }
+            Arrays.stream(levels).anyMatch(level -> {
+                switch (level) {
+                    case Fields.INDICES:
+                        this.statsByIndex = createStatsByIndex(statsByShard);
+                        return true;
+                    case Fields.SHARDS:
+                        this.statsByShard = statsByShard;
+                        return true;
+                }
+                return false;
+            });
         }
     }
 
@@ -250,7 +254,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
 
-        if (out.getVersion().onOrAfter(Version.V_2_15_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
             out.writeBoolean(statsByIndex != null);
             if (statsByIndex != null) {
                 writeStatsByIndex(out);
@@ -300,29 +304,33 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.INDICES);
         stats.toXContent(builder, params);
 
-        if (levels.indices.equals(level)) {
-            builder.startObject(Fields.INDICES);
-            if (statsByIndex == null && statsByShard!=null) {
+        if (Fields.INDICES.equals(level)) {
+            if (statsByIndex == null && statsByShard != null) {
                 statsByIndex = createStatsByIndex(statsByShard);
             }
-            for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
-                builder.startObject(entry.getKey().getName());
-                entry.getValue().toXContent(builder, params);
-                builder.endObject();
+            builder.startObject(Fields.INDICES);
+            if (statsByIndex != null) {
+                for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
+                    builder.startObject(entry.getKey().getName());
+                    entry.getValue().toXContent(builder, params);
+                    builder.endObject();
+                }
             }
             builder.endObject();
-        } else if (levels.shards.equals(level)) {
+        } else if (Fields.SHARDS.equals(level)) {
             builder.startObject("shards");
-            for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-                builder.startArray(entry.getKey().getName());
-                for (IndexShardStats indexShardStats : entry.getValue()) {
-                    builder.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()));
-                    for (ShardStats shardStats : indexShardStats.getShards()) {
-                        shardStats.toXContent(builder, params);
+            if (statsByShard != null) {
+                for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
+                    builder.startArray(entry.getKey().getName());
+                    for (IndexShardStats indexShardStats : entry.getValue()) {
+                        builder.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()));
+                        for (ShardStats shardStats : indexShardStats.getShards()) {
+                            shardStats.toXContent(builder, params);
+                        }
+                        builder.endObject().endObject();
                     }
-                    builder.endObject().endObject();
+                    builder.endArray();
                 }
-                builder.endArray();
             }
             builder.endObject();
         }
@@ -356,44 +364,13 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
     }
 
-    public CommonStats getIndexStats(Index index) {
-        if (statsByIndex == null) {
-            return null;
-        } else {
-            return statsByIndex.get(index);
-        }
-    }
-
     /**
      * Fields used for parsing and toXContent
      *
      * @opensearch.internal
      */
-    static final class Fields {
-        static final String INDICES = "indices";
-    }
-
-    /**
-     * Levels for the NodeIndicesStats
-     */
-    public enum levels {
-        node("node"),
-        indices("indices"),
-        shards("shards");
-
-        private final String name;
-
-        levels(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-
-        public boolean equals(String value) {
-            return this.name.equals(value);
-        }
+    public static final class Fields {
+        public static final String INDICES = "indices";
+        public static final String SHARDS = "shards";
     }
 }
