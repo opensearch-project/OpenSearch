@@ -17,8 +17,8 @@ import org.opensearch.plugin.wlm.action.GetQueryGroupResponse;
 public interface Persistable<T> {
     /**
      * fetch the QueryGroup in a durable storage
-     * @param name
-     * @param listener
+     * @param name - name of the QueryGroup to get
+     * @param listener - ActionListener for GetQueryGroupResponse
      */
     void get(String name, ActionListener<GetQueryGroupResponse> listener);
 }

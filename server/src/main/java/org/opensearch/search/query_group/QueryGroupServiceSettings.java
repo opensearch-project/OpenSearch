@@ -92,8 +92,8 @@ public class QueryGroupServiceSettings {
 
     /**
      * QueryGroup service settings constructor
-     * @param settings
-     * @param clusterSettings
+     * @param settings - QueryGroup service settings
+     * @param clusterSettings - QueryGroup cluster settings
      */
     public QueryGroupServiceSettings(Settings settings, ClusterSettings clusterSettings) {
         runIntervalMillis = new TimeValue(QUERY_GROUP_RUN_INTERVAL_SETTING.get(settings));
