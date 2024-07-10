@@ -8,12 +8,18 @@
 
 package org.opensearch.search;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.core.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
 /**
  * Enum to hold the resource type
  */
+@PublicApi(since = "2.x")
 public enum ResourceType {
     CPU("cpu"),
-    JVM("jvm");
+    MEMORY("memory");
 
     private final String name;
 
@@ -35,7 +41,11 @@ public enum ResourceType {
         throw new IllegalArgumentException("Unknown resource type: [" + s + "]");
     }
 
-    private String getName() {
+    public static void writeTo(StreamOutput out, ResourceType resourceType) throws IOException {
+        out.writeString(resourceType.getName());
+    }
+
+    public String getName() {
         return name;
     }
 }
