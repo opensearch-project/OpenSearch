@@ -138,8 +138,8 @@ setup:
 ---
 "search index prefixes with multiple values":
   - skip:
-      version: " - 2.99.99"
-      reason: "the bug was fixed in 3.0.0"
+      version: " - 2.15.99"
+      reason: "the bug was fixed since 2.16.0"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -154,8 +154,8 @@ setup:
 ---
 "search index prefixes with multiple values and custom position_increment_gap":
   - skip:
-      version: " - 2.99.99"
-      reason: "the bug was fixed in 3.0.0"
+      version: " - 2.15.99"
+      reason: "the bug was fixed since 2.16.0"
   - do:
       search:
         rest_total_hits_as_int: true
