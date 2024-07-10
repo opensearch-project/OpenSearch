@@ -93,7 +93,7 @@ public class TaskCancellationService {
             Collection<DiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
                 groupedListener.onResponse(null);
-            });
+            }, reason);
             taskManager.cancel(task, reason, () -> {
                 logger.trace("task [{}] is cancelled", taskId);
                 groupedListener.onResponse(null);
