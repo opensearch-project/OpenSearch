@@ -35,6 +35,7 @@ package org.opensearch.core.xcontent.filtering;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
@@ -368,5 +369,21 @@ public class FilterPathTests extends OpenSearchTestCase {
         assertThat(filterPath.matches(), is(true));
         assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
+    }
+
+    public void testCompileWithEmptyString() {
+        Set<String> filters = new HashSet<>();
+        filters.add("");
+        FilterPath[] filterPaths = FilterPath.compile(filters);
+        assertNotNull(filterPaths);
+        assertEquals(0, filterPaths.length);
+    }
+
+    public void testCompileWithNull() {
+        Set<String> filters = new HashSet<>();
+        filters.add(null);
+        FilterPath[] filterPaths = FilterPath.compile(filters);
+        assertNotNull(filterPaths);
+        assertEquals(0, filterPaths.length);
     }
 }
