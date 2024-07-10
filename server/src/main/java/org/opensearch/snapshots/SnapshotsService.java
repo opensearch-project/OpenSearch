@@ -685,11 +685,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }, batch.size());
         for (Map.Entry<IndexId, Map<ShardId, ShardSnapshotStatus>> entry : batch) {
-            processIndexShards(snapshot, snapshotIdStr, entry.getKey(), entry.getValue(), finalListener);
+            snapshotIndexShards(snapshot, snapshotIdStr, entry.getKey(), entry.getValue(), finalListener);
         }
     }
 
-    private void processIndexShards(
+    private void snapshotIndexShards(
         Snapshot snapshot,
         String snapshotIdStr,
         IndexId indexId,
@@ -719,11 +719,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }, shardStatusMap.size());
         for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shardStatusMap.entrySet()) {
-            processShardAndUpload(snapshot, snapshotIdStr, indexId, entry.getKey(), entry.getValue(), shardListener);
+            snapshotShards(snapshot, snapshotIdStr, indexId, entry.getKey(), entry.getValue(), shardListener);
         }
     }
 
-    private void processShardAndUpload(
+    private void snapshotShards(
         Snapshot snapshot,
         String snapshotIdStr,
         IndexId indexId,

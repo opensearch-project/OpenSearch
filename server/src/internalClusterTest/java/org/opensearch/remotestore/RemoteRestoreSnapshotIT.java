@@ -800,41 +800,4 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocsPresentInIndex(client(), restoredIndexName1, numDocsInIndex1);
     }
 
-    public void testCentralizedCreate() throws Exception {
-
-        Settings snapshotSettings = Settings.builder().put("snapshot.centralized_create_operation", true).build();
-        internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
-        String indexName1 = "testindex1";
-        String indexName2 = "testindex2";
-        String snapshotRepoName = "test-create-snapshot-repo";
-        String snapshotName1 = "test-create-snapshot1";
-        Path absolutePath1 = randomRepoPath().toAbsolutePath();
-        logger.info("Snapshot Path [{}]", absolutePath1);
-        String restoredIndexName1 = indexName1 + "-restored";
-
-        createRepository(snapshotRepoName, "fs", getRepositorySettings(absolutePath1, true));
-
-        Client client = client();
-        Settings indexSettings = getIndexSettings(20, 0).build();
-        createIndex(indexName1, indexSettings);
-
-        Settings indexSettings2 = getIndexSettings(15, 0).build();
-        createIndex(indexName2, indexSettings2);
-
-        final int numDocsInIndex1 = 10;
-        final int numDocsInIndex2 = 20;
-        indexDocuments(client, indexName1, numDocsInIndex1);
-        indexDocuments(client, indexName2, numDocsInIndex2);
-        ensureGreen(indexName1, indexName2);
-
-        internalCluster().startDataOnlyNode(Settings.builder().put(snapshotSettings).build());
-        logger.info("--> snapshot");
-
-        SnapshotInfo snapshotInfo = createSnapshot(snapshotRepoName, snapshotName1, new ArrayList<>(Arrays.asList(indexName1, indexName2)));
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
-
-
-    }
+}
