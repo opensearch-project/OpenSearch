@@ -34,6 +34,7 @@ package org.opensearch.tasks;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.io.stream.NamedWriteable;
@@ -88,7 +89,7 @@ public class Task {
 
     private final TaskId parentTask;
 
-    private final Map<String, String> headers;
+    private Map<String, String> headers;
 
     private final Map<Long, List<ThreadResourceInfo>> resourceStats;
 
@@ -275,6 +276,14 @@ public class Task {
      */
     public TaskId getParentTaskId() {
         return parentTask;
+    }
+
+    /**
+     *
+     * returns the headers for this task
+     */
+    public Map<String, String> getHeaders() {
+        return headers;
     }
 
     /**
@@ -523,14 +532,18 @@ public class Task {
         return headers.get(header);
     }
 
-    /**
-     * sets the header value, It is currently not possible to determine the query group for the task at the task creation
-     * time, hence we need this method to add the headers to task
-     * @param name header name
-     * @param value header value
-     */
-    public void putHeader(String name, String value) {
-        this.headers.put(name, value);
+    public void addQueryGroupHeadersTo(final ThreadContext threadContext) {
+        // For now this header will be coming from HTTP headers but in second phase this header
+
+        // We will use this constant from QueryGroup Service once the framework changes are done
+        final String QUERY_GROUP_ID_HEADER = "queryGroupId";
+        final String requestQueryGroupId = threadContext.getHeader(QUERY_GROUP_ID_HEADER);
+
+        final Map<String, String> newHeaders = new HashMap<>(headers);
+
+        newHeaders.put(QUERY_GROUP_ID_HEADER, requestQueryGroupId);
+
+        this.headers = newHeaders;
     }
 
     public TaskResult result(final String nodeId, Exception error) throws IOException {
