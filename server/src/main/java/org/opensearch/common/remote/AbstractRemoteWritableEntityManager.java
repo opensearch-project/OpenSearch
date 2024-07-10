@@ -8,7 +8,6 @@
 
 package org.opensearch.common.remote;
 
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
@@ -21,7 +20,7 @@ import java.util.Map;
 /**
  * An abstract class that provides a base implementation for managing remote entities in the remote store.
  */
-public abstract class AbstractRemoteEntitiesManager implements RemoteEntitiesManager {
+public abstract class AbstractRemoteWritableEntityManager implements RemoteWritableEntityManager {
     /**
      * A map that stores the remote writable entity stores, keyed by the entity type.
      */
@@ -47,13 +46,13 @@ public abstract class AbstractRemoteEntitiesManager implements RemoteEntitiesMan
      *
      * @param component the component for which the write operation is performed
      * @param remoteObject the remote object to be written
-     * @param latchedActionListener the latched action listener to be notified when the write operation completes
+     * @param listener the listener to be notified when the write operation completes
      * @return an ActionListener for handling the write operation
      */
     protected abstract ActionListener<Void> getWriteActionListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteObject,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+        ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     );
 
     /**
@@ -62,30 +61,30 @@ public abstract class AbstractRemoteEntitiesManager implements RemoteEntitiesMan
      *
      * @param component the component for which the read operation is performed
      * @param remoteObject the remote object to be read
-     * @param latchedActionListener the latched action listener to be notified when the read operation completes
+     * @param listener the listener to be notified when the read operation completes
      * @return an ActionListener for handling the read operation
      */
     protected abstract ActionListener<Object> getReadActionListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteObject,
-        LatchedActionListener<RemoteReadResult> latchedActionListener
+        ActionListener<RemoteReadResult> listener
     );
 
     @Override
-    public CheckedRunnable<IOException> getAsyncWriteRunnable(
+    public CheckedRunnable<IOException> asyncWrite(
         String component,
         AbstractRemoteWritableBlobEntity entity,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+        ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
-        return () -> getStore(entity).writeAsync(entity, getWriteActionListener(component, entity, latchedActionListener));
+        return () -> getStore(entity).writeAsync(entity, getWriteActionListener(component, entity, listener));
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncReadRunnable(
+    public CheckedRunnable<IOException> asyncRead(
         String component,
         AbstractRemoteWritableBlobEntity entity,
-        LatchedActionListener<RemoteReadResult> latchedActionListener
+        ActionListener<RemoteReadResult> listener
     ) {
-        return () -> getStore(entity).readAsync(entity, getReadActionListener(component, entity, latchedActionListener));
+        return () -> getStore(entity).readAsync(entity, getReadActionListener(component, entity, listener));
     }
 }

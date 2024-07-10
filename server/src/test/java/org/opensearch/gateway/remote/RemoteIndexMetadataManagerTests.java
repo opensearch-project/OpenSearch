@@ -98,7 +98,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
             return null;
         })).when(blobStoreTransferService).uploadBlob(any(), any(), any(), eq(WritePriority.URGENT), any(ActionListener.class));
 
-        remoteIndexMetadataManager.getAsyncWriteRunnable(
+        remoteIndexMetadataManager.asyncWrite(
             INDEX,
             new RemoteIndexMetadata(indexMetadata, "cluster-uuid", compressor, null),
             new LatchedActionListener<>(listener, latch)
@@ -130,7 +130,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
             return null;
         })).when(blobStoreTransferService).uploadBlob(any(), any(), any(), eq(WritePriority.URGENT), any(ActionListener.class));
 
-        remoteIndexMetadataManager.getAsyncWriteRunnable(
+        remoteIndexMetadataManager.asyncWrite(
             INDEX,
             new RemoteIndexMetadata(indexMetadata, "cluster-uuid", compressor, null),
             new LatchedActionListener<>(listener, latch)
@@ -151,7 +151,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteIndexMetadataManager.getAsyncReadRunnable(
+        remoteIndexMetadataManager.asyncRead(
             INDEX,
             new RemoteIndexMetadata(fileName, "cluster-uuid", compressor, null),
             new LatchedActionListener<>(listener, latch)
@@ -170,7 +170,7 @@ public class RemoteIndexMetadataManagerTests extends OpenSearchTestCase {
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteIndexMetadataManager.getAsyncReadRunnable(
+        remoteIndexMetadataManager.asyncRead(
             INDEX,
             new RemoteIndexMetadata(fileName, "cluster-uuid", compressor, null),
             new LatchedActionListener<>(listener, latch)

@@ -173,7 +173,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteGlobalMetadataManager.getAsyncReadRunnable(
+        remoteGlobalMetadataManager.asyncRead(
             COORDINATION_METADATA,
             coordinationMetadataForDownload,
             new LatchedActionListener<>(listener, latch)
@@ -203,7 +203,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteGlobalMetadataManager.getAsyncWriteRunnable(
+        remoteGlobalMetadataManager.asyncWrite(
             COORDINATION_METADATA,
             remoteCoordinationMetadata,
             new LatchedActionListener<>(listener, latch)
@@ -243,8 +243,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteGlobalMetadataManager.getAsyncReadRunnable(SETTING_METADATA, persistentSettings, new LatchedActionListener<>(listener, latch))
-            .run();
+        remoteGlobalMetadataManager.asyncRead(SETTING_METADATA, persistentSettings, new LatchedActionListener<>(listener, latch)).run();
         latch.await();
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
@@ -269,11 +268,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
         TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncWriteRunnable(
-            SETTING_METADATA,
-            persistentSettings,
-            new LatchedActionListener<>(listener, latch)
-        ).run();
+        remoteGlobalMetadataManager.asyncWrite(SETTING_METADATA, persistentSettings, new LatchedActionListener<>(listener, latch)).run();
 
         latch.await();
         assertNull(listener.getFailure());
@@ -310,11 +305,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteGlobalMetadataManager.getAsyncReadRunnable(
-            TRANSIENT_SETTING_METADATA,
-            transientSettings,
-            new LatchedActionListener<>(listener, latch)
-        ).run();
+        remoteGlobalMetadataManager.asyncRead(TRANSIENT_SETTING_METADATA, transientSettings, new LatchedActionListener<>(listener, latch))
+            .run();
         latch.await();
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
@@ -339,11 +331,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
         TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncWriteRunnable(
-            TRANSIENT_SETTING_METADATA,
-            transientSettings,
-            new LatchedActionListener<>(listener, latch)
-        ).run();
+        remoteGlobalMetadataManager.asyncWrite(TRANSIENT_SETTING_METADATA, transientSettings, new LatchedActionListener<>(listener, latch))
+            .run();
         latch.await();
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
@@ -377,7 +366,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        remoteGlobalMetadataManager.getAsyncReadRunnable(
+        remoteGlobalMetadataManager.asyncRead(
             HASHES_OF_CONSISTENT_SETTINGS,
             hashesOfConsistentSettingsForDownload,
             new LatchedActionListener<>(listener, latch)
@@ -405,7 +394,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
         TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncWriteRunnable(
+        remoteGlobalMetadataManager.asyncWrite(
             HASHES_OF_CONSISTENT_SETTINGS,
             hashesOfConsistentSettingsForUpload,
             new LatchedActionListener<>(listener, latch)
@@ -443,7 +432,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         );
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncReadRunnable(
+        remoteGlobalMetadataManager.asyncRead(
             TEMPLATES_METADATA,
             templatesMetadataForDownload,
             new LatchedActionListener<>(listener, latch)
@@ -472,11 +461,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
         TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncWriteRunnable(
-            TEMPLATES_METADATA,
-            templateMetadataForUpload,
-            new LatchedActionListener<>(listener, latch)
-        ).run();
+        remoteGlobalMetadataManager.asyncWrite(TEMPLATES_METADATA, templateMetadataForUpload, new LatchedActionListener<>(listener, latch))
+            .run();
         latch.await();
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
@@ -511,11 +497,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         );
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncReadRunnable(
-            IndexGraveyard.TYPE,
-            customMetadataForDownload,
-            new LatchedActionListener<>(listener, latch)
-        ).run();
+        remoteGlobalMetadataManager.asyncRead(IndexGraveyard.TYPE, customMetadataForDownload, new LatchedActionListener<>(listener, latch))
+            .run();
         latch.await();
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
@@ -541,7 +524,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(URGENT), any(ActionListener.class));
         TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncWriteRunnable(
+        remoteGlobalMetadataManager.asyncWrite(
             customMetadataForUpload.getType(),
             customMetadataForUpload,
             new LatchedActionListener<>(listener, latch)
@@ -574,11 +557,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         );
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncReadRunnable(
-            GLOBAL_METADATA,
-            globalMetadataForDownload,
-            new LatchedActionListener<>(listener, latch)
-        ).run();
+        remoteGlobalMetadataManager.asyncRead(GLOBAL_METADATA, globalMetadataForDownload, new LatchedActionListener<>(listener, latch))
+            .run();
         latch.await();
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
@@ -599,7 +579,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
         when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenThrow(ioException);
         TestCapturingListener<RemoteReadResult> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncReadRunnable(
+        remoteGlobalMetadataManager.asyncRead(
             COORDINATION_METADATA,
             coordinationMetadataForDownload,
             new LatchedActionListener<>(listener, latch)
@@ -629,7 +609,7 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
 
         TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);
-        remoteGlobalMetadataManager.getAsyncWriteRunnable(
+        remoteGlobalMetadataManager.asyncWrite(
             COORDINATION_METADATA,
             remoteCoordinationMetadata,
             new LatchedActionListener<>(listener, latch)

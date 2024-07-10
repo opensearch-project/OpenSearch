@@ -8,7 +8,6 @@
 
 package org.opensearch.gateway.remote;
 
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer;
@@ -17,8 +16,8 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.cluster.metadata.Metadata.XContentContext;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
-import org.opensearch.common.remote.AbstractRemoteEntitiesManager;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractRemoteWritableEntityManager;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -54,7 +53,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAM
  *
  * @opensearch.internal
  */
-public class RemoteGlobalMetadataManager extends AbstractRemoteEntitiesManager {
+public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityManager {
 
     public static final TimeValue GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT = TimeValue.timeValueMillis(20000);
 
@@ -161,11 +160,11 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteEntitiesManager {
     protected ActionListener<Void> getWriteActionListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteObject,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+        ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
         return ActionListener.wrap(
-            resp -> latchedActionListener.onResponse(remoteObject.getUploadedMetadata()),
-            ex -> latchedActionListener.onFailure(new RemoteStateTransferException("Upload failed for " + component, remoteObject, ex))
+            resp -> listener.onResponse(remoteObject.getUploadedMetadata()),
+            ex -> listener.onFailure(new RemoteStateTransferException("Upload failed for " + component, remoteObject, ex))
         );
     }
 
@@ -173,11 +172,11 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteEntitiesManager {
     protected ActionListener<Object> getReadActionListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteObject,
-        LatchedActionListener<RemoteReadResult> latchedActionListener
+        ActionListener<RemoteReadResult> listener
     ) {
         return ActionListener.wrap(
-            response -> latchedActionListener.onResponse(new RemoteReadResult(response, remoteObject.getType(), component)),
-            ex -> latchedActionListener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteObject, ex))
+            response -> listener.onResponse(new RemoteReadResult(response, remoteObject.getType(), component)),
+            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteObject, ex))
         );
     }
 

@@ -8,10 +8,9 @@
 
 package org.opensearch.gateway.remote;
 
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.remote.AbstractRemoteEntitiesManager;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractRemoteWritableEntityManager;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
@@ -33,7 +32,7 @@ import java.util.Locale;
  *
  * @opensearch.internal
  */
-public class RemoteIndexMetadataManager extends AbstractRemoteEntitiesManager {
+public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityManager {
 
     public static final TimeValue INDEX_METADATA_UPLOAD_TIMEOUT_DEFAULT = TimeValue.timeValueMillis(20000);
 
@@ -108,11 +107,11 @@ public class RemoteIndexMetadataManager extends AbstractRemoteEntitiesManager {
     protected ActionListener<Void> getWriteActionListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteObject,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+        ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
         return ActionListener.wrap(
-            resp -> latchedActionListener.onResponse(remoteObject.getUploadedMetadata()),
-            ex -> latchedActionListener.onFailure(new RemoteStateTransferException("Upload failed for " + component, remoteObject, ex))
+            resp -> listener.onResponse(remoteObject.getUploadedMetadata()),
+            ex -> listener.onFailure(new RemoteStateTransferException("Upload failed for " + component, remoteObject, ex))
         );
     }
 
@@ -120,11 +119,11 @@ public class RemoteIndexMetadataManager extends AbstractRemoteEntitiesManager {
     protected ActionListener<Object> getReadActionListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteObject,
-        LatchedActionListener<RemoteReadResult> latchedActionListener
+        ActionListener<RemoteReadResult> listener
     ) {
         return ActionListener.wrap(
-            response -> latchedActionListener.onResponse(new RemoteReadResult(response, RemoteIndexMetadata.INDEX, component)),
-            ex -> latchedActionListener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteObject, ex))
+            response -> listener.onResponse(new RemoteReadResult(response, RemoteIndexMetadata.INDEX, component)),
+            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteObject, ex))
         );
     }
 }

@@ -8,12 +8,11 @@
 
 package org.opensearch.gateway.remote;
 
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer;
-import org.opensearch.common.remote.AbstractRemoteEntitiesManager;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractRemoteWritableEntityManager;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.gateway.remote.model.RemoteClusterBlocks;
@@ -33,12 +32,11 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class RemoteClusterStateAttributesManager extends AbstractRemoteEntitiesManager {
+public class RemoteClusterStateAttributesManager extends AbstractRemoteWritableEntityManager {
     public static final String CLUSTER_STATE_ATTRIBUTE = "cluster_state_attribute";
     public static final String DISCOVERY_NODES = "nodes";
     public static final String CLUSTER_BLOCKS = "blocks";
     public static final int CLUSTER_STATE_ATTRIBUTES_CURRENT_CODEC_VERSION = 1;
-    private final NamedWriteableRegistry namedWriteableRegistry;
 
     RemoteClusterStateAttributesManager(
         String clusterName,
@@ -47,7 +45,6 @@ public class RemoteClusterStateAttributesManager extends AbstractRemoteEntitiesM
         NamedWriteableRegistry namedWriteableRegistry,
         ThreadPool threadpool
     ) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
         this.remoteWritableEntityStores.put(
             RemoteDiscoveryNodes.DISCOVERY_NODES,
             new RemoteClusterStateBlobStore<>(
@@ -84,11 +81,11 @@ public class RemoteClusterStateAttributesManager extends AbstractRemoteEntitiesM
     protected ActionListener<Void> getWriteActionListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteObject,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+        ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
         return ActionListener.wrap(
-            resp -> latchedActionListener.onResponse(remoteObject.getUploadedMetadata()),
-            ex -> latchedActionListener.onFailure(new RemoteStateTransferException("Upload failed for " + component, remoteObject, ex))
+            resp -> listener.onResponse(remoteObject.getUploadedMetadata()),
+            ex -> listener.onFailure(new RemoteStateTransferException("Upload failed for " + component, remoteObject, ex))
         );
     }
 
@@ -96,11 +93,11 @@ public class RemoteClusterStateAttributesManager extends AbstractRemoteEntitiesM
     protected ActionListener<Object> getReadActionListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteObject,
-        LatchedActionListener<RemoteReadResult> latchedActionListener
+        ActionListener<RemoteReadResult> listener
     ) {
         return ActionListener.wrap(
-            response -> latchedActionListener.onResponse(new RemoteReadResult(response, CLUSTER_STATE_ATTRIBUTE, component)),
-            ex -> latchedActionListener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteObject, ex))
+            response -> listener.onResponse(new RemoteReadResult(response, CLUSTER_STATE_ATTRIBUTE, component)),
+            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteObject, ex))
         );
     }
 

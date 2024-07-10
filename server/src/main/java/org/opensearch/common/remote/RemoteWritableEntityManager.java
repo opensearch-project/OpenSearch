@@ -8,30 +8,30 @@
 
 package org.opensearch.common.remote;
 
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
 
 import java.io.IOException;
 
 /**
- * The RemoteEntitiesManager interface provides async read and write methods for managing remote entities in the remote store
+ * The RemoteWritableEntityManager interface provides async read and write methods for managing remote entities in the remote store
  */
-public interface RemoteEntitiesManager {
+public interface RemoteWritableEntityManager {
 
     /**
      * Returns a CheckedRunnable that performs an asynchronous read operation for the specified component and entity.
      *
      * @param component the component for which the read operation is performed
      * @param entity the entity to be read
-     * @param latchedActionListener the listener to be notified when the read operation completes
+     * @param listener the listener to be notified when the read operation completes
      * @return a CheckedRunnable that performs the asynchronous read operation
      */
-    CheckedRunnable<IOException> getAsyncReadRunnable(
+    CheckedRunnable<IOException> asyncRead(
         String component,
         AbstractRemoteWritableBlobEntity entity,
-        LatchedActionListener<RemoteReadResult> latchedActionListener
+        ActionListener<RemoteReadResult> listener
     );
 
     /**
@@ -39,12 +39,12 @@ public interface RemoteEntitiesManager {
      *
      * @param component the component for which the write operation is performed
      * @param entity the entity to be written
-     * @param latchedActionListener the listener to be notified when the write operation completes
+     * @param listener the listener to be notified when the write operation completes
      * @return a CheckedRunnable that performs the asynchronous write operation
      */
-    CheckedRunnable<IOException> getAsyncWriteRunnable(
+    CheckedRunnable<IOException> asyncWrite(
         String component,
         AbstractRemoteWritableBlobEntity entity,
-        LatchedActionListener<UploadedMetadata> latchedActionListener
+        ActionListener<UploadedMetadata> listener
     );
 }

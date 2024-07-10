@@ -8,7 +8,6 @@
 
 package org.opensearch.common.remote;
 
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
@@ -19,9 +18,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class AbstractRemoteEntitiesManagerTests extends OpenSearchTestCase {
+public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase {
     public void testGetStoreWithKnownEntityType() {
-        AbstractRemoteEntitiesManager manager = new ConcreteRemoteEntitiesManager();
+        AbstractRemoteWritableEntityManager manager = new ConcreteRemoteWritableEntityManager();
         String knownEntityType = "knownType";
         RemoteWritableEntityStore mockStore = mock(RemoteWritableEntityStore.class);
         manager.remoteWritableEntityStores.put(knownEntityType, mockStore);
@@ -34,7 +33,7 @@ public class AbstractRemoteEntitiesManagerTests extends OpenSearchTestCase {
     }
 
     public void testGetStoreWithUnknownEntityType() {
-        AbstractRemoteEntitiesManager manager = new ConcreteRemoteEntitiesManager();
+        AbstractRemoteWritableEntityManager manager = new ConcreteRemoteWritableEntityManager();
         String unknownEntityType = "unknownType";
         AbstractRemoteWritableBlobEntity mockEntity = mock(AbstractRemoteWritableBlobEntity.class);
         when(mockEntity.getType()).thenReturn(unknownEntityType);
@@ -43,12 +42,12 @@ public class AbstractRemoteEntitiesManagerTests extends OpenSearchTestCase {
         verify(mockEntity, times(2)).getType();
     }
 
-    private static class ConcreteRemoteEntitiesManager extends AbstractRemoteEntitiesManager {
+    private static class ConcreteRemoteWritableEntityManager extends AbstractRemoteWritableEntityManager {
         @Override
         protected ActionListener<Void> getWriteActionListener(
             String component,
             AbstractRemoteWritableBlobEntity remoteObject,
-            LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+            ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
         ) {
             return null;
         }
@@ -57,7 +56,7 @@ public class AbstractRemoteEntitiesManagerTests extends OpenSearchTestCase {
         protected ActionListener<Object> getReadActionListener(
             String component,
             AbstractRemoteWritableBlobEntity remoteObject,
-            LatchedActionListener<RemoteReadResult> latchedActionListener
+            ActionListener<RemoteReadResult> listener
         ) {
             return null;
         }
