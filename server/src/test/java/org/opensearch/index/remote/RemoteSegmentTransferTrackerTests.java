@@ -571,13 +571,9 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
                 assertEquals((int) deserializedStats.uploadBytesStarted, (int) transferTrackerStats.uploadBytesStarted);
                 assertEquals((int) deserializedStats.uploadBytesSucceeded, (int) transferTrackerStats.uploadBytesSucceeded);
                 assertEquals((int) deserializedStats.uploadBytesFailed, (int) transferTrackerStats.uploadBytesFailed);
-                assertEquals((int) deserializedStats.uploadBytesMovingAverage, transferTrackerStats.uploadBytesMovingAverage, 0);
-                assertEquals(
-                    (int) deserializedStats.uploadBytesPerSecMovingAverage,
-                    transferTrackerStats.uploadBytesPerSecMovingAverage,
-                    0
-                );
-                assertEquals((int) deserializedStats.uploadTimeMovingAverage, transferTrackerStats.uploadTimeMovingAverage, 0);
+                assertEquals(deserializedStats.uploadBytesMovingAverage, transferTrackerStats.uploadBytesMovingAverage, 0);
+                assertEquals(deserializedStats.uploadBytesPerSecMovingAverage, transferTrackerStats.uploadBytesPerSecMovingAverage, 0);
+                assertEquals(deserializedStats.uploadTimeMovingAverage, transferTrackerStats.uploadTimeMovingAverage, 0);
                 assertEquals((int) deserializedStats.totalUploadsStarted, (int) transferTrackerStats.totalUploadsStarted);
                 assertEquals((int) deserializedStats.totalUploadsSucceeded, (int) transferTrackerStats.totalUploadsSucceeded);
                 assertEquals((int) deserializedStats.totalUploadsFailed, (int) transferTrackerStats.totalUploadsFailed);
