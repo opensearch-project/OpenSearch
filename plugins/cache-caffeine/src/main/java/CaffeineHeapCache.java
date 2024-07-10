@@ -6,11 +6,13 @@
  * compatible open source license.
  */
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.RemovalListener;
+import com.github.benmanes.caffeine.cache.Weigher;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.cache.ICache;
-import org.opensearch.common.cache.ICacheKey;
-import org.opensearch.common.cache.LoadAwareCacheLoader;
+import org.opensearch.common.cache.*;
 import org.opensearch.common.cache.stats.CacheStatsHolder;
 import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
@@ -21,11 +23,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
+import java.util.function.ToLongBiFunction;
 
 
 public class CaffeineHeapCache<K,V> implements ICache<K,V> {
-    private LoadingCache<ICacheKey<K>, V> cache;
+
+    private final LoadingCache<ICacheKey<K>, V> cache;
     private final CacheStatsHolder cacheStatsHolder;
+    private final ToLongBiFunction<ICacheKey<K>, V> weigher;
 
     private CaffeineHeapCache(Builder<K, V> builder) {
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
@@ -33,6 +38,48 @@ public class CaffeineHeapCache<K,V> implements ICache<K,V> {
             this.cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, "caffeine_heap");
         } else {
             this.cacheStatsHolder = NoopCacheStatsHolder.getInstance();
+        }
+        this.weigher = builder.getWeigher();
+        cache = Caffeine.newBuilder()
+            .executor(Runnable::run)
+            .removalListener(new CaffeineEvictionListener())
+            .maximumWeight(builder.getMaxWeightInBytes())
+            .weigher(new CaffeineWeigher(builder.getWeigher()))
+            .build(k -> null);
+    }
+
+    private class CaffeineWeigher implements Weigher<ICacheKey<K>, V> {
+        private final ToLongBiFunction<ICacheKey<K>, V> weigher;
+
+        private CaffeineWeigher(ToLongBiFunction<ICacheKey<K>, V> weigher) {
+            this.weigher = weigher;
+        }
+
+        @Override
+        public int weigh(ICacheKey<K> key, V value) {
+            return (int) this.weigher.applyAsLong(key, value);
+        }
+    }
+
+    private class CaffeineEvictionListener implements RemovalListener<ICacheKey<K>, V> {
+        CaffeineEvictionListener() {}
+
+        @Override
+        public void onRemoval(ICacheKey<K> key, V value, RemovalCause removalCause) {
+            switch (removalCause) {
+                case SIZE:
+                case COLLECTED:
+                case EXPIRED:
+                    cacheStatsHolder.incrementEvictions(key.dimensions);
+                    cacheStatsHolder.decrementItems(key.dimensions);
+                    cacheStatsHolder.decrementSizeInBytes(key.dimensions, weigher.applyAsLong(key, value));
+                    break;
+                case REPLACED:
+                case EXPLICIT:
+                    cacheStatsHolder.decrementItems(key.dimensions);
+                    cacheStatsHolder.decrementSizeInBytes(key.dimensions, weigher.applyAsLong(key, value));
+                    break;
+            }
         }
     }
 
@@ -57,6 +104,8 @@ public class CaffeineHeapCache<K,V> implements ICache<K,V> {
             throw new IllegalArgumentException("Key and/or value passed to caffeine heap cache was null.");
         }
         cache.put(key, value);
+        cacheStatsHolder.incrementItems(key.dimensions);
+        cacheStatsHolder.incrementSizeInBytes(key.dimensions, weigher.applyAsLong(key, value));
     }
 
     @Override
@@ -76,6 +125,8 @@ public class CaffeineHeapCache<K,V> implements ICache<K,V> {
             cacheStatsHolder.incrementHits(key.dimensions);
         } else {
             cacheStatsHolder.incrementMisses(key.dimensions);
+            cacheStatsHolder.incrementItems(key.dimensions);
+            cacheStatsHolder.incrementSizeInBytes(key.dimensions, weigher.applyAsLong(key, value));
         }
         return value;
     }
@@ -88,6 +139,7 @@ public class CaffeineHeapCache<K,V> implements ICache<K,V> {
         if (key.getDropStatsForDimensions()) {
             cacheStatsHolder.removeDimensions(key.dimensions);
         }
+        V value = cache.get(key);
         cache.invalidate(key);
     }
 

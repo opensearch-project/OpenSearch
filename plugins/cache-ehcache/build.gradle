@@ -33,7 +33,7 @@ thirdPartyAudit {
     'org.ehcache.impl.internal.concurrent.ConcurrentHashMap$CounterCell',
     'org.ehcache.impl.internal.concurrent.ConcurrentHashMap$TreeBin',
     'org.ehcache.impl.internal.concurrent.ThreadLocalRandomUtil',
-    'org.ehcache.sizeof.impl.UnsafeSizeOf'
+    'org.ehcache.sizeof.impl.UnsafeSizeOf',
   )
 
   ignoreMissingClasses(
