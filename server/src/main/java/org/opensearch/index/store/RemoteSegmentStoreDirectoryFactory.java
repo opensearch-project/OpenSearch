@@ -77,6 +77,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
             RemoteDirectory dataDirectory = new RemoteDirectory(
                 blobStoreRepository.blobStore().blobContainer(dataPath),
                 blobStoreRepository::maybeRateLimitRemoteUploadTransfers,
+                blobStoreRepository::maybeRateLimitLowPriorityRemoteUploadTransfers,
                 blobStoreRepository::maybeRateLimitRemoteDownloadTransfers
             );
 

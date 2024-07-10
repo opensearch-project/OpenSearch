@@ -227,7 +227,7 @@ public class RemoteTemplatesMetadataTests extends OpenSearchTestCase {
         }
     }
 
-    private TemplatesMetadata getTemplatesMetadata() {
+    public static TemplatesMetadata getTemplatesMetadata() {
         return TemplatesMetadata.builder()
             .put(
                 IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))

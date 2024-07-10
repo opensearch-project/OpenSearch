@@ -57,6 +57,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_SETT
 import static org.opensearch.cluster.metadata.Metadata.CLUSTER_READ_ONLY_BLOCK;
 import static org.opensearch.cluster.metadata.Metadata.SETTING_READ_ONLY_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.encodeString;
 import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.SYSTEM_REPOSITORY_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -326,9 +327,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         // Step - 3 Delete index metadata file in remote
         try {
             Files.move(
-                segmentRepoPath.resolve(
-                    RemoteClusterStateService.encodeString(clusterName) + "/cluster-state/" + prevClusterUUID + "/index"
-                ),
+                segmentRepoPath.resolve(encodeString(clusterName) + "/cluster-state/" + prevClusterUUID + "/index"),
                 segmentRepoPath.resolve("cluster-state/")
             );
         } catch (IOException e) {
@@ -354,10 +353,7 @@ public class RemoteStoreClusterStateRestoreIT extends BaseRemoteStoreRestoreIT {
         try {
             Files.move(
                 segmentRepoPath.resolve(
-                    RemoteClusterStateService.encodeString(clusterService().state().getClusterName().value())
-                        + "/cluster-state/"
-                        + prevClusterUUID
-                        + "/manifest"
+                    encodeString(clusterService().state().getClusterName().value()) + "/cluster-state/" + prevClusterUUID + "/manifest"
                 ),
                 segmentRepoPath.resolve("cluster-state/")
             );

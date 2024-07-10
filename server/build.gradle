@@ -356,14 +356,18 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named("dependencyLicenses").configure {
+    mapping from: /jackson-.*/, to: 'jackson'
     mapping from: /reactor-.*/, to: 'reactor'
     mapping from: /lucene-.*/, to: 'lucene'
-    dependencies = project.configurations.runtimeClasspath.fileCollection {
-        it.group.startsWith('org.opensearch') == false ||
-                // keep the following org.opensearch jars in
-                (it.name == 'jna' ||
-                        it.name == 'securesm')
-    }
+    dependencies = project.configurations.runtimeClasspath.incoming.artifactView {
+        componentFilter {
+            it instanceof ModuleComponentIdentifier &&
+                (it.group.startsWith('org.opensearch') == false ||
+                    // keep the following org.opensearch jars in
+                    (it.name == 'jna' ||
+                            it.name == 'securesm'))
+        }
+    }.files
 }
 
 tasks.named("filepermissions").configure {
@@ -405,6 +409,7 @@ tasks.register("japicmp", me.champeau.gradle.japicmp.JapicmpTask) {
     failOnModification = true
     ignoreMissingClasses = true
     annotationIncludes = ['@org.opensearch.common.annotation.PublicApi', '@org.opensearch.common.annotation.DeprecatedApi']
+    annotationExcludes = ['@org.opensearch.common.annotation.InternalApi']
     txtOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.txt")
     htmlOutputFile = layout.buildDirectory.file("reports/java-compatibility/report.html")
     dependsOn downloadJapicmpCompareTarget

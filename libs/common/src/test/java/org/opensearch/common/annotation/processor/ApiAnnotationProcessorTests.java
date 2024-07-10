@@ -473,4 +473,17 @@ public class ApiAnnotationProcessorTests extends OpenSearchTestCase implements C
 
         assertThat(failure.diagnotics(), not(hasItem(matching(Diagnostic.Kind.ERROR))));
     }
+
+    /**
+     * The constructor arguments have relaxed semantics at the moment: those could be not annotated or be annotated as {@link InternalApi}
+     */
+    public void testPublicApiConstructorAnnotatedInternalApi() {
+        final CompilerResult result = compile("PublicApiConstructorAnnotatedInternalApi.java", "NotAnnotated.java");
+        assertThat(result, instanceOf(Failure.class));
+
+        final Failure failure = (Failure) result;
+        assertThat(failure.diagnotics(), hasSize(2));
+
+        assertThat(failure.diagnotics(), not(hasItem(matching(Diagnostic.Kind.ERROR))));
+    }
 }

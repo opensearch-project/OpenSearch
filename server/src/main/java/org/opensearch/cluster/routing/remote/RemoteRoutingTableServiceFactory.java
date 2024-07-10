@@ -11,6 +11,7 @@ package org.opensearch.cluster.routing.remote;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.function.Supplier;
 
@@ -26,15 +27,17 @@ public class RemoteRoutingTableServiceFactory {
      * @param repositoriesService repositoriesService
      * @param settings settings
      * @param clusterSettings clusterSettings
+     * @param threadPool threadPool
      * @return RemoteRoutingTableService
      */
     public static RemoteRoutingTableService getService(
         Supplier<RepositoriesService> repositoriesService,
         Settings settings,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool
     ) {
         if (isRemoteRoutingTableEnabled(settings)) {
-            return new InternalRemoteRoutingTableService(repositoriesService, settings, clusterSettings);
+            return new InternalRemoteRoutingTableService(repositoriesService, settings, clusterSettings, threadPool);
         }
         return new NoopRemoteRoutingTableService();
     }

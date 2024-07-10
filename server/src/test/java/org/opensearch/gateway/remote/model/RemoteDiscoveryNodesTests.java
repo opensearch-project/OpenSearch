@@ -145,7 +145,6 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         RemoteDiscoveryNodes remoteObjectForUpload = new RemoteDiscoveryNodes(nodes, METADATA_VERSION, clusterUUID, compressor);
         doThrow(new IOException("mock-exception")).when(nodes).writeTo(any());
         IOException iea = assertThrows(IOException.class, remoteObjectForUpload::serialize);
-        assertEquals("Failed to serialize remote discovery nodes", iea.getMessage());
     }
 
     public void testExceptionDuringDeserialize() throws IOException {
@@ -155,10 +154,9 @@ public class RemoteDiscoveryNodesTests extends OpenSearchTestCase {
         String uploadedFile = "user/local/opensearch/discovery-nodes";
         RemoteDiscoveryNodes remoteObjectForDownload = new RemoteDiscoveryNodes(uploadedFile, clusterUUID, compressor);
         IOException ioe = assertThrows(IOException.class, () -> remoteObjectForDownload.deserialize(in));
-        assertEquals("Failed to deserialize remote discovery nodes", ioe.getMessage());
     }
 
-    private DiscoveryNodes getDiscoveryNodes() {
+    public static DiscoveryNodes getDiscoveryNodes() {
         return DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(

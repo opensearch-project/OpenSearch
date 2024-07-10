@@ -26,7 +26,7 @@ import java.util.List;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.GLOBAL_METADATA_CURRENT_CODEC_VERSION;
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_FORMAT;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAME_PLAIN_FORMAT;
 
 /**
  * Wrapper class for uploading/downloading {@link TemplatesMetadata} to/from remote blob store
@@ -37,7 +37,7 @@ public class RemoteTemplatesMetadata extends AbstractRemoteWritableBlobEntity<Te
 
     public static final ChecksumBlobStoreFormat<TemplatesMetadata> TEMPLATES_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "templates",
-        METADATA_NAME_FORMAT,
+        METADATA_NAME_PLAIN_FORMAT,
         TemplatesMetadata::fromXContent
     );
     private TemplatesMetadata templatesMetadata;
@@ -68,6 +68,11 @@ public class RemoteTemplatesMetadata extends AbstractRemoteWritableBlobEntity<Te
     @Override
     public BlobPathParameters getBlobPathParameters() {
         return new BlobPathParameters(List.of("global-metadata"), TEMPLATES_METADATA);
+    }
+
+    @Override
+    public String getType() {
+        return TEMPLATES_METADATA;
     }
 
     @Override
