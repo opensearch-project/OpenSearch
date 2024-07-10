@@ -10,10 +10,7 @@ package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.compress.Compressor;
-import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.function.Supplier;
@@ -38,22 +35,10 @@ public class RemoteRoutingTableServiceFactory {
         Settings settings,
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        Compressor compressor,
-        BlobStoreTransferService blobStoreTransferService,
-        BlobStoreRepository blobStoreRepository,
         String clusterName
     ) {
         if (isRemoteRoutingTableEnabled(settings)) {
-            return new InternalRemoteRoutingTableService(
-                repositoriesService,
-                settings,
-                clusterSettings,
-                threadPool,
-                compressor,
-                blobStoreTransferService,
-                blobStoreRepository,
-                clusterName
-            );
+            return new InternalRemoteRoutingTableService(repositoriesService, settings, clusterSettings, threadPool, clusterName);
         }
         return new NoopRemoteRoutingTableService();
     }

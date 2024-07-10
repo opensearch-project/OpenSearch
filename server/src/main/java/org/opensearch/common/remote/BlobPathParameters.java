@@ -24,10 +24,6 @@ public class BlobPathParameters {
         this.filePrefix = filePrefix;
     }
 
-    public BlobPathParameters(final List<String> pathTokens) {
-        this(pathTokens, null);
-    }
-
     public List<String> getPathTokens() {
         return pathTokens;
     }

@@ -57,34 +57,26 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     private static final Logger logger = LogManager.getLogger(InternalRemoteRoutingTableService.class);
     private final Settings settings;
     private final Supplier<RepositoriesService> repositoriesService;
-    private final Compressor compressor;
-    private final RemoteWritableEntityStore<IndexRoutingTable, RemoteIndexRoutingTable> remoteIndexRoutingTableStore;
+    private Compressor compressor;
+    private RemoteWritableEntityStore<IndexRoutingTable, RemoteIndexRoutingTable> remoteIndexRoutingTableStore;
+    private final ClusterSettings clusterSettings;
     private BlobStoreRepository blobStoreRepository;
     private final ThreadPool threadPool;
+    private final String clusterName;
 
     public InternalRemoteRoutingTableService(
         Supplier<RepositoriesService> repositoriesService,
         Settings settings,
         ClusterSettings clusterSettings,
         ThreadPool threadpool,
-        Compressor compressor,
-        BlobStoreTransferService blobStoreTransferService,
-        BlobStoreRepository blobStoreRepository,
         String clusterName
     ) {
         assert isRemoteRoutingTableEnabled(settings) : "Remote routing table is not enabled";
         this.repositoriesService = repositoriesService;
         this.settings = settings;
         this.threadPool = threadpool;
-        this.compressor = compressor;
-        this.remoteIndexRoutingTableStore = new RemoteRoutingTableBlobStore<>(
-            blobStoreTransferService,
-            blobStoreRepository,
-            clusterName,
-            threadpool,
-            ThreadPool.Names.REMOTE_STATE_READ,
-            clusterSettings
-        );
+        this.clusterName = clusterName;
+        this.clusterSettings = clusterSettings;
     }
 
     public List<IndexRoutingTable> getIndicesRouting(RoutingTable routingTable) {
@@ -211,6 +203,16 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         final Repository repository = repositoriesService.get().repository(remoteStoreRepo);
         assert repository instanceof BlobStoreRepository : "Repository should be instance of BlobStoreRepository";
         blobStoreRepository = (BlobStoreRepository) repository;
+        compressor = blobStoreRepository.getCompressor();
+
+        this.remoteIndexRoutingTableStore = new RemoteRoutingTableBlobStore<>(
+            new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
+            blobStoreRepository,
+            clusterName,
+            threadPool,
+            ThreadPool.Names.REMOTE_STATE_READ,
+            clusterSettings
+        );
     }
 
     @Override

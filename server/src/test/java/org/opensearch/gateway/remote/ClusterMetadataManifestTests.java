@@ -43,7 +43,7 @@ import static org.opensearch.gateway.remote.model.RemoteHashesOfConsistentSettin
 import static org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata.SETTING_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTemplatesMetadata.TEMPLATES_METADATA;
 import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata.TRANSIENT_SETTING_METADATA;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_PREFIX;
+import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
@@ -545,7 +545,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             "test-index",
             "test-uuid",
             "routing-path",
-            INDEX_ROUTING_TABLE_PREFIX
+            INDEX_ROUTING_METADATA_PREFIX
         );
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)

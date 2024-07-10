@@ -113,8 +113,9 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         when(blobStoreRepository.getCompressor()).thenReturn(new DeflateCompressor());
         blobStore = mock(BlobStore.class);
         blobContainer = mock(BlobContainer.class);
-        when(repositoriesService.repository("routing_repository")).thenReturn(blobStoreRepository);
+        when(repositoriesService.repository(anyString())).thenReturn(blobStoreRepository);
         when(blobStoreRepository.blobStore()).thenReturn(blobStore);
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
         Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
         FeatureFlags.initializeFeatureFlags(nodeSettings);
         compressor = new NoneCompressor();
@@ -125,12 +126,9 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            compressor,
-            blobStoreTransferService,
-            blobStoreRepository,
             "test-cluster"
         );
-
+        remoteRoutingTableService.doStart();
     }
 
     @After
@@ -149,9 +147,6 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
-                compressor,
-                blobStoreTransferService,
-                blobStoreRepository,
                 "test-cluster"
             )
         );
@@ -532,7 +527,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
         String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
-        when(blobStoreTransferService.downloadBlob(anyIterable(), anyString())).thenReturn(
+        when(blobContainer.readBlob(indexName)).thenReturn(
             INDEX_ROUTING_TABLE_FORMAT.serialize(
                 clusterState.getRoutingTable().getIndicesRouting().get(indexName),
                 uploadedFileName,

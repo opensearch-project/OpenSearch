@@ -254,7 +254,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
             namedWriteableRegistry
         );
-        remoteClusterStateService.start();
     }
 
     @After
@@ -2588,7 +2587,6 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             List.of(new RemoteIndexPathUploader(threadPool, newSettings, repositoriesServiceSupplier, clusterSettings)),
             writableRegistry()
         );
-        remoteClusterStateService.start();
         assertTrue(remoteClusterStateService.getRemoteRoutingTableService() instanceof InternalRemoteRoutingTableService);
     }
 

@@ -29,7 +29,7 @@ import java.util.Map;
  */
 public interface RemoteRoutingTableService extends LifecycleComponent {
     public static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
-        new DiffableUtils.NonDiffableValueSerializer<>() {
+        new DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable>() {
             @Override
             public void write(IndexRoutingTable value, StreamOutput out) throws IOException {
                 value.writeTo(out);
