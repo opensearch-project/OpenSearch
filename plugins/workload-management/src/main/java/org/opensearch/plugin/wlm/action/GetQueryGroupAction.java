@@ -26,7 +26,7 @@ public class GetQueryGroupAction extends ActionType<GetQueryGroupResponse> {
     /**
      * Name for GetQueryGroupAction
      */
-    public static final String NAME = "cluster:admin/opensearch/query_group/wlm/_get";
+    public static final String NAME = "cluster:admin/opensearch/wlm/query_group/_get";
 
     /**
      * Default constructor
