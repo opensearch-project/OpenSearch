@@ -19,7 +19,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 
-import static org.opensearch.search.optimization.ranges.OptimizationContext.multiRangesTraverse;
+import static org.opensearch.search.optimization.ranges.Helper.multiRangesTraverse;
 
 /**
  * For range aggregation
@@ -64,7 +64,7 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             uppers[i] = upper;
         }
 
-        optimizationContext.setRanges(new OptimizationContext.Ranges(lowers, uppers));
+        optimizationContext.setRanges(new Ranges(lowers, uppers));
     }
 
     @Override

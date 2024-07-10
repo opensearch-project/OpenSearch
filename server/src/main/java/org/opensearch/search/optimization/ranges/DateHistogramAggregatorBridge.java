@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 
-import static org.opensearch.search.optimization.ranges.OptimizationContext.multiRangesTraverse;
+import static org.opensearch.search.optimization.ranges.Helper.multiRangesTraverse;
 
 /**
  * For date histogram aggregation
@@ -74,7 +74,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
         optimizationContext.setRangesFromSegment(buildRanges(bounds));
     }
 
-    private OptimizationContext.Ranges buildRanges(long[] bounds) {
+    private Ranges buildRanges(long[] bounds) {
         bounds = processHardBounds(bounds);
         if (bounds == null) {
             return null;
