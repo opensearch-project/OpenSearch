@@ -45,11 +45,12 @@ public class RestHandlerProxy implements InvocationHandler {
         try {
             threadPool.getThreadContext().setExecutionContext(plugin.getClass().getName());
             result = m.invoke(restHandler, args);
-            threadPool.getThreadContext().clearExecutionContext();
         } catch (InvocationTargetException e) {
             throw e.getTargetException();
         } catch (Exception e) {
             throw new RuntimeException("unexpected invocation exception: " + e.getMessage());
+        } finally {
+            threadPool.getThreadContext().clearExecutionContext();
         }
         return result;
     }
