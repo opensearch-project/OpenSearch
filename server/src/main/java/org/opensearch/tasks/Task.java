@@ -278,13 +278,6 @@ public class Task {
         return parentTask;
     }
 
-    /**
-     *
-     * returns the headers for this task
-     */
-    public Map<String, String> getHeaders() {
-        return headers;
-    }
 
     /**
      * Build a status for this task or null if this task doesn't have status.

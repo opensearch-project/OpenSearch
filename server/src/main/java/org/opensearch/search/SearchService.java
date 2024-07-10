@@ -575,7 +575,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task, boolean keepStatesInContext)
         throws IOException {
         ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
-        task.addQueryGroupHeadersTo(threadPool.getThreadContext());
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, true)
