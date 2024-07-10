@@ -158,6 +158,7 @@ import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.opensearch.search.query_group.QueryGroupServiceSettings;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
@@ -758,7 +759,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 
                 // Composite index settings
-                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING
+                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
+
+                // QueryGroup settings
+                QueryGroupServiceSettings.MAX_QUERY_GROUP_COUNT,
+                QueryGroupServiceSettings.NODE_LEVEL_REJECTION_THRESHOLD,
+                QueryGroupServiceSettings.NODE_LEVEL_CANCELLATION_THRESHOLD
             )
         )
     );
