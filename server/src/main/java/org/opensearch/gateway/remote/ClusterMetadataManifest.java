@@ -20,6 +20,7 @@ import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.gateway.remote.ClusterMetadataManifest.Builder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -243,7 +244,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), COMMITTED_FIELD);
         parser.declareObjectArray(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> UploadedIndexMetadata.fromXContent(p),
+            (p, c) -> UploadedIndexMetadata.fromXContent(p, codec_version),
             INDICES_FIELD
         );
         parser.declareString(ConstructingObjectParser.constructorArg(), PREVIOUS_CLUSTER_UUID);
@@ -277,7 +278,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             parser.declareLong(ConstructingObjectParser.constructorArg(), ROUTING_TABLE_VERSION_FIELD);
             parser.declareObjectArray(
                 ConstructingObjectParser.constructorArg(),
-                (p, c) -> UploadedIndexMetadata.fromXContent(p),
+                (p, c) -> UploadedIndexMetadata.fromXContent(p, codec_version),
                 INDICES_ROUTING_FIELD
             );
             parser.declareNamedObject(
@@ -1112,16 +1113,30 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return (String) fields[3];
         }
 
-        private static final ConstructingObjectParser<UploadedIndexMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<UploadedIndexMetadata, Void> PARSER_V0 = new ConstructingObjectParser<>(
+            "uploaded_index_metadata",
+            fields -> new UploadedIndexMetadata(indexName(fields), indexUUID(fields), uploadedFilename(fields))
+        );
+
+        private static final ConstructingObjectParser<UploadedIndexMetadata, Void> PARSER_V2 = new ConstructingObjectParser<>(
             "uploaded_index_metadata",
             fields -> new UploadedIndexMetadata(indexName(fields), indexUUID(fields), uploadedFilename(fields), componentPrefix(fields))
         );
 
+        private static final ConstructingObjectParser<UploadedIndexMetadata, Void> CURRENT_PARSER = PARSER_V2;
+
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_NAME_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_UUID_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), UPLOADED_FILENAME_FIELD);
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), COMPONENT_PREFIX_FIELD);
+            declareParser(PARSER_V0, CODEC_V0);
+            declareParser(PARSER_V2, CODEC_V2);
+        }
+
+        private static void declareParser(ConstructingObjectParser<UploadedIndexMetadata, Void> parser, long codec_version) {
+            parser.declareString(ConstructingObjectParser.constructorArg(), INDEX_NAME_FIELD);
+            parser.declareString(ConstructingObjectParser.constructorArg(), INDEX_UUID_FIELD);
+            parser.declareString(ConstructingObjectParser.constructorArg(), UPLOADED_FILENAME_FIELD);
+            if (codec_version >= CODEC_V2) {
+                parser.declareString(ConstructingObjectParser.constructorArg(), COMPONENT_PREFIX_FIELD);
+            }
         }
 
         static final String COMPONENT_PREFIX = "index--";
@@ -1130,15 +1145,32 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         private final String indexUUID;
         private final String uploadedFilename;
 
+        private long codecVersion = CODEC_V2;
+
         public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName) {
-            this(indexName, indexUUID, uploadedFileName, COMPONENT_PREFIX);
+            this(indexName, indexUUID, uploadedFileName, CODEC_V2);
+        }
+
+        public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName, long codecVersion) {
+            this(indexName, indexUUID, uploadedFileName, COMPONENT_PREFIX, codecVersion);
         }
 
         public UploadedIndexMetadata(String indexName, String indexUUID, String uploadedFileName, String componentPrefix) {
+            this(indexName, indexUUID, uploadedFileName, componentPrefix, CODEC_V2);
+        }
+
+        public UploadedIndexMetadata(
+            String indexName,
+            String indexUUID,
+            String uploadedFileName,
+            String componentPrefix,
+            long codecVersion
+        ) {
             this.componentPrefix = componentPrefix;
             this.indexName = indexName;
             this.indexUUID = indexUUID;
             this.uploadedFilename = uploadedFileName;
+            this.codecVersion = codecVersion;
         }
 
         public UploadedIndexMetadata(StreamInput in) throws IOException {
@@ -1175,10 +1207,13 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field(INDEX_NAME_FIELD.getPreferredName(), getIndexName())
+            builder.field(INDEX_NAME_FIELD.getPreferredName(), getIndexName())
                 .field(INDEX_UUID_FIELD.getPreferredName(), getIndexUUID())
-                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath())
-                .field(COMPONENT_PREFIX_FIELD.getPreferredName(), getComponentPrefix());
+                .field(UPLOADED_FILENAME_FIELD.getPreferredName(), getUploadedFilePath());
+            if (codecVersion >= CODEC_V2) {
+                builder.field(COMPONENT_PREFIX_FIELD.getPreferredName(), getComponentPrefix());
+            }
+            return builder;
         }
 
         @Override
@@ -1214,9 +1249,13 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             return Strings.toString(MediaTypeRegistry.JSON, this);
         }
 
-        public static UploadedIndexMetadata fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
+        public static UploadedIndexMetadata fromXContent(XContentParser parser, long codecVersion) throws IOException {
+            if (codecVersion >= CODEC_V2) {
+                return CURRENT_PARSER.parse(parser, null);
+            }
+            return PARSER_V0.parse(parser, null);
         }
+
     }
 
     /**

@@ -48,7 +48,7 @@ import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadat
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
     public void testClusterMetadataManifestXContentV0() throws IOException {
-        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path", CODEC_V0);
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
             .stateVersion(1L)
@@ -74,7 +74,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
     }
 
     public void testClusterMetadataManifestXContentV1() throws IOException {
-        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path", CODEC_V1);
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
             .stateVersion(1L)
@@ -620,10 +620,11 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
     }
 
     public void testUploadedIndexMetadataWithoutComponentPrefix() throws IOException {
-        final UploadedIndexMetadata originalUploadedIndexMetadata = new UploadedIndexMetadataV1(
+        final UploadedIndexMetadata originalUploadedIndexMetadata = new UploadedIndexMetadata(
             "test-index",
             "test-index-uuid",
-            "test_file_name"
+            "test_file_name",
+            CODEC_V1
         );
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -631,10 +632,8 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         builder.endObject();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final UploadedIndexMetadata fromXContentUploadedIndexMetadata = UploadedIndexMetadata.fromXContent(parser);
-            assertEquals(originalUploadedIndexMetadata.getIndexName(), fromXContentUploadedIndexMetadata.getIndexName());
-            assertEquals(originalUploadedIndexMetadata.getIndexUUID(), fromXContentUploadedIndexMetadata.getIndexUUID());
-            assertEquals(originalUploadedIndexMetadata.getUploadedFilename(), fromXContentUploadedIndexMetadata.getUploadedFilename());
+            final UploadedIndexMetadata fromXContentUploadedIndexMetadata = UploadedIndexMetadata.fromXContent(parser, 1L);
+            assertEquals(originalUploadedIndexMetadata, fromXContentUploadedIndexMetadata);
         }
     }
 
@@ -662,17 +661,4 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         return uploadedIndexMetadata;
     }
 
-    private static class UploadedIndexMetadataV1 extends UploadedIndexMetadata {
-
-        public UploadedIndexMetadataV1(String indexName, String indexUUID, String uploadedFileName) {
-            super(indexName, indexUUID, uploadedFileName);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.field("index_name", getIndexName())
-                .field("index_uuid", getIndexUUID())
-                .field("uploaded_filename", getUploadedFilePath());
-        }
-    }
 }
