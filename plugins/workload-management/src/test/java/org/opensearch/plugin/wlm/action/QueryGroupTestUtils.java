@@ -54,8 +54,6 @@ public class QueryGroupTestUtils {
         .updatedAt(TIMESTAMP_TWO)
         .build();
 
-    public static final Map<String, QueryGroup> queryGroupMap = Map.of(NAME_ONE, queryGroupOne, NAME_TWO, queryGroupTwo);
-
     public static List<QueryGroup> queryGroupList() {
         List<QueryGroup> list = new ArrayList<>();
         list.add(queryGroupOne);
@@ -64,7 +62,7 @@ public class QueryGroupTestUtils {
     }
 
     public static ClusterState clusterState() {
-        final Metadata metadata = Metadata.builder().queryGroups(Map.of(NAME_ONE, queryGroupOne, NAME_TWO, queryGroupTwo)).build();
+        final Metadata metadata = Metadata.builder().queryGroups(Map.of(_ID_ONE, queryGroupOne, _ID_TWO, queryGroupTwo)).build();
         return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
     }
 
