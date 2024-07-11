@@ -546,29 +546,32 @@ final class DocumentParser {
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, mapper);
             ObjectMapper parentMapper = parentMapperTuple.v2();
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
-            if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), mapper.fullPath(), currentFieldName);
-            } else if (dynamic == ObjectMapper.Dynamic.TRUE || dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
-                Mapper.Builder builder = findTemplateBuilder(
-                    context,
-                    currentFieldName,
-                    XContentFieldType.OBJECT,
-                    dynamic,
-                    mapper.fullPath()
-                );
+            switch (dynamic) {
+                case STRICT:
+                    throw new StrictDynamicMappingException(dynamic.name().toLowerCase(Locale.ROOT), mapper.fullPath(), currentFieldName);
+                case TRUE:
+                case STRICT_ALLOW_TEMPLATES:
+                    Mapper.Builder builder = findTemplateBuilder(
+                        context,
+                        currentFieldName,
+                        XContentFieldType.OBJECT,
+                        dynamic,
+                        mapper.fullPath()
+                    );
 
-                if (builder == null) {
-                    builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
-                }
-                Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-                objectMapper = builder.build(builderContext);
-                context.addDynamicMapper(objectMapper);
-                context.path().add(currentFieldName);
-                parseObjectOrField(context, objectMapper);
-                context.path().remove();
-            } else {
-                // not dynamic, read everything up to end object
-                context.parser().skipChildren();
+                    if (builder == null) {
+                        builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
+                    }
+                    Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
+                    objectMapper = builder.build(builderContext);
+                    context.addDynamicMapper(objectMapper);
+                    context.path().add(currentFieldName);
+                    parseObjectOrField(context, objectMapper);
+                    context.path().remove();
+                    break;
+                case FALSE:
+                    // not dynamic, read everything up to end object
+                    context.parser().skipChildren();
             }
             for (int i = 0; i < parentMapperTuple.v1(); i++) {
                 context.path().remove();
@@ -599,41 +602,44 @@ final class DocumentParser {
                 Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
                 parentMapper = parentMapperTuple.v2();
                 ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
-                if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                    throw new StrictDynamicMappingException(
-                        dynamic.name().toLowerCase(Locale.ROOT),
-                        parentMapper.fullPath(),
-                        arrayFieldName
-                    );
-                } else if (dynamic == ObjectMapper.Dynamic.TRUE || dynamic == ObjectMapper.Dynamic.STRICT_ALLOW_TEMPLATES) {
-                    Mapper.Builder builder = findTemplateBuilder(
-                        context,
-                        arrayFieldName,
-                        XContentFieldType.OBJECT,
-                        dynamic,
-                        parentMapper.fullPath()
-                    );
-                    if (builder == null) {
-                        parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
-                    } else {
-                        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
-                            context.indexSettings().getSettings(),
-                            context.path()
+                switch (dynamic) {
+                    case STRICT:
+                        throw new StrictDynamicMappingException(
+                            dynamic.name().toLowerCase(Locale.ROOT),
+                            parentMapper.fullPath(),
+                            arrayFieldName
                         );
-                        mapper = builder.build(builderContext);
-                        assert mapper != null;
-                        if (parsesArrayValue(mapper)) {
-                            context.addDynamicMapper(mapper);
-                            context.path().add(arrayFieldName);
-                            parseObjectOrField(context, mapper);
-                            context.path().remove();
-                        } else {
+                    case TRUE:
+                    case STRICT_ALLOW_TEMPLATES:
+                        Mapper.Builder builder = findTemplateBuilder(
+                            context,
+                            arrayFieldName,
+                            XContentFieldType.OBJECT,
+                            dynamic,
+                            parentMapper.fullPath()
+                        );
+                        if (builder == null) {
                             parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                        } else {
+                            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
+                                context.indexSettings().getSettings(),
+                                context.path()
+                            );
+                            mapper = builder.build(builderContext);
+                            assert mapper != null;
+                            if (parsesArrayValue(mapper)) {
+                                context.addDynamicMapper(mapper);
+                                context.path().add(arrayFieldName);
+                                parseObjectOrField(context, mapper);
+                                context.path().remove();
+                            } else {
+                                parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                            }
                         }
-                    }
-                } else {
-                    // TODO: shouldn't this skip, not parse?
-                    parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                        break;
+                    case FALSE:
+                        // TODO: shouldn't this skip, not parse?
+                        parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 }
                 for (int i = 0; i < parentMapperTuple.v1(); i++) {
                     context.path().remove();
