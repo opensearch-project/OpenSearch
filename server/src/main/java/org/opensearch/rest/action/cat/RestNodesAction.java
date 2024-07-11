@@ -163,9 +163,9 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
         table.addCell("http_address", "default:false;alias:http;desc:bound http address");
 
-        table.addCell("version", "default:false;alias:v;desc:es version");
-        table.addCell("type", "default:false;alias:t;desc:es distribution type");
-        table.addCell("build", "default:false;alias:b;desc:es build hash");
+        table.addCell("version", "default:false;alias:v;desc:os version");
+        table.addCell("type", "default:false;alias:t;desc:os distribution type");
+        table.addCell("build", "default:false;alias:b;desc:os build hash");
         table.addCell("jdk", "default:false;alias:j;desc:jdk version");
         table.addCell("disk.total", "default:false;alias:dt,diskTotal;text-align:right;desc:total disk space");
         table.addCell("disk.used", "default:false;alias:du,diskUsed;text-align:right;desc:used disk space");
