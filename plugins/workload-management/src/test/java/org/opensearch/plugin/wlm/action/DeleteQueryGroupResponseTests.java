@@ -126,7 +126,7 @@ public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testToXContentZeroSingleQueryGroup() throws IOException {
+    public void testToXContentDeleteZeroQueryGroup() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(new ArrayList<>(), RestStatus.OK);
         String actual = otherResponse.toXContent(builder, mock(ToXContent.Params.class)).toString();
