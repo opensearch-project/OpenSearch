@@ -22,15 +22,12 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.IndexModule;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
 
 /**
  * Validator class to validate the tiering requests of the index
@@ -62,10 +59,6 @@ public class TieringRequestValidator {
         final TieringValidationResult tieringValidationResult = new TieringValidationResult(concreteIndices);
 
         for (Index index : concreteIndices) {
-            if (!validateHotIndex(currentState, index)) {
-                tieringValidationResult.addToRejected(index, "index is not in the HOT tier");
-                continue;
-            }
             if (!validateRemoteStoreIndex(currentState, index)) {
                 tieringValidationResult.addToRejected(index, "index is not backed up by the remote store");
                 continue;
@@ -82,7 +75,7 @@ public class TieringRequestValidator {
 
         validateEligibleNodesCapacity(clusterInfo, currentState, tieringValidationResult);
         logger.info(
-            "Successfully accepted indices for tiering are [{}], rejected indices are [{}]",
+            "[HotToWarmTiering] Successfully accepted indices for tiering are [{}], rejected indices are [{}]",
             tieringValidationResult.getAcceptedIndices(),
             tieringValidationResult.getRejectedIndices()
         );
@@ -117,17 +110,6 @@ public class TieringRequestValidator {
      */
     static boolean validateRemoteStoreIndex(final ClusterState state, final Index index) {
         return IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(state.metadata().getIndexSafe(index).getSettings());
-    }
-
-    /**
-     * Validates that the specified index is in the "hot" tiering state.
-     *
-     * @param state the current cluster state
-     * @param index the index to be validated
-     * @return true if the index is in the "hot" tiering state, false otherwise
-     */
-    static boolean validateHotIndex(final ClusterState state, final Index index) {
-        return IndexModule.TieringState.HOT.name().equals(INDEX_TIERING_STATE.get(state.metadata().getIndexSafe(index).getSettings()));
     }
 
     /**
@@ -172,7 +154,7 @@ public class TieringRequestValidator {
     ) {
         final Map<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
         if (usages == null) {
-            logger.trace("skipping monitor as no disk usage information is available");
+            logger.trace("[Tiering] skipping monitor as no disk usage information is available");
             return;
         }
         final Set<String> nodeIds = getEligibleNodes(currentState).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());

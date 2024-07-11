@@ -179,6 +179,7 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.store.IndicesStore;
+import org.opensearch.indices.tiering.HotToWarmTieringService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.monitor.fs.FsHealthService;
@@ -1207,6 +1208,13 @@ public class Node implements Closeable {
                 remoteClusterStateService
             );
 
+            final HotToWarmTieringService hotToWarmTieringService = new HotToWarmTieringService(
+                settings,
+                clusterService,
+                clusterModule.getIndexNameExpressionResolver(),
+                clusterModule.getAllocationService()
+            );
+
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,
                 clusterService::state,
@@ -1403,6 +1411,9 @@ public class Node implements Closeable {
                 b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);
                 b.bind(RestoreService.class).toInstance(restoreService);
                 b.bind(RemoteStoreRestoreService.class).toInstance(remoteStoreRestoreService);
+                if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)) {
+                    b.bind(HotToWarmTieringService.class).toInstance(hotToWarmTieringService);
+                }
                 b.bind(RerouteService.class).toInstance(rerouteService);
                 b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
