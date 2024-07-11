@@ -210,6 +210,15 @@ public abstract class TransportNodesAction<
     }
 
     /**
+     * Return the concrete nodes from the request node ids which will be later used for routing requests to nodes.
+     **/
+    protected DiscoveryNode[] resolveConcreteNodes(NodesRequest request, ClusterState clusterState) {
+        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
+        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
+        return Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new);
+    }
+
+    /**
      * Get a backwards compatible transport action name
      */
     protected String getTransportNodeAction(DiscoveryNode node) {
@@ -226,6 +235,7 @@ public abstract class TransportNodesAction<
         private final NodesRequest request;
         private final ActionListener<NodesResponse> listener;
         private final AtomicReferenceArray<Object> responses;
+        private final DiscoveryNode[] concreteNodes;
         private final AtomicInteger counter = new AtomicInteger();
         private final Task task;
 
@@ -234,14 +244,27 @@ public abstract class TransportNodesAction<
             this.request = request;
             this.listener = listener;
             if (request.concreteNodes() == null) {
-                resolveRequest(request, clusterService.state());
-                assert request.concreteNodes() != null;
+                if (request.populateDiscoveryNodesInTransportRequest()) {
+                    resolveRequest(request, clusterService.state());
+                    assert request.concreteNodes() != null;
+                    this.concreteNodes = null;
+                } else {
+                    this.concreteNodes = resolveConcreteNodes(request, clusterService.state());
+                    assert request.concreteNodes() == null;
+                }
+            } else {
+                this.concreteNodes = null;
             }
-            this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
+            if (request.concreteNodes() == null) {
+                assert concreteNodes != null;
+                this.responses = new AtomicReferenceArray<>(concreteNodes.length);
+            } else {
+                this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
+            }
         }
 
         void start() {
-            final DiscoveryNode[] nodes = request.concreteNodes();
+            final DiscoveryNode[] nodes = request.concreteNodes() != null ? request.concreteNodes() : concreteNodes;
             if (nodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
@@ -260,7 +283,6 @@ public abstract class TransportNodesAction<
                     if (task != null) {
                         nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }
-
                     transportService.sendRequest(
                         node,
                         getTransportNodeAction(node),
