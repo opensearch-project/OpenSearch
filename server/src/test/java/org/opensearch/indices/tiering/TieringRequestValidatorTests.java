@@ -24,7 +24,6 @@ import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.IndexModule;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -42,7 +41,6 @@ import static org.opensearch.indices.tiering.TieringRequestValidator.getIndexPri
 import static org.opensearch.indices.tiering.TieringRequestValidator.getTotalAvailableBytesInWarmTier;
 import static org.opensearch.indices.tiering.TieringRequestValidator.validateDiskThresholdWaterMarkNotBreached;
 import static org.opensearch.indices.tiering.TieringRequestValidator.validateEligibleNodesCapacity;
-import static org.opensearch.indices.tiering.TieringRequestValidator.validateHotIndex;
 import static org.opensearch.indices.tiering.TieringRequestValidator.validateIndexHealth;
 import static org.opensearch.indices.tiering.TieringRequestValidator.validateOpenIndex;
 import static org.opensearch.indices.tiering.TieringRequestValidator.validateRemoteStoreIndex;
@@ -90,26 +88,6 @@ public class TieringRequestValidatorTests extends OpenSearchTestCase {
         String indexUuid = UUID.randomUUID().toString();
         String indexName = "test_index";
         assertFalse(validateRemoteStoreIndex(buildClusterState(indexName, indexUuid, Settings.EMPTY), new Index(indexName, indexUuid)));
-    }
-
-    public void testValidHotIndex() {
-        String indexUuid = UUID.randomUUID().toString();
-        String indexName = "test_index";
-        assertTrue(validateHotIndex(buildClusterState(indexName, indexUuid, Settings.EMPTY), new Index(indexName, indexUuid)));
-    }
-
-    public void testIndexWithOngoingOrCompletedTiering() {
-        String indexUuid = UUID.randomUUID().toString();
-        String indexName = "test_index";
-
-        IndexModule.TieringState tieringState = randomBoolean() ? IndexModule.TieringState.HOT_TO_WARM : IndexModule.TieringState.WARM;
-
-        ClusterState clusterState = buildClusterState(
-            indexName,
-            indexUuid,
-            Settings.builder().put(IndexModule.INDEX_TIERING_STATE.getKey(), tieringState).build()
-        );
-        assertFalse(validateHotIndex(clusterState, new Index(indexName, indexUuid)));
     }
 
     public void testValidateIndexHealth() {

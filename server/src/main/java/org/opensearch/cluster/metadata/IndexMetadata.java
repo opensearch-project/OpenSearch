@@ -95,6 +95,7 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
+import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
 
 /**
  * Index metadata information
@@ -638,6 +639,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_SYSTEM = "system";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
     public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
+    public static final String TIERING_CUSTOM_KEY = "tiering";
     public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
@@ -686,6 +688,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Map<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
     private final boolean isRemoteSnapshot;
+
+    private final IndexModule.TieringState tieringState;
 
     private final int indexTotalShardsPerNodeLimit;
 
@@ -750,6 +754,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.rolloverInfos = Collections.unmodifiableMap(rolloverInfos);
         this.isSystem = isSystem;
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
+        this.tieringState = IndexModule.TieringState.valueOf(INDEX_TIERING_STATE.get(settings));
         this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
@@ -1218,6 +1223,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isRemoteSnapshot() {
         return isRemoteSnapshot;
+    }
+
+    public boolean isHotIndex() {
+        return IndexModule.TieringState.HOT.equals(tieringState);
+    }
+
+    public boolean isIndexInTier(IndexModule.TieringState tieringState) {
+        return this.tieringState == tieringState;
     }
 
     public static Builder builder(String index) {

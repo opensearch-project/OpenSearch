@@ -25,12 +25,16 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexModule;
+import org.opensearch.indices.tiering.HotToWarmTieringService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.constructToHotToWarmTieringResponse;
+import static org.opensearch.common.util.set.Sets.newHashSet;
 import static org.opensearch.indices.tiering.TieringRequestValidator.validateHotToWarm;
 
 /**
@@ -44,6 +48,7 @@ public class TransportHotToWarmTieringAction extends TransportClusterManagerNode
     private static final Logger logger = LogManager.getLogger(TransportHotToWarmTieringAction.class);
     private final ClusterInfoService clusterInfoService;
     private final DiskThresholdSettings diskThresholdSettings;
+    private final HotToWarmTieringService hotToWarmTieringService;
 
     @Inject
     public TransportHotToWarmTieringAction(
@@ -53,7 +58,8 @@ public class TransportHotToWarmTieringAction extends TransportClusterManagerNode
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterInfoService clusterInfoService,
-        Settings settings
+        Settings settings,
+        HotToWarmTieringService hotToWarmTieringService
     ) {
         super(
             HotToWarmTieringAction.NAME,
@@ -66,6 +72,7 @@ public class TransportHotToWarmTieringAction extends TransportClusterManagerNode
         );
         this.clusterInfoService = clusterInfoService;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterService.getClusterSettings());
+        this.hotToWarmTieringService = hotToWarmTieringService;
     }
 
     @Override
@@ -90,21 +97,34 @@ public class TransportHotToWarmTieringAction extends TransportClusterManagerNode
         ClusterState state,
         ActionListener<HotToWarmTieringResponse> listener
     ) throws Exception {
-        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        Index[] concreteIndices = indexNameExpressionResolver.concreteIndicesInTier(state, request, IndexModule.TieringState.HOT);
         if (concreteIndices == null || concreteIndices.length == 0) {
+            logger.info(
+                "[HotToWarmTiering] No hot concrete indices resolved for the indices {} in the request",
+                List.of(request.indices())
+            );
             listener.onResponse(new HotToWarmTieringResponse(true));
             return;
         }
         final TieringValidationResult tieringValidationResult = validateHotToWarm(
             state,
-            Set.of(concreteIndices),
+            newHashSet(concreteIndices),
             clusterInfoService.getClusterInfo(),
             diskThresholdSettings
         );
 
         if (tieringValidationResult.getAcceptedIndices().isEmpty()) {
-            listener.onResponse(tieringValidationResult.constructResponse());
+            listener.onResponse(constructToHotToWarmTieringResponse(tieringValidationResult.getRejectedIndices()));
             return;
         }
+
+        final TieringUpdateClusterStateRequest updateClusterStateRequest = new TieringUpdateClusterStateRequest(
+            tieringValidationResult.getRejectedIndices(),
+            request.waitForCompletion()
+        ).ackTimeout(request.timeout())
+            .masterNodeTimeout(request.clusterManagerNodeTimeout())
+            .indices(tieringValidationResult.getAcceptedIndices().toArray(Index.EMPTY_ARRAY));
+
+        hotToWarmTieringService.tier(updateClusterStateRequest, listener);
     }
 }
