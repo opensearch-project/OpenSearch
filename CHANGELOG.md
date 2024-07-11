@@ -13,6 +13,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Deprecated
 ### Removed
 ### Fixed
+- Update help output for _cat ([#14722](https://github.com/opensearch-project/OpenSearch/pull/14722))
+
 ### Security
 
 [Unreleased]: https://github.com/opensearch-project/OpenSearch/compare/1.3.15...HEAD
