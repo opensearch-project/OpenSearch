@@ -366,6 +366,7 @@ public final class BulkRequestParser {
                         ) {
                             updateRequest.fromXContent(sliceParser);
                         }
+                        updateRequest.doc().index(index);
                         if (fetchSourceContext != null) {
                             updateRequest.fetchSource(fetchSourceContext);
                         }
