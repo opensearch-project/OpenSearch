@@ -22,6 +22,8 @@ import org.opensearch.common.cache.store.builders.ICacheBuilder;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.function.ToLongBiFunction;
 
@@ -31,6 +33,7 @@ public class CaffeineHeapCache<K,V> implements ICache<K,V> {
     private final LoadingCache<ICacheKey<K>, V> cache;
     private final CacheStatsHolder cacheStatsHolder;
     private final ToLongBiFunction<ICacheKey<K>, V> weigher;
+    private final CaffeineRemovalListener caffeineRemovalListener;
 
     private CaffeineHeapCache(Builder<K, V> builder) {
         List<String> dimensionNames = Objects.requireNonNull(builder.dimensionNames, "Dimension names can't be null");
@@ -39,15 +42,23 @@ public class CaffeineHeapCache<K,V> implements ICache<K,V> {
         } else {
             this.cacheStatsHolder = NoopCacheStatsHolder.getInstance();
         }
+        Objects.requireNonNull(builder.getWeigher(), "Weigher can't be null");
         this.weigher = builder.getWeigher();
+        Objects.requireNonNull(builder.getRemovalListener(), "Removal listener can't be null");
+        this.caffeineRemovalListener = new CaffeineRemovalListener(builder.getRemovalListener());
+
         cache = Caffeine.newBuilder()
-            .executor(Runnable::run)
-            .removalListener(new CaffeineEvictionListener())
+            .removalListener(this.caffeineRemovalListener)
             .maximumWeight(builder.getMaxWeightInBytes())
+            .expireAfterAccess(builder.getExpireAfterAcess().duration(), builder.getExpireAfterAcess().timeUnit())
             .weigher(new CaffeineWeigher(builder.getWeigher()))
+            .executor(builder.getExecutor())
             .build(k -> null);
     }
 
+    /**
+     * Wrapper over ICache weigher to be used by Caffeine
+     */
     private class CaffeineWeigher implements Weigher<ICacheKey<K>, V> {
         private final ToLongBiFunction<ICacheKey<K>, V> weigher;
 
@@ -61,25 +72,41 @@ public class CaffeineHeapCache<K,V> implements ICache<K,V> {
         }
     }
 
-    private class CaffeineEvictionListener implements RemovalListener<ICacheKey<K>, V> {
-        CaffeineEvictionListener() {}
+    private class CaffeineRemovalListener implements RemovalListener<ICacheKey<K>, V> {
+        private final org.opensearch.common.cache.RemovalListener<ICacheKey<K>, V> removalListener;
+
+        CaffeineRemovalListener(org.opensearch.common.cache.RemovalListener<ICacheKey<K>, V> removalListener) {
+            this.removalListener = removalListener;
+        }
 
         @Override
         public void onRemoval(ICacheKey<K> key, V value, RemovalCause removalCause) {
             switch (removalCause) {
                 case SIZE:
-                case COLLECTED:
-                case EXPIRED:
+                    removalListener.onRemoval(
+                        new RemovalNotification<>(key, value, RemovalReason.CAPACITY)
+                    );
                     cacheStatsHolder.incrementEvictions(key.dimensions);
-                    cacheStatsHolder.decrementItems(key.dimensions);
-                    cacheStatsHolder.decrementSizeInBytes(key.dimensions, weigher.applyAsLong(key, value));
+                    break;
+                case EXPIRED:
+                    removalListener.onRemoval(
+                        new RemovalNotification<>(key, value, RemovalReason.INVALIDATED)
+                    );
+                    cacheStatsHolder.incrementEvictions(key.dimensions);
+                    break;
+                case EXPLICIT:
+                    removalListener.onRemoval(
+                        new RemovalNotification<>(key, value, RemovalReason.EXPLICIT)
+                    );
                     break;
                 case REPLACED:
-                case EXPLICIT:
-                    cacheStatsHolder.decrementItems(key.dimensions);
-                    cacheStatsHolder.decrementSizeInBytes(key.dimensions, weigher.applyAsLong(key, value));
+                    removalListener.onRemoval(
+                        new RemovalNotification<>(key, value, RemovalReason.REPLACED)
+                    );
                     break;
             }
+            cacheStatsHolder.decrementItems(key.dimensions);
+            cacheStatsHolder.decrementSizeInBytes(key.dimensions, weigher.applyAsLong(key, value));
         }
     }
 
@@ -175,10 +202,20 @@ public class CaffeineHeapCache<K,V> implements ICache<K,V> {
 
     public static class Builder<K, V> extends ICacheBuilder<K, V> {
         private List<String> dimensionNames;
+        private Executor executor = ForkJoinPool.commonPool();
 
         public Builder<K, V> setDimensionNames(List<String> dimensionNames) {
             this.dimensionNames = dimensionNames;
             return this;
+        }
+
+        public Builder<K, V> setExecutor(Executor executor) {
+            this.executor = executor;
+            return this;
+        }
+
+        public Executor getExecutor() {
+            return executor;
         }
 
         public CaffeineHeapCache<K, V> build() {
@@ -186,6 +223,11 @@ public class CaffeineHeapCache<K,V> implements ICache<K,V> {
         }
     }
 
-
-
+    /**
+     * Manually performs Caffeine maintenance cycle, which includes removing expired entries from the cache.
+     * Used for testing.
+     */
+    void cleanUp() {
+        cache.cleanUp();
+    }
 }
