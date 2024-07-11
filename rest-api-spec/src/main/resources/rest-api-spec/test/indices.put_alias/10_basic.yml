@@ -273,8 +273,8 @@
 ---
 "Can set is_hidden":
   - skip:
-      version: " - 2.15.99"
-      reason: "Fix was introduced in 2.16.0"
+      version: " - 2.99.99"
+      reason: "Fix was introduced in 3.0.0"
   - do:
       indices.create:
         index: test_index
@@ -295,8 +295,8 @@
 ---
 "Throws exception with invalid parameters":
   - skip:
-      version: " - 2.15.99"
-      reason: "Fix was introduced in 2.16.0"
+      version: " - 2.99.99"
+      reason: "Fix was introduced in 3.0.0"
 
   - do:
       indices.create:
