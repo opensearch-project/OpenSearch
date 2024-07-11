@@ -82,7 +82,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     public NodeIndicesStats(StreamInput in) throws IOException {
         stats = new CommonStats(in);
-        if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             // contains statsByIndex
             if (in.readBoolean()) {
                 statsByIndex = new HashMap<>();
@@ -254,7 +254,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
 
-        if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeBoolean(statsByIndex != null);
             if (statsByIndex != null) {
                 writeStatsByIndex(out);
