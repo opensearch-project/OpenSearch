@@ -51,6 +51,8 @@ dependencies {
     exclude module: "logback-classic"
     exclude module: "avro"
     exclude group: 'org.apache.kerby'
+    exclude group: 'com.nimbusds'
+    exclude module: "commons-configuration2"
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
@@ -74,6 +76,8 @@ dependencies {
   api "ch.qos.logback:logback-classic:1.2.13"
   api "org.jboss.xnio:xnio-nio:3.8.16.Final"
   api 'org.jline:jline:3.26.2'
+  api 'org.apache.commons:commons-configuration2:2.11.0'
+  api 'com.nimbusds:nimbus-jose-jwt:9.40'
   api ('org.apache.kerby:kerb-admin:2.0.3') {
     exclude group: "org.jboss.xnio"
     exclude group: "org.jline"
