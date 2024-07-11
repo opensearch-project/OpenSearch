@@ -1134,10 +1134,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         Exception error = new RuntimeException();
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
-            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
-            handler.accept(null, error);
+            List<IngestDocumentWrapper> ingestDocumentWrappers = (List) args.getArguments()[0];
+            Consumer<List<IngestDocumentWrapper>> handler = (Consumer) args.getArguments()[1];
+            for (IngestDocumentWrapper wrapper : ingestDocumentWrappers) {
+                wrapper.update(wrapper.getIngestDocument(), error);
+            }
+            handler.accept(ingestDocumentWrappers);
             return null;
-        }).when(processor).execute(any(), any());
+        }).when(processor).batchExecute(any(), any());
         IngestService ingestService = createWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> processor)
         );
@@ -1192,10 +1196,11 @@ public class IngestServiceTests extends OpenSearchTestCase {
         when(processor.getTag()).thenReturn("mockTag");
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
-            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
-            handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
+            List<IngestDocumentWrapper> ingestDocumentWrappers = (List) args.getArguments()[0];
+            Consumer<List<IngestDocumentWrapper>> handler = (Consumer) args.getArguments()[1];
+            handler.accept(ingestDocumentWrappers);
             return null;
-        }).when(processor).execute(any(), any());
+        }).when(processor).batchExecute(any(), any());
         Map<String, Processor.Factory> map = new HashMap<>(2);
         map.put("mock", (factories, tag, description, config) -> processor);
 

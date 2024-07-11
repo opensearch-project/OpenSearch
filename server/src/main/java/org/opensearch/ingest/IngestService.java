@@ -635,7 +635,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             i++;
         }
 
-        int batchSize = originalBulkRequest.batchSize();
+        int batchSize = Math.min(numberOfActionRequests, originalBulkRequest.batchSize());
         List<List<IndexRequestWrapper>> batches = prepareBatches(batchSize, indexRequestWrappers);
         logger.debug("batchSize: {}, batches: {}", batchSize, batches.size());
 
@@ -655,7 +655,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private boolean shouldExecuteBulkRequestInBatch(int documentSize, int batchSize) {
-        return documentSize > 1 && batchSize > 1;
+        return batchSize > 1;
     }
 
     /**
@@ -685,7 +685,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
         List<List<IndexRequestWrapper>> batchedIndexRequests = new ArrayList<>();
         for (Map.Entry<Integer, List<IndexRequestWrapper>> indexRequestsPerKey : indexRequestsPerIndexAndPipelines.entrySet()) {
-            for (int i = 0; i < indexRequestsPerKey.getValue().size(); i += batchSize) {
+            for (int i = 0; i < indexRequestsPerKey.getValue().size(); i += Math.min(indexRequestsPerKey.getValue().size(), batchSize)) {
                 batchedIndexRequests.add(
                     new ArrayList<>(
                         indexRequestsPerKey.getValue().subList(i, i + Math.min(batchSize, indexRequestsPerKey.getValue().size() - i))
