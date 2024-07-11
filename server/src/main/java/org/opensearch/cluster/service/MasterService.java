@@ -53,8 +53,6 @@ import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.cluster.service.applicationtemplates.SystemTemplatesPlugin;
-import org.opensearch.cluster.service.applicationtemplates.SystemTemplatesService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.annotation.DeprecatedApi;
@@ -142,18 +140,16 @@ public class MasterService extends AbstractLifecycleComponent {
     private final ClusterManagerThrottlingStats throttlingStats;
     private final ClusterStateStats stateStats;
     private final ClusterManagerMetrics clusterManagerMetrics;
-    private final SystemTemplatesService systemTemplatesService;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE), null);
+        this(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
     }
 
     public MasterService(
         Settings settings,
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        ClusterManagerMetrics clusterManagerMetrics,
-        List<SystemTemplatesPlugin> systemTemplatesPlugins
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
@@ -173,7 +169,6 @@ public class MasterService extends AbstractLifecycleComponent {
         this.stateStats = new ClusterStateStats();
         this.threadPool = threadPool;
         this.clusterManagerMetrics = clusterManagerMetrics;
-        this.systemTemplatesService = new SystemTemplatesService(systemTemplatesPlugins, clusterSettings, settings);
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -400,7 +395,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
         try {
             taskOutputs.clusterStatePublished(clusterChangedEvent);
-            threadPool.executor(ThreadPool.Names.GENERIC).submit(() -> systemTemplatesService.refreshTemplates());
         } catch (Exception e) {
             logger.error(
                 () -> new ParameterizedMessage(

@@ -10,6 +10,9 @@ package org.opensearch.cluster.service.applicationtemplates;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -21,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Service class to orchestrate execution around available templates' management.
  */
-public class SystemTemplatesService {
+public class SystemTemplatesService implements LocalNodeClusterManagerListener {
 
     public static final int APPLICATION_BASED_CONFIGURATION_TEMPLATES_LOAD_DEFAULT_COUNT = 50;
 
@@ -52,10 +55,20 @@ public class SystemTemplatesService {
         this.settings = settings;
     }
 
-    public void refreshTemplates() {
+    @Override
+    public void onClusterManager() {
+        refreshTemplates();
+    }
+
+    @Override
+    public void offClusterManager() {
+        // do nothing
+    }
+
+    private void refreshTemplates() {
         if (loaded.compareAndSet(false, true)) {
             if (SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_LOAD.get(settings) > 0) {
-                int countOfTemplatesToLoad = SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_LOAD.get(settings);
+                int countOfTemplatesToLoad = templatesToLoad;
                 int templatesLoaded = 0;
                 int failedLoadingTemplates = 0;
                 int failedLoadingRepositories = 0;

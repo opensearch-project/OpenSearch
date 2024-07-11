@@ -46,7 +46,6 @@ import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
-import org.opensearch.cluster.service.applicationtemplates.SystemTemplatesPlugin;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
@@ -59,7 +58,6 @@ import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -96,20 +94,19 @@ public class ClusterService extends AbstractLifecycleComponent {
     private IndexingPressureService indexingPressureService;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE), null);
+        this(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
     }
 
     public ClusterService(
         Settings settings,
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        ClusterManagerMetrics clusterManagerMetrics,
-        List<SystemTemplatesPlugin> systemTemplatesPlugins
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this(
             settings,
             clusterSettings,
-            new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics, systemTemplatesPlugins),
+            new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics)
         );
     }
