@@ -34,6 +34,8 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -879,6 +881,56 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
             }
             ehcacheTest.close();
+        }
+    }
+
+    public void testDiskCacheFilesAreClearedUpDuringCloseAndInitialization() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            String path = env.nodePaths()[0].path.toString() + "/request_cache";
+            // Create a dummy file to simulate a scenario where the data is already in the disk cache storage path
+            // beforehand.
+            Files.createDirectory(Path.of(path));
+            Path dummyFilePath = Files.createFile(Path.of(path + "/testing.txt"));
+            assertTrue(Files.exists(dummyFilePath));
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(path)
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setDiskCacheAlias("test1")
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            for (int i = 0; i < randomKeys; i++) {
+                ICacheKey<String> iCacheKey = getICacheKey(UUID.randomUUID().toString());
+                ehcacheTest.put(iCacheKey, UUID.randomUUID().toString());
+                assertEquals(0, ehcacheTest.count()); // Expect count of 0 if NoopCacheStatsHolder is used
+                assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
+            }
+            // Verify that older data was wiped out after initialization
+            assertFalse(Files.exists(dummyFilePath));
+
+            // Verify that there is data present under desired path by explicitly verifying the folder name by prefix
+            // (used from disk cache alias)
+            assertTrue(Files.exists(Path.of(path)));
+            boolean folderExists = Files.walk(Path.of(path))
+                .filter(Files::isDirectory)
+                .anyMatch(path1 -> path1.getFileName().toString().startsWith("test1"));
+            assertTrue(folderExists);
+            ehcacheTest.close();
+            assertFalse(Files.exists(Path.of(path))); // Verify everything is cleared up now after close()
         }
     }
 

@@ -62,6 +62,7 @@ import java.util.function.ToLongBiFunction;
 import org.ehcache.Cache;
 import org.ehcache.CachePersistenceException;
 import org.ehcache.PersistentCacheManager;
+import org.ehcache.StateTransitionException;
 import org.ehcache.config.builders.CacheConfigurationBuilder;
 import org.ehcache.config.builders.CacheEventListenerConfigurationBuilder;
 import org.ehcache.config.builders.CacheManagerBuilder;
@@ -133,6 +134,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
      */
     Map<ICacheKey<K>, CompletableFuture<Tuple<ICacheKey<K>, V>>> completableFutureMap = new ConcurrentHashMap<>();
 
+    @SuppressForbidden(reason = "Ehcache uses File.io")
     private EhcacheDiskCache(Builder<K, V> builder) {
         this.keyType = Objects.requireNonNull(builder.keyType, "Key type shouldn't be null");
         this.valueType = Objects.requireNonNull(builder.valueType, "Value type shouldn't be null");
@@ -150,6 +152,23 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.storagePath = builder.storagePath;
         if (this.storagePath == null || this.storagePath.isBlank()) {
             throw new IllegalArgumentException("Storage path shouldn't be null or empty");
+        }
+        // Delete all the previous disk cache related files/data. We don't persist data between process restart for
+        // now which is why need to do this. Clean up in case there was a non graceful restart and we had older disk
+        // cache data still lying around.
+        Path ehcacheDirectory = Paths.get(this.storagePath);
+        if (Files.exists(ehcacheDirectory)) {
+            try {
+                logger.info("Found older disk cache data lying around during initialization under path: {}", this.storagePath);
+                IOUtils.rm(ehcacheDirectory);
+            } catch (IOException e) {
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "Failed to delete ehcache disk cache data under path: {} " + "during initial",
+                        this.storagePath
+                    )
+                );
+            }
         }
         if (builder.threadPoolAlias == null || builder.threadPoolAlias.isBlank()) {
             this.threadPoolAlias = THREAD_POOL_ALIAS_PREFIX + "DiskWrite#" + UNIQUE_ID;
@@ -444,19 +463,28 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @Override
     @SuppressForbidden(reason = "Ehcache uses File.io")
     public void close() {
-        cacheManager.removeCache(this.diskCacheAlias);
-        cacheManager.close();
         try {
+            cacheManager.removeCache(this.diskCacheAlias);
+            cacheManager.close();
             cacheManager.destroyCache(this.diskCacheAlias);
-            // Delete all the disk cache related files/data
+        } catch (CachePersistenceException e) {
+            // When something goes wrong while destroying the persistence data
+            logger.error(() -> new ParameterizedMessage("Exception occurred while destroying ehcache and associated " + "data"), e);
+            throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
+        } catch (StateTransitionException e) {
+            logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close/remove ehcache"), e);
+        } finally {
+            // Delete all the disk cache related files/data in case it is present
             Path ehcacheDirectory = Paths.get(this.storagePath);
             if (Files.exists(ehcacheDirectory)) {
-                IOUtils.rm(ehcacheDirectory);
+                try {
+                    IOUtils.rm(ehcacheDirectory);
+                } catch (IOException e) {
+                    logger.error(
+                        () -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath)
+                    );
+                }
             }
-        } catch (CachePersistenceException e) {
-            throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
-        } catch (IOException e) {
-            logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath));
         }
     }
 
