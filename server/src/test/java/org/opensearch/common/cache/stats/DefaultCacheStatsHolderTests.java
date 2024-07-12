@@ -127,49 +127,58 @@ public class DefaultCacheStatsHolderTests extends OpenSearchTestCase {
     }
 
     public void testConcurrentRemoval() throws Exception {
-        List<String> dimensionNames = List.of("dim1", "dim2");
+        List<String> dimensionNames = List.of("A", "B");
         DefaultCacheStatsHolder cacheStatsHolder = new DefaultCacheStatsHolder(dimensionNames, storeName);
 
         // Create stats for the following dimension sets
-        List<List<String>> populatedStats = List.of(List.of("A1", "B1"), List.of("A2", "B2"), List.of("A2", "B3"));
+        List<List<String>> populatedStats = new ArrayList<>();
+        int numAValues = 10;
+        int numBValues = 2;
+        for (int indexA = 0; indexA < numAValues; indexA++) {
+            for (int indexB = 0; indexB < numBValues; indexB++) {
+                populatedStats.add(List.of("A" + indexA, "B" + indexB));
+            }
+        }
         for (List<String> dims : populatedStats) {
             cacheStatsHolder.incrementHits(dims);
         }
 
-        // Remove (A2, B2) and (A1, B1), before re-adding (A2, B2). At the end we should have stats for (A2, B2) but not (A1, B1).
+        // Remove a subset of the dimensions concurrently.
+        // Remove both (A0, B0), and (A0, B1), so we expect the intermediate node for A0 to be null afterwards.
+        // For all the others, remove only the B0 value. Then we expect the intermediate nodes for A1 through A9 to be present
+        // and reflect only the stats for their B1 child.
 
-        Thread[] threads = new Thread[3];
-        CountDownLatch countDownLatch = new CountDownLatch(3);
-        threads[0] = new Thread(() -> {
-            cacheStatsHolder.removeDimensions(List.of("A2", "B2"));
-            countDownLatch.countDown();
-        });
-        threads[1] = new Thread(() -> {
-            cacheStatsHolder.removeDimensions(List.of("A1", "B1"));
-            countDownLatch.countDown();
-        });
-        threads[2] = new Thread(() -> {
-            cacheStatsHolder.incrementMisses(List.of("A2", "B2"));
-            cacheStatsHolder.incrementMisses(List.of("A2", "B3"));
-            countDownLatch.countDown();
-        });
+        Thread[] threads = new Thread[numAValues + 1];
+        for (int i = 0; i < numAValues; i++) {
+            int finalI = i;
+            threads[i] = new Thread(() -> { cacheStatsHolder.removeDimensions(List.of("A" + finalI, "B0")); });
+        }
+        threads[numAValues] = new Thread(() -> { cacheStatsHolder.removeDimensions(List.of("A0", "B1")); });
         for (Thread thread : threads) {
             thread.start();
-            // Add short sleep to ensure threads start their functions in order (so that incrementing doesn't happen before removal)
-            Thread.sleep(1);
         }
-        countDownLatch.await();
-        assertNull(getNode(List.of("A1", "B1"), cacheStatsHolder.getStatsRoot()));
-        assertNull(getNode(List.of("A1"), cacheStatsHolder.getStatsRoot()));
-        assertNotNull(getNode(List.of("A2", "B2"), cacheStatsHolder.getStatsRoot()));
-        assertEquals(
-            new ImmutableCacheStats(0, 1, 0, 0, 0),
-            getNode(List.of("A2", "B2"), cacheStatsHolder.getStatsRoot()).getImmutableStats()
-        );
-        assertEquals(
-            new ImmutableCacheStats(1, 1, 0, 0, 0),
-            getNode(List.of("A2", "B3"), cacheStatsHolder.getStatsRoot()).getImmutableStats()
-        );
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        // intermediate node for A0 should be null
+        assertNull(getNode(List.of("A0"), cacheStatsHolder.getStatsRoot()));
+
+        // leaf nodes for all B0 values should be null since they were removed
+        for (int indexA = 0; indexA < numAValues; indexA++) {
+            assertNull(getNode(List.of("A" + indexA, "B0"), cacheStatsHolder.getStatsRoot()));
+        }
+
+        // leaf nodes for all B1 values, except (A0, B1), should not be null as they weren't removed,
+        // and the intermediate nodes A1 through A9 shouldn't be null as they have remaining children
+        for (int indexA = 1; indexA < numAValues; indexA++) {
+            DefaultCacheStatsHolder.Node b1LeafNode = getNode(List.of("A" + indexA, "B1"), cacheStatsHolder.getStatsRoot());
+            assertNotNull(b1LeafNode);
+            assertEquals(new ImmutableCacheStats(1, 0, 0, 0, 0), b1LeafNode.getImmutableStats());
+            DefaultCacheStatsHolder.Node intermediateLevelNode = getNode(List.of("A" + indexA), cacheStatsHolder.getStatsRoot());
+            assertNotNull(intermediateLevelNode);
+            assertEquals(b1LeafNode.getImmutableStats(), intermediateLevelNode.getImmutableStats());
+        }
     }
 
     /**

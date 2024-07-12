@@ -489,7 +489,8 @@ public class GatewayMetaStatePersistedStateTests extends OpenSearchTestCase {
                         clusterService,
                         () -> 0L,
                         threadPool,
-                        List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings))
+                        List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+                        writableRegistry()
                     );
                 } else {
                     return null;

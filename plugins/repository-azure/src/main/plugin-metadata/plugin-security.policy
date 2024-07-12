@@ -38,6 +38,7 @@ grant {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "setContextClassLoader";
+  permission java.lang.RuntimePermission "shutdownHooks";
 
   // azure client set Authenticator for proxy username/password
   permission java.net.NetPermission "setDefaultAuthenticator";

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Strings;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -72,8 +73,13 @@ public class RemoteClusterStateCleanupManager implements Closeable {
     private final ThreadPool threadpool;
     private final ClusterApplierService clusterApplierService;
     private RemoteManifestManager remoteManifestManager;
+    private final RemoteRoutingTableService remoteRoutingTableService;
 
-    public RemoteClusterStateCleanupManager(RemoteClusterStateService remoteClusterStateService, ClusterService clusterService) {
+    public RemoteClusterStateCleanupManager(
+        RemoteClusterStateService remoteClusterStateService,
+        ClusterService clusterService,
+        RemoteRoutingTableService remoteRoutingTableService
+    ) {
         this.remoteClusterStateService = remoteClusterStateService;
         this.remoteStateStats = remoteClusterStateService.getStats();
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
@@ -83,6 +89,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         // initialize with 0, a cleanup will be done when this node is elected master node and version is incremented more than threshold
         this.lastCleanupAttemptStateVersion = 0;
         clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING, this::updateCleanupInterval);
+        this.remoteRoutingTableService = remoteRoutingTableService;
     }
 
     void start() {
@@ -170,6 +177,8 @@ public class RemoteClusterStateCleanupManager implements Closeable {
             Set<String> staleManifestPaths = new HashSet<>();
             Set<String> staleIndexMetadataPaths = new HashSet<>();
             Set<String> staleGlobalMetadataPaths = new HashSet<>();
+            Set<String> staleEphemeralAttributePaths = new HashSet<>();
+            Set<String> staleIndexRoutingPaths = new HashSet<>();
             activeManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = remoteManifestManager.fetchRemoteClusterMetadataManifest(
                     clusterName,
@@ -191,6 +200,27 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                     clusterMetadataManifest.getCustomMetadataMap()
                         .values()
                         .forEach(attribute -> filesToKeep.add(attribute.getUploadedFilename()));
+                }
+                if (clusterMetadataManifest.getTransientSettingsMetadata() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getTransientSettingsMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getHashesOfConsistentSettings() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getHashesOfConsistentSettings().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getDiscoveryNodesMetadata() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getDiscoveryNodesMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getClusterBlocksMetadata() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getClusterBlocksMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getClusterStateCustomMap() != null) {
+                    clusterMetadataManifest.getClusterStateCustomMap()
+                        .values()
+                        .forEach(attribute -> filesToKeep.add(attribute.getUploadedFilename()));
+                }
+                if (clusterMetadataManifest.getIndicesRouting() != null) {
+                    clusterMetadataManifest.getIndicesRouting()
+                        .forEach(uploadedIndicesRouting -> filesToKeep.add(uploadedIndicesRouting.getUploadedFilename()));
                 }
             });
             staleManifestBlobMetadata.forEach(blobMetadata -> {
@@ -221,6 +251,19 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                         .filter(file -> filesToKeep.contains(file) == false)
                         .forEach(staleGlobalMetadataPaths::add);
                 }
+                if (clusterMetadataManifest.getIndicesRouting() != null) {
+                    clusterMetadataManifest.getIndicesRouting().forEach(uploadedIndicesRouting -> {
+                        if (!filesToKeep.contains(uploadedIndicesRouting.getUploadedFilename())) {
+                            staleIndexRoutingPaths.add(uploadedIndicesRouting.getUploadedFilename());
+                            logger.debug(
+                                () -> new ParameterizedMessage(
+                                    "Indices routing paths in stale manifest: {}",
+                                    uploadedIndicesRouting.getUploadedFilename()
+                                )
+                            );
+                        }
+                    });
+                }
 
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
                     String fileName = RemoteClusterStateUtils.getFormattedIndexFileName(uploadedIndexMetadata.getUploadedFilename());
@@ -228,6 +271,31 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                         staleIndexMetadataPaths.add(fileName);
                     }
                 });
+
+                if (clusterMetadataManifest.getClusterBlocksMetadata() != null
+                    && !filesToKeep.contains(clusterMetadataManifest.getClusterBlocksMetadata().getUploadedFilename())) {
+                    staleEphemeralAttributePaths.add(clusterMetadataManifest.getClusterBlocksMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getDiscoveryNodesMetadata() != null
+                    && !filesToKeep.contains(clusterMetadataManifest.getDiscoveryNodesMetadata().getUploadedFilename())) {
+                    staleEphemeralAttributePaths.add(clusterMetadataManifest.getDiscoveryNodesMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getTransientSettingsMetadata() != null
+                    && !filesToKeep.contains(clusterMetadataManifest.getTransientSettingsMetadata().getUploadedFilename())) {
+                    staleEphemeralAttributePaths.add(clusterMetadataManifest.getTransientSettingsMetadata().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getHashesOfConsistentSettings() != null
+                    && !filesToKeep.contains(clusterMetadataManifest.getHashesOfConsistentSettings().getUploadedFilename())) {
+                    staleEphemeralAttributePaths.add(clusterMetadataManifest.getHashesOfConsistentSettings().getUploadedFilename());
+                }
+                if (clusterMetadataManifest.getClusterStateCustomMap() != null) {
+                    clusterMetadataManifest.getCustomMetadataMap()
+                        .values()
+                        .stream()
+                        .filter(u -> !filesToKeep.contains(u.getUploadedFilename()))
+                        .forEach(attribute -> staleEphemeralAttributePaths.add(attribute.getUploadedFilename()));
+                }
+
             });
 
             if (staleManifestPaths.isEmpty()) {
@@ -237,7 +305,17 @@ public class RemoteClusterStateCleanupManager implements Closeable {
 
             deleteStalePaths(new ArrayList<>(staleGlobalMetadataPaths));
             deleteStalePaths(new ArrayList<>(staleIndexMetadataPaths));
+            deleteStalePaths(new ArrayList<>(staleEphemeralAttributePaths));
             deleteStalePaths(new ArrayList<>(staleManifestPaths));
+            try {
+                remoteRoutingTableService.deleteStaleIndexRoutingPaths(new ArrayList<>(staleIndexRoutingPaths));
+            } catch (IOException e) {
+                logger.error(
+                    () -> new ParameterizedMessage("Error while deleting stale index routing files {}", staleIndexRoutingPaths),
+                    e
+                );
+                remoteStateStats.indexRoutingFilesCleanupAttemptFailed();
+            }
         } catch (IllegalStateException e) {
             logger.error("Error while fetching Remote Cluster Metadata manifests", e);
         } catch (IOException e) {

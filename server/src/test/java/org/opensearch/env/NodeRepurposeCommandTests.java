@@ -95,7 +95,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
         dataClusterManagerSettings = buildEnvSettings(Settings.EMPTY);
         Settings defaultSearchSettings = Settings.builder()
             .put(dataClusterManagerSettings)
-            .put(NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(16, ByteSizeUnit.GB))
+            .put(NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(16, ByteSizeUnit.GB).toString())
             .build();
 
         searchNoDataNoClusterManagerSettings = onlyRole(dataClusterManagerSettings, DiscoveryNodeRole.SEARCH_ROLE);

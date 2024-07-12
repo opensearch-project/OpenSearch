@@ -827,7 +827,7 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
     }
 
     private void createTestSnapshots() throws IOException {
-        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repositoryName, snapshotName));
+        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "/_snapshot/%s/%s", repositoryName, snapshotName));
         createSnapshot.addParameter("wait_for_completion", "true");
         createSnapshot.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
         Response response = highLevelClient().getLowLevelClient().performRequest(createSnapshot);

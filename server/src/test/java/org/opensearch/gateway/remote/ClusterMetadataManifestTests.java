@@ -48,7 +48,7 @@ import static org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadat
 public class ClusterMetadataManifestTests extends OpenSearchTestCase {
 
     public void testClusterMetadataManifestXContentV0() throws IOException {
-        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path", CODEC_V0);
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
             .stateVersion(1L)
@@ -74,7 +74,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
     }
 
     public void testClusterMetadataManifestXContentV1() throws IOException {
-        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
+        UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path", CODEC_V1);
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)
             .stateVersion(1L)
@@ -593,7 +593,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         }
     }
 
-    private List<UploadedIndexMetadata> randomUploadedIndexMetadataList() {
+    public static List<UploadedIndexMetadata> randomUploadedIndexMetadataList() {
         final int size = randomIntBetween(1, 10);
         final List<UploadedIndexMetadata> uploadedIndexMetadataList = new ArrayList<>(size);
         while (uploadedIndexMetadataList.size() < size) {
@@ -602,7 +602,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         return uploadedIndexMetadataList;
     }
 
-    private UploadedIndexMetadata randomUploadedIndexMetadata() {
+    private static UploadedIndexMetadata randomUploadedIndexMetadata() {
         return new UploadedIndexMetadata(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
@@ -617,6 +617,24 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             orig -> OpenSearchTestCase.copyWriteable(orig, new NamedWriteableRegistry(Collections.emptyList()), UploadedIndexMetadata::new),
             metadata -> randomlyChangingUploadedIndexMetadata(uploadedIndexMetadata)
         );
+    }
+
+    public void testUploadedIndexMetadataWithoutComponentPrefix() throws IOException {
+        final UploadedIndexMetadata originalUploadedIndexMetadata = new UploadedIndexMetadata(
+            "test-index",
+            "test-index-uuid",
+            "test_file_name",
+            CODEC_V1
+        );
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalUploadedIndexMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            final UploadedIndexMetadata fromXContentUploadedIndexMetadata = UploadedIndexMetadata.fromXContent(parser, 1L);
+            assertEquals(originalUploadedIndexMetadata, fromXContentUploadedIndexMetadata);
+        }
     }
 
     private UploadedIndexMetadata randomlyChangingUploadedIndexMetadata(UploadedIndexMetadata uploadedIndexMetadata) {
@@ -642,4 +660,5 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
         }
         return uploadedIndexMetadata;
     }
+
 }

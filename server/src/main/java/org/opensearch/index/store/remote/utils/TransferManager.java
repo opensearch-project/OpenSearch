@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
@@ -39,11 +38,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TransferManager {
     private static final Logger logger = LogManager.getLogger(TransferManager.class);
 
-    private final BlobContainer blobContainer;
+    /**
+     * Functional interface to get an InputStream for a file at a certain offset and size
+     */
+    @FunctionalInterface
+    public interface StreamReader {
+        InputStream read(String name, long position, long length) throws IOException;
+    }
+
+    private final StreamReader streamReader;
     private final FileCache fileCache;
 
-    public TransferManager(final BlobContainer blobContainer, final FileCache fileCache) {
-        this.blobContainer = blobContainer;
+    public TransferManager(final StreamReader streamReader, final FileCache fileCache) {
+        this.streamReader = streamReader;
         this.fileCache = fileCache;
     }
 
@@ -55,12 +62,15 @@ public class TransferManager {
     public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
 
         final Path key = blobFetchRequest.getFilePath();
+        logger.trace("fetchBlob called for {}", key.toString());
 
         final CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
             if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
+                logger.trace("Transfer Manager - IndexInput closed or not in cache");
                 // Doesn't exist or is closed, either way create a new one
-                return new DelayedCreationCachedIndexInput(fileCache, blobContainer, blobFetchRequest);
+                return new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest);
             } else {
+                logger.trace("Transfer Manager - Already in cache");
                 // already in the cache and ready to be used (open)
                 return cachedIndexInput;
             }
@@ -77,7 +87,7 @@ public class TransferManager {
     }
 
     @SuppressWarnings("removal")
-    private static FileCachedIndexInput createIndexInput(FileCache fileCache, BlobContainer blobContainer, BlobFetchRequest request) {
+    private static FileCachedIndexInput createIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request) {
         // We need to do a privileged action here in order to fetch from remote
         // and write to the local file cache in case this is invoked as a side
         // effect of a plugin (such as a scripted search) that doesn't have the
@@ -85,13 +95,14 @@ public class TransferManager {
         return AccessController.doPrivileged((PrivilegedAction<FileCachedIndexInput>) () -> {
             try {
                 if (Files.exists(request.getFilePath()) == false) {
+                    logger.trace("Fetching from Remote in createIndexInput of Transfer Manager");
                     try (
                         OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
                         OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
                     ) {
                         for (BlobFetchRequest.BlobPart blobPart : request.blobParts()) {
                             try (
-                                InputStream snapshotFileInputStream = blobContainer.readBlob(
+                                InputStream snapshotFileInputStream = streamReader.read(
                                     blobPart.getBlobName(),
                                     blobPart.getPosition(),
                                     blobPart.getLength()
@@ -119,15 +130,15 @@ public class TransferManager {
      */
     private static class DelayedCreationCachedIndexInput implements CachedIndexInput {
         private final FileCache fileCache;
-        private final BlobContainer blobContainer;
+        private final StreamReader streamReader;
         private final BlobFetchRequest request;
         private final CompletableFuture<IndexInput> result = new CompletableFuture<>();
         private final AtomicBoolean isStarted = new AtomicBoolean(false);
         private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-        private DelayedCreationCachedIndexInput(FileCache fileCache, BlobContainer blobContainer, BlobFetchRequest request) {
+        private DelayedCreationCachedIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request) {
             this.fileCache = fileCache;
-            this.blobContainer = blobContainer;
+            this.streamReader = streamReader;
             this.request = request;
         }
 
@@ -139,7 +150,7 @@ public class TransferManager {
             if (isStarted.getAndSet(true) == false) {
                 // We're the first one here, need to download the block
                 try {
-                    result.complete(createIndexInput(fileCache, blobContainer, request));
+                    result.complete(createIndexInput(fileCache, streamReader, request));
                 } catch (Exception e) {
                     result.completeExceptionally(e);
                     fileCache.remove(request.getFilePath());

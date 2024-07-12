@@ -107,7 +107,40 @@ setup:
       reason: debug info for filter rewrite added in 3.0.0 (to be backported to 2.14.0)
 
   - do:
+      indices.create:
+        index: test_profile
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            refresh_interval: -1
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
+      bulk:
+        index: test_profile
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"date": "2020-03-01", "v": 1}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-02", "v": 2}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-08", "v": 3}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-09", "v": 4}'
+
+  - do:
+      indices.forcemerge:
+        index: test_profile
+        max_num_segments: 1
+
+  - do:
       search:
+        index: test_profile
         body:
           profile: true
           size: 0

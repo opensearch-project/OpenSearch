@@ -131,16 +131,17 @@ public class RemoteClusterMetadataManifest extends AbstractRemoteWritableBlobEnt
         return blobStoreFormat.deserialize(blobName, getNamedXContentRegistry(), Streams.readFully(inputStream));
     }
 
-    private int getManifestCodecVersion() {
+    // package private for testing
+    int getManifestCodecVersion() {
         assert blobName != null;
-        String[] splitName = blobName.split(DELIMITER);
+        String[] splitName = getBlobFileName().split(DELIMITER);
         if (splitName.length == SPLITTED_MANIFEST_FILE_LENGTH) {
             return Integer.parseInt(splitName[splitName.length - 1]); // Last value would be codec version.
         } else if (splitName.length < SPLITTED_MANIFEST_FILE_LENGTH) { // Where codec is not part of file name, i.e. default codec version 0
             // is used.
             return ClusterMetadataManifest.CODEC_V0;
         } else {
-            throw new IllegalArgumentException("Manifest file name is corrupted");
+            throw new IllegalArgumentException("Manifest file name is corrupted : " + blobName);
         }
     }
 

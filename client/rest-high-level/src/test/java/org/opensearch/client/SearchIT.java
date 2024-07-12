@@ -727,7 +727,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     }
 
     public void testSearchWithWeirdScriptFields() throws Exception {
-        Request doc = new Request("PUT", "test/_doc/1");
+        Request doc = new Request("PUT", "/test/_doc/1");
         doc.setJsonEntity("{\"field\":\"value\"}");
         client().performRequest(doc);
         client().performRequest(new Request("POST", "/test/_refresh"));
@@ -774,7 +774,7 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
     public void testSearchWithDerivedFields() throws Exception {
         // Just testing DerivedField definition from SearchSourceBuilder derivedField()
         // We are not testing the full functionality here
-        Request doc = new Request("PUT", "test/_doc/1");
+        Request doc = new Request("PUT", "/test/_doc/1");
         doc.setJsonEntity("{\"field\":\"value\"}");
         client().performRequest(doc);
         client().performRequest(new Request("POST", "/test/_refresh"));

@@ -20,15 +20,13 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteIndexMetadata;
+import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * A Manager which provides APIs to write and read Index Metadata to remote store
@@ -67,7 +65,6 @@ public class RemoteIndexMetadataManager {
             threadpool,
             ThreadPool.Names.REMOTE_STATE_READ
         );
-        ;
         this.namedXContentRegistry = blobStoreRepository.getNamedXContentRegistry();
         this.compressor = blobStoreRepository.getCompressor();
         this.indexMetadataUploadTimeout = clusterSettings.get(INDEX_METADATA_UPLOAD_TIMEOUT_SETTING);
@@ -93,6 +90,26 @@ public class RemoteIndexMetadataManager {
         return () -> indexMetadataBlobStore.writeAsync(remoteIndexMetadata, completionListener);
     }
 
+    CheckedRunnable<IOException> getAsyncIndexMetadataReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<RemoteReadResult> latchedActionListener
+    ) {
+        RemoteIndexMetadata remoteIndexMetadata = new RemoteIndexMetadata(
+            RemoteClusterStateUtils.getFormattedIndexFileName(uploadedFilename),
+            clusterUUID,
+            compressor,
+            namedXContentRegistry
+        );
+        ActionListener<IndexMetadata> actionListener = ActionListener.wrap(
+            response -> latchedActionListener.onResponse(
+                new RemoteReadResult(response, RemoteIndexMetadata.INDEX, response.getIndex().getName())
+            ),
+            latchedActionListener::onFailure
+        );
+        return () -> indexMetadataBlobStore.readAsync(remoteIndexMetadata, actionListener);
+    }
+
     /**
      * Fetch index metadata from remote cluster state
      *
@@ -114,24 +131,6 @@ public class RemoteIndexMetadataManager {
                 e
             );
         }
-    }
-
-    /**
-     * Fetch latest index metadata from remote cluster state
-     *
-     * @param clusterMetadataManifest manifest file of cluster
-     * @param clusterUUID             uuid of cluster state to refer to in remote
-     * @return {@code Map<String, IndexMetadata>} latest IndexUUID to IndexMetadata map
-     */
-    Map<String, IndexMetadata> getIndexMetadataMap(String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
-        assert Objects.equals(clusterUUID, clusterMetadataManifest.getClusterUUID())
-            : "Corrupt ClusterMetadataManifest found. Cluster UUID mismatch.";
-        Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
-        for (ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata : clusterMetadataManifest.getIndices()) {
-            IndexMetadata indexMetadata = getIndexMetadata(uploadedIndexMetadata, clusterUUID);
-            remoteIndexMetadata.put(uploadedIndexMetadata.getIndexUUID(), indexMetadata);
-        }
-        return remoteIndexMetadata;
     }
 
     public TimeValue getIndexMetadataUploadTimeout() {

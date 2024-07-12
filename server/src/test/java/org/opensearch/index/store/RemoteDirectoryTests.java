@@ -20,7 +20,9 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.store.remote.utils.BlockIOContext;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -216,6 +218,17 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
         assertTrue(indexInput instanceof RemoteIndexInput);
         assertEquals(100, indexInput.length());
         verify(blobContainer).listBlobsByPrefixInSortedOrder("segment_1", 1, LEXICOGRAPHIC);
+
+        BlockIOContext blockIOContextInvalidValues = new BlockIOContext(IOContext.DEFAULT, 10, 1000);
+        assertThrows(IllegalArgumentException.class, () -> remoteDirectory.openInput("segment_1", blockIOContextInvalidValues));
+
+        BlockIOContext blockIOContext = new BlockIOContext(IOContext.DEFAULT, 10, 50);
+        when(blobContainer.readBlob("segment_1", 10, 50)).thenReturn(mockInputStream);
+        byte[] bytes = new byte[(int) blockIOContext.getBlockSize()];
+        when(mockInputStream.readAllBytes()).thenReturn(bytes);
+        indexInput = remoteDirectory.openInput("segment_1", blockIOContext);
+        assertTrue(indexInput instanceof ByteArrayIndexInput);
+        assertEquals(blockIOContext.getBlockSize(), indexInput.length());
     }
 
     public void testOpenInputWithLength() throws IOException {

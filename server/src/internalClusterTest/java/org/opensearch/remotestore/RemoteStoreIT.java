@@ -65,7 +65,6 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
-import static org.opensearch.test.OpenSearchTestCase.getShardLevelBlobPath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -131,6 +130,21 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             30,
             TimeUnit.SECONDS
         );
+    }
+
+    public void testRemoteStoreIndexCreationAndDeletionWithReferencedStore() throws InterruptedException, ExecutionException {
+        String dataNode = internalCluster().startNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
+
+        // Simulating a condition where store is already in use by increasing ref count, this helps in testing index
+        // deletion when refresh is in-progress.
+        indexShard.store().incRef();
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+        indexShard.store().decRef();
     }
 
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataFlush() throws Exception {
