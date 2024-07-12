@@ -225,4 +225,11 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
     public Map<String, DoubleAdder> getInflightResourceLimitValues() {
         return inflightResourceLimitValues;
     }
+
+    /**
+     * clusterService getter
+     */
+    public ClusterService getClusterService() {
+        return clusterService;
+    }
 }
