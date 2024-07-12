@@ -316,7 +316,6 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
             defaultClusterStatsIndices.getSegments().getVersionMapMemoryInBytes(),
             optimzedClusterStatsIndices.getSegments().getVersionMapMemoryInBytes()
         );
-
     }
 
     private ClusterStatsNodeResponse createClusterStatsNodeResponse(

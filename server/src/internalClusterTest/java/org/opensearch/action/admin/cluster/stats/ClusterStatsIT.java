@@ -184,19 +184,19 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertThat(stats.getReplication(), Matchers.equalTo(replicationFactor));
     }
 
-    public void testIndicesShardStats() throws ExecutionException, InterruptedException {
+    public void testIndicesShardStatsDefault() {
         internalCluster().startNode();
         ensureGreen();
         ClusterStatsResponse response = client().admin()
             .cluster()
             .prepareClusterStats()
-            .useOptimizedClusterStatsResponse(randomBoolean())
+            .useOptimizedClusterStatsResponse(false)
             .get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
         prepareCreate("test1").setSettings(Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1)).get();
 
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(false).get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.YELLOW));
         assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0L));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(1));
@@ -207,14 +207,63 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         ensureGreen();
         index("test1", "type", "1", "f", "f");
         refresh(); // make the doc visible
-        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(randomBoolean()).get();
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(false).get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1L));
         assertShardStats(response.getIndicesStats().getShards(), 1, 4, 2, 1.0);
 
         prepareCreate("test2").setSettings(Settings.builder().put("number_of_shards", 3).put("number_of_replicas", 0)).get();
         ensureGreen();
-        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(randomBoolean()).get();
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(false).get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+        assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(2));
+        assertShardStats(response.getIndicesStats().getShards(), 2, 7, 5, 2.0 / 5);
+
+        assertThat(response.getIndicesStats().getShards().getAvgIndexPrimaryShards(), Matchers.equalTo(2.5));
+        assertThat(response.getIndicesStats().getShards().getMinIndexPrimaryShards(), Matchers.equalTo(2));
+        assertThat(response.getIndicesStats().getShards().getMaxIndexPrimaryShards(), Matchers.equalTo(3));
+
+        assertThat(response.getIndicesStats().getShards().getAvgIndexShards(), Matchers.equalTo(3.5));
+        assertThat(response.getIndicesStats().getShards().getMinIndexShards(), Matchers.equalTo(3));
+        assertThat(response.getIndicesStats().getShards().getMaxIndexShards(), Matchers.equalTo(4));
+
+        assertThat(response.getIndicesStats().getShards().getAvgIndexReplication(), Matchers.equalTo(0.5));
+        assertThat(response.getIndicesStats().getShards().getMinIndexReplication(), Matchers.equalTo(0.0));
+        assertThat(response.getIndicesStats().getShards().getMaxIndexReplication(), Matchers.equalTo(1.0));
+
+    }
+
+    public void testIndicesShardStatsOptimised() {
+        internalCluster().startNode();
+        ensureGreen();
+        ClusterStatsResponse response = client().admin()
+                .cluster()
+                .prepareClusterStats()
+                .useOptimizedClusterStatsResponse(true)
+                .get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+
+        prepareCreate("test1").setSettings(Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1)).get();
+
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(true).get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0L));
+        assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(1));
+        assertShardStats(response.getIndicesStats().getShards(), 1, 2, 2, 0.0);
+
+        // add another node, replicas should get assigned
+        internalCluster().startNode();
+        ensureGreen();
+        index("test1", "type", "1", "f", "f");
+        refresh(); // make the doc visible
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(true).get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+        assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1L));
+        assertShardStats(response.getIndicesStats().getShards(), 1, 4, 2, 1.0);
+
+        prepareCreate("test2").setSettings(Settings.builder().put("number_of_shards", 3).put("number_of_replicas", 0)).get();
+        ensureGreen();
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(true).get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(2));
         assertShardStats(response.getIndicesStats().getShards(), 2, 7, 5, 2.0 / 5);
