@@ -96,4 +96,13 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractRe
         this.pathHashAlgo = pathHashAlgo;
     }
 
+    // For testing only
+    public RemoteStoreEnums.PathType getPathTypeSetting() {
+        return pathType;
+    }
+
+    // For testing only
+    public RemoteStoreEnums.PathHashAlgorithm getPathHashAlgoSetting() {
+        return pathHashAlgo;
+    }
 }

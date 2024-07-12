@@ -67,7 +67,6 @@ import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_FORMAT;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.anyIterable;
@@ -359,7 +358,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            INDEX_ROUTING_TABLE_PREFIX
+            INDEX_ROUTING_METADATA_PREFIX
         );
 
         List<ClusterMetadataManifest.UploadedIndexMetadata> allIndiceRoutingMetadata = remoteRoutingTableService
@@ -374,7 +373,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            INDEX_ROUTING_TABLE_PREFIX
+            INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata))
@@ -392,7 +391,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            INDEX_ROUTING_TABLE_PREFIX
+            INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata))
@@ -401,7 +400,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index2",
             "index-uuid",
             "index-filename",
-            INDEX_ROUTING_TABLE_PREFIX
+            INDEX_ROUTING_METADATA_PREFIX
         );
 
         List<ClusterMetadataManifest.UploadedIndexMetadata> allIndiceRoutingMetadata = remoteRoutingTableService
@@ -417,13 +416,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            INDEX_ROUTING_TABLE_PREFIX
+            INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata2 = new ClusterMetadataManifest.UploadedIndexMetadata(
             "test-index2",
             "index-uuid",
             "index-filename",
-            INDEX_ROUTING_TABLE_PREFIX
+            INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata, uploadedIndexMetadata2))
@@ -441,13 +440,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "test-index",
             "index-uuid",
             "index-filename",
-            INDEX_ROUTING_TABLE_PREFIX
+            INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata2 = new ClusterMetadataManifest.UploadedIndexMetadata(
             "test-index2",
             "index-uuid",
             "index-filename",
-            INDEX_ROUTING_TABLE_PREFIX
+            INDEX_ROUTING_METADATA_PREFIX
         );
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder()
             .indicesRouting(List.of(uploadedIndexMetadata, uploadedIndexMetadata2))

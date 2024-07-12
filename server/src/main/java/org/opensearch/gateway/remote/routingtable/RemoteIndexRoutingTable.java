@@ -30,13 +30,13 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 public class RemoteIndexRoutingTable extends AbstractRemoteWritableBlobEntity<IndexRoutingTable> {
 
     public static final String INDEX_ROUTING_TABLE = "index-routing";
-    public static final String INDEX_ROUTING_TABLE_PREFIX = "index-routing--";
     public static final String INDEX_ROUTING_METADATA_PREFIX = "indexRouting--";
     public static final String INDEX_ROUTING_FILE = "index_routing";
     private IndexRoutingTable indexRoutingTable;
     private final Index index;
     private long term;
     private long version;
+    private BlobPathParameters blobPathParameters;
     public static final ChecksumWritableBlobStoreFormat<IndexRoutingTable> INDEX_ROUTING_TABLE_FORMAT =
         new ChecksumWritableBlobStoreFormat<>("index-routing-table", IndexRoutingTable::readFrom);
 
@@ -68,13 +68,12 @@ public class RemoteIndexRoutingTable extends AbstractRemoteWritableBlobEntity<In
         this.blobName = blobName;
     }
 
-    public Index getIndex() {
-        return index;
-    }
-
     @Override
     public BlobPathParameters getBlobPathParameters() {
-        return new BlobPathParameters(List.of(indexRoutingTable.getIndex().getUUID()), INDEX_ROUTING_FILE);
+        if (blobPathParameters == null) {
+            blobPathParameters = new BlobPathParameters(List.of(indexRoutingTable.getIndex().getUUID()), INDEX_ROUTING_FILE);
+        }
+        return blobPathParameters;
     }
 
     @Override

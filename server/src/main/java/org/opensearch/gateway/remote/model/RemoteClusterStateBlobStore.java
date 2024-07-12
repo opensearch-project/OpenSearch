@@ -94,12 +94,11 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
         return clusterName;
     }
 
-    public BlobPath getBasePath() {
-        return blobStoreRepository.basePath();
-    }
-
     public BlobPath getBlobPathPrefix(String clusterUUID) {
-        return getBasePath().add(RemoteClusterStateUtils.encodeString(getClusterName())).add(CLUSTER_STATE_PATH_TOKEN).add(clusterUUID);
+        return blobStoreRepository.basePath()
+            .add(RemoteClusterStateUtils.encodeString(getClusterName()))
+            .add(CLUSTER_STATE_PATH_TOKEN)
+            .add(clusterUUID);
     }
 
     public BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<T> obj) {

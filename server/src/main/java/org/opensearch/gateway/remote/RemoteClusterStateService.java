@@ -154,7 +154,6 @@ public class RemoteClusterStateService implements Closeable {
     private RemoteClusterStateAttributesManager remoteClusterStateAttributesManager;
     private RemoteManifestManager remoteManifestManager;
     private ClusterSettings clusterSettings;
-    private final ClusterService clusterService;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final String CLUSTER_STATE_UPLOAD_TIME_LOG_STRING = "writing cluster state for version [{}] took [{}ms]";
     private final String METADATA_UPDATE_LOG_STRING = "wrote metadata for [{}] indices and skipped [{}] unchanged "
@@ -196,7 +195,6 @@ public class RemoteClusterStateService implements Closeable {
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
-        this.clusterService = clusterService;
         this.isPublicationEnabled = FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL)
             && RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled(settings)
             && RemoteStoreNodeAttribute.isRemoteRoutingTableEnabled(settings);
