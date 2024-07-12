@@ -931,30 +931,32 @@ public class Node implements Closeable {
 
             final ViewService viewService = new ViewService(clusterService, client, null);
 
-            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
-                .stream()
-                .flatMap(
-                    p -> p.createComponents(
-                        new PluginAwareNodeClient(settings, threadPool, p),
-                        clusterService,
-                        threadPool,
-                        resourceWatcherService,
-                        scriptService,
-                        xContentRegistry,
-                        environment,
-                        nodeEnvironment,
-                        namedWriteableRegistry,
-                        clusterModule.getIndexNameExpressionResolver(),
-                        repositoriesServiceReference::get
-                    ).stream()
-                )
-                .collect(Collectors.toList());
+            List<PluginAwareNodeClient> pluginNodeClients = new ArrayList<>();
+            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> {
+                PluginAwareNodeClient pluginClient = new PluginAwareNodeClient(settings, threadPool, p);
+                pluginNodeClients.add(pluginClient);
+                return p.createComponents(
+                    pluginClient,
+                    clusterService,
+                    threadPool,
+                    resourceWatcherService,
+                    scriptService,
+                    xContentRegistry,
+                    environment,
+                    nodeEnvironment,
+                    namedWriteableRegistry,
+                    clusterModule.getIndexNameExpressionResolver(),
+                    repositoriesServiceReference::get
+                ).stream();
+            }).collect(Collectors.toList());
 
             Collection<Object> telemetryAwarePluginComponents = pluginsService.filterPlugins(TelemetryAwarePlugin.class)
                 .stream()
-                .flatMap(
-                    p -> p.createComponents(
-                        new PluginAwareNodeClient(settings, threadPool, (Plugin) p),
+                .flatMap(p -> {
+                    PluginAwareNodeClient pluginClient = new PluginAwareNodeClient(settings, threadPool, (Plugin) p);
+                    pluginNodeClients.add(pluginClient);
+                    return p.createComponents(
+                        pluginClient,
                         clusterService,
                         threadPool,
                         resourceWatcherService,
@@ -967,8 +969,8 @@ public class Node implements Closeable {
                         repositoriesServiceReference::get,
                         tracer,
                         metricsRegistry
-                    ).stream()
-                )
+                    ).stream();
+                })
                 .collect(Collectors.toList());
 
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
@@ -1430,6 +1432,14 @@ public class Node implements Closeable {
                 transportService.getRemoteClusterService(),
                 namedWriteableRegistry
             );
+            for (PluginAwareNodeClient pluginClient : pluginNodeClients) {
+                pluginClient.initialize(
+                    dynamicActionRegistry,
+                    () -> clusterService.localNode().getId(),
+                    transportService.getRemoteClusterService(),
+                    namedWriteableRegistry
+                );
+            }
             this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");
