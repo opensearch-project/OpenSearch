@@ -178,14 +178,25 @@ public class RootObjectMapper extends ObjectMapper {
 
             RootObjectMapper.Builder builder = new Builder(name);
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
+            Object compositeField = null;
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                    || processField(builder, fieldName, fieldNode, parserContext)) {
+                if (fieldName.equals("composite")) {
+                    compositeField = fieldNode;
                     iterator.remove();
+                } else {
+                    if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
+                        || processField(builder, fieldName, fieldNode, parserContext)) {
+                        iterator.remove();
+                    }
                 }
+            }
+            // Important : Composite field is made up of 2 or more source properties of the index, so this must be called
+            // after parsing all other properties
+            if (compositeField != null) {
+                parseCompositeField(builder, (Map<String, Object>) compositeField, parserContext);
             }
             return builder;
         }

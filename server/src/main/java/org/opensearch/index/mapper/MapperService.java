@@ -646,6 +646,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes();
     }
 
+    public boolean isCompositeIndexPresent() {
+        return this.mapper != null && !getCompositeFieldTypes().isEmpty();
+    }
+
+    public Set<CompositeMappedFieldType> getCompositeFieldTypes() {
+        Set<CompositeMappedFieldType> compositeMappedFieldTypes = new HashSet<>();
+        if (this.mapper == null) {
+            return Collections.emptySet();
+        }
+        for (MappedFieldType type : this.mapper.fieldTypes()) {
+            if (type instanceof CompositeMappedFieldType) {
+                compositeMappedFieldTypes.add((CompositeMappedFieldType) type);
+            }
+        }
+        return compositeMappedFieldTypes;
+    }
+
     public ObjectMapper getObjectMapper(String name) {
         return this.mapper == null ? null : this.mapper.objectMappers().get(name);
     }
