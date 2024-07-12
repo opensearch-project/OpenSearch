@@ -348,11 +348,6 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
             NodeIndicesStats.Fields.SHARDS,
             "unknown"
         );
-        String testToXContentLevel = randomFrom(
-            NodeIndicesStats.Fields.NODE,
-            NodeIndicesStats.Fields.INDICES,
-            NodeIndicesStats.Fields.SHARDS
-        );
         internalCluster().startNode();
         ensureGreen();
         String indexName = "test1";
@@ -373,9 +368,10 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         response.getNodes().forEach(nodeStats -> {
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder();
+
                 builder.startObject();
                 builder = nodeStats.getIndices()
-                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", testToXContentLevel)));
+                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.SHARDS)));
                 builder.endObject();
 
                 Map<String, Object> xContentMap = xContentBuilderToMap(builder);
@@ -384,18 +380,43 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                 LinkedHashMap shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS);
                 switch (testLevel) {
                     case NodeIndicesStats.Fields.SHARDS:
-                        assertFalse(shardStats == null || shardStats.isEmpty());
-                        assertFalse(indicesStats == null || indicesStats.isEmpty());
+                        assertFalse(shardStats.isEmpty());
+                        assertNull(indicesStats);
                         break;
                     case NodeIndicesStats.Fields.INDICES:
-                        assertTrue(shardStats == null || shardStats.isEmpty());
-                        assertFalse(indicesStats == null || indicesStats.isEmpty());
+                        assertTrue(shardStats.isEmpty());
+                        assertNull(indicesStats);
                         break;
                     case NodeIndicesStats.Fields.NODE:
                     case "null":
                     case "unknown":
-                        assertTrue(shardStats == null || shardStats.isEmpty());
-                        assertTrue(indicesStats == null || indicesStats.isEmpty());
+                        assertNull(shardStats);
+                        assertNull(indicesStats);
+                        break;
+                }
+
+                builder = XContentFactory.jsonBuilder();
+
+                builder.startObject();
+                builder = nodeStats.getIndices()
+                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.INDICES)));
+                builder.endObject();
+
+                xContentMap = xContentBuilderToMap(builder);
+                indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
+                indicesStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES);
+                shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS);
+                switch (testLevel) {
+                    case NodeIndicesStats.Fields.SHARDS:
+                    case NodeIndicesStats.Fields.INDICES:
+                        assertNull(shardStats);
+                        assertFalse(indicesStats.isEmpty());
+                        break;
+                    case NodeIndicesStats.Fields.NODE:
+                    case "null":
+                    case "unknown":
+                        assertNull(shardStats);
+                        assertNull(indicesStats);
                         break;
                 }
             } catch (IOException e) {
