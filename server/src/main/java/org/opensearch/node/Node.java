@@ -252,8 +252,10 @@ import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.PluginAwareThreadPoolWrapper;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.threadpool.ThreadPoolProxy;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -699,7 +701,10 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(SystemIndexPlugin.class)
                     .stream()
                     .collect(
-                        Collectors.toMap(plugin -> plugin.getClass().getSimpleName(), plugin -> plugin.getSystemIndexDescriptors(settings))
+                        Collectors.toMap(
+                            plugin -> plugin.getClass().getCanonicalName(),
+                            plugin -> plugin.getSystemIndexDescriptors(settings)
+                        )
                     )
             );
             final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);

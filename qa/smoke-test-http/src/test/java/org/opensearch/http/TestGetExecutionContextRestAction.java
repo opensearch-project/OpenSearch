@@ -9,6 +9,7 @@
 package org.opensearch.http;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
@@ -43,6 +44,9 @@ public class TestGetExecutionContextRestAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        try (ThreadContext.StoredContext storedContext = threadPool.getThreadContext().stashContext()) {
+            System.out.println("Stashed the context");
+        }
         Stack<String> pluginExecutionStack = threadPool.getThreadContext().getPluginExecutionStack();
         RestResponse response = new BytesRestResponse(RestStatus.OK, pluginExecutionStack.peek());
         return channel -> channel.sendResponse(response);

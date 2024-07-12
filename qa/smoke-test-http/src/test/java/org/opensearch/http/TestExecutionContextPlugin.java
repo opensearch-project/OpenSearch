@@ -54,7 +54,7 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        this.threadPool = threadPool;
+        this.threadPool = client.threadPool();
         return Collections.emptyList();
     }
 

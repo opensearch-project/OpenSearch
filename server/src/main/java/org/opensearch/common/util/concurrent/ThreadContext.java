@@ -112,7 +112,8 @@ public final class ThreadContext implements Writeable {
      * Name for the {@link #stashWithOrigin origin} attribute.
      */
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
-    private static final String PLUGIN_EXECUTION_CONTEXT_HEADER = "_plugin_execution_context";
+
+    private static final String PLUGIN_EXECUTION_CONTEXT = "_plugin_execution_context";
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
@@ -182,6 +183,46 @@ public final class ThreadContext implements Writeable {
         if (!transientHeaders.isEmpty()) {
             threadContextStruct = threadContextStruct.putTransient(transientHeaders);
         }
+
+        threadLocal.set(threadContextStruct);
+
+        return () -> {
+            // If the node and thus the threadLocal get closed while this task
+            // is still executing, we don't want this runnable to fail with an
+            // uncaught exception
+            threadLocal.set(context);
+        };
+    }
+
+    /**
+     * Removes the current context and resets a default context. The removed context can be
+     * restored by closing the returned {@link StoredContext}.
+     */
+    StoredContext stashContext(Class<?> pluginClass) {
+        System.out.println("Called stashContext with plugin: " + pluginClass);
+        final ThreadContextStruct context = threadLocal.get();
+        /*
+          X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
+          This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+          Otherwise when context is stash, it should be empty.
+         */
+
+        ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putPersistent(context.persistentHeaders);
+
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+            threadContextStruct = threadContextStruct.putHeaders(
+                MapBuilder.<String, String>newMapBuilder()
+                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
+                    .immutableMap()
+            );
+        }
+
+        final Map<String, Object> transientHeaders = propagateTransients(context.transientHeaders, context.isSystemContext);
+        if (!transientHeaders.isEmpty()) {
+            threadContextStruct = threadContextStruct.putTransient(transientHeaders);
+        }
+
+        threadContextStruct.putRequest(PLUGIN_EXECUTION_CONTEXT, pluginClass.getCanonicalName());
 
         threadLocal.set(threadContextStruct);
 
