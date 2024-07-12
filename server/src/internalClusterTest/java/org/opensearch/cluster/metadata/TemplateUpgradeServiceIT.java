@@ -34,7 +34,7 @@ package org.opensearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -87,7 +87,7 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
 
         @Override
         public Collection<Object> createComponents(
-            Client client,
+            PluginAwareNodeClient client,
             ClusterService clusterService,
             ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService,

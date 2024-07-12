@@ -33,7 +33,7 @@
 package org.opensearch.painless;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -136,7 +136,7 @@ public final class PainlessModulePlugin extends Plugin implements ScriptPlugin, 
 
     @Override
     public Collection<Object> createComponents(
-        Client client,
+        PluginAwareNodeClient client,
         ClusterService clusterService,
         ThreadPool threadPool,
         ResourceWatcherService resourceWatcherService,

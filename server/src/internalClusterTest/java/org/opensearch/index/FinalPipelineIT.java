@@ -42,7 +42,7 @@ import org.opensearch.action.ingest.GetPipelineResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
@@ -363,7 +363,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
 
         @Override
         public Collection<Object> createComponents(
-            final Client client,
+            final PluginAwareNodeClient client,
             final ClusterService clusterService,
             final ThreadPool threadPool,
             final ResourceWatcherService resourceWatcherService,

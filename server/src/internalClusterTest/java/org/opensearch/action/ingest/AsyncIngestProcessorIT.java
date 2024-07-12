@@ -36,7 +36,7 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -110,7 +110,7 @@ public class AsyncIngestProcessorIT extends OpenSearchSingleNodeTestCase {
 
         @Override
         public Collection<Object> createComponents(
-            Client client,
+            PluginAwareNodeClient client,
             ClusterService clusterService,
             ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService,

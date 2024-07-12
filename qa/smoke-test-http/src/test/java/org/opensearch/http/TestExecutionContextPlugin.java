@@ -43,7 +43,7 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<Object> createComponents(
-        Client client,
+        PluginAwareNodeClient client,
         ClusterService clusterService,
         ThreadPool threadPool,
         ResourceWatcherService resourceWatcherService,

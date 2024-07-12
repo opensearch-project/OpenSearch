@@ -8,7 +8,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -61,7 +61,7 @@ public interface TelemetryAwarePlugin {
      * @param metricsRegistry the registry for metrics instrumentation.
      */
     default Collection<Object> createComponents(
-        Client client,
+        PluginAwareNodeClient client,
         ClusterService clusterService,
         ThreadPool threadPool,
         ResourceWatcherService resourceWatcherService,

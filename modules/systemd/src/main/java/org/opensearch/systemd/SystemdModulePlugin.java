@@ -34,7 +34,7 @@ package org.opensearch.systemd;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
@@ -90,7 +90,7 @@ public class SystemdModulePlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public Collection<Object> createComponents(
-        final Client client,
+        final PluginAwareNodeClient client,
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ResourceWatcherService resourceWatcherService,

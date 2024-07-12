@@ -9,7 +9,7 @@
 package org.opensearch.plugin.insights;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -57,7 +57,7 @@ public class QueryInsightsPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<Object> createComponents(
-        final Client client,
+        final PluginAwareNodeClient client,
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ResourceWatcherService resourceWatcherService,

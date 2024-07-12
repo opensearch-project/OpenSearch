@@ -10,6 +10,10 @@ package org.opensearch.common.util.concurrent;
 
 import org.opensearch.plugins.Plugin;
 
+/**
+ * Wrapper class around the ThreadContext that is used within {@link org.opensearch.client.node.PluginAwareNodeClient}
+ * to enable retaining information about the plugin when switching out an authenticated user context
+ */
 public class PluginAwareThreadContextWrapper {
 
     private final ThreadContext threadContext;

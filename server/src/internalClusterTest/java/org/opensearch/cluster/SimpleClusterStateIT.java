@@ -38,6 +38,7 @@ import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesRespons
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -459,7 +460,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
 
         @Override
         public Collection<Object> createComponents(
-            final Client client,
+            final PluginAwareNodeClient client,
             final ClusterService clusterService,
             final ThreadPool threadPool,
             final ResourceWatcherService resourceWatcherService,

@@ -9,7 +9,7 @@
 package org.opensearch.plugin.insights;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -37,7 +37,7 @@ public class QueryInsightsPluginTests extends OpenSearchTestCase {
 
     private QueryInsightsPlugin queryInsightsPlugin;
 
-    private final Client client = mock(Client.class);
+    private final PluginAwareNodeClient client = mock(PluginAwareNodeClient.class);
     private ClusterService clusterService;
     private final ThreadPool threadPool = mock(ThreadPool.class);
 
