@@ -8,12 +8,9 @@
 
 package org.opensearch.common.remote;
 
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
-
-import java.io.IOException;
 
 /**
  * The RemoteWritableEntityManager interface provides async read and write methods for managing remote entities in the remote store
@@ -21,30 +18,30 @@ import java.io.IOException;
 public interface RemoteWritableEntityManager {
 
     /**
-     * Returns a CheckedRunnable that performs an asynchronous read operation for the specified component and entity.
+     * Performs an asynchronous read operation for the specified component and entity.
      *
      * @param component the component for which the read operation is performed
      * @param entity the entity to be read
-     * @param listener the listener to be notified when the read operation completes
-     * @return a CheckedRunnable that performs the asynchronous read operation
+     * @param listener the listener to be notified when the read operation completes.
+     *                 The listener's {@link ActionListener#onResponse(Object)} method
+     *                 is called with a {@link RemoteReadResult} object containing the
+     *                 read data on successful read. The
+     *                 {@link ActionListener#onFailure(Exception)} method is called with
+     *                 an exception if the read operation fails.
      */
-    CheckedRunnable<IOException> asyncRead(
-        String component,
-        AbstractRemoteWritableBlobEntity entity,
-        ActionListener<RemoteReadResult> listener
-    );
+    void readAsync(String component, AbstractRemoteWritableBlobEntity entity, ActionListener<RemoteReadResult> listener);
 
     /**
-     * Returns a CheckedRunnable that performs an asynchronous write operation for the specified component and entity.
+     * Performs an asynchronous write operation for the specified component and entity.
      *
      * @param component the component for which the write operation is performed
      * @param entity the entity to be written
-     * @param listener the listener to be notified when the write operation completes
-     * @return a CheckedRunnable that performs the asynchronous write operation
+     * @param listener the listener to be notified when the write operation completes.
+     *                 The listener's {@link ActionListener#onResponse(Object)} method
+     *                 is called with a {@link UploadedMetadata} object containing the
+     *                 uploaded metadata on successful write. The
+     *                 {@link ActionListener#onFailure(Exception)} method is called with
+     *                 an exception if the write operation fails.
      */
-    CheckedRunnable<IOException> asyncWrite(
-        String component,
-        AbstractRemoteWritableBlobEntity entity,
-        ActionListener<UploadedMetadata> listener
-    );
+    void writeAsync(String component, AbstractRemoteWritableBlobEntity entity, ActionListener<UploadedMetadata> listener);
 }

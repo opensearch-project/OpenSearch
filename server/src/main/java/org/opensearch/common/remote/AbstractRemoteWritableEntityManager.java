@@ -8,12 +8,10 @@
 
 package org.opensearch.common.remote;
 
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -71,20 +69,16 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
     );
 
     @Override
-    public CheckedRunnable<IOException> asyncWrite(
+    public void writeAsync(
         String component,
         AbstractRemoteWritableBlobEntity entity,
         ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
-        return () -> getStore(entity).writeAsync(entity, getWriteActionListener(component, entity, listener));
+        getStore(entity).writeAsync(entity, getWriteActionListener(component, entity, listener));
     }
 
     @Override
-    public CheckedRunnable<IOException> asyncRead(
-        String component,
-        AbstractRemoteWritableBlobEntity entity,
-        ActionListener<RemoteReadResult> listener
-    ) {
-        return () -> getStore(entity).readAsync(entity, getReadActionListener(component, entity, listener));
+    public void readAsync(String component, AbstractRemoteWritableBlobEntity entity, ActionListener<RemoteReadResult> listener) {
+        getStore(entity).readAsync(entity, getReadActionListener(component, entity, listener));
     }
 }
