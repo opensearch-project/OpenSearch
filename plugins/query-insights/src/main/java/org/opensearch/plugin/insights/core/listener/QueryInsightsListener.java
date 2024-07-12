@@ -145,9 +145,6 @@ public final class QueryInsightsListener extends SearchRequestOperationsListener
     private void constructSearchQueryRecord(final SearchPhaseContext context, final SearchRequestContext searchRequestContext) {
         SearchTask searchTask = context.getTask();
         List<TaskResourceInfo> tasksResourceUsages = searchRequestContext.getPhaseResourceUsage();
-        if (clusterService.getTaskResourceTrackingService() != null) {
-            clusterService.getTaskResourceTrackingService().refreshResourceStats(searchTask);
-        }
         tasksResourceUsages.add(
             new TaskResourceInfo(
                 searchTask.getAction(),

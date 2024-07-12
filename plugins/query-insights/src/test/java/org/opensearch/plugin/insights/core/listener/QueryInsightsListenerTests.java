@@ -32,7 +32,6 @@ import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -66,7 +65,6 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
     private final SearchRequest searchRequest = mock(SearchRequest.class);
     private final QueryInsightsService queryInsightsService = mock(QueryInsightsService.class);
     private final TopQueriesService topQueriesService = mock(TopQueriesService.class);
-    private final TaskResourceTrackingService taskResourceTrackingService = mock(TaskResourceTrackingService.class);
     private final ThreadPool threadPool = new TestThreadPool("QueryInsightsThreadPool");
     private ClusterService clusterService;
 
@@ -79,7 +77,6 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         ClusterState state = ClusterStateCreationUtils.stateWithActivePrimary("test", true, 1 + randomInt(3), randomInt(2));
         clusterService = ClusterServiceUtils.createClusterService(threadPool, state.getNodes().getLocalNode(), clusterSettings);
         ClusterServiceUtils.setState(clusterService, state);
-        clusterService.setTaskResourceTrackingService(taskResourceTrackingService);
         when(queryInsightsService.isCollectionEnabled(MetricType.LATENCY)).thenReturn(true);
         when(queryInsightsService.getTopQueriesService(MetricType.LATENCY)).thenReturn(topQueriesService);
 
@@ -142,7 +139,6 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         assertEquals(searchSourceBuilder.toString(), generatedRecord.getAttributes().get(Attribute.SOURCE));
         Map<String, String> labels = (Map<String, String>) generatedRecord.getAttributes().get(Attribute.LABELS);
         assertEquals("userLabel", labels.get(Task.X_OPAQUE_ID));
-        verify(taskResourceTrackingService, times(1)).refreshResourceStats(task);
     }
 
     public void testConcurrentOnRequestEnd() throws InterruptedException {
@@ -204,7 +200,6 @@ public class QueryInsightsListenerTests extends OpenSearchTestCase {
         countDownLatch.await();
 
         verify(queryInsightsService, times(numRequests)).addRecord(any());
-        verify(taskResourceTrackingService, times(numRequests)).refreshResourceStats(task);
     }
 
     public void testSetEnabled() {

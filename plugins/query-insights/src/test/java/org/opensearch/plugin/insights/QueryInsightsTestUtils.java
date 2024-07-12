@@ -12,8 +12,6 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.util.Maps;
-import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
-import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueries;
@@ -82,25 +80,6 @@ final public class QueryInsightsTestUtils {
             attributes.put(Attribute.TOTAL_SHARDS, randomIntBetween(1, 100));
             attributes.put(Attribute.INDICES, randomArray(1, 3, Object[]::new, () -> randomAlphaOfLengthBetween(5, 10)));
             attributes.put(Attribute.PHASE_LATENCY_MAP, phaseLatencyMap);
-            attributes.put(
-                Attribute.TASK_RESOURCE_USAGES,
-                List.of(
-                    new TaskResourceInfo(
-                        randomAlphaOfLengthBetween(5, 10),
-                        randomLongBetween(1, 1000),
-                        randomLongBetween(1, 1000),
-                        randomAlphaOfLengthBetween(5, 10),
-                        new TaskResourceUsage(randomLongBetween(1, 1000), randomLongBetween(1, 1000))
-                    ),
-                    new TaskResourceInfo(
-                        randomAlphaOfLengthBetween(5, 10),
-                        randomLongBetween(1, 1000),
-                        randomLongBetween(1, 1000),
-                        randomAlphaOfLengthBetween(5, 10),
-                        new TaskResourceUsage(randomLongBetween(1, 1000), randomLongBetween(1, 1000))
-                    )
-                )
-            );
 
             records.add(new SearchQueryRecord(timestamp, measurements, attributes));
             timestamp += interval;
