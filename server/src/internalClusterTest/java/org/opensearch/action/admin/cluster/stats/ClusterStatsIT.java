@@ -88,7 +88,11 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Map<String, Integer> expectedCounts = getExpectedCounts(1, 1, 1, 1, 1, 0, 0);
         int numNodes = randomIntBetween(1, 5);
 
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
 
         for (int i = 0; i < numNodes; i++) {
@@ -153,7 +157,11 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 0, 0, 0);
 
         Client client = client();
-        ClusterStatsResponse response = client.admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client.admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertCounts(response.getNodesStats().getCounts(), total, expectedCounts);
 
         Set<String> expectedRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE.roleName());
@@ -179,7 +187,11 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     public void testIndicesShardStats() throws ExecutionException, InterruptedException {
         internalCluster().startNode();
         ensureGreen();
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
         prepareCreate("test1").setSettings(Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1)).get();
@@ -195,14 +207,14 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         ensureGreen();
         index("test1", "type", "1", "f", "f");
         refresh(); // make the doc visible
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(randomBoolean()).get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(1L));
         assertShardStats(response.getIndicesStats().getShards(), 1, 4, 2, 1.0);
 
         prepareCreate("test2").setSettings(Settings.builder().put("number_of_shards", 3).put("number_of_replicas", 0)).get();
         ensureGreen();
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(randomBoolean()).get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertThat(response.indicesStats.getIndexCount(), Matchers.equalTo(2));
         assertShardStats(response.getIndicesStats().getShards(), 2, 7, 5, 2.0 / 5);
@@ -225,7 +237,11 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNodes(randomIntBetween(1, 3));
         index("test1", "type", "1", "f", "f");
 
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         String msg = response.toString();
         assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000L)); // 1 Jan 2000
         assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0L));
@@ -265,13 +281,21 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNode(Settings.builder().put(OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 7).build());
         waitForNodes(1);
 
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertThat(response.getNodesStats().getOs().getAllocatedProcessors(), equalTo(7));
     }
 
     public void testClusterStatusWhenStateNotRecovered() throws Exception {
         internalCluster().startClusterManagerOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
         if (randomBoolean()) {
@@ -281,14 +305,18 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         }
         // wait for the cluster status to settle
         ensureGreen();
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(randomBoolean()).get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
     public void testFieldTypes() {
         internalCluster().startNode();
         ensureGreen();
-        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse response = client().admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
@@ -301,7 +329,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
                     + "\"eggplant\":{\"type\":\"integer\"}}}}}"
             )
             .get();
-        response = client().admin().cluster().prepareClusterStats().get();
+        response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(randomBoolean()).get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
         Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
         for (IndexFeatureStats stat : stats) {
@@ -329,7 +357,11 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0);
 
         Client client = client();
-        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse clusterStatsResponse = client.admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedCounts);
 
         Set<String> expectedRoles = Set.of(
@@ -359,7 +391,11 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Map<String, Integer> expectedCounts = getExpectedCounts(0, 1, 1, 0, 1, 0, 0);
 
         Client client = client();
-        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse clusterStatsResponse = client.admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedCounts);
 
         Set<String> expectedRoles = Set.of(
@@ -383,7 +419,11 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0);
 
         Client client = client();
-        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse clusterStatsResponse = client.admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedRoleCounts);
 
         Set<String> expectedRoles = Set.of(
@@ -410,7 +450,11 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Map<String, Integer> expectedRoleCounts = getExpectedCounts(1, 1, 1, 0, 1, 0, 0);
 
         Client client = client();
-        ClusterStatsResponse clusterStatsResponse = client.admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse clusterStatsResponse = client.admin()
+            .cluster()
+            .prepareClusterStats()
+            .useOptimizedClusterStatsResponse(randomBoolean())
+            .get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedRoleCounts);
 
         Set<Set<String>> expectedNodesRoles = Set.of(

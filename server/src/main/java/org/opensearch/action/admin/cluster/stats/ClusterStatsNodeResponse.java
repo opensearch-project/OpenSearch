@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
@@ -55,6 +56,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final NodeStats nodeStats;
     private final ShardStats[] shardsStats;
     private ClusterHealthStatus clusterStatus;
+    private NodeIndexShardStats nodeIndexShardStats;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -64,7 +66,12 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         }
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
-        shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.shardsStats = in.readOptionalArray(ShardStats::new, ShardStats[]::new);
+            this.nodeIndexShardStats = in.readOptionalWriteable(NodeIndexShardStats::new);
+        } else {
+            this.shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
+        }
     }
 
     public ClusterStatsNodeResponse(
@@ -77,6 +84,24 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
+        this.shardsStats = shardsStats;
+        this.clusterStatus = clusterStatus;
+    }
+
+    public ClusterStatsNodeResponse(
+        DiscoveryNode node,
+        @Nullable ClusterHealthStatus clusterStatus,
+        NodeInfo nodeInfo,
+        NodeStats nodeStats,
+        ShardStats[] shardsStats,
+        boolean optimized
+    ) {
+        super(node);
+        this.nodeInfo = nodeInfo;
+        this.nodeStats = nodeStats;
+        if (optimized) {
+            this.nodeIndexShardStats = new NodeIndexShardStats(node, shardsStats);
+        }
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
     }
@@ -101,6 +126,10 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return this.shardsStats;
     }
 
+    public NodeIndexShardStats getNodeIndexShardStats() {
+        return nodeIndexShardStats;
+    }
+
     public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
         return new ClusterStatsNodeResponse(in);
     }
@@ -116,6 +145,16 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         }
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
-        out.writeArray(shardsStats);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (nodeIndexShardStats != null) {
+                out.writeOptionalArray(null);
+                out.writeOptionalWriteable(nodeIndexShardStats);
+            } else {
+                out.writeOptionalArray(shardsStats);
+                out.writeOptionalWriteable(null);
+            }
+        } else {
+            out.writeArray(shardsStats);
+        }
     }
 }
