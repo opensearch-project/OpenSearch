@@ -187,11 +187,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     public void testIndicesShardStatsDefault() {
         internalCluster().startNode();
         ensureGreen();
-        ClusterStatsResponse response = client().admin()
-            .cluster()
-            .prepareClusterStats()
-            .useOptimizedClusterStatsResponse(false)
-            .get();
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(false).get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
         prepareCreate("test1").setSettings(Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1)).get();
@@ -236,11 +232,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     public void testIndicesShardStatsOptimised() {
         internalCluster().startNode();
         ensureGreen();
-        ClusterStatsResponse response = client().admin()
-                .cluster()
-                .prepareClusterStats()
-                .useOptimizedClusterStatsResponse(true)
-                .get();
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(true).get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
         prepareCreate("test1").setSettings(Settings.builder().put("number_of_shards", 2).put("number_of_replicas", 1)).get();
