@@ -292,12 +292,23 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final String level = params.param("level", "node");
-        final boolean isLevelValid = "indices".equalsIgnoreCase(level)
-            || "node".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
+        final String level = params.param("level", Fields.NODE);
+        final boolean isLevelValid = Fields.NODE.equalsIgnoreCase(level)
+            || Fields.INDICES.equalsIgnoreCase(level)
+            || Fields.SHARDS.equalsIgnoreCase(level);
         if (!isLevelValid) {
-            throw new IllegalArgumentException("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]");
+            throw new IllegalArgumentException(
+                "level parameter must be one of ["
+                    + Fields.INDICES
+                    + "] or "
+                    + "["
+                    + Fields.NODE
+                    + "] or ["
+                    + Fields.SHARDS
+                    + "] but was ["
+                    + level
+                    + "]"
+            );
         }
 
         // "node" level
@@ -318,7 +329,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             }
             builder.endObject();
         } else if (Fields.SHARDS.equals(level)) {
-            builder.startObject("shards");
+            builder.startObject(Fields.SHARDS);
             if (statsByShard != null) {
                 for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
                     builder.startArray(entry.getKey().getName());
@@ -372,5 +383,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     public static final class Fields {
         public static final String INDICES = "indices";
         public static final String SHARDS = "shards";
+        public static final String NODE = "node";
+
     }
 }

@@ -1159,7 +1159,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
     public void testNodeIndicesStatsSerializationOnNewVersions() throws IOException {
         long numDocs = randomLongBetween(0, 10000);
         long numDeletedDocs = randomLongBetween(0, 100);
-        String levelParam = randomFrom("node", "indices", "shards");
+        String levelParam = randomFrom(NodeIndicesStats.Fields.INDICES, "indices", "shards");
 
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
