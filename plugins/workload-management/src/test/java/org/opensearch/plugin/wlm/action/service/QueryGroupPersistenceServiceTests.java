@@ -12,6 +12,8 @@ import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.plugin.wlm.action.GetQueryGroupResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -72,5 +74,21 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         List<QueryGroup> groups = queryGroupPersistenceService().getFromClusterStateMetadata(NAME_NONE_EXISTED, clusterState());
         assertEquals(0, groups.size());
         assertInflightValuesAreZero(queryGroupPersistenceService());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGet() {
+        QueryGroupPersistenceService queryGroupPersistenceService = queryGroupPersistenceService();
+        ActionListener<GetQueryGroupResponse> mockListener = mock(ActionListener.class);
+        queryGroupPersistenceService.get(NAME_ONE, mockListener);
+        queryGroupPersistenceService.get(NAME_NONE_EXISTED, mockListener);
+    }
+
+    public void testMaxQueryGroupCount() {
+        assertThrows(IllegalArgumentException.class, () -> queryGroupPersistenceService().setMaxQueryGroupCount(-1));
+        QueryGroupPersistenceService queryGroupPersistenceService = queryGroupPersistenceService();
+        queryGroupPersistenceService.setMaxQueryGroupCount(50);
+        assertEquals(50, queryGroupPersistenceService.getMaxQueryGroupCount());
+
     }
 }

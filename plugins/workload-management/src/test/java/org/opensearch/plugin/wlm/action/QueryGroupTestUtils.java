@@ -12,6 +12,8 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
+import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -75,16 +77,40 @@ public class QueryGroupTestUtils {
     }
 
     public static QueryGroupPersistenceService queryGroupPersistenceService() {
-        ClusterService clusterService = new ClusterService(settings(), clusterSettings(), mock(ThreadPool.class));
+        ClusterApplierService clusterApplierService = new ClusterApplierService(
+            "name",
+            settings(),
+            clusterSettings(),
+            mock(ThreadPool.class)
+        );
+        clusterApplierService.setInitialState(clusterState());
+        ClusterService clusterService = new ClusterService(
+            settings(),
+            clusterSettings(),
+            mock(ClusterManagerService.class),
+            clusterApplierService
+        );
         return new QueryGroupPersistenceService(clusterService, settings(), clusterSettings());
     }
 
     public static List<Object> preparePersistenceServiceSetup(Map<String, QueryGroup> queryGroups) {
         Metadata metadata = Metadata.builder().queryGroups(queryGroups).build();
         Settings settings = Settings.builder().build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterApplierService clusterApplierService = new ClusterApplierService(
+            "name",
+            settings(),
+            clusterSettings(),
+            mock(ThreadPool.class)
+        );
+        clusterApplierService.setInitialState(clusterState);
+        ClusterService clusterService = new ClusterService(
+            settings(),
+            clusterSettings(),
+            mock(ClusterManagerService.class),
+            clusterApplierService
+        );
         QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
             clusterService,
             settings,

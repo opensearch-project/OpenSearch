@@ -123,4 +123,11 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
     public Map<String, DoubleAdder> getInflightResourceLimitValues() {
         return inflightResourceLimitValues;
     }
+
+    /**
+     * maxQueryGroupCount getter
+     */
+    public int getMaxQueryGroupCount() {
+        return maxQueryGroupCount;
+    }
 }
