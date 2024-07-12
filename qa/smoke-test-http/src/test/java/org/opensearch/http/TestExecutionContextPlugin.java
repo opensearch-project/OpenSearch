@@ -9,6 +9,7 @@
 package org.opensearch.http;
 
 import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -38,7 +39,7 @@ import static java.util.Collections.singletonList;
 
 public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
 
-    private ThreadPool threadPool;
+    private Client client;
 
     @Override
     public Collection<Object> createComponents(
@@ -54,7 +55,7 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        this.threadPool = client.threadPool();
+        this.client = client;
         return Collections.emptyList();
     }
 
@@ -62,6 +63,6 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return List.of(new TestGetExecutionContextRestAction(threadPool));
+        return List.of(new TestGetExecutionContextRestAction((PluginAwareNodeClient) client));
     }
 }

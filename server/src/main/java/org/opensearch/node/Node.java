@@ -59,6 +59,7 @@ import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
@@ -252,10 +253,8 @@ import org.opensearch.telemetry.tracing.NoopTracerFactory;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.TracerFactory;
 import org.opensearch.threadpool.ExecutorBuilder;
-import org.opensearch.threadpool.PluginAwareThreadPoolWrapper;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.threadpool.ThreadPoolProxy;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
@@ -936,7 +935,7 @@ public class Node implements Closeable {
                 .stream()
                 .flatMap(
                     p -> p.createComponents(
-                        client,
+                        new PluginAwareNodeClient(settings, threadPool, p),
                         clusterService,
                         threadPool,
                         resourceWatcherService,
@@ -955,7 +954,7 @@ public class Node implements Closeable {
                 .stream()
                 .flatMap(
                     p -> p.createComponents(
-                        client,
+                        new PluginAwareNodeClient(settings, threadPool, (Plugin) p),
                         clusterService,
                         threadPool,
                         resourceWatcherService,

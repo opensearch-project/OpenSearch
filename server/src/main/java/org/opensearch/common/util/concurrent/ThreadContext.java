@@ -45,7 +45,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.http.HttpTransportSettings;
-import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskThreadContextStatePropagator;
 
@@ -61,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.Stack;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
@@ -113,13 +111,12 @@ public final class ThreadContext implements Writeable {
      */
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
 
-    private static final String PLUGIN_EXECUTION_CONTEXT = "_plugin_execution_context";
+    public static final String PLUGIN_EXECUTION_CONTEXT = "_plugin_execution_context";
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
     private final ThreadLocal<ThreadContextStruct> threadLocal;
-    private final ExecutionContext executionContext;
     private final int maxWarningHeaderCount;
     private final long maxWarningHeaderSize;
     private final List<ThreadContextStatePropagator> propagators;
@@ -131,7 +128,6 @@ public final class ThreadContext implements Writeable {
     public ThreadContext(Settings settings) {
         this.defaultHeader = buildDefaultHeaders(settings);
         this.threadLocal = ThreadLocal.withInitial(() -> DEFAULT_CONTEXT);
-        this.executionContext = new ExecutionContext();
         this.maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
         this.maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
         this.propagators = new CopyOnWriteArrayList<>(List.of(new TaskThreadContextStatePropagator()));
@@ -143,18 +139,6 @@ public final class ThreadContext implements Writeable {
 
     public void unregisterThreadContextStatePropagator(final ThreadContextStatePropagator propagator) {
         propagators.remove(Objects.requireNonNull(propagator));
-    }
-
-    void delegateExecutionToPlugin(Plugin plugin) {
-        this.executionContext.add(plugin);
-    }
-
-    public Stack<String> getPluginExecutionStack() {
-        return this.executionContext.get();
-    }
-
-    void returnToCore() {
-        this.executionContext.pop();
     }
 
     /**
@@ -199,7 +183,6 @@ public final class ThreadContext implements Writeable {
      * restored by closing the returned {@link StoredContext}.
      */
     StoredContext stashContext(Class<?> pluginClass) {
-        System.out.println("Called stashContext with plugin: " + pluginClass);
         final ThreadContextStruct context = threadLocal.get();
         /*
           X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
@@ -222,33 +205,13 @@ public final class ThreadContext implements Writeable {
             threadContextStruct = threadContextStruct.putTransient(transientHeaders);
         }
 
-        threadContextStruct.putRequest(PLUGIN_EXECUTION_CONTEXT, pluginClass.getCanonicalName());
-
+        threadContextStruct = threadContextStruct.putRequest(PLUGIN_EXECUTION_CONTEXT, pluginClass.getCanonicalName());
         threadLocal.set(threadContextStruct);
 
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an
             // uncaught exception
-            threadLocal.set(context);
-        };
-    }
-
-    /**
-     * Keeps the current context and also adds an entry into the plugin execution stack with the
-     * main class name of the plugin being delegated to
-     */
-    public StoredContext switchContext(Plugin plugin) {
-        final ThreadContextStruct context = threadLocal.get();
-
-        delegateExecutionToPlugin(plugin);
-        threadLocal.set(context);
-
-        return () -> {
-            // If the node and thus the threadLocal get closed while this task
-            // is still executing, we don't want this runnable to fail with an
-            // uncaught exception
-            returnToCore();
             threadLocal.set(context);
         };
     }

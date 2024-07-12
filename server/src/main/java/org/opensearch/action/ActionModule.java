@@ -322,7 +322,6 @@ import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
-import org.opensearch.rest.RestHandlerProxy;
 import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.action.RestFieldCapabilitiesAction;
 import org.opensearch.rest.action.RestMainAction;
@@ -996,8 +995,7 @@ public class ActionModule extends AbstractModule {
                 indexNameExpressionResolver,
                 nodesInCluster
             )) {
-                RestHandler handlerProxy = RestHandlerProxy.newInstance(handler, threadPool, plugin);
-                registerHandler.accept(handlerProxy);
+                registerHandler.accept(handler);
             }
         }
         registerHandler.accept(new RestCatAction(catActions));

@@ -32,27 +32,12 @@
 
 package org.opensearch.client.node;
 
-import org.opensearch.action.ActionModule.DynamicActionRegistry;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionType;
-import org.opensearch.action.support.TransportAction;
-import org.opensearch.client.Client;
-import org.opensearch.client.support.AbstractClient;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.PluginAwareThreadContextWrapper;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.RemoteClusterService;
-
-import java.util.function.Supplier;
 
 /**
  * Client that executes actions on the local node. This NodeClient is passed to a plugin in createComponents.
@@ -69,7 +54,7 @@ public class PluginAwareNodeClient extends NodeClient {
         this.wrapper = new PluginAwareThreadContextWrapper(threadPool.getThreadContext(), plugin);
     }
 
-    public ThreadContext.StoredContext stashContext() {
+    public ThreadContext.StoredContext switchContext() {
         return wrapper.stashContext();
     }
 }

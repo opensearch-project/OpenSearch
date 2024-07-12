@@ -12,8 +12,8 @@ import org.opensearch.plugins.Plugin;
 
 public class PluginAwareThreadContextWrapper {
 
-    private ThreadContext threadContext;
-    private Plugin plugin;
+    private final ThreadContext threadContext;
+    private final Plugin plugin;
 
     public PluginAwareThreadContextWrapper(ThreadContext threadContext, Plugin plugin) {
         this.threadContext = threadContext;

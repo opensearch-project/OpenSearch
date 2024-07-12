@@ -9,6 +9,7 @@
 package org.opensearch.http;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.BaseRestHandler;
@@ -26,10 +27,10 @@ import static org.opensearch.rest.RestRequest.Method.POST;
 
 public class TestGetExecutionContextRestAction extends BaseRestHandler {
 
-    private final ThreadPool threadPool;
+    private final PluginAwareNodeClient pluginAwareClient;
 
-    public TestGetExecutionContextRestAction(ThreadPool threadPool) {
-        this.threadPool = threadPool;
+    public TestGetExecutionContextRestAction(PluginAwareNodeClient pluginAwareClient) {
+        this.pluginAwareClient = pluginAwareClient;
     }
 
     @Override
@@ -44,11 +45,11 @@ public class TestGetExecutionContextRestAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        try (ThreadContext.StoredContext storedContext = threadPool.getThreadContext().stashContext()) {
-            System.out.println("Stashed the context");
+        String stashedContext;
+        try (ThreadContext.StoredContext storedContext = pluginAwareClient.switchContext()) {
+            stashedContext = pluginAwareClient.threadPool().getThreadContext().getHeader(ThreadContext.PLUGIN_EXECUTION_CONTEXT);
         }
-        Stack<String> pluginExecutionStack = threadPool.getThreadContext().getPluginExecutionStack();
-        RestResponse response = new BytesRestResponse(RestStatus.OK, pluginExecutionStack.peek());
+        RestResponse response = new BytesRestResponse(RestStatus.OK, stashedContext);
         return channel -> channel.sendResponse(response);
     }
 }
