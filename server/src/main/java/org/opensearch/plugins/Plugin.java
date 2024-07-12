@@ -33,7 +33,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.bootstrap.BootstrapCheck;
-import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -140,7 +140,7 @@ public abstract class Plugin implements Closeable {
      *                                   is called, but will return the repositories service once the node is initialized.
      */
     public Collection<Object> createComponents(
-        Client client,
+        PluginAwareNodeClient client,
         ClusterService clusterService,
         ThreadPool threadPool,
         ResourceWatcherService resourceWatcherService,
