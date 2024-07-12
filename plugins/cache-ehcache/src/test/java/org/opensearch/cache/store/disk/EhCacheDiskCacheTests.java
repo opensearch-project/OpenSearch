@@ -965,9 +965,9 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
             }
             ehcacheTest.close();
+            assertFalse(Files.exists(Path.of(path))); // Verify everything is cleared up now after close()
             // Call it again. This will throw an exception.
             ehcacheTest.close();
-            assertFalse(Files.exists(Path.of(path))); // Verify everything is cleared up now after close()
         }
     }
 
