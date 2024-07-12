@@ -8,18 +8,11 @@
 
 package org.opensearch.plugin.insights.rules.model;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * Valid attributes for a search query record
@@ -80,69 +73,6 @@ public enum Attribute {
      */
     static void writeTo(final StreamOutput out, final Attribute attribute) throws IOException {
         out.writeString(attribute.toString());
-    }
-
-    /**
-     * Write Attribute value to a StreamOutput
-     * @param out the StreamOutput to write
-     * @param attributeValue the Attribute value to write
-     */
-    @SuppressWarnings("unchecked")
-    public static void writeValueTo(StreamOutput out, Object attributeValue) throws IOException {
-        if (attributeValue instanceof List) {
-            out.writeList((List<? extends Writeable>) attributeValue);
-        } else {
-            out.writeGenericValue(attributeValue);
-        }
-    }
-
-    /**
-     * Read attribute value from the input stream given the Attribute type
-     *
-     * @param in the {@link StreamInput} input to read
-     * @param attribute attribute type to differentiate between Source and others
-     * @return parse value
-     * @throws IOException IOException
-     */
-    public static Object readAttributeValue(StreamInput in, Attribute attribute) throws IOException {
-        if (attribute == Attribute.TASK_RESOURCE_USAGES) {
-            return in.readList(TaskResourceInfo::readFromStream);
-        } else {
-            return in.readGenericValue();
-        }
-    }
-
-    /**
-     * Read attribute map from the input stream
-     *
-     * @param in the {@link StreamInput} to read
-     * @return parsed attribute map
-     * @throws IOException IOException
-     */
-    public static Map<Attribute, Object> readAttributeMap(StreamInput in) throws IOException {
-        int size = readArraySize(in);
-        if (size == 0) {
-            return Collections.emptyMap();
-        }
-        Map<Attribute, Object> map = new HashMap<>(size);
-
-        for (int i = 0; i < size; i++) {
-            Attribute key = readFromStream(in);
-            Object value = readAttributeValue(in, key);
-            map.put(key, value);
-        }
-        return map;
-    }
-
-    private static int readArraySize(StreamInput in) throws IOException {
-        final int arraySize = in.readVInt();
-        if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
-            throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH + " but was: " + arraySize);
-        }
-        if (arraySize < 0) {
-            throw new NegativeArraySizeException("array size must be positive but was: " + arraySize);
-        }
-        return arraySize;
     }
 
     @Override
