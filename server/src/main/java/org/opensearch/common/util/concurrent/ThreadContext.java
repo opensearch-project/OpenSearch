@@ -179,8 +179,8 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Removes the current context and resets a default context. The removed context can be
-     * restored by closing the returned {@link StoredContext}.
+     * Removes the current context and resets a default context. Retains information about plugin stashing the context.
+     * The removed context can be restored by closing the returned {@link StoredContext}.
      */
     StoredContext stashContext(Class<?> pluginClass) {
         final ThreadContextStruct context = threadLocal.get();
