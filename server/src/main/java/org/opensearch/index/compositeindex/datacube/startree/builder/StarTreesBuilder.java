@@ -93,7 +93,7 @@ public class StarTreesBuilder implements Closeable {
 
     }
 
-    private static StarTreeBuilder getSingleTreeBuilder(
+    static StarTreeBuilder getSingleTreeBuilder(
         StarTreeField starTreeField,
         Map<String, DocValuesProducer> fieldProducerMap,
         SegmentWriteState state,
