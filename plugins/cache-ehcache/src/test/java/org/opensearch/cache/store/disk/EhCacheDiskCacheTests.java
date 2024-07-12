@@ -934,6 +934,43 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testDiskCacheCloseCalledTwiceAndVerifyDiskDataIsCleanedUp() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            String path = env.nodePaths()[0].path.toString() + "/request_cache";
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(path)
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setDiskCacheAlias("test1")
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            for (int i = 0; i < randomKeys; i++) {
+                ICacheKey<String> iCacheKey = getICacheKey(UUID.randomUUID().toString());
+                ehcacheTest.put(iCacheKey, UUID.randomUUID().toString());
+                assertEquals(0, ehcacheTest.count()); // Expect count storagePath 0 if NoopCacheStatsHolder is used
+                assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
+            }
+            ehcacheTest.close();
+            // Call it again. This will throw an exception.
+            ehcacheTest.close();
+            assertFalse(Files.exists(Path.of(path))); // Verify everything is cleared up now after close()
+        }
+    }
+
     private List<String> getRandomDimensions(List<String> dimensionNames) {
         Random rand = Randomness.get();
         int bound = 3;

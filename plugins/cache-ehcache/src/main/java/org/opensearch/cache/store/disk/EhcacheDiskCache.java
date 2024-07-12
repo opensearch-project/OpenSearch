@@ -60,9 +60,7 @@ import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 
 import org.ehcache.Cache;
-import org.ehcache.CachePersistenceException;
 import org.ehcache.PersistentCacheManager;
-import org.ehcache.StateTransitionException;
 import org.ehcache.config.builders.CacheConfigurationBuilder;
 import org.ehcache.config.builders.CacheEventListenerConfigurationBuilder;
 import org.ehcache.config.builders.CacheManagerBuilder;
@@ -467,11 +465,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
             cacheManager.removeCache(this.diskCacheAlias);
             cacheManager.close();
             cacheManager.destroyCache(this.diskCacheAlias);
-        } catch (CachePersistenceException e) {
-            // When something goes wrong while destroying the persistence data
-            logger.error(() -> new ParameterizedMessage("Exception occurred while destroying ehcache and associated " + "data"), e);
-            throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
-        } catch (StateTransitionException e) {
+        } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close/remove ehcache"), e);
         } finally {
             // Delete all the disk cache related files/data in case it is present
