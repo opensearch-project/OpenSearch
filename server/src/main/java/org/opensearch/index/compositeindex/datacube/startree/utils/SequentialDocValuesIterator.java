@@ -8,8 +8,11 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.common.annotation.ExperimentalApi;
+
+import java.io.IOException;
 
 /**
  * Coordinates the reading of documents across multiple DocIdSetIterators.
@@ -42,6 +45,49 @@ public class SequentialDocValuesIterator {
      */
     public SequentialDocValuesIterator(DocIdSetIterator docIdSetIterator) {
         this.docIdSetIterator = docIdSetIterator;
+    }
+
+    /**
+     * Constructs a new SequentialDocValuesIterator instance with the given SortedNumericDocValues.
+     *
+     */
+    public SequentialDocValuesIterator() {
+        this.docIdSetIterator = new SortedNumericDocValues() {
+            @Override
+            public long nextValue() throws IOException {
+                return 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 0;
+            }
+
+            @Override
+            public boolean advanceExact(int i) throws IOException {
+                return false;
+            }
+
+            @Override
+            public int docID() {
+                return 0;
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return 0;
+            }
+
+            @Override
+            public int advance(int i) throws IOException {
+                return 0;
+            }
+
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
     }
 
     /**
