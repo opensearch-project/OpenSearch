@@ -52,6 +52,7 @@ import java.util.function.ToLongBiFunction;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
+import static org.opensearch.cache.store.disk.EhcacheDiskCache.MINIMUM_MAX_SIZE_IN_BYTES;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 @ThreadLeakFilters(filters = { EhcacheThreadLeakFilter.class })
@@ -905,6 +906,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 .setValueSerializer(new StringSerializer())
                 .setDimensionNames(List.of(dimensionName))
                 .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setThreadPoolAlias("")
                 .setSettings(settings)
                 .setExpireAfterAccess(TimeValue.MAX_VALUE)
                 .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
@@ -968,6 +970,60 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             assertFalse(Files.exists(Path.of(path))); // Verify everything is cleared up now after close()
             // Call it again. This will throw an exception.
             ehcacheTest.close();
+        }
+    }
+
+    public void testEhcacheDiskCacheWithoutStoragePathDefined() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                    .setIsEventListenerModeSync(true)
+                    .setKeyType(String.class)
+                    .setValueType(String.class)
+                    .setKeySerializer(new StringSerializer())
+                    .setDiskCacheAlias("test1")
+                    .setValueSerializer(new StringSerializer())
+                    .setDimensionNames(List.of(dimensionName))
+                    .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .setSettings(settings)
+                    .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                    .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                    .setRemovalListener(removalListener)
+                    .setWeigher(weigher)
+                    .setStatsTrackingEnabled(false)
+                    .build()
+            );
+        }
+    }
+
+    public void testEhcacheWithStorageSizeLowerThanMinimumExpected() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                    .setIsEventListenerModeSync(true)
+                    .setKeyType(String.class)
+                    .setValueType(String.class)
+                    .setKeySerializer(new StringSerializer())
+                    .setDiskCacheAlias("test1")
+                    .setValueSerializer(new StringSerializer())
+                    .setDimensionNames(List.of(dimensionName))
+                    .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .setSettings(settings)
+                    .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                    .setMaximumWeightInBytes(MINIMUM_MAX_SIZE_IN_BYTES)
+                    .setRemovalListener(removalListener)
+                    .setWeigher(weigher)
+                    .setStatsTrackingEnabled(false)
+                    .build()
+            );
         }
     }
 

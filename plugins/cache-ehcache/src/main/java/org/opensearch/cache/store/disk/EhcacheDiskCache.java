@@ -103,7 +103,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     // Unique id associated with this cache.
     private final static String UNIQUE_ID = UUID.randomUUID().toString();
     private final static String THREAD_POOL_ALIAS_PREFIX = "ehcachePool";
-    private final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
+    final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
 
     // A Cache manager can create many caches.
     private final PersistentCacheManager cacheManager;
