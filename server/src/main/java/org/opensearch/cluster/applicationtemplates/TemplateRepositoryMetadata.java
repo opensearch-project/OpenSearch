@@ -6,17 +6,20 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.service.applicationtemplates;
+package org.opensearch.cluster.applicationtemplates;
+
+import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
  * The information to uniquely identify a template repository.
  */
-public class TemplateRepositoryInfo {
+@ExperimentalApi
+public class TemplateRepositoryMetadata {
 
     private final String id;
     private final long version;
 
-    public TemplateRepositoryInfo(String id, long version) {
+    public TemplateRepositoryMetadata(String id, long version) {
         this.id = id;
         this.version = version;
     }

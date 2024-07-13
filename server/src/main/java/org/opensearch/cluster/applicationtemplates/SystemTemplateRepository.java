@@ -6,30 +6,32 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.service.applicationtemplates;
+package org.opensearch.cluster.applicationtemplates;
+
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Repository interface around the templates provided by a store (e.g. code repo, remote file store, etc)
  */
-public interface TemplateRepository extends AutoCloseable {
+@ExperimentalApi
+public interface SystemTemplateRepository extends AutoCloseable {
 
     /**
      * @return Metadata about the repository
      */
-    TemplateRepositoryInfo info();
+    TemplateRepositoryMetadata metadata();
 
     /**
      * @return Metadata for all available templates
      */
-    Iterable<SystemTemplateInfo> listTemplates() throws IOException;
+    Iterable<SystemTemplateMetadata> listTemplates() throws IOException;
 
     /**
      *
-     * @param template
-     * @return
+     * @param template metadata about template to be fetched
+     * @return The actual template content
      */
-    SystemTemplate fetchTemplate(SystemTemplateInfo template) throws IOException;
+    SystemTemplate getTemplate(SystemTemplateMetadata template) throws IOException;
 }

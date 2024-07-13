@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.service.applicationtemplates;
+package org.opensearch.cluster.applicationtemplates;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,6 +15,7 @@ import org.opensearch.client.Client;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.ComponentTemplate;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -23,22 +24,22 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
 
-public class ClusterStateComponentTemplateLoader implements TemplateLoader {
+@ExperimentalApi
+public class ClusterStateComponentSystemTemplateLoader implements SystemTemplateLoader {
 
-    private Client client;
+    private final Client client;
 
-    private Supplier<ClusterState> clusterStateSupplier;
+    private final Supplier<ClusterState> clusterStateSupplier;
 
-    private static final Logger logger = LogManager.getLogger(TemplateLoader.class);
+    private static final Logger logger = LogManager.getLogger(SystemTemplateLoader.class);
 
     public static final String TEMPLATE_LOADER_IDENTIFIER = "system_template_loader";
 
-    public ClusterStateComponentTemplateLoader(Client client,
-                                               ThreadPool threadPool,
-                                               Supplier<ClusterState> clusterStateSupplier) {
+    public ClusterStateComponentSystemTemplateLoader(Client client,
+                                                     ThreadPool threadPool,
+                                                     Supplier<ClusterState> clusterStateSupplier) {
         this.client = new OriginSettingClient(client, TEMPLATE_LOADER_IDENTIFIER);
         this.clusterStateSupplier = clusterStateSupplier;
     }

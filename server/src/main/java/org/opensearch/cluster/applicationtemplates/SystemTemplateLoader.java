@@ -6,7 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.service.applicationtemplates;
+package org.opensearch.cluster.applicationtemplates;
+
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
 
@@ -14,7 +16,8 @@ import java.io.IOException;
 /**
  * Interface to load template into the OpenSearch runtime.
  */
-public interface TemplateLoader {
+@ExperimentalApi
+public interface SystemTemplateLoader {
 
     /**
      * @param template Templated to be loaded

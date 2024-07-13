@@ -8,6 +8,7 @@
 
 package org.opensearch.cluster.service.applicationtemplates;
 
+import org.opensearch.cluster.applicationtemplates.*;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.plugins.Plugin;
 
@@ -18,27 +19,27 @@ import java.util.List;
 
 public class TestSystemTemplatesRepositoryPlugin extends Plugin implements SystemTemplatesPlugin {
 
-    private SystemTemplateInfo info = SystemTemplateInfo.createComponentTemplateInfo("dummy", 1);
+    private SystemTemplateMetadata info = SystemTemplateMetadata.createComponentTemplateInfo("dummy", 1);
 
-    private TemplateRepositoryInfo repoInfo = new TemplateRepositoryInfo("test", 1);
+    private TemplateRepositoryMetadata repoInfo = new TemplateRepositoryMetadata("test", 1);
 
     private SystemTemplate systemTemplate = new SystemTemplate(BytesReference.fromByteBuffer(ByteBuffer.wrap("content".getBytes(StandardCharsets.UTF_8))), info, repoInfo);
 
     @Override
-    public TemplateRepository loadRepository() throws IOException {
-        return new TemplateRepository() {
+    public SystemTemplateRepository loadRepository() throws IOException {
+        return new SystemTemplateRepository() {
             @Override
-            public TemplateRepositoryInfo info() {
+            public TemplateRepositoryMetadata metadata() {
                 return repoInfo;
             }
 
             @Override
-            public List<SystemTemplateInfo> listTemplates() throws IOException {
+            public List<SystemTemplateMetadata> listTemplates() throws IOException {
                 return List.of(info);
             }
 
             @Override
-            public SystemTemplate fetchTemplate(SystemTemplateInfo template) throws IOException {
+            public SystemTemplate getTemplate(SystemTemplateMetadata template) throws IOException {
                 return systemTemplate;
             }
 
@@ -49,8 +50,8 @@ public class TestSystemTemplatesRepositoryPlugin extends Plugin implements Syste
     }
 
     @Override
-    public TemplateLoader loaderFor(SystemTemplateInfo templateInfo) {
-        return new TemplateLoader() { // Asserting Loader
+    public SystemTemplateLoader loaderFor(SystemTemplateMetadata templateInfo) {
+        return new SystemTemplateLoader() { // Asserting Loader
             @Override
             public void loadTemplate(SystemTemplate template) throws IOException {
                 assert template.templateInfo() == info;

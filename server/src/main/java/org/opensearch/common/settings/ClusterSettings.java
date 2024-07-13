@@ -82,7 +82,7 @@ import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.applicationtemplates.SystemTemplatesService;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
@@ -761,7 +761,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
 
-                SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_LOAD
+                SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_MAX_TEMPLATES_LOAD,
+                SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED
             )
         )
     );

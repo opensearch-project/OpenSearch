@@ -6,22 +6,24 @@
  * compatible open source license.
  */
 
-package org.opensearch.cluster.service.applicationtemplates;
+package org.opensearch.cluster.applicationtemplates;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.bytes.BytesReference;
 
 /**
  * Encapsulates the information and content about a system template available within a repository.
  */
+@ExperimentalApi
 public class SystemTemplate {
 
     private final BytesReference templateContent;
 
-    private final SystemTemplateInfo templateInfo;
+    private final SystemTemplateMetadata templateInfo;
 
-    private final TemplateRepositoryInfo repositoryInfo;
+    private final TemplateRepositoryMetadata repositoryInfo;
 
-    public SystemTemplate(BytesReference templateContent, SystemTemplateInfo templateInfo, TemplateRepositoryInfo repositoryInfo) {
+    public SystemTemplate(BytesReference templateContent, SystemTemplateMetadata templateInfo, TemplateRepositoryMetadata repositoryInfo) {
         this.templateContent = templateContent;
         this.templateInfo = templateInfo;
         this.repositoryInfo = repositoryInfo;
@@ -31,11 +33,11 @@ public class SystemTemplate {
         return templateContent;
     }
 
-    public SystemTemplateInfo templateInfo() {
+    public SystemTemplateMetadata templateInfo() {
         return templateInfo;
     }
 
-    public TemplateRepositoryInfo repositoryInfo() {
+    public TemplateRepositoryMetadata repositoryInfo() {
         return repositoryInfo;
     }
 }
