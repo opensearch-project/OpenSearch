@@ -40,6 +40,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.Aggregations;
+import org.opensearch.search.externalengine.QueryEngineExtBuilder;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.search.suggest.Suggest;
@@ -74,6 +75,7 @@ public class SearchResponseSections implements ToXContentFragment {
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
     protected final List<SearchExtBuilder> searchExtBuilders = new ArrayList<>();
+    protected final List<QueryEngineExtBuilder> queryEngineExtBuilders = new ArrayList<>();
 
     public SearchResponseSections(
         SearchHits hits,
@@ -84,7 +86,7 @@ public class SearchResponseSections implements ToXContentFragment {
         SearchProfileShardResults profileResults,
         int numReducePhases
     ) {
-        this(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases, Collections.emptyList());
+        this(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases, Collections.emptyList(), Collections.emptyList());
     }
 
     public SearchResponseSections(
@@ -105,6 +107,28 @@ public class SearchResponseSections implements ToXContentFragment {
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
         this.searchExtBuilders.addAll(Objects.requireNonNull(searchExtBuilders, "searchExtBuilders must not be null"));
+    }
+
+    public SearchResponseSections(
+        SearchHits hits,
+        Aggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileShardResults profileResults,
+        int numReducePhases,
+        List<SearchExtBuilder> searchExtBuilders,
+        List<QueryEngineExtBuilder> queryEngineExtBuilders
+    ) {
+        this.hits = hits;
+        this.aggregations = aggregations;
+        this.suggest = suggest;
+        this.profileResults = profileResults;
+        this.timedOut = timedOut;
+        this.terminatedEarly = terminatedEarly;
+        this.numReducePhases = numReducePhases;
+        this.searchExtBuilders.addAll(Objects.requireNonNull(searchExtBuilders, "searchExtBuilders must not be null"));
+        this.queryEngineExtBuilders.addAll(Objects.requireNonNull(queryEngineExtBuilders, "queryEngineExtBuilders must not be null"));
     }
 
     public final boolean timedOut() {
@@ -166,6 +190,13 @@ public class SearchResponseSections implements ToXContentFragment {
             }
             builder.endObject();
         }
+
+        if(!queryEngineExtBuilders.isEmpty()) {
+           for (QueryEngineExtBuilder queryEngineExtBuilder: queryEngineExtBuilders) {
+               queryEngineExtBuilder.toXContent(builder, params);
+           }
+        }
+
         return builder;
     }
 

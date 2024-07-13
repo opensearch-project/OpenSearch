@@ -62,6 +62,7 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
+import org.opensearch.search.externalengine.QueryEngine;
 import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.FieldAndFormat;
@@ -223,6 +224,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private PointInTimeBuilder pointInTimeBuilder = null;
 
     private Map<String, Object> searchPipelineSource = null;
+    private List<QueryEngine> queryEngines = new ArrayList<>();
 
     /**
      * Constructs a new search source builder.
@@ -1119,6 +1121,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return this;
     }
 
+    public List<QueryEngine> queryEngines() {
+        return queryEngines;
+    }
+
+    public List<QueryEngine> queryEngines(List<QueryEngine> queryEngines) {
+        this.queryEngines = queryEngines;
+        return queryEngines;
+    }
+
     /**
      * Rewrites this search source builder into its primitive form. e.g. by
      * rewriting the QueryBuilder. If the builder did not change the identity
@@ -1366,11 +1377,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     } else if (DERIVED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         derivedFieldsObject = parser.map();
                     } else {
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation()
-                        );
+                        QueryEngine queryEngine = parser.namedObject(QueryEngine.class, currentFieldName, null);
+                        if (queryEngine != null) {
+                            queryEngines.add(queryEngine);
+                        }
+                        else {
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                parser.getTokenLocation()
+                            );
+                        }
                     }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
