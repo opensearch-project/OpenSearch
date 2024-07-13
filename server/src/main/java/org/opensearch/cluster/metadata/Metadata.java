@@ -1368,6 +1368,25 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        public Builder queryGroups(final Map<String, QueryGroup> queryGroups) {
+            this.customs.put(QueryGroupMetadata.TYPE, new QueryGroupMetadata(queryGroups));
+            return this;
+        }
+
+        public Builder put(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
+            existing.put(queryGroup.get_id(), queryGroup);
+            return queryGroups(existing);
+        }
+
+        private Map<String, QueryGroup> getQueryGroups() {
+            return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
+                .map(o -> (QueryGroupMetadata) o)
+                .map(QueryGroupMetadata::queryGroups)
+                .orElse(Collections.emptyMap());
+        }
+
         private Map<String, View> getViews() {
             return Optional.ofNullable(customs.get(ViewMetadata.TYPE))
                 .map(o -> (ViewMetadata) o)
