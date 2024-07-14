@@ -26,6 +26,9 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.function.Supplier;
 
+/**
+ * Class reponsible for loading the component templates provided by a repository into the cluster state.
+ */
 @ExperimentalApi
 public class ClusterStateComponentSystemTemplateLoader implements SystemTemplateLoader {
 
