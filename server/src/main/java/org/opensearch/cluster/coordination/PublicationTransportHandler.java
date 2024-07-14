@@ -284,7 +284,6 @@ public class PublicationTransportHandler {
                 )
             );
             ClusterState clusterState = remoteClusterStateService.getClusterStateUsingDiff(
-                request.getClusterName(),
                 manifest,
                 lastSeen,
                 transportService.getLocalNode().getId()

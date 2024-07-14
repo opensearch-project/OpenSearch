@@ -380,6 +380,57 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testPositionIncrementGapOnIndexPrefixField() throws IOException {
+        // test default position_increment_gap
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "text").field("analyzer", "default").startObject("index_prefixes").endObject())
+        );
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b 12" })));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
+            assertTrue(terms.seekExact(new BytesRef("12")));
+            PostingsEnum postings = terms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, postings.nextDoc());
+            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 2, postings.nextPosition());
+        });
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            TermsEnum terms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
+            assertTrue(terms.seekExact(new BytesRef("12")));
+            PostingsEnum postings = terms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, postings.nextDoc());
+            assertEquals(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP + 2, postings.nextPosition());
+        });
+
+        // test custom position_increment_gap
+        final int positionIncrementGap = randomIntBetween(1, 1000);
+        MapperService mapperService2 = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "text")
+                    .field("position_increment_gap", positionIncrementGap)
+                    .field("analyzer", "default")
+                    .startObject("index_prefixes")
+                    .endObject()
+            )
+        );
+        ParsedDocument doc2 = mapperService2.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b 12" })));
+        withLuceneIndex(mapperService2, iw -> iw.addDocument(doc2.rootDoc()), reader -> {
+            TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
+            assertTrue(terms.seekExact(new BytesRef("12")));
+            PostingsEnum postings = terms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, postings.nextDoc());
+            assertEquals(positionIncrementGap + 2, postings.nextPosition());
+        });
+        withLuceneIndex(mapperService2, iw -> iw.addDocument(doc2.rootDoc()), reader -> {
+            TermsEnum terms = getOnlyLeafReader(reader).terms("field._index_prefix").iterator();
+            assertTrue(terms.seekExact(new BytesRef("12")));
+            PostingsEnum postings = terms.postings(null, PostingsEnum.POSITIONS);
+            assertEquals(0, postings.nextDoc());
+            assertEquals(positionIncrementGap + 2, postings.nextPosition());
+        });
+    }
+
     public void testDefaultPositionIncrementGap() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));

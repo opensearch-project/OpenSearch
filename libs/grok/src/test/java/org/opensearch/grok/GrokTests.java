@@ -377,6 +377,16 @@ public class GrokTests extends OpenSearchTestCase {
             "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] " + "via patterns [NAME1=>NAME2=>NAME3=>NAME4]",
             e.getMessage()
         );
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new TreeMap<>();
+            for (int i = 1; i <= 501; i++) {
+                bank.put("NAME" + i, "!!!%{NAME" + (i + 1) + "}!!!");
+            }
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false, logger::warn);
+        });
+        assertEquals("Pattern references exceeded maximum depth of 500", e.getMessage());
     }
 
     public void testMalformedPattern() {

@@ -81,50 +81,52 @@ public class RestResourcesPlugin implements Plugin<Project> {
         // tests
         Configuration testConfig = project.getConfigurations().create("restTestConfig");
         project.getConfigurations().create("restTests");
+
+        if (BuildParams.isInternal()) {
+            // core
+            Dependency restTestdependency = project.getDependencies().project(new HashMap<String, String>() {
+                {
+                    put("path", ":rest-api-spec");
+                    put("configuration", "restTests");
+                }
+            });
+            testConfig.withDependencies(s -> s.add(restTestdependency));
+        } else {
+            Dependency dependency = project.getDependencies().create("org.opensearch:rest-api-spec:" + VersionProperties.getOpenSearch());
+            testConfig.withDependencies(s -> s.add(dependency));
+        }
+
         Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
             .register("copyYamlTestsTask", CopyRestTestsTask.class, task -> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.coreConfig = testConfig;
                 task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
-                if (BuildParams.isInternal()) {
-                    // core
-                    Dependency restTestdependency = project.getDependencies().project(new HashMap<String, String>() {
-                        {
-                            put("path", ":rest-api-spec");
-                            put("configuration", "restTests");
-                        }
-                    });
-                    project.getDependencies().add(task.coreConfig.getName(), restTestdependency);
-                } else {
-                    Dependency dependency = project.getDependencies()
-                        .create("org.opensearch:rest-api-spec:" + VersionProperties.getOpenSearch());
-                    project.getDependencies().add(task.coreConfig.getName(), dependency);
-                }
                 task.dependsOn(task.coreConfig);
             });
 
         // api
         Configuration specConfig = project.getConfigurations().create("restSpec"); // name chosen for passivity
         project.getConfigurations().create("restSpecs");
+
+        if (BuildParams.isInternal()) {
+            Dependency restSpecDependency = project.getDependencies().project(new HashMap<String, String>() {
+                {
+                    put("path", ":rest-api-spec");
+                    put("configuration", "restSpecs");
+                }
+            });
+            specConfig.withDependencies(s -> s.add(restSpecDependency));
+        } else {
+            Dependency dependency = project.getDependencies().create("org.opensearch:rest-api-spec:" + VersionProperties.getOpenSearch());
+            specConfig.withDependencies(s -> s.add(dependency));
+        }
+
         Provider<CopyRestApiTask> copyRestYamlSpecTask = project.getTasks()
             .register("copyRestApiSpecsTask", CopyRestApiTask.class, task -> {
                 task.includeCore.set(extension.restApi.getIncludeCore());
                 task.dependsOn(copyRestYamlTestTask);
                 task.coreConfig = specConfig;
                 task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
-                if (BuildParams.isInternal()) {
-                    Dependency restSpecDependency = project.getDependencies().project(new HashMap<String, String>() {
-                        {
-                            put("path", ":rest-api-spec");
-                            put("configuration", "restSpecs");
-                        }
-                    });
-                    project.getDependencies().add(task.coreConfig.getName(), restSpecDependency);
-                } else {
-                    Dependency dependency = project.getDependencies()
-                        .create("org.opensearch:rest-api-spec:" + VersionProperties.getOpenSearch());
-                    project.getDependencies().add(task.coreConfig.getName(), dependency);
-                }
                 task.dependsOn(task.coreConfig);
             });
 
