@@ -42,8 +42,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -187,6 +189,26 @@ public class SystemIndicesTests extends OpenSearchTestCase {
             equalTo(Set.of(".system-index1", ".system-index-pattern1"))
         );
         assertThat(SystemIndexRegistry.matchesSystemIndexPattern(Set.of(".not-system")), equalTo(Collections.emptySet()));
+    }
+
+    public void testRegisteredSystemIndexGetAllDescriptors() {
+        SystemIndexPlugin plugin1 = new SystemIndexPlugin1();
+        SystemIndexPlugin plugin2 = new SystemIndexPlugin2();
+        SystemIndices pluginSystemIndices = new SystemIndices(
+            Map.of(
+                SystemIndexPlugin1.class.getCanonicalName(),
+                plugin1.getSystemIndexDescriptors(Settings.EMPTY),
+                SystemIndexPlugin2.class.getCanonicalName(),
+                plugin2.getSystemIndexDescriptors(Settings.EMPTY)
+            )
+        );
+        assertEquals(
+            SystemIndexRegistry.getAllDescriptors()
+                .stream()
+                .map(SystemIndexDescriptor::getIndexPattern)
+                .collect(Collectors.toUnmodifiableList()),
+            List.of(SystemIndexPlugin1.SYSTEM_INDEX_1, SystemIndexPlugin2.SYSTEM_INDEX_2, TASK_INDEX + "*")
+        );
     }
 
     public void testRegisteredSystemIndexMatching() {
