@@ -29,6 +29,6 @@ public class ShortestRunningTaskFirstStrategyStrategyTests extends OpenSearchTes
         List<Task> tasks = Arrays.asList(task1, task3, task2);
         tasks.sort(new ShortestRunningTaskFirstStrategy().sortingCondition());
 
-        assertEquals(Arrays.asList(task1, task2, task3), tasks);
+        assertEquals(Arrays.asList(task3, task2, task1), tasks);
     }
 }

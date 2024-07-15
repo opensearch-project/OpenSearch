@@ -22,7 +22,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
     public static class TestTaskSelectionStrategy extends AbstractTaskSelectionStrategy {
         @Override
         public Comparator<Task> sortingCondition() {
-            return Comparator.comparingLong(Task::getStartTime).reversed();
+            return Comparator.comparingLong(Task::getId);
         }
     }
 

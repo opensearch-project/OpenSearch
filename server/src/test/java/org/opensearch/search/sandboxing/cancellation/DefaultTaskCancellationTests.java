@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
-    private class TestTaskCancellationImpl extends DefaultTaskCancellation {
+    private static class TestTaskCancellationImpl extends DefaultTaskCancellation {
 
         public TestTaskCancellationImpl(
             TaskSelectionStrategy taskSelectionStrategy,
@@ -75,8 +75,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getCancellableTasksFrom(sandbox1);
         assertEquals(2, cancellableTasksFrom.size());
-        assertEquals(4321, cancellableTasksFrom.get(0).getTask().getId());
-        assertEquals(1234, cancellableTasksFrom.get(1).getTask().getId());
+        assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
+        assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
     }
 
     public void testGetCancellableTasksFrom_returnsNoTasksWhenBreachingThreshold() {
@@ -115,8 +115,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getAllCancellableTasks();
         assertEquals(2, cancellableTasksFrom.size());
-        assertEquals(4321, cancellableTasksFrom.get(0).getTask().getId());
-        assertEquals(1234, cancellableTasksFrom.get(1).getTask().getId());
+        assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
+        assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
 
         taskCancellation.cancelTasks();
         assertTrue(cancellableTasksFrom.get(0).getTask().isCancelled());
@@ -153,8 +153,8 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
         List<TaskCancellation> allCancellableTasks = taskCancellation.getAllCancellableTasks();
         assertEquals(2, allCancellableTasks.size());
-        assertEquals(4321, allCancellableTasks.get(0).getTask().getId());
-        assertEquals(1234, allCancellableTasks.get(1).getTask().getId());
+        assertEquals(1234, allCancellableTasks.get(0).getTask().getId());
+        assertEquals(4321, allCancellableTasks.get(1).getTask().getId());
     }
 
     public void testGetCancellableTasksFrom_returnsTasksEvenWhenSandboxIdNotFound() {
@@ -174,7 +174,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
         List<TaskCancellation> cancellableTasksFrom = taskCancellation.getCancellableTasksFrom(sandbox1);
         assertEquals(2, cancellableTasksFrom.size());
-        assertEquals(4321, cancellableTasksFrom.get(0).getTask().getId());
-        assertEquals(1234, cancellableTasksFrom.get(1).getTask().getId());
+        assertEquals(1234, cancellableTasksFrom.get(0).getTask().getId());
+        assertEquals(4321, cancellableTasksFrom.get(1).getTask().getId());
     }
 }
