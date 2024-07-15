@@ -10,6 +10,7 @@ package org.opensearch.cluster.applicationtemplates;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.ClusterSettings;
@@ -105,9 +106,11 @@ public class SystemTemplatesService implements LocalNodeClusterManagerListener {
                         } catch (Exception ex) {
                             exceptions.add(ex);
                             logger.error(
-                                "Failed loading template  {} from repository: {}",
-                                templateMetadata.fullyQualifiedName(),
-                                repositoryMetadata.id(),
+                                new ParameterizedMessage(
+                                    "Failed loading template  {} from repository: {}",
+                                    templateMetadata.fullyQualifiedName(),
+                                    repositoryMetadata.id()
+                                ),
                                 ex
                             );
                             failedLoadingTemplates++;
@@ -116,7 +119,7 @@ public class SystemTemplatesService implements LocalNodeClusterManagerListener {
                 } catch (Exception ex) {
                     exceptions.add(ex);
                     failedLoadingRepositories++;
-                    logger.error("Failed loading repository from plugin: {}", plugin.getClass().getName(), ex);
+                    logger.error(new ParameterizedMessage("Failed loading repository from plugin: {}", plugin.getClass().getName()), ex);
                 }
             }
 
@@ -148,6 +151,9 @@ public class SystemTemplatesService implements LocalNodeClusterManagerListener {
         enabledTemplates = enabled;
     }
 
+    /**
+     * Class to record stats for templates loaded through the listener in a single iteration.
+     */
     @ExperimentalApi
     public static class Stats {
         private final long templatesLoaded;

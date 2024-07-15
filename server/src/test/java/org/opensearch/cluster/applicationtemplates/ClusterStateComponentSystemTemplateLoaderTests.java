@@ -21,7 +21,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.io.IOException;
 import java.util.UUID;
 
-public class ClusterStateComponentSystemTemplateLoaderTest extends OpenSearchSingleNodeTestCase {
+public class ClusterStateComponentSystemTemplateLoaderTests extends OpenSearchSingleNodeTestCase {
 
     public static final String SAMPLE_TEMPLATE = "{\n"
         + "  \"template\": {\n"

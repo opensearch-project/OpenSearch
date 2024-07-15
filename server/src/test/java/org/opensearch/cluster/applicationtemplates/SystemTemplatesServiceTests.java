@@ -25,7 +25,7 @@ import org.mockito.Mockito;
 import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.mockito.Mockito.when;
 
-public class SystemTemplatesServiceTest extends OpenSearchTestCase {
+public class SystemTemplatesServiceTests extends OpenSearchTestCase {
 
     private SystemTemplatesService systemTemplatesService;
 
