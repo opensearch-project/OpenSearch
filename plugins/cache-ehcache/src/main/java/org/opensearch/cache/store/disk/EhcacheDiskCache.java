@@ -103,8 +103,6 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     // Unique id associated with this cache.
     private final static String UNIQUE_ID = UUID.randomUUID().toString();
     private final static String THREAD_POOL_ALIAS_PREFIX = "ehcachePool";
-    final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
-
     // A Cache manager can create many caches.
     private final PersistentCacheManager cacheManager;
 
@@ -125,6 +123,10 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final String diskCacheAlias;
     private final Serializer<K, byte[]> keySerializer;
     private final Serializer<V, byte[]> valueSerializer;
+
+    final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
+    final static String CACHE_DATA_CLEANUP_DURING_INITIALIZATION_EXCEPTION = "Failed to delete ehcache disk cache under "
+        + "path: % during initialization. Please clean this up manually and restart the process";
 
     /**
      * Used in computeIfAbsent to synchronize loading of a given key. This is needed as ehcache doesn't provide a
@@ -160,12 +162,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                 logger.info("Found older disk cache data lying around during initialization under path: {}", this.storagePath);
                 IOUtils.rm(ehcacheDirectory);
             } catch (IOException e) {
-                logger.error(
-                    () -> new ParameterizedMessage(
-                        "Failed to delete ehcache disk cache data under path: {} " + "during initial",
-                        this.storagePath
-                    )
-                );
+                throw new OpenSearchException(String.format(CACHE_DATA_CLEANUP_DURING_INITIALIZATION_EXCEPTION, this.storagePath));
             }
         }
         if (builder.threadPoolAlias == null || builder.threadPoolAlias.isBlank()) {
