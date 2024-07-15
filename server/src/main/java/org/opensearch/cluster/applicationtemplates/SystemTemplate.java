@@ -19,25 +19,25 @@ public class SystemTemplate {
 
     private final BytesReference templateContent;
 
-    private final SystemTemplateMetadata templateInfo;
+    private final SystemTemplateMetadata templateMetadata;
 
-    private final TemplateRepositoryMetadata repositoryInfo;
+    private final TemplateRepositoryMetadata repositoryMetadata;
 
     public SystemTemplate(BytesReference templateContent, SystemTemplateMetadata templateInfo, TemplateRepositoryMetadata repositoryInfo) {
         this.templateContent = templateContent;
-        this.templateInfo = templateInfo;
-        this.repositoryInfo = repositoryInfo;
+        this.templateMetadata = templateInfo;
+        this.repositoryMetadata = repositoryInfo;
     }
 
     public BytesReference templateContent() {
         return templateContent;
     }
 
-    public SystemTemplateMetadata templateInfo() {
-        return templateInfo;
+    public SystemTemplateMetadata templateMetadata() {
+        return templateMetadata;
     }
 
-    public TemplateRepositoryMetadata repositoryInfo() {
-        return repositoryInfo;
+    public TemplateRepositoryMetadata repositoryMetadata() {
+        return repositoryMetadata;
     }
 }

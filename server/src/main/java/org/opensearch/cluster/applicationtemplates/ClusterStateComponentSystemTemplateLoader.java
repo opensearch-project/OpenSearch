@@ -10,6 +10,7 @@ package org.opensearch.cluster.applicationtemplates;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.opensearch.client.Client;
 import org.opensearch.client.OriginSettingClient;
@@ -21,13 +22,13 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * Class reponsible for loading the component templates provided by a repository into the cluster state.
+ * Class responsible for loading the component templates provided by a repository into the cluster state.
  */
 @ExperimentalApi
 public class ClusterStateComponentSystemTemplateLoader implements SystemTemplateLoader {
@@ -40,30 +41,61 @@ public class ClusterStateComponentSystemTemplateLoader implements SystemTemplate
 
     public static final String TEMPLATE_LOADER_IDENTIFIER = "system_template_loader";
 
-    public ClusterStateComponentSystemTemplateLoader(Client client,
-                                                     ThreadPool threadPool,
-                                                     Supplier<ClusterState> clusterStateSupplier) {
+    public ClusterStateComponentSystemTemplateLoader(Client client, Supplier<ClusterState> clusterStateSupplier) {
         this.client = new OriginSettingClient(client, TEMPLATE_LOADER_IDENTIFIER);
         this.clusterStateSupplier = clusterStateSupplier;
     }
 
     @Override
-    public void loadTemplate(SystemTemplate template) throws IOException {
-        ComponentTemplate existingTemplate = clusterStateSupplier.get().metadata().componentTemplates().get(template.templateInfo().fullyQualifiedName());
+    public boolean loadTemplate(SystemTemplate template) throws IOException {
+        final ComponentTemplate existingTemplate = clusterStateSupplier.get()
+            .metadata()
+            .componentTemplates()
+            .get(template.templateMetadata().fullyQualifiedName());
 
-        XContentParser contentParser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS,
-            template.templateContent().utf8ToString());
-        ComponentTemplate newTemplate = ComponentTemplate.parse(contentParser);
+        final XContentParser contentParser = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.IGNORE_DEPRECATIONS,
+            template.templateContent().utf8ToString()
+        );
+        final ComponentTemplate newTemplate = ComponentTemplate.parse(contentParser);
 
-        if (existingTemplate != null && existingTemplate.version() >= newTemplate.version()) {
-            logger.debug("Skipping putting template {} as its existing version [{}] is >= fetched version [{}]", template.templateInfo().fullyQualifiedName(),
-                existingTemplate.version(),
-                newTemplate.version());
+        if (!Objects.equals(newTemplate.version(), template.templateMetadata().version())) {
+            throw new OpenSearchCorruptionException(
+                "Template version mismatch for "
+                    + template.templateMetadata().name()
+                    + ". Version in metadata: "
+                    + template.templateMetadata().version()
+                    + " , Version in content: "
+                    + newTemplate.version()
+            );
         }
 
-        PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request(template.templateInfo().fullyQualifiedName())
-            .componentTemplate(newTemplate);
+        if (existingTemplate != null
+            && !Boolean.parseBoolean(Objects.toString(existingTemplate.metadata().get(SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE)))) {
+            throw new OpenSearchCorruptionException(
+                "Attempting to create " + template.templateMetadata().name() + " which has already been created through some other source."
+            );
+        }
 
-        client.admin().indices().execute(PutComponentTemplateAction.INSTANCE, request).actionGet(TimeValue.timeValueMillis(30000));
+        if (existingTemplate != null && existingTemplate.version() >= newTemplate.version()) {
+            logger.debug(
+                "Skipping putting template {} as its existing version [{}] is >= fetched version [{}]",
+                template.templateMetadata().fullyQualifiedName(),
+                existingTemplate.version(),
+                newTemplate.version()
+            );
+            return false;
+        }
+
+        final PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request(
+            template.templateMetadata().fullyQualifiedName()
+        ).componentTemplate(newTemplate);
+
+        return client.admin()
+            .indices()
+            .execute(PutComponentTemplateAction.INSTANCE, request)
+            .actionGet(TimeValue.timeValueMillis(30000))
+            .isAcknowledged();
     }
 }

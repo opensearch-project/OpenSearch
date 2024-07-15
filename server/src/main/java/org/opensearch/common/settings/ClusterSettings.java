@@ -49,6 +49,7 @@ import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.opensearch.cluster.coordination.Coordinator;
@@ -82,7 +83,6 @@ import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.cache.settings.CacheSettings;
@@ -761,7 +761,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
 
-                SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_MAX_TEMPLATES_LOAD,
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED
             )
         )

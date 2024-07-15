@@ -8,7 +8,12 @@
 
 package org.opensearch.cluster.service.applicationtemplates;
 
-import org.opensearch.cluster.applicationtemplates.*;
+import org.opensearch.cluster.applicationtemplates.SystemTemplate;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateLoader;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateRepository;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
+import org.opensearch.cluster.applicationtemplates.TemplateRepositoryMetadata;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.plugins.Plugin;
 
@@ -19,23 +24,27 @@ import java.util.List;
 
 public class TestSystemTemplatesRepositoryPlugin extends Plugin implements SystemTemplatesPlugin {
 
-    private SystemTemplateMetadata info = SystemTemplateMetadata.createComponentTemplateInfo("dummy", 1);
+    private final SystemTemplateMetadata templateMetadata = SystemTemplateMetadata.fromComponentTemplateInfo("dummy", 1);
 
-    private TemplateRepositoryMetadata repoInfo = new TemplateRepositoryMetadata("test", 1);
+    private final TemplateRepositoryMetadata repoMetadata = new TemplateRepositoryMetadata("test", 1);
 
-    private SystemTemplate systemTemplate = new SystemTemplate(BytesReference.fromByteBuffer(ByteBuffer.wrap("content".getBytes(StandardCharsets.UTF_8))), info, repoInfo);
+    private final SystemTemplate systemTemplate = new SystemTemplate(
+        BytesReference.fromByteBuffer(ByteBuffer.wrap("content".getBytes(StandardCharsets.UTF_8))),
+        templateMetadata,
+        repoMetadata
+    );
 
     @Override
     public SystemTemplateRepository loadRepository() throws IOException {
         return new SystemTemplateRepository() {
             @Override
             public TemplateRepositoryMetadata metadata() {
-                return repoInfo;
+                return repoMetadata;
             }
 
             @Override
             public List<SystemTemplateMetadata> listTemplates() throws IOException {
-                return List.of(info);
+                return List.of(templateMetadata);
             }
 
             @Override
@@ -44,19 +53,19 @@ public class TestSystemTemplatesRepositoryPlugin extends Plugin implements Syste
             }
 
             @Override
-            public void close() throws Exception {
-            }
+            public void close() throws Exception {}
         };
     }
 
     @Override
-    public SystemTemplateLoader loaderFor(SystemTemplateMetadata templateInfo) {
+    public SystemTemplateLoader loaderFor(SystemTemplateMetadata templateMetadata) {
         return new SystemTemplateLoader() { // Asserting Loader
             @Override
-            public void loadTemplate(SystemTemplate template) throws IOException {
-                assert template.templateInfo() == info;
-                assert template.repositoryInfo() == repoInfo;
-                assert template.templateContent() == systemTemplate;
+            public boolean loadTemplate(SystemTemplate template) throws IOException {
+                assert template.templateMetadata() == TestSystemTemplatesRepositoryPlugin.this.templateMetadata;
+                assert template.repositoryMetadata() == repoMetadata;
+                assert template.templateContent() == systemTemplate.templateContent();
+                return true;
             }
         };
     }

@@ -45,7 +45,6 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.applicationtemplates.ClusterStateComponentSystemTemplateLoader;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
@@ -57,7 +56,6 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
@@ -74,7 +72,6 @@ import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -113,7 +110,6 @@ public class MetadataIndexTemplateService {
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final NamedXContentRegistry xContentRegistry;
-    private final ThreadPool threadPool;
     private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTemplateTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTemplateV2TaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey removeIndexTemplateTaskKey;
@@ -128,8 +124,7 @@ public class MetadataIndexTemplateService {
         AliasValidator aliasValidator,
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
-        NamedXContentRegistry xContentRegistry,
-        ThreadPool threadPool
+        NamedXContentRegistry xContentRegistry
     ) {
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
@@ -137,7 +132,6 @@ public class MetadataIndexTemplateService {
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
-        this.threadPool = threadPool;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
         createIndexTemplateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_TEMPLATE_KEY, true);
@@ -258,13 +252,6 @@ public class MetadataIndexTemplateService {
         if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
-
-        if (isSystemComponentTemplate(template)
-            && ClusterStateComponentSystemTemplateLoader.TEMPLATE_LOADER_IDENTIFIER.equals(
-                threadPool.getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME))) {
-            throw new IllegalArgumentException("Users are not permitted to create a system template. " +
-                "Should be loaded through a repository only.");
-        };
 
         CompressedXContent mappings = template.template().mappings();
         String stringMappings = mappings == null ? null : mappings.string();
@@ -412,8 +399,7 @@ public class MetadataIndexTemplateService {
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = new HashSet<>();
                 for (String templateName : currentState.metadata().componentTemplates().keySet()) {
-                    if (Regex.simpleMatch(name, templateName) &&
-                        !isSystemComponentTemplate(currentState.metadata().componentTemplates().get(templateName))) {
+                    if (Regex.simpleMatch(name, templateName)) {
                         templateNames.add(templateName);
                     }
                 }
@@ -426,7 +412,6 @@ public class MetadataIndexTemplateService {
                     // TODO: perhaps introduce a ComponentTemplateMissingException?
                     throw new IndexTemplateMissingException(name);
                 }
-
                 Metadata.Builder metadata = Metadata.builder(currentState.metadata());
                 for (String templateName : templateNames) {
                     logger.info("removing component template [{}]", templateName);
@@ -1571,10 +1556,6 @@ public class MetadataIndexTemplateService {
                 );
             }
         }
-    }
-
-    private boolean isSystemComponentTemplate(ComponentTemplate template) {
-        return true;
     }
 
     /**

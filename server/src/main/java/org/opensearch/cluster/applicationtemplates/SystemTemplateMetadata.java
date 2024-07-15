@@ -43,14 +43,21 @@ public class SystemTemplateMetadata {
     }
 
     public static SystemTemplateMetadata fromComponentTemplate(String fullyQualifiedName) {
-        return new SystemTemplateMetadata(Long.parseLong(fullyQualifiedName.substring(fullyQualifiedName.lastIndexOf(DELIMITER))), COMPONENT_TEMPLATE_TYPE, fullyQualifiedName.substring(0, fullyQualifiedName.lastIndexOf(DELIMITER)));
+        assert fullyQualifiedName.length() > 1 : "System template name must have at least one component";
+        assert fullyQualifiedName.substring(1, fullyQualifiedName.indexOf(DELIMITER, 1)).equals(COMPONENT_TEMPLATE_TYPE);
+
+        return new SystemTemplateMetadata(
+            Long.parseLong(fullyQualifiedName.substring(fullyQualifiedName.lastIndexOf(DELIMITER))),
+            COMPONENT_TEMPLATE_TYPE,
+            fullyQualifiedName.substring(0, fullyQualifiedName.lastIndexOf(DELIMITER))
+        );
     }
 
-    public static SystemTemplateMetadata createComponentTemplateInfo(String name, long version) {
+    public static SystemTemplateMetadata fromComponentTemplateInfo(String name, long version) {
         return new SystemTemplateMetadata(version, COMPONENT_TEMPLATE_TYPE, name);
     }
 
     public final String fullyQualifiedName() {
-        return name + DELIMITER + version;
+        return type + DELIMITER + name + DELIMITER + version;
     }
 }

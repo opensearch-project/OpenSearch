@@ -68,6 +68,8 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -84,8 +86,6 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
-import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StopWatch;
 import org.opensearch.common.cache.module.CacheModule;
@@ -676,8 +676,12 @@ public class Node implements Closeable {
                 );
             }
 
-            SystemTemplatesService systemTemplatesService = new SystemTemplatesService(pluginsService.filterPlugins(SystemTemplatesPlugin.class),
-                clusterService.getClusterSettings(), settings);
+            SystemTemplatesService systemTemplatesService = new SystemTemplatesService(
+                pluginsService.filterPlugins(SystemTemplatesPlugin.class),
+                threadPool,
+                clusterService.getClusterSettings(),
+                settings
+            );
             systemTemplatesService.verifyRepositories();
             clusterService.addLocalNodeClusterManagerListener(systemTemplatesService);
 
