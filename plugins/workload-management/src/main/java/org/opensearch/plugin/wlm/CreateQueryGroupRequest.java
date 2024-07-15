@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action;
+package org.opensearch.plugin.wlm;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -42,7 +42,7 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
     private String name;
     private String _id;
     private ResiliencyMode resiliencyMode;
-    private Map<String, Object> resourceLimits;
+    private Map<ResourceType, Object> resourceLimits;
     private long updatedAtInMillis;
 
     /**
@@ -57,12 +57,7 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
     public CreateQueryGroupRequest(QueryGroup queryGroup) {
         this.name = queryGroup.getName();
         this._id = queryGroup.get_id();
-        Map<ResourceType, Object> resourceTypesMap = queryGroup.getResourceLimits();
-        Map<String, Object> resourceLimits_ = new HashMap<>();
-        for (Map.Entry<ResourceType, Object> resource : resourceTypesMap.entrySet()) {
-            resourceLimits_.put(resource.getKey().getName(), resource.getValue());
-        }
-        this.resourceLimits = resourceLimits_;
+        this.resourceLimits = queryGroup.getResourceLimits();
         this.resiliencyMode = queryGroup.getResiliencyMode();
         this.updatedAtInMillis = queryGroup.getUpdatedAtInMillis();
     }
@@ -79,7 +74,7 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
         String name,
         String _id,
         ResiliencyMode mode,
-        Map<String, Object> resourceLimits,
+        Map<ResourceType, Object> resourceLimits,
         long updatedAtInMillis
     ) {
         this.name = name;
@@ -98,7 +93,7 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
         name = in.readString();
         _id = in.readString();
         resiliencyMode = ResiliencyMode.fromName(in.readString());
-        resourceLimits = in.readMap();
+        resourceLimits = in.readMap((i) -> ResourceType.fromName(i.readString()), StreamInput::readGenericValue);
         updatedAtInMillis = in.readLong();
     }
 
@@ -124,12 +119,10 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
         XContentParser.Token token;
         String fieldName = "";
         String name = null;
-        String _id = UUIDs.randomBase64UUID();
         ResiliencyMode mode = null;
-        long updatedAtInMillis = Instant.now().getMillis();
 
         // Map to hold resources
-        final Map<String, Object> resourceLimits = new HashMap<>();
+        final Map<ResourceType, Object> resourceLimits = new HashMap<>();
         while ((token = parser.nextToken()) != null) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -151,12 +144,12 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
                     if (token == XContentParser.Token.FIELD_NAME) {
                         fieldName = parser.currentName();
                     } else {
-                        resourceLimits.put(fieldName, parser.doubleValue());
+                        resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
                     }
                 }
             }
         }
-        return new CreateQueryGroupRequest(name, _id, mode, resourceLimits, updatedAtInMillis);
+        return new CreateQueryGroupRequest(name, UUIDs.randomBase64UUID(), mode, resourceLimits, Instant.now().getMillis());
     }
 
     @Override
@@ -182,7 +175,7 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
     /**
      * resourceLimits getter
      */
-    public Map<String, Object> getResourceLimits() {
+    public Map<ResourceType, Object> getResourceLimits() {
         return resourceLimits;
     }
 
@@ -190,7 +183,7 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
      * resourceLimits setter
      * @param resourceLimits - resourceLimit to be set
      */
-    public void setResourceLimits(Map<String, Object> resourceLimits) {
+    public void setResourceLimits(Map<ResourceType, Object> resourceLimits) {
         this.resourceLimits = resourceLimits;
     }
 
@@ -215,7 +208,7 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
         out.writeString(name);
         out.writeString(_id);
         out.writeString(resiliencyMode.getName());
-        out.writeMap(resourceLimits);
+        out.writeMap(resourceLimits, ResourceType::writeTo, StreamOutput::writeGenericValue);
         out.writeLong(updatedAtInMillis);
     }
 

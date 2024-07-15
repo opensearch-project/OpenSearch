@@ -6,10 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action.service;
+package org.opensearch.plugin.wlm.service;
 
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.CreateQueryGroupResponse;
 
 /**
  * This interface defines the key APIs for implementing QueruGroup persistence

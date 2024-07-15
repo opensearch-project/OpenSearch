@@ -6,15 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action.rest;
+package org.opensearch.plugin.wlm.rest;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.plugin.wlm.action.CreateQueryGroupAction;
-import org.opensearch.plugin.wlm.action.CreateQueryGroupRequest;
-import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.CreateQueryGroupAction;
+import org.opensearch.plugin.wlm.CreateQueryGroupRequest;
+import org.opensearch.plugin.wlm.CreateQueryGroupResponse;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
@@ -50,7 +50,7 @@ public class RestCreateQueryGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "_query_group/"), new Route(PUT, "_query_group/"));
+        return List.of(new Route(POST, "_wlm/_query_group/"), new Route(PUT, "_wlm/_query_group/"));
     }
 
     @Override

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action;
+package org.opensearch.plugin.wlm;
 
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -17,7 +17,8 @@ import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.plugin.wlm.action.service.QueryGroupPersistenceService;
+import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
+import org.opensearch.search.ResourceType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -119,7 +120,7 @@ public class QueryGroupTestUtils {
         return List.of(queryGroupPersistenceService, clusterState);
     }
 
-    public static void compareResourceLimits(Map<String, Object> resourceLimitMapOne, Map<String, Object> resourceLimitMapTwo) {
+    public static void compareResourceLimits(Map<ResourceType, Object> resourceLimitMapOne, Map<ResourceType, Object> resourceLimitMapTwo) {
         assertTrue(resourceLimitMapOne.keySet().containsAll(resourceLimitMapTwo.keySet()));
         assertTrue(resourceLimitMapOne.values().containsAll(resourceLimitMapTwo.values()));
     }

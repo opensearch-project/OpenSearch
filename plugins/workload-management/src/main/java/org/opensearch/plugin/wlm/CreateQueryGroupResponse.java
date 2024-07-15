@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action;
+package org.opensearch.plugin.wlm;
 
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.action.ActionResponse;

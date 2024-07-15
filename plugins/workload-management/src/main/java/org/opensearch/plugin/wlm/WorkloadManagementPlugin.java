@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action;
+package org.opensearch.plugin.wlm;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -17,7 +17,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.plugin.wlm.action.rest.RestCreateQueryGroupAction;
+import org.opensearch.plugin.wlm.rest.RestCreateQueryGroupAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;

@@ -9,4 +9,4 @@
 /**
  * Package for the service classes for QueryGroup CRUD operations
  */
-package org.opensearch.plugin.wlm.action.service;
+package org.opensearch.plugin.wlm.service;

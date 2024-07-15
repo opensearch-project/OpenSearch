@@ -6,21 +6,17 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action;
+package org.opensearch.plugin.wlm;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.action.service.Persistable;
-import org.opensearch.search.ResourceType;
+import org.opensearch.plugin.wlm.service.Persistable;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
 
@@ -58,15 +54,10 @@ public class TransportCreateQueryGroupAction extends HandledTransportAction<Crea
 
     @Override
     protected void doExecute(Task task, CreateQueryGroupRequest request, ActionListener<CreateQueryGroupResponse> listener) {
-        Map<ResourceType, Object> resourceTypesMap = new HashMap<>();
-        Map<String, Object> resourceLimitsStringMap = request.getResourceLimits();
-        for (Map.Entry<String, Object> resource : resourceLimitsStringMap.entrySet()) {
-            resourceTypesMap.put(ResourceType.fromName(resource.getKey()), resource.getValue());
-        }
         QueryGroup queryGroup = builder().name(request.getName())
             ._id(request.get_id())
             .mode(request.getResiliencyMode().getName())
-            .resourceLimits(resourceTypesMap)
+            .resourceLimits(request.getResourceLimits())
             .updatedAt(request.getUpdatedAtInMillis())
             .build();
         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> queryGroupPersistenceService.persist(queryGroup, listener));

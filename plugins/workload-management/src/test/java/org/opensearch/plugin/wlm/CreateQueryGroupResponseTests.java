@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action;
+package org.opensearch.plugin.wlm;
 
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -21,13 +21,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupOne;
 import static org.mockito.Mockito.mock;
 
 public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
 
     public void testSerialization() throws IOException {
-        CreateQueryGroupResponse response = new CreateQueryGroupResponse(queryGroupOne, RestStatus.OK);
+        CreateQueryGroupResponse response = new CreateQueryGroupResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
@@ -44,7 +43,7 @@ public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
 
     public void testToXContentCreateQueryGroup() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-        CreateQueryGroupResponse response = new CreateQueryGroupResponse(queryGroupOne, RestStatus.OK);
+        CreateQueryGroupResponse response = new CreateQueryGroupResponse(QueryGroupTestUtils.queryGroupOne, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
         String expected = "{\n"
             + "  \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
