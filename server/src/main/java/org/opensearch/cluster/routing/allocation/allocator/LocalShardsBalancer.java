@@ -894,11 +894,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
             return AllocateUnassignedDecision.throttle(null);
         }
 
-        if (shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE && shard.primary()) {
-            logger.debug("Skipping decide allocate unassigned for existing shard, shard primary : [{}], unassigned reason : [{}]",
-                shard.primary(), shard.unassignedInfo().getReason());
-            return AllocateUnassignedDecision.throttle(null);
-        }
+//        if (shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE && shard.primary()) {
+//            logger.debug("Skipping decide allocate unassigned for existing shard, shard primary : [{}], unassigned reason : [{}]",
+//                shard.primary(), shard.unassignedInfo().getReason());
+//            return AllocateUnassignedDecision.throttle(null);
+//        }
 
         final boolean explain = allocation.debugDecision();
         Decision shardLevelDecision = allocation.deciders().canAllocate(shard, allocation);

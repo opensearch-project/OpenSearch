@@ -641,6 +641,7 @@ public class AllocationService {
         while (workQueue.isEmpty() == false) {
             if (System.nanoTime() - startTime > allocator.getAllocatorTimeout().nanos()) {
                 logger.info("Timed out while running process work item queue");
+                allocator.removeAndIgnorePendingUnassignedShards(allocation);
                 return;
             }
             logger.info("attempting to start work queue with size [{}], elapsed time [{}]",
@@ -820,6 +821,11 @@ public class AllocationService {
             UnassignedAllocationHandler unassignedAllocationHandler
         ) {
             unassignedAllocationHandler.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
+        }
+
+        @Override
+        public void removeAndIgnorePendingUnassignedShards(RoutingAllocation allocation) {
+
         }
 
         @Override

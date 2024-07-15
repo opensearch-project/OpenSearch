@@ -271,6 +271,21 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         }
     }
 
+    @Override
+    public void removeAndIgnorePendingUnassignedShards(RoutingAllocation allocation) {
+        long startTime = System.nanoTime();
+        long startTimeP = System.nanoTime();
+        primaryShardBatchAllocator.removeAndIgnorePendingUnassignedBatches(allocation);
+        logger.info("Completing remove and ignore for primary in this reroute cycle, elapsed time: [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeP));
+        long startTimeR = System.nanoTime();
+        replicaShardBatchAllocator.removeAndIgnorePendingUnassignedBatches(allocation);
+        logger.info("Completing remove and ignore for replica in this reroute cycle, elapsed time: [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeR));
+        logger.info("completing remove and ignore for this reroute cycle, elapsed time: [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+    }
+
     // visible for testing
     protected Set<String> createAndUpdateBatches(RoutingAllocation allocation, boolean primary) {
         Set<String> batchesToBeAssigned = new HashSet<>();

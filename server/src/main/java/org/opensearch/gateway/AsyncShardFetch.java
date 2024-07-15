@@ -206,7 +206,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                         + "]"
                 );
             }
-
+            logger.info("fetch result: fetch data - [{}], all ignore nodes map - [{}]", fetchData, allIgnoreNodesMap);
             return new FetchResult<>(fetchData, allIgnoreNodesMap);
         }
     }

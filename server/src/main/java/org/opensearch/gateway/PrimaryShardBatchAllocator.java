@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.core.index.shard.ShardId;
@@ -20,11 +21,8 @@ import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.GatewaySta
 import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper.NodeGatewayStartedShard;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShardsBatch.NodeGatewayStartedShardsBatch;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * PrimaryShardBatchAllocator is similar to {@link org.opensearch.gateway.PrimaryShardAllocator} only difference is
@@ -96,25 +94,72 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
             }
         }
 
+        long startTime = System.nanoTime();
         // only fetch data for eligible shards
         final FetchResult<NodeGatewayStartedShardsBatch> shardsState = fetchData(eligibleShards, inEligibleShards, allocation);
+
+        Set<ShardRouting> batchShardRoutingSet = new HashSet<>(shardRoutings);
+        logger.info("Time taken to fetch data in allocateUnassignedBatch [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+        logger.info("Eligible shards [{}], ineligible shards [{}]", eligibleShards.size(), inEligibleShards.size());
 
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
             ShardRouting unassignedShard = iterator.next();
             AllocateUnassignedDecision allocationDecision;
 
-            if (shardRoutings.contains(unassignedShard)) {
+            if (unassignedShard.primary() && batchShardRoutingSet.contains(unassignedShard)) {
                 assert unassignedShard.primary();
                 if (ineligibleShardAllocationDecisions.containsKey(unassignedShard.shardId())) {
                     allocationDecision = ineligibleShardAllocationDecisions.get(unassignedShard.shardId());
+
                 } else {
                     List<NodeGatewayStartedShard> nodeShardStates = adaptToNodeShardStates(unassignedShard, shardsState);
                     allocationDecision = getAllocationDecision(unassignedShard, allocation, nodeShardStates, logger);
+                    if (allocationDecision != null && allocationDecision.isDecisionTaken()) {
+                        logger.info("allocate unassigned decision for eligible shards has decision [{}] ",
+                            allocationDecision.getAllocationDecision().toString());
+                    } else {
+                        logger.info("null or no decision taken");
+                    }
+                }
+                if (allocationDecision != null && allocationDecision.isDecisionTaken()) {
+                    logger.info("executing allocate unassigned decision for eligible shards has decision [{}] ",
+                        allocationDecision.getAllocationDecision().toString());
+                } else {
+                    logger.info("executing - null or no decision taken");
                 }
                 executeDecision(unassignedShard, allocationDecision, allocation, iterator);
             }
         }
+    }
+
+    public void removeAndIgnorePendingUnassignedBatches(RoutingAllocation allocation) {
+        logger.info("Triggering remove and ignore for primary shards");
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        while (iterator.hasNext()) {
+            ShardRouting unassignedShard = iterator.next();
+            if (unassignedShard.primary() == true) {
+                AllocateUnassignedDecision allocationDecision = getUnassignedShardAllocationDecisionToIgnore(unassignedShard);
+                //                AllocateUnassignedDecision allocationDecision = getAllocationDecision(unassignedShard, allocation, null, logger);
+                executeDecision(unassignedShard, allocationDecision, allocation, iterator);
+            }
+        }
+    }
+
+    private AllocateUnassignedDecision getUnassignedShardAllocationDecisionToIgnore(
+        ShardRouting shardRouting
+    ) {
+        if (!isResponsibleFor(shardRouting)) {
+            return AllocateUnassignedDecision.NOT_TAKEN;
+        }
+        //        return AllocateUnassignedDecision.no(
+        //            UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, // TODO - need to create new allocation status
+        //            null
+        //        );
+
+        return new AllocateUnassignedDecision(
+            UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L);
     }
 
     /**

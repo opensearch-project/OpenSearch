@@ -107,6 +107,9 @@ public interface ExistingShardsAllocator {
         return null;
     }
 
+    default void removeAndIgnorePendingUnassignedShards(RoutingAllocation allocation) {
+    }
+
     /**
      * Allocate all unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.
      * Default implementation calls {@link #allocateUnassigned(ShardRouting, RoutingAllocation, UnassignedAllocationHandler)} for each Unassigned shard

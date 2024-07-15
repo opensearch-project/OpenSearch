@@ -25,11 +25,7 @@ import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.No
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -135,8 +131,13 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         // only fetch data for eligible shards
         final FetchResult<NodeStoreFilesMetadataBatch> shardsState = fetchData(eligibleShards, ineligibleShards, allocation);
 
-        List<ShardId> shardIdsFromBatch = shardRoutings.stream().map(shardRouting -> shardRouting.shardId()).collect(Collectors.toList());
+        Set<ShardId> shardIdsFromBatch = new HashSet<>();
+        for (ShardRouting shardRouting : shardRoutings) {
+            ShardId shardId = shardRouting.shardId();
+            shardIdsFromBatch.add(shardId);
+        }
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        logger.info("Total unassigned shards identified [{}]", allocation.routingNodes().unassigned().size());
         while (iterator.hasNext()) {
             ShardRouting unassignedShard = iterator.next();
             // There will be only one entry for the shard in the unassigned shards batch
@@ -155,10 +156,55 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
                         allocation,
                         () -> convertToNodeStoreFilesMetadataMap(unassignedShard, shardsState)
                     );
+                    if (allocateUnassignedDecision != null && allocateUnassignedDecision.isDecisionTaken()) {
+                        logger.debug("allocate unassigned decision for eligible shards has decision [{}] ",
+                            allocateUnassignedDecision.getAllocationDecision().toString());
+                    } else {
+                        logger.debug("produced null decision or decision not taken yet");
+                    }
+                }
+                if (allocateUnassignedDecision != null && allocateUnassignedDecision.isDecisionTaken()) {
+                    logger.debug("Executing decision for replica batch with decision [{}]",
+                        allocateUnassignedDecision.getAllocationDecision().toString());
+                } else {
+                    logger.debug("produced null/not taken decision before executing");
                 }
                 executeDecision(unassignedShard, allocateUnassignedDecision, allocation, iterator);
             }
         }
+    }
+
+    public void removeAndIgnorePendingUnassignedBatches(RoutingAllocation allocation) {
+        logger.info("Triggering remove and ignore for replica shards");
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        while (iterator.hasNext()) {
+            ShardRouting unassignedShard = iterator.next();
+            if (unassignedShard.primary() == false) {
+                //            if (unassignedShard.primary() == false && unassignedShard.recoverySource().getType().equals(RecoverySource.Type.PEER) == false) {
+                AllocateUnassignedDecision allocationDecision = getUnassignedShardAllocationDecisionToIgnore(unassignedShard);
+                executeDecision(unassignedShard, allocationDecision, allocation, iterator);
+            }
+        }
+    }
+
+    private AllocateUnassignedDecision getUnassignedShardAllocationDecisionToIgnore(
+        ShardRouting shardRouting
+    ) {
+        if (!isResponsibleFor(shardRouting)) {
+            return AllocateUnassignedDecision.NOT_TAKEN;
+        }
+        if (shardRouting.unassignedInfo().getLastAllocationStatus().equals(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
+            || shardRouting.unassignedInfo().getLastAllocationStatus().equals(UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY)
+        )  {
+            logger.info("Shard routing in getUnassignedShardAllocationDecisionToIgnore with id [{}], and index [{}]"
+                , shardRouting.id(), shardRouting.index().getName());
+        }
+        return AllocateUnassignedDecision.no(
+            UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, // TODO - need to create new allocation status
+            null
+        );
+        //        return new AllocateUnassignedDecision(
+        //            UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L);
     }
 
     private AllocateUnassignedDecision getUnassignedShardAllocationDecision(

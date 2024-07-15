@@ -263,6 +263,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     inRecoveriesLimit
                 );
             } else {
+                logger.debug("reached the limit of incoming shard recoveries [{}], cluster setting [{}={}])", currentInRecoveries,
+                    CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                    inRecoveriesLimit);
                 return allocation.decision(
                     THROTTLE,
                     NAME,
@@ -293,6 +296,8 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                         inRecoveriesLimit
                     );
                 } else {
+                    logger.debug("reached the limit of outgoing shard recoveries [{}}] on the node [{}] which holds the primary", primaryNodeOutRecoveries,
+                        primaryShard.currentNodeId() );
                     return allocation.decision(
                         THROTTLE,
                         NAME,

@@ -105,7 +105,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     private final long remainingDelayInMillis;
     private final long configuredDelayInMillis;
 
-    private AllocateUnassignedDecision(
+    public AllocateUnassignedDecision(
         AllocationStatus allocationStatus,
         DiscoveryNode assignedNode,
         String allocationId,
