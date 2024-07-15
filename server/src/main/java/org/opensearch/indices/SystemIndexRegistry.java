@@ -15,13 +15,13 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.tasks.TaskResultsService;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -46,6 +46,7 @@ public class SystemIndexRegistry {
 
     private volatile static String[] SYSTEM_INDEX_PATTERNS = new String[0];
     volatile static Collection<SystemIndexDescriptor> SYSTEM_INDEX_DESCRIPTORS = Collections.emptyList();
+    volatile static Map<String, Collection<SystemIndexDescriptor>> SYSTEM_INDEX_DESCRIPTORS_MAP = Collections.emptyMap();
 
     static void register(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
         final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
@@ -56,14 +57,26 @@ public class SystemIndexRegistry {
             .collect(Collectors.toList());
         descriptors.add(TASK_INDEX_DESCRIPTOR);
 
+        SYSTEM_INDEX_DESCRIPTORS_MAP = descriptorsMap;
         SYSTEM_INDEX_DESCRIPTORS = descriptors.stream().collect(Collectors.toUnmodifiableList());
         SYSTEM_INDEX_PATTERNS = descriptors.stream().map(SystemIndexDescriptor::getIndexPattern).toArray(String[]::new);
     }
 
-    public static List<String> matchesSystemIndexPattern(String... indexExpressions) {
-        return Arrays.stream(indexExpressions)
-            .filter(pattern -> Regex.simpleMatch(SYSTEM_INDEX_PATTERNS, pattern))
-            .collect(Collectors.toList());
+    public static Set<String> matchesSystemIndexPattern(Set<String> indexExpressions) {
+        return indexExpressions.stream().filter(pattern -> Regex.simpleMatch(SYSTEM_INDEX_PATTERNS, pattern)).collect(Collectors.toSet());
+    }
+
+    public static Set<String> matchesPluginSystemIndexPattern(String pluginClassName, Set<String> indexExpressions) {
+        if (!SYSTEM_INDEX_DESCRIPTORS_MAP.containsKey(pluginClassName)) {
+            return Collections.emptySet();
+        }
+        String[] pluginSystemIndexPatterns = SYSTEM_INDEX_DESCRIPTORS_MAP.get(pluginClassName)
+            .stream()
+            .map(SystemIndexDescriptor::getIndexPattern)
+            .toArray(String[]::new);
+        return indexExpressions.stream()
+            .filter(pattern -> Regex.simpleMatch(pluginSystemIndexPatterns, pattern))
+            .collect(Collectors.toSet());
     }
 
     /**
