@@ -45,7 +45,6 @@ public class SystemIndexRegistry {
     );
 
     private volatile static String[] SYSTEM_INDEX_PATTERNS = new String[0];
-    volatile static Collection<SystemIndexDescriptor> SYSTEM_INDEX_DESCRIPTORS = Collections.emptyList();
     volatile static Map<String, Collection<SystemIndexDescriptor>> SYSTEM_INDEX_DESCRIPTORS_MAP = Collections.emptyMap();
 
     static void register(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
@@ -58,7 +57,6 @@ public class SystemIndexRegistry {
         descriptors.add(TASK_INDEX_DESCRIPTOR);
 
         SYSTEM_INDEX_DESCRIPTORS_MAP = descriptorsMap;
-        SYSTEM_INDEX_DESCRIPTORS = descriptors.stream().collect(Collectors.toUnmodifiableList());
         SYSTEM_INDEX_PATTERNS = descriptors.stream().map(SystemIndexDescriptor::getIndexPattern).toArray(String[]::new);
     }
 
