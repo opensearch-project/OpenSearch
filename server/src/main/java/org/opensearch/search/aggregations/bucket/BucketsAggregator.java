@@ -70,7 +70,7 @@ import java.util.function.ToLongFunction;
 public abstract class BucketsAggregator extends AggregatorBase {
 
     private final BigArrays bigArrays;
-    protected final IntConsumer multiBucketConsumer;
+    private final IntConsumer multiBucketConsumer;
     private LongArray docCounts;
     protected final DocCountProvider docCountProvider;
 

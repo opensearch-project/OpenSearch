@@ -44,7 +44,6 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.KeyComparable;
-import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
@@ -227,7 +226,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     private final boolean keyed;
     private final long minDocCount;
     final EmptyBucketInfo emptyBucketInfo;
-    private MultiBucketConsumerService.MultiBucketConsumer multiBucketConsumer;
 
     public InternalHistogram(
         String name,
@@ -237,8 +235,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         EmptyBucketInfo emptyBucketInfo,
         DocValueFormat formatter,
         boolean keyed,
-        Map<String, Object> metadata,
-        MultiBucketConsumerService.MultiBucketConsumer multiBucketConsumer
+        Map<String, Object> metadata
     ) {
         super(name, metadata);
         this.buckets = buckets;
@@ -248,7 +245,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         this.emptyBucketInfo = emptyBucketInfo;
         this.format = formatter;
         this.keyed = keyed;
-        this.multiBucketConsumer = multiBucketConsumer;
     }
 
     /**
@@ -300,7 +296,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     @Override
     public InternalHistogram create(List<Bucket> buckets) {
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata, multiBucketConsumer);
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 
     @Override
@@ -418,7 +414,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                     double key = nextKey(lastBucket.key);
                     while (key < nextBucket.key) {
                         iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
-                        multiBucketConsumer.accept(0);
+                        reduceContext.consumeBucketsAndMaybeBreak(0);
                         key = nextKey(key);
                     }
                     assert key == nextBucket.key || Double.isNaN(nextBucket.key) : "key: " + key + ", nextBucket.key: " + nextBucket.key;
@@ -453,7 +449,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             }
         }
         reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
-        return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata(), multiBucketConsumer);
+        return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override
@@ -494,7 +490,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             buckets2.add((Bucket) b);
         }
         buckets2 = Collections.unmodifiableList(buckets2);
-        return new InternalHistogram(name, buckets2, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata(), multiBucketConsumer);
+        return new InternalHistogram(name, buckets2, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override
