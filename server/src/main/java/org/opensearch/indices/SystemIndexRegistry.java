@@ -45,19 +45,14 @@ public class SystemIndexRegistry {
     );
 
     private volatile static String[] SYSTEM_INDEX_PATTERNS = new String[0];
-    volatile static Map<String, Collection<SystemIndexDescriptor>> SYSTEM_INDEX_DESCRIPTORS_MAP = Collections.emptyMap();
+    private volatile static Map<String, Collection<SystemIndexDescriptor>> SYSTEM_INDEX_DESCRIPTORS_MAP = Collections.emptyMap();
 
     static void register(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
         final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
         checkForOverlappingPatterns(descriptorsMap);
-        List<SystemIndexDescriptor> descriptors = pluginAndModulesDescriptors.values()
-            .stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toList());
-        descriptors.add(TASK_INDEX_DESCRIPTOR);
 
         SYSTEM_INDEX_DESCRIPTORS_MAP = descriptorsMap;
-        SYSTEM_INDEX_PATTERNS = descriptors.stream().map(SystemIndexDescriptor::getIndexPattern).toArray(String[]::new);
+        SYSTEM_INDEX_PATTERNS = getAllDescriptors().stream().map(SystemIndexDescriptor::getIndexPattern).toArray(String[]::new);
     }
 
     public static Set<String> matchesSystemIndexPattern(Set<String> indexExpressions) {
@@ -75,6 +70,10 @@ public class SystemIndexRegistry {
         return indexExpressions.stream()
             .filter(pattern -> Regex.simpleMatch(pluginSystemIndexPatterns, pattern))
             .collect(Collectors.toSet());
+    }
+
+    public static List<SystemIndexDescriptor> getAllDescriptors() {
+        return SYSTEM_INDEX_DESCRIPTORS_MAP.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
     }
 
     /**

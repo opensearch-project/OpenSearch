@@ -63,9 +63,7 @@ public class SystemIndices {
 
     public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
         SystemIndexRegistry.register(pluginAndModulesDescriptors);
-        this.runAutomaton = buildCharacterRunAutomaton(
-            SystemIndexRegistry.SYSTEM_INDEX_DESCRIPTORS_MAP.values().stream().flatMap(Collection::stream).collect(Collectors.toList())
-        );
+        this.runAutomaton = buildCharacterRunAutomaton(SystemIndexRegistry.getAllDescriptors());
     }
 
     /**
@@ -93,11 +91,8 @@ public class SystemIndices {
      * @throws IllegalStateException if multiple descriptors match the name
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
-        List<SystemIndexDescriptor> allDescriptors = SystemIndexRegistry.SYSTEM_INDEX_DESCRIPTORS_MAP.values()
+        final List<SystemIndexDescriptor> matchingDescriptors = SystemIndexRegistry.getAllDescriptors()
             .stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toList());
-        final List<SystemIndexDescriptor> matchingDescriptors = allDescriptors.stream()
             .filter(descriptor -> descriptor.matchesIndexPattern(name))
             .collect(Collectors.toList());
 
