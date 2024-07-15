@@ -384,13 +384,10 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                         assertNull(indicesStats);
                         break;
                     case NodeIndicesStats.Fields.INDICES:
-                        assertTrue(shardStats.isEmpty());
-                        assertNull(indicesStats);
-                        break;
                     case NodeIndicesStats.Fields.NODE:
                     case "null":
                     case "unknown":
-                        assertNull(shardStats);
+                        assertTrue(shardStats.isEmpty());
                         assertNull(indicesStats);
                         break;
                 }
@@ -416,7 +413,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                     case "null":
                     case "unknown":
                         assertNull(shardStats);
-                        assertNull(indicesStats);
+                        assertTrue(indicesStats.isEmpty());
                         break;
                 }
             } catch (IOException e) {
