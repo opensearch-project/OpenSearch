@@ -1019,10 +1019,10 @@ public class RemoteClusterStateService implements Closeable {
 
         LatchedActionListener<IndexRoutingTable> routingTableLatchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(response -> {
-                logger.debug("Successfully read cluster state component from remote");
+                logger.debug(() -> new ParameterizedMessage("Successfully read index-routing for index {}", response.getIndex().getName()));
                 readIndexRoutingTableResults.add(response);
             }, ex -> {
-                logger.error("Failed to read cluster state from remote", ex);
+                logger.error(() -> new ParameterizedMessage("Failed to read index-routing from remote"), ex);
                 exceptionList.add(ex);
             }),
             latch

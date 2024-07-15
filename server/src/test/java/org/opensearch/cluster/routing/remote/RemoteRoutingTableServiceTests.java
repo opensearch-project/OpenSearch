@@ -33,6 +33,7 @@ import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.compress.NoneCompressor;
 import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
@@ -61,15 +62,17 @@ import org.mockito.Mockito;
 
 import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.gateway.remote.ClusterMetadataManifestTests.randomUploadedIndexMetadataList;
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMITER;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_FILE;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_FORMAT;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
@@ -112,7 +115,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         when(blobStoreRepository.getCompressor()).thenReturn(new DeflateCompressor());
         blobStore = mock(BlobStore.class);
         blobContainer = mock(BlobContainer.class);
-        when(repositoriesService.repository(anyString())).thenReturn(blobStoreRepository);
+        when(repositoriesService.repository("routing_repository")).thenReturn(blobStoreRepository);
         when(blobStoreRepository.blobStore()).thenReturn(blobStore);
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
         Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, "true").build();
@@ -552,11 +555,25 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
     public void testGetAsyncIndexRoutingWriteAction() throws Exception {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
+        Iterable<String> remotePath = HASHED_PREFIX.path(
+            RemoteStorePathStrategy.PathInput.builder()
+                .basePath(
+                    new BlobPath().add("base-path")
+                        .add(RemoteClusterStateUtils.encodeString(ClusterName.DEFAULT.toString()))
+                        .add(CLUSTER_STATE_PATH_TOKEN)
+                        .add(clusterState.metadata().clusterUUID())
+                        .add(INDEX_ROUTING_TABLE)
+                )
+                .indexUUID(clusterState.getRoutingTable().indicesRouting().get(indexName).getIndex().getUUID())
+                .build(),
+            FNV_1A_BASE64
+        );
+
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
             return null;
         }).when(blobStoreTransferService)
-            .uploadBlob(any(InputStream.class), anyIterable(), anyString(), eq(WritePriority.URGENT), any(ActionListener.class));
+            .uploadBlob(any(InputStream.class), eq(remotePath), anyString(), eq(WritePriority.URGENT), any(ActionListener.class));
 
         TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
         CountDownLatch latch = new CountDownLatch(1);

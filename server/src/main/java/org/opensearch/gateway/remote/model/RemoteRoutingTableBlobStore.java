@@ -97,12 +97,12 @@ public class RemoteRoutingTableBlobStore<IndexRoutingTable, U extends AbstractRe
     }
 
     // For testing only
-    public RemoteStoreEnums.PathType getPathTypeSetting() {
+    protected RemoteStoreEnums.PathType getPathTypeSetting() {
         return pathType;
     }
 
     // For testing only
-    public RemoteStoreEnums.PathHashAlgorithm getPathHashAlgoSetting() {
+    protected RemoteStoreEnums.PathHashAlgorithm getPathHashAlgoSetting() {
         return pathHashAlgo;
     }
 }
