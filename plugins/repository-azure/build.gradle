@@ -68,8 +68,8 @@ dependencies {
   api 'com.nimbusds:lang-tag:1.7'
   // Both msal4j:1.14.3 and oauth2-oidc-sdk:11.9.1 has compile dependency on different versions of json-smart,
   // selected the higher version which is 2.5.0
-  api 'net.minidev:json-smart:2.5.0'
-  api 'net.minidev:accessors-smart:2.5.0'
+  api 'net.minidev:json-smart:2.5.1'
+  api 'net.minidev:accessors-smart:2.5.1'
   api "org.ow2.asm:asm:${versions.asm}"
   // End of transitive dependencies for azure-identity
   api "io.projectreactor.netty:reactor-netty-core:${versions.reactor_netty}"
