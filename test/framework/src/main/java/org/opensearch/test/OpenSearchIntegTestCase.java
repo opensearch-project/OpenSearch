@@ -683,6 +683,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
+        featureSettings.put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getKey(), true);
 
         return featureSettings.build();
     }

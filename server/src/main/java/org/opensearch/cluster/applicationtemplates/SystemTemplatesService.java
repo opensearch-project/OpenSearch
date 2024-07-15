@@ -55,7 +55,9 @@ public class SystemTemplatesService implements LocalNodeClusterManagerListener {
     ) {
         this.systemTemplatesPluginList = systemTemplatesPluginList;
         this.threadPool = threadPool;
-        setEnabledTemplates(settings.getAsBoolean(SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), false));
+        if (settings.getAsBoolean(SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), false)) {
+            setEnabledTemplates(settings.getAsBoolean(SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey(), false));
+        }
         clusterSettings.addSettingsUpdateConsumer(SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED, this::setEnabledTemplates);
     }
 
