@@ -626,17 +626,24 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 }
             } else {
                 // If no star child exists, aggregate all aggregated documents from non-star children
-                for (TreeNode child : node.children.values()) {
-                    aggregatedStarTreeDocument = reduceStarTreeDocuments(aggregatedStarTreeDocument, createAggregatedDocs(child));
+                if (node.children.values().size() == 1) {
+                    for (TreeNode child : node.children.values()) {
+                        aggregatedStarTreeDocument = createAggregatedDocs(child);
+                        node.aggregatedDocId = child.aggregatedDocId;
+                    }
+                } else {
+                    for (TreeNode child : node.children.values()) {
+                        aggregatedStarTreeDocument = reduceStarTreeDocuments(aggregatedStarTreeDocument, createAggregatedDocs(child));
+                    }
+                    if (null == aggregatedStarTreeDocument) {
+                        throw new IllegalStateException("aggregated star-tree document is null after reducing the documents");
+                    }
+                    for (int i = node.dimensionId + 1; i < numDimensions; i++) {
+                        aggregatedStarTreeDocument.dimensions[i] = Long.valueOf(STAR_IN_DOC_VALUES_INDEX);
+                    }
+                    node.aggregatedDocId = numStarTreeDocs;
+                    appendToStarTree(aggregatedStarTreeDocument);
                 }
-                if (null == aggregatedStarTreeDocument) {
-                    throw new IllegalStateException("aggregated star-tree document is null after reducing the documents");
-                }
-                for (int i = node.dimensionId + 1; i < numDimensions; i++) {
-                    aggregatedStarTreeDocument.dimensions[i] = Long.valueOf(STAR_IN_DOC_VALUES_INDEX);
-                }
-                node.aggregatedDocId = numStarTreeDocs;
-                appendToStarTree(aggregatedStarTreeDocument);
             }
         }
         return aggregatedStarTreeDocument;
