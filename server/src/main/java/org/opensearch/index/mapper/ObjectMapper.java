@@ -92,7 +92,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public enum Dynamic {
         TRUE,
         FALSE,
-        STRICT
+        STRICT,
+        STRICT_ALLOW_TEMPLATES
     }
 
     /**
@@ -297,6 +298,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
+                } else if (value.equalsIgnoreCase("strict_allow_templates")) {
+                    builder.dynamic(Dynamic.STRICT_ALLOW_TEMPLATES);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);

@@ -28,10 +28,11 @@ import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.S
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Allocates replica shards in a batch mode
@@ -117,6 +118,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
      * @param allocation    the allocation state container object
      */
     public void allocateUnassignedBatch(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+        logger.trace("Starting shard allocation execution for unassigned replica shards: {}", shardRoutings.size());
         List<ShardRouting> eligibleShards = new ArrayList<>();
         List<ShardRouting> ineligibleShards = new ArrayList<>();
         Map<ShardRouting, AllocateUnassignedDecision> ineligibleShardAllocationDecisions = new HashMap<>();
@@ -135,7 +137,11 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         // only fetch data for eligible shards
         final FetchResult<NodeStoreFilesMetadataBatch> shardsState = fetchData(eligibleShards, ineligibleShards, allocation);
 
-        List<ShardId> shardIdsFromBatch = shardRoutings.stream().map(shardRouting -> shardRouting.shardId()).collect(Collectors.toList());
+        Set<ShardId> shardIdsFromBatch = new HashSet<>();
+        for (ShardRouting shardRouting : shardRoutings) {
+            ShardId shardId = shardRouting.shardId();
+            shardIdsFromBatch.add(shardId);
+        }
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
             ShardRouting unassignedShard = iterator.next();
@@ -159,6 +165,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
                 executeDecision(unassignedShard, allocateUnassignedDecision, allocation, iterator);
             }
         }
+        logger.trace("Finished shard allocation execution for unassigned replica shards: {}", shardRoutings.size());
     }
 
     private AllocateUnassignedDecision getUnassignedShardAllocationDecision(

@@ -2254,13 +2254,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .stateVersion(1L)
             .stateUUID("state-uuid")
             .clusterUUID("cluster-uuid")
+            .codecVersion(CODEC_V2)
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
             .build();
 
         BlobContainer blobContainer = mockBlobStoreObjects();
-        mockBlobContainer(blobContainer, expectedManifest, Map.of());
+        mockBlobContainer(blobContainer, expectedManifest, Map.of(), CODEC_V2);
         when(blobContainer.readBlob(uploadedIndexMetadata.getUploadedFilename())).thenThrow(FileNotFoundException.class);
 
         remoteClusterStateService.start();
@@ -2288,11 +2289,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .clusterUUID("cluster-uuid")
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
-            .codecVersion(ClusterMetadataManifest.CODEC_V0)
+            .codecVersion(CODEC_V2)
             .previousClusterUUID("prev-cluster-uuid")
             .build();
 
-        mockBlobContainer(mockBlobStoreObjects(), expectedManifest, new HashMap<>());
+        mockBlobContainer(mockBlobStoreObjects(), expectedManifest, new HashMap<>(), CODEC_V2);
         remoteClusterStateService.start();
         final ClusterMetadataManifest manifest = remoteClusterStateService.getLatestClusterMetadataManifest(
             clusterState.getClusterName().value(),
@@ -2416,10 +2417,10 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .nodeId("nodeA")
             .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
             .previousClusterUUID("prev-cluster-uuid")
-            .codecVersion(ClusterMetadataManifest.CODEC_V0)
+            .codecVersion(CODEC_V2)
             .build();
 
-        mockBlobContainer(mockBlobStoreObjects(), expectedManifest, Map.of(index.getUUID(), indexMetadata));
+        mockBlobContainer(mockBlobStoreObjects(), expectedManifest, Map.of(index.getUUID(), indexMetadata), CODEC_V2);
 
         Map<String, IndexMetadata> indexMetadataMap = remoteClusterStateService.getLatestClusterState(
             clusterState.getClusterName().value(),
@@ -2664,6 +2665,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             .clusterUUID("cluster-uuid")
             .previousClusterUUID("prev-cluster-uuid")
             .routingTableVersion(1)
+            .codecVersion(CODEC_V2)
             .indicesRouting(List.of(uploadedIndiceRoutingMetadata))
             .build();
 
@@ -3081,7 +3083,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             FORMAT_PARAMS
         );
         when(blobContainer.readBlob(mockManifestFileName)).thenReturn(new ByteArrayInputStream(bytes.streamInput().readAllBytes()));
-        if (codecVersion >= ClusterMetadataManifest.CODEC_V2) {
+        if (codecVersion >= CODEC_V2) {
             String coordinationFileName = getFileNameFromPath(clusterMetadataManifest.getCoordinationMetadata().getUploadedFilename());
             when(blobContainer.readBlob(COORDINATION_METADATA_FORMAT.blobName(coordinationFileName))).thenAnswer((invocationOnMock) -> {
                 BytesReference bytesReference = COORDINATION_METADATA_FORMAT.serialize(
