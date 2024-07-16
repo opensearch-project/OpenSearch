@@ -39,7 +39,7 @@ import static java.util.Collections.singletonList;
 
 public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
 
-    private Client client;
+    private PluginAwareNodeClient client;
 
     @Override
     public Collection<Object> createComponents(
@@ -63,6 +63,6 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return List.of(new TestGetExecutionContextRestAction((PluginAwareNodeClient) client));
+        return List.of(new TestGetExecutionContextRestAction(client));
     }
 }
