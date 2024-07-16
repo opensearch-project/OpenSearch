@@ -247,6 +247,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
         assertThat(params, notNullValue());
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("param1").toString(), equalTo("value1"));
+        assertThat(request.upsertRequest().index(), equalTo("test"));
         Map<String, Object> upsertDoc = XContentHelper.convertToMap(
             request.upsertRequest().source(),
             true,
@@ -304,6 +305,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
             )
         );
         Map<String, Object> doc = request.doc().sourceAsMap();
+        assertThat(request.doc().index(), equalTo("test"));
         assertThat(doc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map<String, Object>) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }

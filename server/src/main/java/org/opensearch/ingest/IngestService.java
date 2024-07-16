@@ -213,18 +213,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexSettings);
                     indexRequest.setFinalPipeline(finalPipeline);
                 }
-            } else if (indexRequest.index() != null || originalRequest != null && originalRequest.index() != null) {
+            } else if (indexRequest.index() != null) {
                 // the index does not exist yet (and this is a valid request), so match index
                 // templates to look for pipelines in either a matching V2 template (which takes
                 // precedence), or if a V2 template does not match, any V1 templates
-                String indexName;
-                if (indexRequest.index() != null) {
-                    indexName = indexRequest.index();
-                } else {
-                    assert originalRequest != null;
-                    indexName = originalRequest.index();
-                }
-                String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
+                String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
                 if (v2Template != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
                     if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
@@ -238,7 +231,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : NOOP_PIPELINE_NAME);
                     indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : NOOP_PIPELINE_NAME);
                 } else {
-                    List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(metadata, indexName, null);
+                    List<IndexTemplateMetadata> templates = MetadataIndexTemplateService.findV1Templates(
+                        metadata,
+                        indexRequest.index(),
+                        null
+                    );
                     // order of templates are highest order first
                     for (final IndexTemplateMetadata template : templates) {
                         final Settings settings = template.settings();
