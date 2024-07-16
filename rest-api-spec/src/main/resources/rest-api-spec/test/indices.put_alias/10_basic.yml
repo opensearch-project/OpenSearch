@@ -28,6 +28,36 @@
 
   - match: {test_index.aliases.test_alias: {}}
 
+  - do:
+      indices.put_alias:
+        index: test_index
+        body: {"alias": "test_alias_1"}
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias_1
+
+  - match: {test_index.aliases.test_alias_1: {}}
+
+  - do:
+      indices.put_alias:
+        name: test_alias_2
+        body: {"index": "test_index"}
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias_2
+
+  - match: {test_index.aliases.test_alias_2: {}}
+
+  - do:
+      catch: bad_request
+      indices.put_alias:
+        index: null
+        name: null
+
 ---
 "Can't create alias with invalid characters":
 
@@ -102,3 +132,179 @@
         index: test_index
         name: test_alias
   - match: {test_index.aliases.test_alias: {"filter": {"range": {"date_nanos_field": {"gt": "now-7d/d"}}}}}
+
+---
+"Can set index_routing":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body:
+          index_routing: "test"
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+  - match: {test_index.aliases.test_alias: { 'index_routing': "test" }}
+
+---
+"Can set routing":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body:
+          routing: "test"
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+  - match: {test_index.aliases.test_alias: { 'index_routing': "test", 'search_routing': "test" }}
+
+---
+"Can set search_routing":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body:
+          search_routing: "test"
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+  - match: {test_index.aliases.test_alias: { 'search_routing': "test" }}
+
+---
+"Index parameter supports multiple values":
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      indices.create:
+        index: test_index1
+
+  - do:
+      indices.put_alias:
+        index: test_index,test_index1
+        name: test_alias
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+  - match: {test_index.aliases.test_alias: { }}
+  - do:
+      indices.get_alias:
+        index: test_index1
+        name: test_alias
+  - match: {test_index1.aliases.test_alias: { }}
+
+  - do:
+      indices.put_alias:
+        body: {"index": "test_index,test_index1", "alias": "test_alias_1"}
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias_1
+  - match: {test_index.aliases.test_alias_1: { }}
+  - do:
+      indices.get_alias:
+        index: test_index1
+        name: test_alias_1
+  - match: {test_index1.aliases.test_alias_1: { }}
+
+---
+"Index and alias in request body can override path parameters":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_alias:
+        index: test_index_unknown
+        name: test_alias
+        body: {"index": "test_index"}
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+  - match: {test_index.aliases.test_alias: { }}
+
+  - do:
+      indices.put_alias:
+        index: test_index
+        name: test_alias_unknown
+        body: {"alias": "test_alias_2"}
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias_2
+  - match: {test_index.aliases.test_alias_2: { }}
+
+  - do:
+      indices.put_alias:
+        body: {"index": "test_index", "alias": "test_alias_3"}
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias_3
+  - match: {test_index.aliases.test_alias_3: { }}
+
+---
+"Can set is_hidden":
+  - skip:
+      version: " - 2.99.99"
+      reason: "Fix was introduced in 3.0.0"
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body:
+          is_hidden: true
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+  - match: {test_index.aliases.test_alias: { 'is_hidden': true }}
+
+---
+"Throws exception with invalid parameters":
+  - skip:
+      version: " - 2.99.99"
+      reason: "Fix was introduced in 3.0.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: /unknown field \[abc\]/
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body: {"abc": 1}
