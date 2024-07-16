@@ -14,6 +14,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreesBuilder;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.StarTreeMapper;
@@ -98,7 +99,9 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         if (compositeFieldSet.isEmpty()) {
             for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
                 if (mappedType instanceof StarTreeMapper.StarTreeFieldType) {
-                    // TODO : Call StarTree builder
+                    StarTreesBuilder starTreesBuilder = new StarTreesBuilder(fieldProducerMap, state, mapperService);
+                    starTreesBuilder.build();
+                    starTreesBuilder.close();
                 }
             }
         }

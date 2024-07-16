@@ -86,7 +86,7 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @return iterator for star-tree documents
      * @throws IOException throws when unable to sort, merge and aggregate star-tree documents
      */
-    public Iterator<StarTreeDocument> sortAndAggregateStarTreeDocuments(StarTreeDocument[] starTreeDocuments) throws IOException {
+    Iterator<StarTreeDocument> sortAndAggregateStarTreeDocuments(StarTreeDocument[] starTreeDocuments) throws IOException {
 
         // sort the documents
         Arrays.sort(starTreeDocuments, (o1, o2) -> {

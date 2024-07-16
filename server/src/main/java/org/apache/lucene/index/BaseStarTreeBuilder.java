@@ -23,7 +23,7 @@ import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreeBui
 import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreeDocValuesIteratorAdapter;
 import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreesBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
-import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeBuilderUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
@@ -38,6 +38,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode.ALL;
 
 /**
  * Builder for star tree. Defines the algorithm to construct star-tree
@@ -64,7 +66,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     protected int numStarTreeNodes;
     protected final int maxLeafDocuments;
 
-    protected final StarTreeBuilderUtils.TreeNode rootNode = getNewNode();
+    protected final TreeNode rootNode = getNewNode();
 
     protected SequentialDocValuesIterator[] dimensionReaders;
 
@@ -237,7 +239,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @return dimension values for each of the star-tree dimension
      * @throws IOException when we are unable to iterate to the next doc for the given dimension readers
      */
-    Long[] getStarTreeDimensionsFromSegment(int currentDocId) throws IOException {
+    private Long[] getStarTreeDimensionsFromSegment(int currentDocId) throws IOException {
         Long[] dimensions = new Long[numDimensions];
         for (int i = 0; i < numDimensions; i++) {
             if (dimensionReaders[i] != null) {
@@ -470,9 +472,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      *
      * @return return new star-tree node
      */
-    private StarTreeBuilderUtils.TreeNode getNewNode() {
+    private TreeNode getNewNode() {
         numStarTreeNodes++;
-        return new StarTreeBuilderUtils.TreeNode();
+        return new TreeNode();
     }
 
     /**
@@ -483,7 +485,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @param endDocId   end document id
      * @throws IOException throws an exception if we are unable to construct the tree
      */
-    private void constructStarTree(StarTreeBuilderUtils.TreeNode node, int startDocId, int endDocId) throws IOException {
+    private void constructStarTree(TreeNode node, int startDocId, int endDocId) throws IOException {
 
         int childDimensionId = node.dimensionId + 1;
         if (childDimensionId == numDimensions) {
@@ -492,16 +494,16 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         // Construct all non-star children nodes
         node.childDimensionId = childDimensionId;
-        Map<Long, StarTreeBuilderUtils.TreeNode> children = constructNonStarNodes(startDocId, endDocId, childDimensionId);
+        Map<Long, TreeNode> children = constructNonStarNodes(startDocId, endDocId, childDimensionId);
         node.children = children;
 
         // Construct star-node if required
         if (!skipStarNodeCreationForDimensions.contains(childDimensionId) && children.size() > 1) {
-            children.put((long) StarTreeBuilderUtils.ALL, constructStarNode(startDocId, endDocId, childDimensionId));
+            children.put((long) ALL, constructStarNode(startDocId, endDocId, childDimensionId));
         }
 
         // Further split on child nodes if required
-        for (StarTreeBuilderUtils.TreeNode child : children.values()) {
+        for (TreeNode child : children.values()) {
             if (child.endDocId - child.startDocId > maxLeafDocuments) {
                 constructStarTree(child, child.startDocId, child.endDocId);
             }
@@ -517,15 +519,14 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @return root node with non-star nodes constructed
      * @throws IOException throws an exception if we are unable to construct non-star nodes
      */
-    private Map<Long, StarTreeBuilderUtils.TreeNode> constructNonStarNodes(int startDocId, int endDocId, int dimensionId)
-        throws IOException {
-        Map<Long, StarTreeBuilderUtils.TreeNode> nodes = new HashMap<>();
+    private Map<Long, TreeNode> constructNonStarNodes(int startDocId, int endDocId, int dimensionId) throws IOException {
+        Map<Long, TreeNode> nodes = new HashMap<>();
         int nodeStartDocId = startDocId;
         Long nodeDimensionValue = getDimensionValue(startDocId, dimensionId);
         for (int i = startDocId + 1; i < endDocId; i++) {
             Long dimensionValue = getDimensionValue(i, dimensionId);
             if (!dimensionValue.equals(nodeDimensionValue)) {
-                StarTreeBuilderUtils.TreeNode child = getNewNode();
+                TreeNode child = getNewNode();
                 child.dimensionId = dimensionId;
                 child.dimensionValue = nodeDimensionValue;
                 child.startDocId = nodeStartDocId;
@@ -536,7 +537,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 nodeDimensionValue = dimensionValue;
             }
         }
-        StarTreeBuilderUtils.TreeNode lastNode = getNewNode();
+        TreeNode lastNode = getNewNode();
         lastNode.dimensionId = dimensionId;
         lastNode.dimensionValue = nodeDimensionValue;
         lastNode.startDocId = nodeStartDocId;
@@ -554,10 +555,10 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @return root node with star nodes constructed
      * @throws IOException throws an exception if we are unable to construct non-star nodes
      */
-    private StarTreeBuilderUtils.TreeNode constructStarNode(int startDocId, int endDocId, int dimensionId) throws IOException {
-        StarTreeBuilderUtils.TreeNode starNode = getNewNode();
+    private TreeNode constructStarNode(int startDocId, int endDocId, int dimensionId) throws IOException {
+        TreeNode starNode = getNewNode();
         starNode.dimensionId = dimensionId;
-        starNode.dimensionValue = StarTreeBuilderUtils.ALL;
+        starNode.dimensionValue = ALL;
         starNode.isStarNode = true;
         starNode.startDocId = numStarTreeDocs;
         Iterator<StarTreeDocument> starTreeDocumentIterator = generateStarTreeDocumentsForStarNode(startDocId, endDocId, dimensionId);
@@ -575,11 +576,11 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @return aggregated star-tree documents
      * @throws IOException throws an exception upon failing to create new aggregated docs based on star tree
      */
-    private StarTreeDocument createAggregatedDocs(StarTreeBuilderUtils.TreeNode node) throws IOException {
+    private StarTreeDocument createAggregatedDocs(TreeNode node) throws IOException {
         StarTreeDocument aggregatedStarTreeDocument = null;
         if (node.children == null) {
-            // For leaf node
 
+            // For leaf node
             if (node.startDocId == node.endDocId - 1) {
                 // If it has only one document, use it as the aggregated document
                 aggregatedStarTreeDocument = getStarTreeDocument(node.startDocId);
@@ -600,9 +601,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             }
         } else {
             // For non-leaf node
-            if (node.children.containsKey((long) StarTreeBuilderUtils.ALL)) {
+            if (node.children.containsKey((long) ALL)) {
                 // If it has star child, use the star child aggregated document directly
-                for (StarTreeBuilderUtils.TreeNode child : node.children.values()) {
+                for (TreeNode child : node.children.values()) {
                     if (child.isStarNode) {
                         aggregatedStarTreeDocument = createAggregatedDocs(child);
                         node.aggregatedDocId = child.aggregatedDocId;
@@ -612,7 +613,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 }
             } else {
                 // If no star child exists, aggregate all aggregated documents from non-star children
-                for (StarTreeBuilderUtils.TreeNode child : node.children.values()) {
+                for (TreeNode child : node.children.values()) {
                     aggregatedStarTreeDocument = reduceStarTreeDocuments(aggregatedStarTreeDocument, createAggregatedDocs(child));
                 }
                 if (null == aggregatedStarTreeDocument) {
