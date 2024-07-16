@@ -180,7 +180,7 @@ public class RemoteGlobalMetadataTests extends OpenSearchTestCase {
         }
     }
 
-    private Metadata getGlobalMetadata() {
+    public static Metadata getGlobalMetadata() {
         return Metadata.builder()
             .templates(
                 TemplatesMetadata.builder()
@@ -205,6 +205,5 @@ public class RemoteGlobalMetadataTests extends OpenSearchTestCase {
                     .build()
             )
             .build();
-
     }
 }

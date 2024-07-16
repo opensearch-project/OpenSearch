@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Information passed during repository cleanup
@@ -118,6 +119,24 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         return LegacyESVersion.fromId(7040099);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        RepositoryCleanupInProgress that = (RepositoryCleanupInProgress) o;
+        return entries.equals(that.entries);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 + entries.hashCode();
+    }
+
     /**
      * Entry in the collection.
      *
@@ -153,6 +172,23 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(repository);
             out.writeLong(repositoryStateId);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            RepositoryCleanupInProgress.Entry that = (RepositoryCleanupInProgress.Entry) o;
+            return repository.equals(that.repository) && repositoryStateId == that.repositoryStateId;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(repository, repositoryStateId);
         }
 
         @Override

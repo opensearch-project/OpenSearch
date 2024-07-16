@@ -108,6 +108,9 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
             .add("cluster-state")
             .add(getClusterState().metadata().clusterUUID());
         BlobPath manifestContainerPath = baseMetadataPath.add("manifest");
+        RemoteClusterStateCleanupManager remoteClusterStateCleanupManager = internalCluster().getClusterManagerNodeInstance(
+            RemoteClusterStateCleanupManager.class
+        );
 
         // set cleanup interval to 100 ms to make the test faster
         ClusterUpdateSettingsResponse response = client().admin()
@@ -117,6 +120,7 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
             .get();
 
         assertTrue(response.isAcknowledged());
+        assertBusy(() -> assertEquals(100, remoteClusterStateCleanupManager.getStaleFileDeletionTask().getInterval().getMillis()));
 
         assertBusy(() -> {
             int manifestFiles = repository.blobStore().blobContainer(manifestContainerPath).listBlobsByPrefix("manifest").size();
@@ -128,7 +132,7 @@ public class RemoteClusterStateCleanupManagerIT extends RemoteStoreBaseIntegTest
                 "Current number of manifest files: " + manifestFiles,
                 manifestFiles >= RETAINED_MANIFESTS && manifestFiles < RETAINED_MANIFESTS + 2 * SKIP_CLEANUP_STATE_CHANGES
             );
-        }, 500, TimeUnit.MILLISECONDS);
+        });
 
         // disable the clean up to avoid race condition during shutdown
         response = client().admin()

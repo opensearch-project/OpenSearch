@@ -981,6 +981,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return metadata1.templates.equals(metadata2.templates);
     }
 
+    public static boolean isHashesOfConsistentSettingsEqual(Metadata metadata1, Metadata metadata2) {
+        return metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings);
+    }
+
     public static boolean isCustomMetadataEqual(Metadata metadata1, Metadata metadata2) {
         int customCount1 = 0;
         for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
@@ -1283,6 +1287,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder templates(TemplatesMetadata templatesMetadata) {
+            this.templates.clear();
             this.templates.putAll(templatesMetadata.getTemplates());
             return this;
         }
@@ -1361,6 +1366,25 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             existingDataStreams.remove(name);
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
             return this;
+        }
+
+        public Builder queryGroups(final Map<String, QueryGroup> queryGroups) {
+            this.customs.put(QueryGroupMetadata.TYPE, new QueryGroupMetadata(queryGroups));
+            return this;
+        }
+
+        public Builder put(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
+            existing.put(queryGroup.get_id(), queryGroup);
+            return queryGroups(existing);
+        }
+
+        private Map<String, QueryGroup> getQueryGroups() {
+            return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
+                .map(o -> (QueryGroupMetadata) o)
+                .map(QueryGroupMetadata::queryGroups)
+                .orElse(Collections.emptyMap());
         }
 
         private Map<String, View> getViews() {

@@ -185,7 +185,7 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
         }
     }
 
-    private DiffableStringMap getHashesOfConsistentSettings() {
+    public static DiffableStringMap getHashesOfConsistentSettings() {
         Map<String, String> hashesOfConsistentSettings = new HashMap<>();
         hashesOfConsistentSettings.put("secure-setting-key", "secure-setting-value");
         return new DiffableStringMap(hashesOfConsistentSettings);

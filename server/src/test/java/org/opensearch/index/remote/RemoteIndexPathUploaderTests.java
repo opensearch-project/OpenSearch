@@ -22,7 +22,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
-import org.opensearch.gateway.remote.RemoteClusterStateService.RemoteStateTransferException;
+import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.node.Node;
@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.mockito.Mockito;
 
+import static org.opensearch.gateway.remote.RemoteGlobalMetadataManager.GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.FIXED;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_INFIX;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
@@ -276,7 +277,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
 
         Settings settings = Settings.builder()
             .put(this.settings)
-            .put(RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
+            .put(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
             .build();
         clusterSettings.applySettings(settings);
         SetOnce<Exception> exceptionSetOnce = new SetOnce<>();
@@ -306,7 +307,7 @@ public class RemoteIndexPathUploaderTests extends OpenSearchTestCase {
         remoteIndexPathUploader.start();
         Settings settings = Settings.builder()
             .put(this.settings)
-            .put(RemoteClusterStateService.INDEX_METADATA_UPLOAD_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1))
             .build();
         clusterSettings.applySettings(settings);
         SetOnce<Exception> exceptionSetOnce = new SetOnce<>();
