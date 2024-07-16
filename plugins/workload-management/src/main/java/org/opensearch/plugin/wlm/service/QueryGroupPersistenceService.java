@@ -27,6 +27,7 @@ import org.opensearch.search.ResourceType;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAdder;
 
@@ -162,7 +163,12 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
         // check if group count exceed max
         boolean groupCountExceeded = inflightCreateQueryGroupRequestCount.incrementAndGet() + previousGroups.size() > maxQueryGroupCount;
 
-        if (previousGroups.containsKey(groupName)) {
+        Optional<QueryGroup> findExistingGroup = previousGroups.values()
+            .stream()
+            .filter(group -> group.getName().equals(groupName))
+            .findFirst();
+
+        if (findExistingGroup.isPresent()) {
             logger.warn("QueryGroup with name {} already exists. Not creating a new one.", groupName);
             throw new RuntimeException("QueryGroup with name " + groupName + " already exists. Not creating a new one.");
         }

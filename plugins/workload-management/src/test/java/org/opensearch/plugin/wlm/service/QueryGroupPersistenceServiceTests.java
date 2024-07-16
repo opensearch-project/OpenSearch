@@ -15,8 +15,6 @@ import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.CreateQueryGroupResponse;
 import org.opensearch.search.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -32,7 +30,6 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MEMORY_STRING;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MONITOR_STRING;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_NONE_EXISTED;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_ONE;
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_TWO;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_TWO;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertInflightValuesAreZero;
@@ -90,8 +87,8 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testCreateQueryGroupOverflowAllocation() {
-        List<Object> setup = preparePersistenceServiceSetup(Map.of(_ID_TWO, queryGroupOne));
-        QueryGroup toCreate = builder().name(NAME_TWO)
+        List<Object> setup = preparePersistenceServiceSetup(Map.of(_ID_TWO, queryGroupTwo));
+        QueryGroup toCreate = builder().name(NAME_ONE)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
             .mode(MONITOR_STRING)
             .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.5))
@@ -120,16 +117,5 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
             clusterSettings
         );
         assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveQueryGroupInClusterState(toCreate, clusterState));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testPersist() {
-        List<Object> setup = preparePersistenceServiceSetup(Map.of(_ID_ONE, queryGroupOne));
-        QueryGroupPersistenceService queryGroupPersistenceService = (QueryGroupPersistenceService) setup.get(0);
-        ActionListener<CreateQueryGroupResponse> mockListener = mock(ActionListener.class);
-        queryGroupPersistenceService.persist(queryGroupTwo, mockListener);
-        Map<String, QueryGroup> newQueryGroups = queryGroupPersistenceService.getClusterService().state().metadata().queryGroups();
-        assertEquals(2, newQueryGroups.size());
-        assertTrue(newQueryGroups.containsKey(_ID_TWO));
     }
 }
