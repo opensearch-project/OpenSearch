@@ -31,7 +31,7 @@ import java.util.function.Supplier;
  * Class responsible for loading the component templates provided by a repository into the cluster state.
  */
 @ExperimentalApi
-public class ClusterStateComponentSystemTemplateLoader implements SystemTemplateLoader {
+public class ClusterStateSystemTemplateLoader implements SystemTemplateLoader {
 
     private final Client client;
 
@@ -40,8 +40,9 @@ public class ClusterStateComponentSystemTemplateLoader implements SystemTemplate
     private static final Logger logger = LogManager.getLogger(SystemTemplateLoader.class);
 
     public static final String TEMPLATE_LOADER_IDENTIFIER = "system_template_loader";
+    public static final String TEMPLATE_TYPE_KEY = "_type";
 
-    public ClusterStateComponentSystemTemplateLoader(Client client, Supplier<ClusterState> clusterStateSupplier) {
+    public ClusterStateSystemTemplateLoader(Client client, Supplier<ClusterState> clusterStateSupplier) {
         this.client = new OriginSettingClient(client, TEMPLATE_LOADER_IDENTIFIER);
         this.clusterStateSupplier = clusterStateSupplier;
     }
@@ -53,12 +54,31 @@ public class ClusterStateComponentSystemTemplateLoader implements SystemTemplate
             .componentTemplates()
             .get(template.templateMetadata().fullyQualifiedName());
 
-        final XContentParser contentParser = JsonXContent.jsonXContent.createParser(
+        if (existingTemplate != null
+            && !SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE.equals(Objects.toString(existingTemplate.metadata().get(TEMPLATE_TYPE_KEY)))) {
+            throw new OpenSearchCorruptionException(
+                "Attempting to create " + template.templateMetadata().name() + " which has already been created through some other source."
+            );
+        }
+
+        if (existingTemplate != null && existingTemplate.version() >= template.templateMetadata().version()) {
+            logger.debug(
+                "Skipping putting template {} as its existing version [{}] is >= fetched version [{}]",
+                template.templateMetadata().fullyQualifiedName(),
+                existingTemplate.version(),
+                template.templateMetadata().version()
+            );
+            return false;
+        }
+
+        ComponentTemplate newTemplate = null;
+        try(XContentParser contentParser = JsonXContent.jsonXContent.createParser(
             NamedXContentRegistry.EMPTY,
             DeprecationHandler.IGNORE_DEPRECATIONS,
             template.templateContent().utf8ToString()
-        );
-        final ComponentTemplate newTemplate = ComponentTemplate.parse(contentParser);
+        )) {
+            newTemplate = ComponentTemplate.parse(contentParser);
+        }
 
         if (!Objects.equals(newTemplate.version(), template.templateMetadata().version())) {
             throw new OpenSearchCorruptionException(
@@ -69,23 +89,6 @@ public class ClusterStateComponentSystemTemplateLoader implements SystemTemplate
                     + " , Version in content: "
                     + newTemplate.version()
             );
-        }
-
-        if (existingTemplate != null
-            && !Boolean.parseBoolean(Objects.toString(existingTemplate.metadata().get(SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE)))) {
-            throw new OpenSearchCorruptionException(
-                "Attempting to create " + template.templateMetadata().name() + " which has already been created through some other source."
-            );
-        }
-
-        if (existingTemplate != null && existingTemplate.version() >= newTemplate.version()) {
-            logger.debug(
-                "Skipping putting template {} as its existing version [{}] is >= fetched version [{}]",
-                template.templateMetadata().fullyQualifiedName(),
-                existingTemplate.version(),
-                newTemplate.version()
-            );
-            return false;
         }
 
         final PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request(

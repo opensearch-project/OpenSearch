@@ -42,6 +42,11 @@ public class SystemTemplateMetadata {
         return version;
     }
 
+    /**
+     * Gets the metadata using fully qualified name for the template
+     * @param fullyQualifiedName (e.g. @abc_template@logs@1)
+     * @return Metadata object based on name
+     */
     public static SystemTemplateMetadata fromComponentTemplate(String fullyQualifiedName) {
         assert fullyQualifiedName.length() > 1 : "System template name must have at least one component";
         assert fullyQualifiedName.substring(1, fullyQualifiedName.indexOf(DELIMITER, 1)).equals(COMPONENT_TEMPLATE_TYPE);

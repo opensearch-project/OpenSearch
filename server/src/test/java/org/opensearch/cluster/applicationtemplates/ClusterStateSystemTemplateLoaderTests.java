@@ -21,7 +21,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.io.IOException;
 import java.util.UUID;
 
-public class ClusterStateComponentSystemTemplateLoaderTests extends OpenSearchSingleNodeTestCase {
+public class ClusterStateSystemTemplateLoaderTests extends OpenSearchSingleNodeTestCase {
 
     public static final String SAMPLE_TEMPLATE = "{\n"
         + "  \"template\": {\n"
@@ -34,7 +34,7 @@ public class ClusterStateComponentSystemTemplateLoaderTests extends OpenSearchSi
         + "    }\n"
         + "  },\n"
         + "  \"_meta\": {\n"
-        + "    \"@abc_template\": true,\n"
+        + "    \"_type\": \"@abc_template\",\n"
         + "    \"_version\": 1\n"
         + "  },\n"
         + "  \"version\": 1\n"
@@ -51,14 +51,14 @@ public class ClusterStateComponentSystemTemplateLoaderTests extends OpenSearchSi
         + "    }\n"
         + "  },\n"
         + "  \"_meta\": {\n"
-        + "    \"@abc_template\": true,\n"
+        + "    \"_type\": \"@abc_template\",\n"
         + "    \"_version\": 2\n"
         + "  },\n"
         + "  \"version\": 2\n"
         + "}";
 
     public void testLoadTemplate() throws IOException {
-        ClusterStateComponentSystemTemplateLoader loader = new ClusterStateComponentSystemTemplateLoader(
+        ClusterStateSystemTemplateLoader loader = new ClusterStateSystemTemplateLoader(
             node().client(),
             () -> node().injector().getInstance(ClusterService.class).state()
         );
@@ -125,7 +125,7 @@ public class ClusterStateComponentSystemTemplateLoaderTests extends OpenSearchSi
     }
 
     public void testLoadTemplateVersionMismatch() throws IOException {
-        ClusterStateComponentSystemTemplateLoader loader = new ClusterStateComponentSystemTemplateLoader(
+        ClusterStateSystemTemplateLoader loader = new ClusterStateSystemTemplateLoader(
             node().client(),
             () -> node().injector().getInstance(ClusterService.class).state()
         );
