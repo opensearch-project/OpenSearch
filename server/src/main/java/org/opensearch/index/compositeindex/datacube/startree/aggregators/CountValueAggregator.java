@@ -60,7 +60,7 @@ public class CountValueAggregator implements ValueAggregator<Long> {
     }
 
     @Override
-    public Long toStarTreeNumericTypeValue(Long value, StarTreeNumericType type) {
+    public Long toStarTreeNumericTypeValue(Long value) {
         return value;
     }
 }

@@ -60,5 +60,5 @@ public interface ValueAggregator<A> {
     /**
      * Converts an aggregated value from a Long type.
      */
-    A toStarTreeNumericTypeValue(Long rawValue, StarTreeNumericType type);
+    A toStarTreeNumericTypeValue(Long rawValue);
 }

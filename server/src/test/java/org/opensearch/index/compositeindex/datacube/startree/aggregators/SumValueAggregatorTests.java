@@ -67,6 +67,6 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testToStarTreeNumericTypeValue() {
-        assertEquals(NumericUtils.sortableLongToDouble(3L), aggregator.toStarTreeNumericTypeValue(3L, StarTreeNumericType.DOUBLE), 0.0);
+        assertEquals(NumericUtils.sortableLongToDouble(3L), aggregator.toStarTreeNumericTypeValue(3L), 0.0);
     }
 }

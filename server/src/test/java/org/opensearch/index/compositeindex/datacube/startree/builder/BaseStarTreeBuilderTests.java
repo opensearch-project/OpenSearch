@@ -22,6 +22,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -30,6 +31,7 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
+import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -155,7 +157,10 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
         );
         when(documentMapper.mappers()).thenReturn(fieldMappers);
 
-        builder = new BaseStarTreeBuilder(starTreeField, fieldProducerMap, state, mapperService) {
+        builder = new BaseStarTreeBuilder(starTreeField, state, mapperService) {
+            @Override
+            public void build(List<StarTreeValues> starTreeValuesSubs) throws IOException {}
+
             @Override
             public void appendStarTreeDocument(StarTreeDocument starTreeDocument) throws IOException {}
 
@@ -171,11 +176,14 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
 
             @Override
             public Long getDimensionValue(int docId, int dimensionId) throws IOException {
-                return 0L;
+                return 0l;
             }
 
             @Override
-            public Iterator<StarTreeDocument> sortAndAggregateStarTreeDocuments() throws IOException {
+            public Iterator<StarTreeDocument> sortAndAggregateSegmentDocuments(
+                SequentialDocValuesIterator[] dimensionReaders,
+                List<SequentialDocValuesIterator> metricReaders
+            ) throws IOException {
                 return null;
             }
 
@@ -188,10 +196,10 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
     }
 
     public void test_generateMetricAggregatorInfos() throws IOException {
-        List<MetricAggregatorInfo> metricAggregatorInfos = builder.generateMetricAggregatorInfos(mapperService, state);
+        List<MetricAggregatorInfo> metricAggregatorInfos = builder.generateMetricAggregatorInfos(mapperService);
         List<MetricAggregatorInfo> expectedMetricAggregatorInfos = List.of(
-            new MetricAggregatorInfo(MetricStat.SUM, "field2", starTreeField.getName(), IndexNumericFieldData.NumericType.DOUBLE, null),
-            new MetricAggregatorInfo(MetricStat.SUM, "field4", starTreeField.getName(), IndexNumericFieldData.NumericType.DOUBLE, null)
+            new MetricAggregatorInfo(MetricStat.SUM, "field2", starTreeField.getName(), IndexNumericFieldData.NumericType.DOUBLE),
+            new MetricAggregatorInfo(MetricStat.SUM, "field4", starTreeField.getName(), IndexNumericFieldData.NumericType.DOUBLE)
         );
         assertEquals(metricAggregatorInfos, expectedMetricAggregatorInfos);
     }

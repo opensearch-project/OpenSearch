@@ -48,6 +48,6 @@ public class CountValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testToStarTreeNumericTypeValue() {
-        assertEquals(3L, aggregator.toStarTreeNumericTypeValue(3L, StarTreeNumericType.LONG), 0.0);
+        assertEquals(3L, aggregator.toStarTreeNumericTypeValue(3L), 0.0);
     }
 }
