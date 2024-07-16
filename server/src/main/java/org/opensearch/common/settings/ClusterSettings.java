@@ -49,6 +49,7 @@ import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.opensearch.cluster.coordination.Coordinator;
@@ -757,7 +758,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
 
                 // Composite index settings
-                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING
+                CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
+
+                SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED
             )
         )
     );
