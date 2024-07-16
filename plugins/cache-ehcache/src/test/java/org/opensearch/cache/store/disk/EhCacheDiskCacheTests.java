@@ -1125,7 +1125,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
     }
 
     public void testEhcacheCloseWithDestroyCacheMethodThrowingException() throws Exception {
-        EhcacheDiskCache ehcacheDiskCache = new MockEhcahceDiskCache(createDummyBuilder(null));
+        EhcacheDiskCache<String, String> ehcacheDiskCache = new MockEhcahceDiskCache(createDummyBuilder(null));
         PersistentCacheManager cacheManager = ehcacheDiskCache.getCacheManager();
         doNothing().when(cacheManager).removeCache(anyString());
         doNothing().when(cacheManager).close();
@@ -1133,7 +1133,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         ehcacheDiskCache.close();
     }
 
-    class MockEhcahceDiskCache extends EhcacheDiskCache {
+    static class MockEhcahceDiskCache extends EhcacheDiskCache<String, String> {
 
         public MockEhcahceDiskCache(Builder<String, String> builder) {
             super(builder);
