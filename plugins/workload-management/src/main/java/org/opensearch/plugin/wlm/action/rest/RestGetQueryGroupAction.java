@@ -29,7 +29,7 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 /**
  * Rest action to get a QueryGroup0
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
 public class RestGetQueryGroupAction extends BaseRestHandler {
 
@@ -48,7 +48,7 @@ public class RestGetQueryGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "_query_group/{name}"), new Route(GET, "_query_group/"));
+        return List.of(new Route(GET, "_wlm/query_group/{name}"), new Route(GET, "_wlm/query_group/"));
     }
 
     @Override

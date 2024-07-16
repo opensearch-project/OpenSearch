@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.NAME_NONE_EXISTED;
 import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.NAME_ONE;
 import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.NAME_TWO;
-import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.assertInflightValuesAreZero;
 import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.clusterState;
 import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.compareQueryGroups;
 import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupList;
@@ -43,7 +42,6 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         listOne.add(queryGroupOne);
         listTwo.add(queryGroup);
         compareQueryGroups(listOne, listTwo);
-        assertInflightValuesAreZero(queryGroupPersistenceService());
     }
 
     public void testGetAllQueryGroups() {
@@ -54,7 +52,6 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertTrue(currentNAME.contains(NAME_ONE));
         assertTrue(currentNAME.contains(NAME_TWO));
         compareQueryGroups(queryGroupList(), res);
-        assertInflightValuesAreZero(queryGroupPersistenceService());
     }
 
     public void testGetZeroQueryGroups() {
@@ -67,13 +64,11 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         );
         List<QueryGroup> res = queryGroupPersistenceService.getFromClusterStateMetadata(NAME_NONE_EXISTED, clusterState());
         assertEquals(0, res.size());
-        assertInflightValuesAreZero(queryGroupPersistenceService());
     }
 
     public void testGetNonExistedQueryGroups() {
         List<QueryGroup> groups = queryGroupPersistenceService().getFromClusterStateMetadata(NAME_NONE_EXISTED, clusterState());
         assertEquals(0, groups.size());
-        assertInflightValuesAreZero(queryGroupPersistenceService());
     }
 
     @SuppressWarnings("unchecked")

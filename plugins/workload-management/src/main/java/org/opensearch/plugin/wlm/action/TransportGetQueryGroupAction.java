@@ -21,7 +21,7 @@ import org.opensearch.transport.TransportService;
 /**
  * Transport action for get QueryGroup
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class TransportGetQueryGroupAction extends HandledTransportAction<GetQueryGroupRequest, GetQueryGroupResponse> {
 

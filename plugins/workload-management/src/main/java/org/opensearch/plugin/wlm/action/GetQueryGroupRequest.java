@@ -19,7 +19,7 @@ import java.io.IOException;
 /**
  * A request for get QueryGroup
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class GetQueryGroupRequest extends ActionRequest implements Writeable.Reader<GetQueryGroupRequest> {
     String name;
