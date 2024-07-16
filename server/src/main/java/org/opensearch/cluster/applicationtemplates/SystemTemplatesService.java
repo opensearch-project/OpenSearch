@@ -85,7 +85,7 @@ public class SystemTemplatesService implements LocalNodeClusterManagerListener {
         int failedLoadingRepositories = 0;
         List<Exception> exceptions = new ArrayList<>();
 
-        if (loaded.compareAndSet(false, true) && enabledTemplates) {
+        if ((verification || loaded.compareAndSet(false, true)) && enabledTemplates) {
             for (SystemTemplatesPlugin plugin : systemTemplatesPluginList) {
                 try (SystemTemplateRepository repository = plugin.loadRepository()) {
 

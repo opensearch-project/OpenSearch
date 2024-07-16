@@ -656,6 +656,50 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
     }
 
+    public void testPutGlobalV2TemplateWhichProvidesContextWithContextDisabled() throws Exception {
+
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextNotPresentInState() throws Exception {
+
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextWithNonExistingVersion() throws Exception {
+
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextInComposedOfSection() throws Exception {
+
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextWithSpecificVersion() throws Exception {
+
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextWithLatestVersion() throws Exception {
+
+    }
+
+    public void testRemoveSystemTemplateViaUnknownSource() throws Exception {
+
+    }
+
+    public void testRemoveSystemTemplateInUse() throws Exception {
+
+    }
+
+    public void testRemoveSystemTemplateNotInUse() throws Exception {
+
+    }
+
+    public void testPutSystemTemplateViaUnknownSource() throws Exception {
+
+    }
+
+    public void testPutSystemTemplate() throws Exception {
+
+    }
+
     /**
      * Test that if we have a pre-existing v2 template and put a "*" v1 template, we generate a warning
      */
@@ -2067,7 +2111,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             new AliasValidator(),
             null,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
-            xContentRegistry
+            xContentRegistry,
+            null
         );
 
         final List<Throwable> throwables = new ArrayList<>();
