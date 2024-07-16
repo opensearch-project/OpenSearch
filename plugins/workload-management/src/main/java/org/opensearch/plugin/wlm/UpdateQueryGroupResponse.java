@@ -30,7 +30,8 @@ public class UpdateQueryGroupResponse extends ActionResponse implements ToXConte
 
     /**
      * Constructor for UpdateQueryGroupResponse
-     * @param queryGroup - The QueryGroup to be updated
+     * @param queryGroup - the QueryGroup to be updated
+     * @param restStatus - the rest status for the response
      */
     public UpdateQueryGroupResponse(final QueryGroup queryGroup, RestStatus restStatus) {
         this.queryGroup = queryGroup;
@@ -39,7 +40,7 @@ public class UpdateQueryGroupResponse extends ActionResponse implements ToXConte
 
     /**
      * Constructor for UpdateQueryGroupResponse
-     * @param in - A {@link StreamInput} object
+     * @param in - a {@link StreamInput} object
      */
     public UpdateQueryGroupResponse(StreamInput in) throws IOException {
         queryGroup = new QueryGroup(in);
