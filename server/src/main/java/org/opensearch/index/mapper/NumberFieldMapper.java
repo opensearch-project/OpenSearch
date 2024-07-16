@@ -58,6 +58,7 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
@@ -69,10 +70,10 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.query.BitMapFilterQuery;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -83,6 +84,8 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import org.roaringbitmap.RoaringBitmap;
 
 /**
  * A {@link FieldMapper} for numeric types: byte, short, int, long, float and double.
@@ -790,9 +793,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public Query termsQuery(String field, List<Object> values, boolean hasDocValues, boolean isSearchable) {
-                if (values.get(0) instanceof RoaringBitmap) {
-                    RoaringBitmap bm = (RoaringBitmap) values.get(0);
-                    return new BitMapFilterQuery(field, bm);
+                if (values.get(0) instanceof BytesArray) {
+                    RoaringBitmap bitmap = new RoaringBitmap();
+                    try {
+                        bitmap.deserialize(ByteBuffer.wrap(((BytesArray) values.get(0)).array()));
+                        return new BitMapFilterQuery(field, bitmap);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
 
                 int[] v = new int[values.size()];

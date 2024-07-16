@@ -22,10 +22,14 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 
+import org.roaringbitmap.RoaringBitmap;
+
+/**
+ * Filter with bitmap
+ */
 public class BitMapFilterQuery extends Query implements Accountable {
 
     final String field;
@@ -45,39 +49,37 @@ public class BitMapFilterQuery extends Query implements Accountable {
                 final NumericDocValues singleton = DocValues.unwrapSingleton(values);
                 final TwoPhaseIterator iterator;
                 if (singleton != null) {
-                    iterator =
-                        new TwoPhaseIterator(singleton) {
-                            @Override
-                            public boolean matches() throws IOException {
-                                long value = singleton.longValue();
-                                return bitmap.contains((int) value);
-                            }
+                    iterator = new TwoPhaseIterator(singleton) {
+                        @Override
+                        public boolean matches() throws IOException {
+                            long value = singleton.longValue();
+                            return bitmap.contains((int) value);
+                        }
 
-                            @Override
-                            public float matchCost() {
-                                return 5; // 2 comparisions, possible lookup in the set
-                            }
-                        };
+                        @Override
+                        public float matchCost() {
+                            return 5; // 2 comparisions, possible lookup in the set
+                        }
+                    };
                 } else {
-                    iterator =
-                        new TwoPhaseIterator(values) {
-                            @Override
-                            public boolean matches() throws IOException {
-                                int count = values.docValueCount();
-                                for (int i = 0; i < count; i++) {
-                                    final long value = values.nextValue();
-                                    if (bitmap.contains((int) value)) {
-                                        return true;
-                                    }
+                    iterator = new TwoPhaseIterator(values) {
+                        @Override
+                        public boolean matches() throws IOException {
+                            int count = values.docValueCount();
+                            for (int i = 0; i < count; i++) {
+                                final long value = values.nextValue();
+                                if (bitmap.contains((int) value)) {
+                                    return true;
                                 }
-                                return false;
                             }
+                            return false;
+                        }
 
-                            @Override
-                            public float matchCost() {
-                                return 5; // 2 comparisons, possible lookup in the set
-                            }
-                        };
+                        @Override
+                        public float matchCost() {
+                            return 5; // 2 comparisons, possible lookup in the set
+                        }
+                    };
                 }
                 return new ConstantScoreScorer(this, score(), scoreMode, iterator);
             }

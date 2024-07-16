@@ -54,7 +54,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.indices.TermsLookup;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -474,20 +473,16 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-
-        RoaringBitmap bm = new RoaringBitmap();
-        for (Object value : values) {
-            bm.add(((Long) value).intValue());
-        }
-
-        return fieldType.termsQuery(List.of(bm), context);
+        return fieldType.termsQuery(values, context);
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
+        getRequest.storedFields(termsLookup.path());
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
+            terms.addAll(getResponse.getField(termsLookup.path()).getValues());
             if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
                 List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
                 terms.addAll(extractedValues);
