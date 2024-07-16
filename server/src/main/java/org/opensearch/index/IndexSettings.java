@@ -732,11 +732,11 @@ public final class IndexSettings {
     private final Settings nodeSettings;
     private final int numberOfShards;
     private final ReplicationType replicationType;
-    private final boolean isRemoteStoreEnabled;
+    private volatile boolean isRemoteStoreEnabled;
     private final boolean isStoreLocalityPartial;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
-    private final String remoteStoreTranslogRepository;
-    private final String remoteStoreRepository;
+    private volatile String remoteStoreTranslogRepository;
+    private volatile String remoteStoreRepository;
     private int remoteTranslogKeepExtraGen;
     private Version extendedCompatibilitySnapshotVersion;
 
@@ -1132,6 +1132,15 @@ public final class IndexSettings {
             this::setDocIdFuzzySetFalsePositiveProbability
         );
         scopedSettings.addSettingsUpdateConsumer(ALLOW_DERIVED_FIELDS, this::setAllowDerivedField);
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, this::setRemoteStoreEnabled);
+        scopedSettings.addSettingsUpdateConsumer(
+            IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
+            this::setRemoteStoreRepository
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+            this::setRemoteStoreTranslogRepository
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1949,5 +1958,17 @@ public final class IndexSettings {
 
     public boolean isTranslogMetadataEnabled() {
         return isTranslogMetadataEnabled;
+    }
+
+    public void setRemoteStoreEnabled(boolean isRemoteStoreEnabled) {
+        this.isRemoteStoreEnabled = isRemoteStoreEnabled;
+    }
+
+    public void setRemoteStoreRepository(String remoteStoreRepository) {
+        this.remoteStoreRepository = remoteStoreRepository;
+    }
+
+    public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
+        this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
     }
 }

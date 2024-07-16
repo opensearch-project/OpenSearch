@@ -7,6 +7,7 @@
  */
 
 /**
- * Base Package of Query Insights
+ * This package contains workload management constructs
  */
-package org.opensearch.plugin.insights;
+
+package org.opensearch.wlm;
