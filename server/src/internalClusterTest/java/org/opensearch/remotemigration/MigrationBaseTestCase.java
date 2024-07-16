@@ -13,6 +13,8 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.opensearch.action.admin.indices.get.GetIndexRequest;
+import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.delete.DeleteResponse;
@@ -21,12 +23,17 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.health.ClusterHealthStatus;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
@@ -260,5 +267,14 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
             assertThat("timed out waiting for relocation", actionGet.isTimedOut(), equalTo(false));
         }
         return actionGet.getStatus();
+    }
+
+    protected IndexShard getIndexShard(String dataNode, String indexName) throws ExecutionException, InterruptedException {
+        String clusterManagerName = internalCluster().getClusterManagerName();
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNode);
+        GetIndexResponse getIndexResponse = client(clusterManagerName).admin().indices().getIndex(new GetIndexRequest()).get();
+        String uuid = getIndexResponse.getSettings().get(indexName).get(IndexMetadata.SETTING_INDEX_UUID);
+        IndexService indexService = indicesService.indexService(new Index(indexName, uuid));
+        return indexService.getShard(0);
     }
 }
