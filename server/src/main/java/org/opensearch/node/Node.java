@@ -710,7 +710,10 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(SystemIndexPlugin.class)
                     .stream()
                     .collect(
-                        Collectors.toMap(plugin -> plugin.getClass().getSimpleName(), plugin -> plugin.getSystemIndexDescriptors(settings))
+                        Collectors.toMap(
+                            plugin -> plugin.getClass().getCanonicalName(),
+                            plugin -> plugin.getSystemIndexDescriptors(settings)
+                        )
                     )
             );
             final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
