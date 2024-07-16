@@ -2,7 +2,7 @@
 
 ## Overview
 
-`benchmark-pull-request` GitHub Actions workflow is designed to automatically run performance benchmarks on a pull request when a specific comment is made on the related issue. This ensures that performance benchmarks are consistently and accurately applied to code changes, helping maintain the performance standards of the repository.
+`benchmark-pull-request` GitHub Actions workflow is designed to automatically run performance benchmarks on a pull request when a specific comment is made on the pull request. This ensures that performance benchmarks are consistently and accurately applied to code changes, helping maintain the performance standards of the repository.
 
 ## Workflow Trigger
 

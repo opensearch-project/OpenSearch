@@ -49,7 +49,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Invalid comment format or config id.'
+              body: 'Invalid comment format or config id. Please refer https://github.com/opensearch-project/OpenSearch/blob/main/PERFORMANCE_BENCHMARKS.md on how to run benchmarks on pull requests.'
             })
       - name: Fail workflow for invalid comment
         if: steps.check_comment.outputs.invalid == 'true'
