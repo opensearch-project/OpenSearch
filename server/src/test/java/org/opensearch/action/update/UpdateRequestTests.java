@@ -664,7 +664,7 @@ public class UpdateRequestTests extends OpenSearchTestCase {
             request.toString(),
             equalTo(
                 "update {[test][1], doc_as_upsert[false], "
-                    + "doc[index {[null][null], source[{\"body\":\"bar\"}]}], scripted_upsert[false], detect_noop[true]}"
+                    + "doc[index {[test][null], source[{\"body\":\"bar\"}]}], scripted_upsert[false], detect_noop[true]}"
             )
         );
     }
