@@ -50,11 +50,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Phaser;
 import java.util.function.ToLongBiFunction;
 
+import org.ehcache.PersistentCacheManager;
+
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.opensearch.cache.store.disk.EhcacheDiskCache.MINIMUM_MAX_SIZE_IN_BYTES;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = { EhcacheThreadLeakFilter.class })
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
@@ -1115,6 +1121,57 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                     .setStatsTrackingEnabled(false)
                     .build()
             );
+        }
+    }
+
+    public void testEhcacheCloseWithDestroyCacheMethodThrowingException() throws Exception {
+        EhcacheDiskCache ehcacheDiskCache = new MockEhcahceDiskCache(createDummyBuilder(null));
+        PersistentCacheManager cacheManager = ehcacheDiskCache.getCacheManager();
+        doNothing().when(cacheManager).removeCache(anyString());
+        doNothing().when(cacheManager).close();
+        doThrow(new RuntimeException("test")).when(cacheManager).destroyCache(anyString());
+        ehcacheDiskCache.close();
+    }
+
+    class MockEhcahceDiskCache extends EhcacheDiskCache {
+
+        public MockEhcahceDiskCache(Builder<String, String> builder) {
+            super(builder);
+        }
+
+        @Override
+        PersistentCacheManager buildCacheManager() {
+            PersistentCacheManager cacheManager = mock(PersistentCacheManager.class);
+            return cacheManager;
+        }
+    }
+
+    private EhcacheDiskCache.Builder<String, String> createDummyBuilder(String storagePath) throws IOException {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            if (storagePath == null || storagePath.isBlank()) {
+                storagePath = env.nodePaths()[0].path.toString() + "/request_cache";
+            }
+            return (EhcacheDiskCache.Builder<String, String>) new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias(
+                "ehcacheTest"
+            )
+                .setIsEventListenerModeSync(true)
+                .setStoragePath(storagePath)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setDiskCacheAlias("test1")
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false);
         }
     }
 
