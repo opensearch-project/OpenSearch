@@ -22,11 +22,14 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.QueryGroupTestUtils;
+import org.opensearch.plugin.wlm.UpdateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.cluster.metadata.QueryGroup.ResiliencyMode;
+import org.opensearch.plugin.wlm.UpdateQueryGroupRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,9 +38,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.Optional;
 
 import org.mockito.ArgumentCaptor;
-
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MEMORY_STRING;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MONITOR_STRING;
@@ -52,6 +55,7 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterSettingsSet;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterState;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.preparePersistenceServiceSetup;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupPersistenceService;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupPersistenceService;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupTwo;
@@ -355,5 +359,178 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         }).when(clusterService).submitStateUpdateTask(anyString(), any());
         queryGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
         verify(clusterService).submitStateUpdateTask(eq(SOURCE), any(AckedClusterStateUpdateTask.class));
+    }
+
+    /**
+     * Tests updating a QueryGroup with all fields
+     */
+    public void testUpdateQueryGroupAllFields() {
+        QueryGroup updated = builder().name(NAME_ONE)
+            ._id(_ID_ONE)
+            .mode("enforced")
+            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.15))
+            .updatedAt(1690934400000L)
+            .build();
+        UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
+            NAME_ONE,
+            ResiliencyMode.fromName("enforced"),
+            Map.of(ResourceType.fromName(MEMORY_STRING), 0.15),
+            1690934400000L
+        );
+        ClusterState newClusterState = queryGroupPersistenceService().updateQueryGroupInClusterState(
+            updateQueryGroupRequest,
+            clusterState()
+        );
+        List<QueryGroup> updatedQueryGroups = new ArrayList<>(newClusterState.getMetadata().queryGroups().values());
+        assertEquals(2, updatedQueryGroups.size());
+        List<QueryGroup> expectedList = new ArrayList<>();
+        expectedList.add(queryGroupTwo);
+        expectedList.add(updated);
+        assertEqualQueryGroups(expectedList, updatedQueryGroups);
+    }
+
+    /**
+     * Tests updating a QueryGroup with only updated resourceLimits
+     */
+    public void testUpdateQueryGroupResourceLimitsOnly() {
+        QueryGroup updated = builder().name(NAME_ONE)
+            ._id(_ID_ONE)
+            .mode(MONITOR_STRING)
+            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.15))
+            .updatedAt(1690934400000L)
+            .build();
+        UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
+            NAME_ONE,
+            ResiliencyMode.fromName(MONITOR_STRING),
+            Map.of(ResourceType.fromName(MEMORY_STRING), 0.15),
+            1690934400000L
+        );
+        ClusterState newClusterState = queryGroupPersistenceService().updateQueryGroupInClusterState(
+            updateQueryGroupRequest,
+            clusterState()
+        );
+        List<QueryGroup> updatedQueryGroups = new ArrayList<>(newClusterState.getMetadata().queryGroups().values());
+        assertEquals(2, updatedQueryGroups.size());
+        Optional<QueryGroup> findUpdatedGroupOne = newClusterState.metadata()
+            .queryGroups()
+            .values()
+            .stream()
+            .filter(group -> group.getName().equals(NAME_ONE))
+            .findFirst();
+        Optional<QueryGroup> findUpdatedGroupTwo = newClusterState.metadata()
+            .queryGroups()
+            .values()
+            .stream()
+            .filter(group -> group.getName().equals(NAME_TWO))
+            .findFirst();
+        assertTrue(findUpdatedGroupOne.isPresent());
+        assertTrue(findUpdatedGroupTwo.isPresent());
+        List<QueryGroup> list1 = new ArrayList<>();
+        list1.add(updated);
+        List<QueryGroup> list2 = new ArrayList<>();
+        list2.add(findUpdatedGroupOne.get());
+        assertEqualQueryGroups(list1, list2);
+    }
+
+    /**
+     * Tests updating a QueryGroup with invalid name
+     */
+    public void testUpdateQueryGroupNonExistedName() {
+        QueryGroupPersistenceService queryGroupPersistenceService = queryGroupPersistenceService();
+        UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
+            NAME_NONE_EXISTED,
+            ResiliencyMode.fromName(MONITOR_STRING),
+            Map.of(ResourceType.fromName(MEMORY_STRING), 0.15),
+            1690934400000L
+        );
+        assertThrows(
+            RuntimeException.class,
+            () -> queryGroupPersistenceService.updateQueryGroupInClusterState(updateQueryGroupRequest, clusterState())
+        );
+        List<QueryGroup> updatedQueryGroups = new ArrayList<>(
+            queryGroupPersistenceService.getClusterService().state().metadata().queryGroups().values()
+        );
+        assertEquals(2, updatedQueryGroups.size());
+        List<QueryGroup> expectedList = new ArrayList<>();
+        expectedList.add(queryGroupTwo);
+        expectedList.add(queryGroupOne);
+        assertEqualQueryGroups(expectedList, updatedQueryGroups);
+    }
+
+    /**
+     * Tests UpdateInClusterStateMetadata function
+     */
+    public void testUpdateInClusterStateMetadata() {
+        ClusterService clusterService = mock(ClusterService.class);
+        @SuppressWarnings("unchecked")
+        ActionListener<UpdateQueryGroupResponse> listener = mock(ActionListener.class);
+        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
+            clusterService,
+            QueryGroupTestUtils.settings(),
+            clusterSettings()
+        );
+        queryGroupPersistenceService.updateInClusterStateMetadata(null, listener);
+        verify(clusterService).submitStateUpdateTask(eq(SOURCE), any());
+    }
+
+    /**
+     * Tests UpdateInClusterStateMetadata function with inner functions
+     */
+    public void testUpdateInClusterStateMetadataInner() {
+        ClusterService clusterService = mock(ClusterService.class);
+        @SuppressWarnings("unchecked")
+        ActionListener<UpdateQueryGroupResponse> listener = mock(ActionListener.class);
+        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
+            clusterService,
+            QueryGroupTestUtils.settings(),
+            clusterSettings()
+        );
+        UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
+            NAME_TWO,
+            ResiliencyMode.SOFT,
+            new HashMap<>(),
+            2435465879685L
+        );
+        ArgumentCaptor<ClusterStateUpdateTask> captor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
+        queryGroupPersistenceService.updateInClusterStateMetadata(updateQueryGroupRequest, listener);
+        verify(clusterService, times(1)).submitStateUpdateTask(eq(SOURCE), captor.capture());
+        ClusterStateUpdateTask capturedTask = captor.getValue();
+        assertEquals(queryGroupPersistenceService.updateQueryGroupThrottlingKey, capturedTask.getClusterManagerThrottlingKey());
+
+        doAnswer(invocation -> {
+            ClusterStateUpdateTask task = invocation.getArgument(1);
+            task.clusterStateProcessed(SOURCE, clusterState(), clusterState());
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any());
+        queryGroupPersistenceService.updateInClusterStateMetadata(updateQueryGroupRequest, listener);
+        verify(listener).onResponse(any(UpdateQueryGroupResponse.class));
+    }
+
+    /**
+     * Tests UpdateInClusterStateMetadata function with failure
+     */
+    public void testUpdateInClusterStateMetadataFailure() {
+        ClusterService clusterService = mock(ClusterService.class);
+        @SuppressWarnings("unchecked")
+        ActionListener<UpdateQueryGroupResponse> listener = mock(ActionListener.class);
+        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
+            clusterService,
+            QueryGroupTestUtils.settings(),
+            clusterSettings()
+        );
+        UpdateQueryGroupRequest updateQueryGroupRequest = new UpdateQueryGroupRequest(
+            NAME_TWO,
+            ResiliencyMode.SOFT,
+            new HashMap<>(),
+            2435465879685L
+        );
+        doAnswer(invocation -> {
+            ClusterStateUpdateTask task = invocation.getArgument(1);
+            Exception exception = new RuntimeException("Test Exception");
+            task.onFailure(SOURCE, exception);
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any());
+        queryGroupPersistenceService.updateInClusterStateMetadata(updateQueryGroupRequest, listener);
+        verify(listener).onFailure(any(RuntimeException.class));
     }
 }

@@ -18,6 +18,7 @@ import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
+import org.opensearch.cluster.metadata.QueryGroup.ResiliencyMode;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler.ThrottlingKey;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -29,13 +30,17 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.DeleteQueryGroupRequest;
+
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.plugin.wlm.UpdateQueryGroupRequest;
+import org.opensearch.plugin.wlm.UpdateQueryGroupResponse;
 
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.HashMap;
 
 /**
  * This class defines the functions for QueryGroup persistence
@@ -44,6 +49,7 @@ public class QueryGroupPersistenceService {
     static final String SOURCE = "query-group-persistence-service";
     private static final String CREATE_QUERY_GROUP_THROTTLING_KEY = "create-query-group";
     private static final String DELETE_QUERY_GROUP_THROTTLING_KEY = "delete-query-group";
+    private static final String UPDATE_QUERY_GROUP_THROTTLING_KEY = "update-query-group";
     private static final Logger logger = LogManager.getLogger(QueryGroupPersistenceService.class);
     /**
      *  max QueryGroup count setting name
@@ -72,6 +78,7 @@ public class QueryGroupPersistenceService {
     private volatile int maxQueryGroupCount;
     final ThrottlingKey createQueryGroupThrottlingKey;
     final ThrottlingKey deleteQueryGroupThrottlingKey;
+    final ThrottlingKey updateQueryGroupThrottlingKey;
 
     /**
      * Constructor for QueryGroupPersistenceService
@@ -89,6 +96,7 @@ public class QueryGroupPersistenceService {
         this.clusterService = clusterService;
         this.createQueryGroupThrottlingKey = clusterService.registerClusterManagerTask(CREATE_QUERY_GROUP_THROTTLING_KEY, true);
         this.deleteQueryGroupThrottlingKey = clusterService.registerClusterManagerTask(DELETE_QUERY_GROUP_THROTTLING_KEY, true);
+        this.updateQueryGroupThrottlingKey = clusterService.registerClusterManagerTask(UPDATE_QUERY_GROUP_THROTTLING_KEY, true);
         setMaxQueryGroupCount(MAX_QUERY_GROUP_COUNT.get(settings));
         clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxQueryGroupCount);
     }
@@ -169,37 +177,11 @@ public class QueryGroupPersistenceService {
         }
 
         // check if there's any resource allocation that exceed limit of 1.0
-        Map<ResourceType, Double> totalUsageMap = calculateTotalUsage(existingQueryGroups, queryGroup);
-        for (ResourceType resourceType : queryGroup.getResourceLimits().keySet()) {
-            if (totalUsageMap.get(resourceType) > 1) {
-                logger.warn("Total resource allocation for {} will go above the max limit of 1.0.", resourceType.getName());
-                throw new IllegalArgumentException(
-                    "Total resource allocation for " + resourceType.getName() + " will go above the max limit of 1.0."
-                );
-            }
-        }
+        validateTotalUsage(existingQueryGroups, groupName, queryGroup.getResourceLimits());
 
         return ClusterState.builder(currentClusterState)
             .metadata(Metadata.builder(currentClusterState.metadata()).put(queryGroup).build())
             .build();
-    }
-
-    /**
-     * This method calculates the existing total usage of the all the resource limits
-     * @param existingQueryGroups - existing QueryGroups in the system
-     * @param queryGroup - the QueryGroup we're creating or updating
-     */
-    private Map<ResourceType, Double> calculateTotalUsage(Map<String, QueryGroup> existingQueryGroups, QueryGroup queryGroup) {
-        final Map<ResourceType, Double> map = new EnumMap<>(ResourceType.class);
-        map.putAll(queryGroup.getResourceLimits());
-        for (QueryGroup currGroup : existingQueryGroups.values()) {
-            if (!currGroup.getName().equals(queryGroup.getName())) {
-                for (ResourceType resourceType : queryGroup.getResourceLimits().keySet()) {
-                    map.compute(resourceType, (k, v) -> v + currGroup.getResourceLimits().get(resourceType));
-                }
-            }
-        }
-        return map;
     }
 
     /**
@@ -265,9 +247,119 @@ public class QueryGroupPersistenceService {
     }
 
     /**
+     * Modify cluster state to update the QueryGroup
+     * @param toUpdateGroup {@link QueryGroup} - the QueryGroup that we want to update
+     * @param listener - ActionListener for UpdateQueryGroupResponse
+     */
+    public void updateInClusterStateMetadata(UpdateQueryGroupRequest toUpdateGroup, ActionListener<UpdateQueryGroupResponse> listener) {
+        clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.NORMAL) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return updateQueryGroupInClusterState(toUpdateGroup, currentState);
+            }
+
+            @Override
+            public ThrottlingKey getClusterManagerThrottlingKey() {
+                return updateQueryGroupThrottlingKey;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn("Failed to update QueryGroup due to error: {}, for source: {}", e.getMessage(), source);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                String name = toUpdateGroup.getName();
+                Optional<QueryGroup> findUpdatedGroup = newState.metadata()
+                    .queryGroups()
+                    .values()
+                    .stream()
+                    .filter(group -> group.getName().equals(name))
+                    .findFirst();
+                assert findUpdatedGroup.isPresent();
+                QueryGroup updatedGroup = findUpdatedGroup.get();
+                UpdateQueryGroupResponse response = new UpdateQueryGroupResponse(updatedGroup, RestStatus.OK);
+                listener.onResponse(response);
+            }
+        });
+    }
+
+    /**
+     * Modify cluster state to update the existing QueryGroup
+     * @param updateQueryGroupRequest {@link QueryGroup} - the QueryGroup that we want to update
+     * @param currentState - current cluster state
+     */
+    ClusterState updateQueryGroupInClusterState(UpdateQueryGroupRequest updateQueryGroupRequest, ClusterState currentState) {
+        final Metadata metadata = currentState.metadata();
+        final Map<String, QueryGroup> existingGroups = currentState.metadata().queryGroups();
+        String name = updateQueryGroupRequest.getName();
+
+        final QueryGroup existingGroup = existingGroups.values()
+            .stream()
+            .filter(group -> group.getName().equals(name))
+            .findFirst()
+            .orElseThrow(() -> new ResourceNotFoundException("No QueryGroup exists with the provided name: " + name));
+
+        // build the QueryGroup with updated fields
+        final Map<ResourceType, Double> updatedResourceLimits = new HashMap<>(existingGroup.getResourceLimits());
+        if (updateQueryGroupRequest.getResourceLimits() != null && !updateQueryGroupRequest.getResourceLimits().isEmpty()) {
+            validateTotalUsage(existingGroups, name, updateQueryGroupRequest.getResourceLimits());
+            updatedResourceLimits.putAll(updateQueryGroupRequest.getResourceLimits());
+        }
+
+        final ResiliencyMode mode = Optional.ofNullable(updateQueryGroupRequest.getResiliencyMode())
+            .orElse(existingGroup.getResiliencyMode());
+
+        final QueryGroup updatedGroup = new QueryGroup(
+            name,
+            existingGroup.get_id(),
+            mode,
+            updatedResourceLimits,
+            updateQueryGroupRequest.getUpdatedAtInMillis()
+        );
+        return ClusterState.builder(currentState)
+            .metadata(Metadata.builder(metadata).remove(existingGroup).put(updatedGroup).build())
+            .build();
+    }
+
+    /**
+     * This method checks if there's any resource allocation that exceed limit of 1.0
+     * @param existingQueryGroups - existing QueryGroups in the system
+     * @param resourceLimits - the QueryGroup we're creating or updating
+     */
+    private void validateTotalUsage(Map<String, QueryGroup> existingQueryGroups, String name, Map<ResourceType, Double> resourceLimits) {
+        final Map<ResourceType, Double> totalUsage = new EnumMap<>(ResourceType.class);
+        totalUsage.putAll(resourceLimits);
+        for (QueryGroup currGroup : existingQueryGroups.values()) {
+            if (!currGroup.getName().equals(name)) {
+                for (ResourceType resourceType : resourceLimits.keySet()) {
+                    totalUsage.compute(resourceType, (k, v) -> v + currGroup.getResourceLimits().getOrDefault(resourceType, 0.0));
+                }
+            }
+        }
+        totalUsage.forEach((resourceType, total) -> {
+            if (total > 1.0) {
+                logger.warn("Total resource allocation for {} will go above the max limit of 1.0.", resourceType.getName());
+                throw new IllegalArgumentException(
+                    "Total resource allocation for " + resourceType.getName() + " will go above the max limit of 1.0."
+                );
+            }
+        });
+    }
+
+    /**
      * maxQueryGroupCount getter
      */
     public int getMaxQueryGroupCount() {
         return maxQueryGroupCount;
+    }
+
+    /**
+     * clusterService getter
+     */
+    public ClusterService getClusterService() {
+        return clusterService;
     }
 }

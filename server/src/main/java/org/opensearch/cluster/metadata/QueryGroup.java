@@ -29,7 +29,11 @@ import java.util.Objects;
  * Class to define the QueryGroup schema
  * {
  *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga",
+<<<<<<< HEAD
  *              "resource_limits": {
+=======
+ *              "resourceLimits": {
+>>>>>>> 7abcbc98a73 (Add Update QueryGroup API Logic)
  *                  "memory": 0.4
  *              },
  *              "resiliency_mode": "enforced",

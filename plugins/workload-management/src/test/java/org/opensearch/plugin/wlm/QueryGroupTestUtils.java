@@ -20,6 +20,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
+import org.opensearch.search.ResourceType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -129,6 +130,11 @@ public class QueryGroupTestUtils {
             clusterSettings
         );
         return new Tuple<QueryGroupPersistenceService, ClusterState>(queryGroupPersistenceService, clusterState);
+    }
+
+    public static void assertEqualResourceLimits(Map<ResourceType, Double> resourceLimitMapOne, Map<ResourceType, Double> resourceLimitMapTwo) {
+        assertTrue(resourceLimitMapOne.keySet().containsAll(resourceLimitMapTwo.keySet()));
+        assertTrue(resourceLimitMapOne.values().containsAll(resourceLimitMapTwo.values()));
     }
 
     public static void assertEqualQueryGroups(Collection<QueryGroup> collectionOne, Collection<QueryGroup> collectionTwo) {
