@@ -72,7 +72,7 @@ public class SystemIndexRegistry {
             .collect(Collectors.toSet());
     }
 
-    public static List<SystemIndexDescriptor> getAllDescriptors() {
+    static List<SystemIndexDescriptor> getAllDescriptors() {
         return SYSTEM_INDEX_DESCRIPTORS_MAP.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
     }
 
