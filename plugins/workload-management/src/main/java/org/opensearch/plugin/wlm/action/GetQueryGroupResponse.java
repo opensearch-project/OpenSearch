@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * Response for the get API for QueryGroup
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class GetQueryGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final List<QueryGroup> queryGroups;

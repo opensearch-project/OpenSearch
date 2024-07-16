@@ -22,11 +22,8 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.GetQueryGroupResponse;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.DoubleAdder;
 
 import static org.opensearch.search.query_group.QueryGroupServiceSettings.MAX_QUERY_GROUP_COUNT;
 
@@ -40,8 +37,6 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
     private static final String CREATE_QUERY_GROUP_THROTTLING_KEY = "create-query-group";
     private static final String UPDATE_QUERY_GROUP_THROTTLING_KEY = "update-query-group";
     private static final String DELETE_QUERY_GROUP_THROTTLING_KEY = "delete-query-group";
-    private final AtomicInteger inflightCreateQueryGroupRequestCount;
-    private final Map<String, DoubleAdder> inflightResourceLimitValues;
     private volatile int maxQueryGroupCount;
     final ThrottlingKey createQueryGroupThrottlingKey;
     final ThrottlingKey updateQueryGroupThrottlingKey;
@@ -66,8 +61,6 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
         this.updateQueryGroupThrottlingKey = clusterService.registerClusterManagerTask(UPDATE_QUERY_GROUP_THROTTLING_KEY, true);
         maxQueryGroupCount = MAX_QUERY_GROUP_COUNT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxQueryGroupCount);
-        inflightCreateQueryGroupRequestCount = new AtomicInteger();
-        inflightResourceLimitValues = new HashMap<>();
     }
 
     /**
@@ -108,20 +101,6 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
             }
         }
         return resultGroups;
-    }
-
-    /**
-     * inflightCreateQueryGroupRequestCount getter
-     */
-    public AtomicInteger getInflightCreateQueryGroupRequestCount() {
-        return inflightCreateQueryGroupRequestCount;
-    }
-
-    /**
-     * inflightResourceLimitValues getter
-     */
-    public Map<String, DoubleAdder> getInflightResourceLimitValues() {
-        return inflightResourceLimitValues;
     }
 
     /**

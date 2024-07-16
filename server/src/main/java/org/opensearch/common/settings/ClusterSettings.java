@@ -762,7 +762,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
 
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
-              
+
                 // QueryGroup settings
                 QueryGroupServiceSettings.MAX_QUERY_GROUP_COUNT,
                 QueryGroupServiceSettings.NODE_LEVEL_REJECTION_THRESHOLD,
