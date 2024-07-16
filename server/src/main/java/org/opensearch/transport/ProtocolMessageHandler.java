@@ -17,6 +17,14 @@ import java.io.IOException;
  */
 public interface ProtocolMessageHandler {
 
+    /**
+     * Handles the message received on the channel.
+     * @param channel the channel on which the message was received
+     * @param message the message received
+     * @param startTime the start time
+     * @param slowLogThresholdMs the threshold for slow logs
+     * @param messageListener the message listener
+     */
     public void messageReceived(
         TcpChannel channel,
         ProtocolInboundMessage message,
@@ -24,4 +32,10 @@ public interface ProtocolMessageHandler {
         long slowLogThresholdMs,
         TransportMessageListener messageListener
     ) throws IOException;
+
+    /**
+     * Sets the message listener to be used by the handler.
+     * @param listener the message listener
+     */
+    public void setMessageListener(TransportMessageListener listener);
 }

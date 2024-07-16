@@ -401,16 +401,32 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             }
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
-            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
-            NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
-                name,
-                parentSearchContext,
-                parentObjectMapper,
-                nestedObjectMapper
-            );
-            setupInnerHitsContext(queryShardContext, nestedInnerHits);
-            queryShardContext.nestedScope().previousLevel();
-            innerHitsContext.addInnerHitDefinition(nestedInnerHits);
+            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().getObjectMapper();
+            BitSetProducer parentFilter;
+            if (parentObjectMapper == null) {
+                parentFilter = queryShardContext.bitsetFilter(Queries.newNonNestedFilter());
+            } else {
+                parentFilter = queryShardContext.bitsetFilter(parentObjectMapper.nestedTypeFilter());
+            }
+            BitSetProducer previousParentFilter = queryShardContext.getParentFilter();
+            try {
+                queryShardContext.setParentFilter(parentFilter);
+                queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
+                try {
+                    NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
+                        name,
+                        parentSearchContext,
+                        parentObjectMapper,
+                        nestedObjectMapper
+                    );
+                    setupInnerHitsContext(queryShardContext, nestedInnerHits);
+                    innerHitsContext.addInnerHitDefinition(nestedInnerHits);
+                } finally {
+                    queryShardContext.nestedScope().previousLevel();
+                }
+            } finally {
+                queryShardContext.setParentFilter(previousParentFilter);
+            }
         }
     }
 

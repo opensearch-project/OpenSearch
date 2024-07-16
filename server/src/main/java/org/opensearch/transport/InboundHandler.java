@@ -32,7 +32,9 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.Version;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
@@ -57,7 +59,12 @@ public class InboundHandler {
     private final Map<String, ProtocolMessageHandler> protocolMessageHandlers;
 
     InboundHandler(
+        String nodeName,
+        Version version,
+        String[] features,
+        StatsTracker statsTracker,
         ThreadPool threadPool,
+        BigArrays bigArrays,
         OutboundHandler outboundHandler,
         NamedWriteableRegistry namedWriteableRegistry,
         TransportHandshaker handshaker,
@@ -70,7 +77,12 @@ public class InboundHandler {
         this.protocolMessageHandlers = Map.of(
             NativeInboundMessage.NATIVE_PROTOCOL,
             new NativeMessageHandler(
+                nodeName,
+                version,
+                features,
+                statsTracker,
                 threadPool,
+                bigArrays,
                 outboundHandler,
                 namedWriteableRegistry,
                 handshaker,
@@ -83,6 +95,7 @@ public class InboundHandler {
     }
 
     void setMessageListener(TransportMessageListener listener) {
+        protocolMessageHandlers.values().forEach(handler -> handler.setMessageListener(listener));
         if (messageListener == TransportMessageListener.NOOP_LISTENER) {
             messageListener = listener;
         } else {

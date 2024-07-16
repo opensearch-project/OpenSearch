@@ -39,6 +39,7 @@ import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.AckedClusterStateTaskListener;
 import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterState.Builder;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -70,6 +71,8 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -79,6 +82,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -135,8 +139,18 @@ public class MasterService extends AbstractLifecycleComponent {
     protected final ClusterManagerTaskThrottler clusterManagerTaskThrottler;
     private final ClusterManagerThrottlingStats throttlingStats;
     private final ClusterStateStats stateStats;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
+    }
+
+    public MasterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        ClusterManagerMetrics clusterManagerMetrics
+    ) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = CLUSTER_MANAGER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -154,6 +168,7 @@ public class MasterService extends AbstractLifecycleComponent {
         );
         this.stateStats = new ClusterStateStats();
         this.threadPool = threadPool;
+        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -303,6 +318,12 @@ public class MasterService extends AbstractLifecycleComponent {
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);
 
+        clusterManagerMetrics.recordLatency(
+            clusterManagerMetrics.clusterStateComputeHistogram,
+            (double) computationTime.getMillis(),
+            Optional.of(Tags.create().addTag("Operation", taskInputs.executor.getClass().getSimpleName()))
+        );
+
         if (taskOutputs.clusterStateUnchanged()) {
             final long notificationStartTime = threadPool.preciseRelativeTimeInNanos();
             taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
@@ -361,6 +382,7 @@ public class MasterService extends AbstractLifecycleComponent {
             final long durationMillis = getTimeSince(startTimeNanos).millis();
             stateStats.stateUpdateTook(durationMillis);
             stateStats.stateUpdated();
+            clusterManagerMetrics.recordLatency(clusterManagerMetrics.clusterStatePublishHistogram, (double) durationMillis);
         } catch (Exception e) {
             stateStats.stateUpdateFailed();
             onPublicationFailed(clusterChangedEvent, taskOutputs, startTimeNanos, e);

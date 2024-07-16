@@ -23,7 +23,7 @@ import java.util.List;
  */
 public class FeatureFlags {
     /**
-     * Gates the visibility of the remote store migration support from docrep .
+     * Gates the visibility of the remote store to docrep migration.
      */
     public static final String REMOTE_STORE_MIGRATION_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.migration.enabled";
 
@@ -56,16 +56,21 @@ public class FeatureFlags {
     public static final String DATETIME_FORMATTER_CACHING = "opensearch.experimental.optimization.datetime_formatter_caching.enabled";
 
     /**
-     * Gates the functionality of writeable remote index
+     * Gates the functionality of remote index having the capability to move across different tiers
      * Once the feature is ready for release, this feature flag can be removed.
      */
-    public static final String WRITEABLE_REMOTE_INDEX = "opensearch.experimental.feature.writeable_remote_index.enabled";
+    public static final String TIERED_REMOTE_INDEX = "opensearch.experimental.feature.tiered_remote_index.enabled";
 
     /**
      * Gates the functionality of pluggable cache.
      * Enables OpenSearch to use pluggable caches with respective store names via setting.
      */
     public static final String PLUGGABLE_CACHE = "opensearch.experimental.feature.pluggable.caching.enabled";
+
+    /**
+     * Gates the functionality of remote routing table.
+     */
+    public static final String REMOTE_PUBLICATION_EXPERIMENTAL = "opensearch.experimental.feature.remote_store.publication.enabled";
 
     public static final Setting<Boolean> REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL,
@@ -85,13 +90,22 @@ public class FeatureFlags {
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> WRITEABLE_REMOTE_INDEX_SETTING = Setting.boolSetting(
-        WRITEABLE_REMOTE_INDEX,
+    public static final Setting<Boolean> TIERED_REMOTE_INDEX_SETTING = Setting.boolSetting(TIERED_REMOTE_INDEX, false, Property.NodeScope);
+
+    public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
+
+    public static final Setting<Boolean> REMOTE_PUBLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
+        REMOTE_PUBLICATION_EXPERIMENTAL,
         false,
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> PLUGGABLE_CACHE_SETTING = Setting.boolSetting(PLUGGABLE_CACHE, false, Property.NodeScope);
+    /**
+     * Gates the functionality of star tree index, which improves the performance of search
+     * aggregations.
+     */
+    public static final String STAR_TREE_INDEX = "opensearch.experimental.feature.composite_index.star_tree.enabled";
+    public static final Setting<Boolean> STAR_TREE_INDEX_SETTING = Setting.boolSetting(STAR_TREE_INDEX, false, Property.NodeScope);
 
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
@@ -99,8 +113,10 @@ public class FeatureFlags {
         IDENTITY_SETTING,
         TELEMETRY_SETTING,
         DATETIME_FORMATTER_CACHING_SETTING,
-        WRITEABLE_REMOTE_INDEX_SETTING,
-        PLUGGABLE_CACHE_SETTING
+        TIERED_REMOTE_INDEX_SETTING,
+        PLUGGABLE_CACHE_SETTING,
+        REMOTE_PUBLICATION_EXPERIMENTAL_SETTING,
+        STAR_TREE_INDEX_SETTING
     );
     /**
      * Should store the settings from opensearch.yml.

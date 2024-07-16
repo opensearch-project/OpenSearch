@@ -38,7 +38,6 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -48,7 +47,6 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +54,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -66,7 +65,6 @@ import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
 import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
 import static org.opensearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
-import static org.opensearch.test.OpenSearchTestCase.getShardLevelBlobPath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -81,7 +79,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockFsRepositoryPlugin.class);
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class)).collect(Collectors.toList());
     }
 
     @Override
@@ -132,6 +130,21 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             30,
             TimeUnit.SECONDS
         );
+    }
+
+    public void testRemoteStoreIndexCreationAndDeletionWithReferencedStore() throws InterruptedException, ExecutionException {
+        String dataNode = internalCluster().startNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
+
+        // Simulating a condition where store is already in use by increasing ref count, this helps in testing index
+        // deletion when refresh is in-progress.
+        indexShard.store().incRef();
+        assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+        indexShard.store().decRef();
     }
 
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataFlush() throws Exception {
@@ -797,25 +810,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     // Test local only translog files which are not uploaded to remote store (no metadata present in remote)
     // Without the cleanup change in RemoteFsTranslog.createEmptyTranslog, this test fails with NPE.
     public void testLocalOnlyTranslogCleanupOnNodeRestart() throws Exception {
-        clusterSettingsSuppliedByTest = true;
-
-        // Overriding settings to use AsyncMultiStreamBlobContainer
-        Settings settings = Settings.builder()
-            .put(super.nodeSettings(1))
-            .put(
-                remoteStoreClusterSettings(
-                    REPOSITORY_NAME,
-                    segmentRepoPath,
-                    MockFsRepositoryPlugin.TYPE,
-                    REPOSITORY_2_NAME,
-                    translogRepoPath,
-                    MockFsRepositoryPlugin.TYPE
-                )
-            )
-            .build();
-
-        internalCluster().startClusterManagerOnlyNode(settings);
-        String dataNode = internalCluster().startDataOnlyNode(settings);
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
 
         // 1. Create index with 0 replica
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
@@ -870,7 +866,9 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(
-            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "100")
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "100")
+                .put(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "0ms")
         );
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
@@ -901,5 +899,27 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
                 assertEquals(totalFiles, 1L);
             }
         }, 30, TimeUnit.SECONDS);
+
+        // Disabling max translog readers
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "-1"))
+                .get()
+        );
+
+        // Indexing 500 more docs
+        for (int i = 0; i < 500; i++) {
+            indexBulk(INDEX_NAME, 1);
+        }
+
+        // No flush is triggered since max_translog_readers is set to -1
+        // Total tlog files would be incremented by 500
+        try (Stream<Path> files = Files.list(translogLocation)) {
+            long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+            assertEquals(totalFiles, 501L);
+        }
     }
 }

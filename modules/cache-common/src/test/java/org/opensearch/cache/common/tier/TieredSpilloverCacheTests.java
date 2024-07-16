@@ -16,6 +16,7 @@ import org.opensearch.common.cache.LoadAwareCacheLoader;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.policy.CachedQueryResult;
+import org.opensearch.common.cache.serializer.Serializer;
 import org.opensearch.common.cache.settings.CacheSettings;
 import org.opensearch.common.cache.stats.ImmutableCacheStats;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
@@ -32,6 +33,8 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,8 +44,12 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -53,6 +60,10 @@ import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.T
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_DISK;
 import static org.opensearch.cache.common.tier.TieredSpilloverCacheStatsHolder.TIER_DIMENSION_VALUE_ON_HEAP;
 import static org.opensearch.common.cache.store.settings.OpenSearchOnHeapCacheSettings.MAXIMUM_SIZE_IN_BYTES_KEY;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     static final List<String> dimensionNames = List.of("dim1", "dim2", "dim3");
@@ -166,6 +177,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setKeyType(String.class)
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
                 .setSettings(settings)
                 .setDimensionNames(dimensionNames)
                 .setCachedResultParser(s -> new CachedQueryResult.PolicyValues(20_000_000L)) // Values will always appear to have taken
@@ -318,6 +331,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setKeyType(String.class)
             .setWeigher((k, v) -> keyValueSize)
             .setRemovalListener(removalListener)
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
             .setDimensionNames(dimensionNames)
             .setSettings(
                 Settings.builder()
@@ -401,6 +416,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         assertEquals(onHeapCacheHit, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(cacheMiss + numOfItems1, getMissesForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_DISK));
         assertEquals(diskCacheHit, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_DISK));
+        assertEquals(0, tieredSpilloverCache.completableFutureMap.size());
     }
 
     public void testComputeIfAbsentWithEvictionsFromTieredCache() throws Exception {
@@ -744,7 +760,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
     }
 
     public void testComputeIfAbsentConcurrently() throws Exception {
-        int onHeapCacheSize = randomIntBetween(100, 300);
+        int onHeapCacheSize = randomIntBetween(500, 700);
         int diskCacheSize = randomIntBetween(200, 400);
         int keyValueSize = 50;
 
@@ -766,7 +782,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             0
         );
 
-        int numberOfSameKeys = randomIntBetween(10, onHeapCacheSize - 1);
+        int numberOfSameKeys = randomIntBetween(400, onHeapCacheSize - 1);
         ICacheKey<String> key = getICacheKey(UUID.randomUUID().toString());
         String value = UUID.randomUUID().toString();
 
@@ -795,7 +811,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                     };
                     loadAwareCacheLoaderList.add(loadAwareCacheLoader);
                     phaser.arriveAndAwaitAdvance();
-                    tieredSpilloverCache.computeIfAbsent(key, loadAwareCacheLoader);
+                    assertEquals(value, tieredSpilloverCache.computeIfAbsent(key, loadAwareCacheLoader));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -804,7 +820,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             threads[i].start();
         }
         phaser.arriveAndAwaitAdvance();
-        countDownLatch.await(); // Wait for rest of tasks to be cancelled.
+        countDownLatch.await();
         int numberOfTimesKeyLoaded = 0;
         assertEquals(numberOfSameKeys, loadAwareCacheLoaderList.size());
         for (int i = 0; i < loadAwareCacheLoaderList.size(); i++) {
@@ -817,6 +833,215 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         // We should see only one heap miss, and the rest hits
         assertEquals(1, getMissesForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
         assertEquals(numberOfSameKeys - 1, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
+        assertEquals(0, tieredSpilloverCache.completableFutureMap.size());
+    }
+
+    public void testComputIfAbsentConcurrentlyWithMultipleKeys() throws Exception {
+        int onHeapCacheSize = randomIntBetween(300, 500);
+        int diskCacheSize = randomIntBetween(600, 700);
+        int keyValueSize = 50;
+
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .get(MAXIMUM_SIZE_IN_BYTES_KEY)
+                    .getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .build();
+
+        TieredSpilloverCache<String, String> tieredSpilloverCache = initializeTieredSpilloverCache(
+            keyValueSize,
+            diskCacheSize,
+            removalListener,
+            settings,
+            0
+        );
+
+        int iterations = 10;
+        int numberOfKeys = 20;
+        List<ICacheKey<String>> iCacheKeyList = new ArrayList<>();
+        for (int i = 0; i < numberOfKeys; i++) {
+            ICacheKey<String> key = getICacheKey(UUID.randomUUID().toString());
+            iCacheKeyList.add(key);
+        }
+        ExecutorService executorService = Executors.newFixedThreadPool(8);
+        CountDownLatch countDownLatch = new CountDownLatch(iterations * numberOfKeys); // To wait for all threads to finish.
+
+        List<LoadAwareCacheLoader<ICacheKey<String>, String>> loadAwareCacheLoaderList = new CopyOnWriteArrayList<>();
+        for (int j = 0; j < numberOfKeys; j++) {
+            int finalJ = j;
+            for (int i = 0; i < iterations; i++) {
+                executorService.submit(() -> {
+                    try {
+                        LoadAwareCacheLoader<ICacheKey<String>, String> loadAwareCacheLoader = new LoadAwareCacheLoader<>() {
+                            boolean isLoaded = false;
+
+                            @Override
+                            public boolean isLoaded() {
+                                return isLoaded;
+                            }
+
+                            @Override
+                            public String load(ICacheKey<String> key) {
+                                isLoaded = true;
+                                return iCacheKeyList.get(finalJ).key;
+                            }
+                        };
+                        loadAwareCacheLoaderList.add(loadAwareCacheLoader);
+                        tieredSpilloverCache.computeIfAbsent(iCacheKeyList.get(finalJ), loadAwareCacheLoader);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        countDownLatch.countDown();
+                    }
+                });
+            }
+        }
+        countDownLatch.await();
+        int numberOfTimesKeyLoaded = 0;
+        assertEquals(iterations * numberOfKeys, loadAwareCacheLoaderList.size());
+        for (int i = 0; i < loadAwareCacheLoaderList.size(); i++) {
+            LoadAwareCacheLoader<ICacheKey<String>, String> loader = loadAwareCacheLoaderList.get(i);
+            if (loader.isLoaded()) {
+                numberOfTimesKeyLoaded++;
+            }
+        }
+        assertEquals(numberOfKeys, numberOfTimesKeyLoaded); // It should be loaded only once.
+        // We should see only one heap miss, and the rest hits
+        assertEquals(numberOfKeys, getMissesForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
+        assertEquals((iterations * numberOfKeys) - numberOfKeys, getHitsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
+        assertEquals(0, tieredSpilloverCache.completableFutureMap.size());
+        executorService.shutdownNow();
+    }
+
+    public void testComputeIfAbsentConcurrentlyAndThrowsException() throws Exception {
+        LoadAwareCacheLoader<ICacheKey<String>, String> loadAwareCacheLoader = new LoadAwareCacheLoader<>() {
+            boolean isLoaded = false;
+
+            @Override
+            public boolean isLoaded() {
+                return isLoaded;
+            }
+
+            @Override
+            public String load(ICacheKey<String> key) {
+                throw new RuntimeException("Testing");
+            }
+        };
+        verifyComputeIfAbsentThrowsException(RuntimeException.class, loadAwareCacheLoader, "Testing");
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public void testComputeIfAbsentWithOnHeapCacheThrowingExceptionOnPut() throws Exception {
+        int onHeapCacheSize = randomIntBetween(100, 300);
+        int diskCacheSize = randomIntBetween(200, 400);
+        int keyValueSize = 50;
+
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .get(MAXIMUM_SIZE_IN_BYTES_KEY)
+                    .getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .build();
+        ICache.Factory onHeapCacheFactory = mock(OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory.class);
+        ICache mockOnHeapCache = mock(ICache.class);
+        when(onHeapCacheFactory.create(any(), any(), any())).thenReturn(mockOnHeapCache);
+        doThrow(new RuntimeException("Testing")).when(mockOnHeapCache).put(any(), any());
+        CacheConfig<String, String> cacheConfig = getCacheConfig(keyValueSize, settings, removalListener);
+        ICache.Factory mockDiskCacheFactory = new MockDiskCache.MockDiskCacheFactory(0, diskCacheSize, false);
+
+        TieredSpilloverCache<String, String> tieredSpilloverCache = getTieredSpilloverCache(
+            onHeapCacheFactory,
+            mockDiskCacheFactory,
+            cacheConfig,
+            null,
+            removalListener
+        );
+        String value = "";
+        value = tieredSpilloverCache.computeIfAbsent(getICacheKey("test"), new LoadAwareCacheLoader<>() {
+            @Override
+            public boolean isLoaded() {
+                return false;
+            }
+
+            @Override
+            public String load(ICacheKey<String> key) {
+                return "test";
+            }
+        });
+        assertEquals("test", value);
+        assertEquals(0, tieredSpilloverCache.completableFutureMap.size());
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public void testComputeIfAbsentWithDiskCacheThrowingExceptionOnPut() throws Exception {
+        int onHeapCacheSize = 0;
+        int keyValueSize = 50;
+
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .get(MAXIMUM_SIZE_IN_BYTES_KEY)
+                    .getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .build();
+        ICache.Factory onHeapCacheFactory = new OpenSearchOnHeapCache.OpenSearchOnHeapCacheFactory();
+        CacheConfig<String, String> cacheConfig = getCacheConfig(keyValueSize, settings, removalListener);
+        ICache.Factory mockDiskCacheFactory = mock(MockDiskCache.MockDiskCacheFactory.class);
+        ICache mockDiskCache = mock(ICache.class);
+        when(mockDiskCacheFactory.create(any(), any(), any())).thenReturn(mockDiskCache);
+        doThrow(new RuntimeException("Test")).when(mockDiskCache).put(any(), any());
+
+        TieredSpilloverCache<String, String> tieredSpilloverCache = getTieredSpilloverCache(
+            onHeapCacheFactory,
+            mockDiskCacheFactory,
+            cacheConfig,
+            null,
+            removalListener
+        );
+
+        String response = "";
+        response = tieredSpilloverCache.computeIfAbsent(getICacheKey("test"), new LoadAwareCacheLoader<>() {
+            @Override
+            public boolean isLoaded() {
+                return false;
+            }
+
+            @Override
+            public String load(ICacheKey<String> key) {
+                return "test";
+            }
+        });
+        ImmutableCacheStats diskStats = getStatsSnapshotForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_DISK);
+
+        assertEquals(0, diskStats.getSizeInBytes());
+        assertEquals(1, removalListener.evictionsMetric.count());
+        assertEquals("test", response);
+        assertEquals(0, tieredSpilloverCache.completableFutureMap.size());
+    }
+
+    public void testComputeIfAbsentConcurrentlyWithLoaderReturningNull() throws Exception {
+        LoadAwareCacheLoader<ICacheKey<String>, String> loadAwareCacheLoader = new LoadAwareCacheLoader<>() {
+            boolean isLoaded = false;
+
+            @Override
+            public boolean isLoaded() {
+                return isLoaded;
+            }
+
+            @Override
+            public String load(ICacheKey<String> key) {
+                return null;
+            }
+        };
+        verifyComputeIfAbsentThrowsException(NullPointerException.class, loadAwareCacheLoader, "Loader returned a null value");
     }
 
     public void testConcurrencyForEvictionFlowFromOnHeapToDiskTier() throws Exception {
@@ -830,6 +1055,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setKeyType(String.class)
             .setWeigher((k, v) -> 150)
             .setRemovalListener(removalListener)
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
             .setSettings(
                 Settings.builder()
                     .put(
@@ -917,14 +1144,14 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
         TieredSpilloverCache<String, String> tieredSpilloverCache = intializeTieredSpilloverCache(
             keyValueSize,
-            100,
+            keyValueSize * 100,
             removalListener,
             Settings.builder()
                 .put(
                     OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
                         .get(MAXIMUM_SIZE_IN_BYTES_KEY)
                         .getKey(),
-                    onHeapCacheSize * 50 + "b"
+                    onHeapCacheSize * keyValueSize + "b"
                 )
                 .build(),
             0,
@@ -946,6 +1173,7 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
 
         LoadAwareCacheLoader<ICacheKey<String>, String> loader = getLoadAwareCacheLoader(keyValuePairs);
 
+        int expectedEvictions = 0;
         for (String key : keyValuePairs.keySet()) {
             ICacheKey<String> iCacheKey = getICacheKey(key);
             Boolean expectedOutput = expectedOutputs.get(key);
@@ -958,8 +1186,15 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             } else {
                 // Should miss as heap tier size = 0 and the policy rejected it
                 assertNull(result);
+                expectedEvictions++;
             }
         }
+
+        // We expect values that were evicted from the heap tier and not allowed into the disk tier by the policy
+        // to count towards total evictions
+        assertEquals(keyValuePairs.size(), getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_ON_HEAP));
+        assertEquals(0, getEvictionsForTier(tieredSpilloverCache, TIER_DIMENSION_VALUE_DISK)); // Disk tier is large enough for no evictions
+        assertEquals(expectedEvictions, getTotalStatsSnapshot(tieredSpilloverCache).getEvictions());
     }
 
     public void testTookTimePolicyFromFactory() throws Exception {
@@ -1014,6 +1249,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
                 .setKeyType(String.class)
                 .setWeigher((k, v) -> keyValueSize)
                 .setRemovalListener(removalListener)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
                 .setSettings(settings)
                 .setMaxSizeInBytes(onHeapCacheSize * keyValueSize)
                 .setDimensionNames(dimensionNames)
@@ -1389,6 +1626,26 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
         };
     }
 
+    private TieredSpilloverCache<String, String> getTieredSpilloverCache(
+        ICache.Factory onHeapCacheFactory,
+        ICache.Factory mockDiskCacheFactory,
+        CacheConfig<String, String> cacheConfig,
+        List<Predicate<String>> policies,
+        RemovalListener<ICacheKey<String>, String> removalListener
+    ) {
+        TieredSpilloverCache.Builder<String, String> builder = new TieredSpilloverCache.Builder<String, String>().setCacheType(
+            CacheType.INDICES_REQUEST_CACHE
+        )
+            .setRemovalListener(removalListener)
+            .setOnHeapCacheFactory(onHeapCacheFactory)
+            .setDiskCacheFactory(mockDiskCacheFactory)
+            .setCacheConfig(cacheConfig);
+        if (policies != null) {
+            builder.addPolicies(policies);
+        }
+        return builder.build();
+    }
+
     private TieredSpilloverCache<String, String> initializeTieredSpilloverCache(
         int keyValueSize,
         int diskCacheSize,
@@ -1415,6 +1672,8 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .setSettings(settings)
             .setDimensionNames(dimensionNames)
             .setRemovalListener(removalListener)
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
             .setSettings(
                 Settings.builder()
                     .put(
@@ -1429,17 +1688,34 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             .build();
         ICache.Factory mockDiskCacheFactory = new MockDiskCache.MockDiskCacheFactory(diskDeliberateDelay, diskCacheSize, false);
 
-        TieredSpilloverCache.Builder<String, String> builder = new TieredSpilloverCache.Builder<String, String>().setCacheType(
-            CacheType.INDICES_REQUEST_CACHE
-        )
+        return getTieredSpilloverCache(onHeapCacheFactory, mockDiskCacheFactory, cacheConfig, policies, removalListener);
+    }
+
+    private CacheConfig<String, String> getCacheConfig(
+        int keyValueSize,
+        Settings settings,
+        RemovalListener<ICacheKey<String>, String> removalListener
+    ) {
+        return new CacheConfig.Builder<String, String>().setKeyType(String.class)
+            .setKeyType(String.class)
+            .setWeigher((k, v) -> keyValueSize)
+            .setSettings(settings)
+            .setDimensionNames(dimensionNames)
             .setRemovalListener(removalListener)
-            .setOnHeapCacheFactory(onHeapCacheFactory)
-            .setDiskCacheFactory(mockDiskCacheFactory)
-            .setCacheConfig(cacheConfig);
-        if (policies != null) {
-            builder.addPolicies(policies);
-        }
-        return builder.build();
+            .setKeySerializer(new StringSerializer())
+            .setValueSerializer(new StringSerializer())
+            .setSettings(
+                Settings.builder()
+                    .put(
+                        CacheSettings.getConcreteStoreNameSettingForCacheType(CacheType.INDICES_REQUEST_CACHE).getKey(),
+                        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME
+                    )
+                    .put(FeatureFlags.PLUGGABLE_CACHE, "true")
+                    .put(settings)
+                    .build()
+            )
+            .setClusterSettings(clusterSettings)
+            .build();
     }
 
     // Helper functions for extracting tier aggregated stats.
@@ -1478,5 +1754,92 @@ public class TieredSpilloverCacheTests extends OpenSearchTestCase {
             // dimensions yet
         }
         return snapshot;
+    }
+
+    private void verifyComputeIfAbsentThrowsException(
+        Class<? extends Exception> expectedException,
+        LoadAwareCacheLoader<ICacheKey<String>, String> loader,
+        String expectedExceptionMessage
+    ) throws InterruptedException {
+        int onHeapCacheSize = randomIntBetween(100, 300);
+        int diskCacheSize = randomIntBetween(200, 400);
+        int keyValueSize = 50;
+
+        MockCacheRemovalListener<String, String> removalListener = new MockCacheRemovalListener<>();
+        Settings settings = Settings.builder()
+            .put(
+                OpenSearchOnHeapCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .get(MAXIMUM_SIZE_IN_BYTES_KEY)
+                    .getKey(),
+                onHeapCacheSize * keyValueSize + "b"
+            )
+            .build();
+
+        TieredSpilloverCache<String, String> tieredSpilloverCache = initializeTieredSpilloverCache(
+            keyValueSize,
+            diskCacheSize,
+            removalListener,
+            settings,
+            0
+        );
+
+        int numberOfSameKeys = randomIntBetween(10, onHeapCacheSize - 1);
+        ICacheKey<String> key = getICacheKey(UUID.randomUUID().toString());
+        String value = UUID.randomUUID().toString();
+        AtomicInteger exceptionCount = new AtomicInteger();
+
+        Thread[] threads = new Thread[numberOfSameKeys];
+        Phaser phaser = new Phaser(numberOfSameKeys + 1);
+        CountDownLatch countDownLatch = new CountDownLatch(numberOfSameKeys); // To wait for all threads to finish.
+
+        for (int i = 0; i < numberOfSameKeys; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    phaser.arriveAndAwaitAdvance();
+                    tieredSpilloverCache.computeIfAbsent(key, loader);
+                } catch (Exception e) {
+                    exceptionCount.incrementAndGet();
+                    assertEquals(ExecutionException.class, e.getClass());
+                    assertEquals(expectedException, e.getCause().getClass());
+                    assertEquals(expectedExceptionMessage, e.getCause().getMessage());
+                } finally {
+                    countDownLatch.countDown();
+                }
+            });
+            threads[i].start();
+        }
+        phaser.arriveAndAwaitAdvance();
+        countDownLatch.await(); // Wait for rest of tasks to be cancelled.
+
+        // Verify exception count was equal to number of requests
+        assertEquals(numberOfSameKeys, exceptionCount.get());
+        assertEquals(0, tieredSpilloverCache.completableFutureMap.size());
+    }
+
+    private ImmutableCacheStats getTotalStatsSnapshot(TieredSpilloverCache<?, ?> tsc) throws IOException {
+        ImmutableCacheStatsHolder cacheStats = tsc.stats(new String[0]);
+        return cacheStats.getStatsForDimensionValues(List.of());
+    }
+
+    // Duplicated here from EhcacheDiskCacheTests.java, we can't add a dependency on that plugin
+    static class StringSerializer implements Serializer<String, byte[]> {
+        private final Charset charset = StandardCharsets.UTF_8;
+
+        @Override
+        public byte[] serialize(String object) {
+            return object.getBytes(charset);
+        }
+
+        @Override
+        public String deserialize(byte[] bytes) {
+            if (bytes == null) {
+                return null;
+            }
+            return new String(bytes, charset);
+        }
+
+        public boolean equals(String object, byte[] bytes) {
+            return object.equals(deserialize(bytes));
+        }
     }
 }

@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfoService;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.health.ClusterHealthStatus;
@@ -56,10 +57,12 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.snapshots.SnapshotsInfoService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -96,6 +99,7 @@ public class AllocationService {
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
     private SnapshotsInfoService snapshotsInfoService;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -105,7 +109,13 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+        );
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -113,9 +123,10 @@ public class AllocationService {
         AllocationDeciders allocationDeciders,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
+        SnapshotsInfoService snapshotsInfoService,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, Settings.EMPTY);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, Settings.EMPTY, clusterManagerMetrics);
     }
 
     public AllocationService(
@@ -123,14 +134,15 @@ public class AllocationService {
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        Settings settings
-
+        Settings settings,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.settings = settings;
+        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     /**
@@ -550,11 +562,15 @@ public class AllocationService {
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
-
+        long rerouteStartTimeNS = System.nanoTime();
         removeDelayMarkers(allocation);
 
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
         shardsAllocator.allocate(allocation);
+        clusterManagerMetrics.recordLatency(
+            clusterManagerMetrics.rerouteHistogram,
+            (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - rerouteStartTimeNS))
+        );
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 
@@ -568,10 +584,7 @@ public class AllocationService {
         /*
          Use batch mode if enabled and there is no custom allocator set for Allocation service
          */
-        Boolean batchModeEnabled = EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(settings);
-        if (batchModeEnabled
-            && allocation.nodes().getMinNodeVersion().onOrAfter(Version.V_2_14_0)
-            && existingShardsAllocators.size() == 2) {
+        if (isBatchModeEnabled(allocation)) {
             /*
              If we do not have any custom allocator set then we will be using ShardsBatchGatewayAllocator
              Currently AllocationService will not run any custom Allocator that implements allocateAllUnassignedShards
@@ -708,11 +721,22 @@ public class AllocationService {
 
     private ExistingShardsAllocator getAllocatorForShard(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
         assert assertInitialized();
-        final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
-        );
+        String allocatorName;
+        if (isBatchModeEnabled(routingAllocation)) {
+            allocatorName = ShardsBatchGatewayAllocator.ALLOCATOR_NAME;
+        } else {
+            allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
+                routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+            );
+        }
         final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);
+    }
+
+    private boolean isBatchModeEnabled(RoutingAllocation routingAllocation) {
+        return EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(settings)
+            && routingAllocation.nodes().getMinNodeVersion().onOrAfter(Version.V_2_14_0)
+            && existingShardsAllocators.size() == 2;
     }
 
     private boolean assertInitialized() {

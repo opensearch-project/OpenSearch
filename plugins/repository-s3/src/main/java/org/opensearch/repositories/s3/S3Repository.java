@@ -49,6 +49,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.settings.SecureString;
@@ -63,6 +64,7 @@ import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.threadpool.Scheduler;
@@ -157,6 +159,15 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Whether large uploads need to be redirected to slow sync s3 client.
+     */
+    static final Setting<Boolean> PERMIT_BACKED_TRANSFER_ENABLED = Setting.boolSetting(
+        "permit_backed_transfer_enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Whether retry on uploads are enabled. This setting wraps inputstream with buffered stream to enable retries.
      */
     static final Setting<Boolean> UPLOAD_RETRY_ENABLED = Setting.boolSetting("s3_upload_retry_enabled", true, Setting.Property.NodeScope);
@@ -191,6 +202,37 @@ class S3Repository extends MeteredBlobStoreRepository {
     public static Setting<Boolean> PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING = Setting.boolSetting(
         "parallel_multipart_upload.enabled",
         true,
+        Setting.Property.NodeScope
+    );
+    /**
+     * Percentage of total available permits to be available for priority transfers.
+     */
+    public static Setting<Integer> S3_PRIORITY_PERMIT_ALLOCATION_PERCENT = Setting.intSetting(
+        "s3_priority_permit_alloc_perc",
+        70,
+        21,
+        80,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Duration in minutes to wait for a permit in case no permit is available.
+     */
+    public static Setting<Integer> S3_PERMIT_WAIT_DURATION_MIN = Setting.intSetting(
+        "s3_permit_wait_duration_min",
+        5,
+        1,
+        10,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Number of transfer queue consumers
+     */
+    public static Setting<Integer> S3_TRANSFER_QUEUE_CONSUMERS = new Setting<>(
+        "s3_transfer_queue_consumers",
+        (s) -> Integer.toString(Math.max(5, OpenSearchExecutors.allocatedProcessors(s) * 2)),
+        (s) -> Setting.parseInt(s, 5, "s3_transfer_queue_consumers"),
         Setting.Property.NodeScope
     );
 
@@ -252,6 +294,9 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final Path pluginConfigPath;
+    private final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
+    private final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
+    private final GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     private volatile int bulkDeletesSize;
 
@@ -267,7 +312,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         final AsyncExecutorContainer priorityExecutorBuilder,
         final AsyncExecutorContainer normalExecutorBuilder,
         final S3AsyncService s3AsyncService,
-        final boolean multipartUploadEnabled
+        final boolean multipartUploadEnabled,
+        final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
+        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
+        final GenericStatsMetricPublisher genericStatsMetricPublisher
     ) {
         this(
             metadata,
@@ -281,7 +329,10 @@ class S3Repository extends MeteredBlobStoreRepository {
             normalExecutorBuilder,
             s3AsyncService,
             multipartUploadEnabled,
-            Path.of("")
+            Path.of(""),
+            normalPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher
         );
     }
 
@@ -300,7 +351,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         final AsyncExecutorContainer normalExecutorBuilder,
         final S3AsyncService s3AsyncService,
         final boolean multipartUploadEnabled,
-        Path pluginConfigPath
+        Path pluginConfigPath,
+        final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
+        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
+        final GenericStatsMetricPublisher genericStatsMetricPublisher
     ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.service = service;
@@ -311,6 +365,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.urgentExecutorBuilder = urgentExecutorBuilder;
         this.priorityExecutorBuilder = priorityExecutorBuilder;
         this.normalExecutorBuilder = normalExecutorBuilder;
+        this.normalPrioritySizeBasedBlockingQ = normalPrioritySizeBasedBlockingQ;
+        this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
+        this.genericStatsMetricPublisher = genericStatsMetricPublisher;
 
         validateRepositoryMetadata(metadata);
         readRepositoryMetadata();
@@ -373,7 +430,10 @@ class S3Repository extends MeteredBlobStoreRepository {
             asyncUploadUtils,
             urgentExecutorBuilder,
             priorityExecutorBuilder,
-            normalExecutorBuilder
+            normalExecutorBuilder,
+            normalPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher
         );
     }
 

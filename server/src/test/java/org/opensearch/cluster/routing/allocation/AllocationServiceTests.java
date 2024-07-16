@@ -33,6 +33,7 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.EmptyClusterInfoService;
@@ -56,6 +57,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
+import org.opensearch.telemetry.metrics.Histogram;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
@@ -77,6 +81,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class AllocationServiceTests extends OpenSearchTestCase {
 
@@ -137,6 +147,16 @@ public class AllocationServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final MetricsRegistry metricsRegistry = mock(MetricsRegistry.class);
+        final Histogram rerouteHistogram = mock(Histogram.class);
+        final Histogram mockedHistogram = mock(Histogram.class);
+        when(metricsRegistry.createHistogram(anyString(), anyString(), anyString())).thenAnswer(invocationOnMock -> {
+            String histogramName = (String) invocationOnMock.getArguments()[0];
+            if (histogramName.contains("reroute.latency")) {
+                return rerouteHistogram;
+            }
+            return mockedHistogram;
+        });
         final AllocationService allocationService = new AllocationService(
             new AllocationDeciders(
                 Arrays.asList(
@@ -158,7 +178,8 @@ public class AllocationServiceTests extends OpenSearchTestCase {
                 }
             },
             new EmptyClusterInfoService(),
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            new ClusterManagerMetrics(metricsRegistry)
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -258,10 +279,18 @@ public class AllocationServiceTests extends OpenSearchTestCase {
         assertThat(routingTable3.index("mediumPriority").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
         assertTrue(routingTable3.index("lowPriority").allPrimaryShardsActive());
         assertThat(routingTable3.index("invalid").shardsWithState(ShardRoutingState.STARTED), empty());
+
+        verify(rerouteHistogram, times(3)).record(anyDouble());
     }
 
     public void testExplainsNonAllocationOfShardWithUnknownAllocator() {
-        final AllocationService allocationService = new AllocationService(null, null, null, null);
+        final AllocationService allocationService = new AllocationService(
+            null,
+            null,
+            null,
+            null,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+        );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
         );
