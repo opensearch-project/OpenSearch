@@ -844,6 +844,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
+    public Map<String, QueryGroup> queryGroups() {
+        return Optional.ofNullable((QueryGroupMetadata) this.custom(QueryGroupMetadata.TYPE))
+            .map(QueryGroupMetadata::queryGroups)
+            .orElse(Collections.emptyMap());
+    }
+
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
         return custom(DecommissionAttributeMetadata.TYPE);
     }
@@ -1377,6 +1383,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             Objects.requireNonNull(queryGroup, "queryGroup should not be null");
             Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
             existing.put(queryGroup.get_id(), queryGroup);
+            return queryGroups(existing);
+        }
+
+        public Builder remove(final QueryGroup queryGroup) {
+            Objects.requireNonNull(queryGroup, "queryGroup should not be null");
+            Map<String, QueryGroup> existing = new HashMap<>(getQueryGroups());
+            existing.remove(queryGroup.get_id());
             return queryGroups(existing);
         }
 
