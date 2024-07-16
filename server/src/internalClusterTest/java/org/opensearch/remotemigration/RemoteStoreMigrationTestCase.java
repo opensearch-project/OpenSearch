@@ -17,6 +17,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -215,5 +216,13 @@ public class RemoteStoreMigrationTestCase extends MigrationBaseTestCase {
                 .get(),
             asyncIndexingService.getIndexedDocs()
         );
+    }
+
+    public void testRemoteSettingPropagatedToIndexShardAfterMigration() throws Exception {
+        testEndToEndRemoteMigration();
+        IndexShard indexShard = getIndexShard(primaryNodeName("test"), "test");
+        assertTrue(indexShard.indexSettings().isRemoteStoreEnabled());
+        assertEquals(MigrationBaseTestCase.REPOSITORY_NAME, indexShard.indexSettings().getRemoteStoreRepository());
+        assertEquals(MigrationBaseTestCase.REPOSITORY_2_NAME, indexShard.indexSettings().getRemoteStoreTranslogRepository());
     }
 }

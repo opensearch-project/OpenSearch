@@ -2765,7 +2765,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ShardId shardId = store.shardId();
         try {
             final String generation = snapshotStatus.generation();
-            logger.info("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
+            logger.info("[{}] [{}] shallow copy snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
 
             long indexTotalFileSize = 0;
