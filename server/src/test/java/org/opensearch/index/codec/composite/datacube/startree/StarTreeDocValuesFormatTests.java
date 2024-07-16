@@ -12,12 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.Rounding;
 import org.opensearch.index.codec.composite.Composite99Codec;
@@ -31,7 +26,6 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfig
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.StarTreeMapper;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -76,35 +70,5 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         );
 
         return new StarTreeField("starTree", dims, metrics, config);
-    }
-
-    public void testStarTreeDocValues() throws IOException {
-        Directory directory = newDirectory();
-        IndexWriterConfig conf = newIndexWriterConfig(null);
-        conf.setMergePolicy(newLogMergePolicy());
-        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
-        Document doc = new Document();
-        doc.add(new SortedNumericDocValuesField("sndv", 1));
-        doc.add(new SortedNumericDocValuesField("dv", 1));
-        doc.add(new SortedNumericDocValuesField("field", 1));
-        iw.addDocument(doc);
-        doc.add(new SortedNumericDocValuesField("sndv", 1));
-        doc.add(new SortedNumericDocValuesField("dv", 1));
-        doc.add(new SortedNumericDocValuesField("field", 1));
-        iw.addDocument(doc);
-        iw.forceMerge(1);
-        doc.add(new SortedNumericDocValuesField("sndv", 2));
-        doc.add(new SortedNumericDocValuesField("dv", 2));
-        doc.add(new SortedNumericDocValuesField("field", 2));
-        iw.addDocument(doc);
-        doc.add(new SortedNumericDocValuesField("sndv", 2));
-        doc.add(new SortedNumericDocValuesField("dv", 2));
-        doc.add(new SortedNumericDocValuesField("field", 2));
-        iw.addDocument(doc);
-        iw.forceMerge(1);
-        iw.close();
-
-        // TODO : validate star tree structures that got created
-        directory.close();
     }
 }

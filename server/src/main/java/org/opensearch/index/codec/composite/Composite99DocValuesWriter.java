@@ -99,9 +99,9 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         if (compositeFieldSet.isEmpty()) {
             for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
                 if (mappedType instanceof StarTreeMapper.StarTreeFieldType) {
-                    StarTreesBuilder starTreesBuilder = new StarTreesBuilder(fieldProducerMap, state, mapperService);
-                    starTreesBuilder.build();
-                    starTreesBuilder.close();
+                    try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(fieldProducerMap, state, mapperService)) {
+                        starTreesBuilder.build();
+                    }
                 }
             }
         }

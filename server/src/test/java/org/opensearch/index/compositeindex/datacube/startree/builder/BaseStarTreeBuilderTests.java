@@ -10,7 +10,6 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
-import org.apache.lucene.index.BaseStarTreeBuilder;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -176,7 +175,7 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public Iterator<StarTreeDocument> sortAndAggregateStarTreeDocuments(int numDocs) throws IOException {
+            public Iterator<StarTreeDocument> sortAndAggregateStarTreeDocuments() throws IOException {
                 return null;
             }
 

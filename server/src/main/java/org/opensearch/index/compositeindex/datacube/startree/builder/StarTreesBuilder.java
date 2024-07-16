@@ -79,9 +79,8 @@ public class StarTreesBuilder implements Closeable {
         logger.debug("Starting building {} star-trees with star-tree fields", numStarTrees);
 
         // Build all star-trees
-        for (int i = 0; i < numStarTrees; i++) {
-            StarTreeField starTreeField = starTreeFields.get(i);
-            try (StarTreeBuilder starTreeBuilder = getSingleTreeBuilder(starTreeField, fieldProducerMap, state, mapperService)) {
+        for (StarTreeField starTreeField : starTreeFields) {
+            try (StarTreeBuilder starTreeBuilder = getStarTreeBuilder(starTreeField, fieldProducerMap, state, mapperService)) {
                 starTreeBuilder.build();
             }
         }
@@ -93,7 +92,7 @@ public class StarTreesBuilder implements Closeable {
 
     }
 
-    static StarTreeBuilder getSingleTreeBuilder(
+    StarTreeBuilder getStarTreeBuilder(
         StarTreeField starTreeField,
         Map<String, DocValuesProducer> fieldProducerMap,
         SegmentWriteState state,
