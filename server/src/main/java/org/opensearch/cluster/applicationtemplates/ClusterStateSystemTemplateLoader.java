@@ -55,7 +55,9 @@ public class ClusterStateSystemTemplateLoader implements SystemTemplateLoader {
             .get(template.templateMetadata().fullyQualifiedName());
 
         if (existingTemplate != null
-            && !SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE.equals(Objects.toString(existingTemplate.metadata().get(TEMPLATE_TYPE_KEY)))) {
+            && !SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE.equals(
+                Objects.toString(existingTemplate.metadata().get(TEMPLATE_TYPE_KEY))
+            )) {
             throw new OpenSearchCorruptionException(
                 "Attempting to create " + template.templateMetadata().name() + " which has already been created through some other source."
             );
@@ -72,11 +74,13 @@ public class ClusterStateSystemTemplateLoader implements SystemTemplateLoader {
         }
 
         ComponentTemplate newTemplate = null;
-        try(XContentParser contentParser = JsonXContent.jsonXContent.createParser(
-            NamedXContentRegistry.EMPTY,
-            DeprecationHandler.IGNORE_DEPRECATIONS,
-            template.templateContent().utf8ToString()
-        )) {
+        try (
+            XContentParser contentParser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                template.templateContent().utf8ToString()
+            )
+        ) {
             newTemplate = ComponentTemplate.parse(contentParser);
         }
 
