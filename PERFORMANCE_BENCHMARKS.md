@@ -16,7 +16,7 @@ The workflow is triggered when a new comment is created on an issue. Specificall
     - Checks if the extracted configuration ID is supported for the current OpenSearch major version.
 
 2. **Post Invalid Format Comment:**
-    - If the comment format is invalid or the configuration ID is not supported, a comment is posted on the issue indicating the invalidity, and the workflow fails.
+    - If the comment format is invalid or the configuration ID is not supported, a comment is posted on the pull request indicating the problem, and the workflow fails.
 
 3. **Manual Approval (if necessary):**
     - Fetches the list of approvers from the `.github/CODEOWNERS` file.
