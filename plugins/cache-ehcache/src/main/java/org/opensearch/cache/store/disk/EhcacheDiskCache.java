@@ -458,23 +458,30 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @Override
     @SuppressForbidden(reason = "Ehcache uses File.io")
     public void close() {
+        // We are calling each of below function in its own try/catch block so that we still try to close the cache
+        // manager in case removeCache failed (for example)
         try {
             cacheManager.removeCache(this.diskCacheAlias);
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Exception occurred while trying to remove cache from manager"), e);
+        }
+        try {
             cacheManager.close();
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close ehcache manager"), e);
+        }
+        try {
             cacheManager.destroyCache(this.diskCacheAlias);
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close/remove ehcache"), e);
-        } finally {
-            // Delete all the disk cache related files/data in case it is present
-            Path ehcacheDirectory = Paths.get(this.storagePath);
-            if (Files.exists(ehcacheDirectory)) {
-                try {
-                    IOUtils.rm(ehcacheDirectory);
-                } catch (IOException e) {
-                    logger.error(
-                        () -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath)
-                    );
-                }
+            logger.error(() -> new ParameterizedMessage("Exception occurred while trying to destroy cache and " + "associated data"), e);
+        }
+        // Delete all the disk cache related files/data in case it is present
+        Path ehcacheDirectory = Paths.get(this.storagePath);
+        if (Files.exists(ehcacheDirectory)) {
+            try {
+                IOUtils.rm(ehcacheDirectory);
+            } catch (IOException e) {
+                logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath));
             }
         }
     }

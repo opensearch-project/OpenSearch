@@ -25,6 +25,7 @@ import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
@@ -942,7 +943,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             String path = env.nodePaths()[0].path.toString() + "/request_cache";
-            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias(null)
                 .setStoragePath(path)
                 .setIsEventListenerModeSync(true)
                 .setKeyType(String.class)
@@ -973,6 +974,41 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
         }
     }
 
+    public void testDiskCacheCloseAfterCleaningUpFilesManually() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            String path = env.nodePaths()[0].path.toString() + "/request_cache";
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias(null)
+                .setStoragePath(path)
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setDiskCacheAlias("test1")
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            for (int i = 0; i < randomKeys; i++) {
+                ICacheKey<String> iCacheKey = getICacheKey(UUID.randomUUID().toString());
+                ehcacheTest.put(iCacheKey, UUID.randomUUID().toString());
+                assertEquals(0, ehcacheTest.count()); // Expect count storagePath 0 if NoopCacheStatsHolder is used
+                assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
+            }
+            IOUtils.rm(Path.of(path));
+            ehcacheTest.close();
+        }
+    }
+
     public void testEhcacheDiskCacheWithoutStoragePathDefined() throws Exception {
         Settings settings = Settings.builder().build();
         MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
@@ -981,6 +1017,34 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             assertThrows(
                 IllegalArgumentException.class,
                 () -> new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                    .setIsEventListenerModeSync(true)
+                    .setKeyType(String.class)
+                    .setValueType(String.class)
+                    .setKeySerializer(new StringSerializer())
+                    .setDiskCacheAlias("test1")
+                    .setValueSerializer(new StringSerializer())
+                    .setDimensionNames(List.of(dimensionName))
+                    .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .setSettings(settings)
+                    .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                    .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                    .setRemovalListener(removalListener)
+                    .setWeigher(weigher)
+                    .setStatsTrackingEnabled(false)
+                    .build()
+            );
+        }
+    }
+
+    public void testEhcacheDiskCacheWithoutStoragePathNull() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                    .setStoragePath(null)
                     .setIsEventListenerModeSync(true)
                     .setKeyType(String.class)
                     .setValueType(String.class)
@@ -1019,6 +1083,33 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                     .setSettings(settings)
                     .setExpireAfterAccess(TimeValue.MAX_VALUE)
                     .setMaximumWeightInBytes(MINIMUM_MAX_SIZE_IN_BYTES)
+                    .setRemovalListener(removalListener)
+                    .setWeigher(weigher)
+                    .setStatsTrackingEnabled(false)
+                    .build()
+            );
+        }
+    }
+
+    public void testEhcacheWithStorageSizeZero() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                    .setIsEventListenerModeSync(true)
+                    .setKeyType(String.class)
+                    .setValueType(String.class)
+                    .setKeySerializer(new StringSerializer())
+                    .setDiskCacheAlias("test1")
+                    .setValueSerializer(new StringSerializer())
+                    .setDimensionNames(List.of(dimensionName))
+                    .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .setSettings(settings)
+                    .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                    .setMaximumWeightInBytes(0)
                     .setRemovalListener(removalListener)
                     .setWeigher(weigher)
                     .setStatsTrackingEnabled(false)
