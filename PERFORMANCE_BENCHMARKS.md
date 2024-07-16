@@ -6,7 +6,7 @@
 
 ## Workflow Trigger
 
-The workflow is triggered when a new comment is created on an issue. Specifically, it checks for the presence of the `"run-benchmark-test"` keyword in the comment body. If this keyword is detected, the workflow proceeds to run the performance benchmarks.
+The workflow is triggered when a new comment is created on a pull request. Specifically, it checks for the presence of the `"run-benchmark-test"` keyword in the comment body. If this keyword is detected, the workflow proceeds to run the performance benchmarks.
 
 ## Key Steps in the Workflow
 

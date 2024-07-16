@@ -7,7 +7,7 @@
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "nyc_taxis",
-      "WORKLOAD_PARAMS": "{\"number_of_replicas\":\"0\",\"number_of_shards\":\"3\"}",
+      "WORKLOAD_PARAMS": "{\"number_of_replicas\":\"0\",\"number_of_shards\":\"1\"}",
       "EXCLUDE_TASKS": "type:search",
       "CAPTURE_NODE_STAT": "true"
     },
@@ -123,14 +123,29 @@
     }
   },
   "id_9": {
-    "description": "Indexing only configuration for percolator workload",
+    "description": "Indexing and search configuration for pmc workload",
     "supported_major_versions": ["2", "3"],
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
       "MIN_DISTRIBUTION": "true",
-      "TEST_WORKLOAD": "percolator",
-      "WORKLOAD_PARAMS": "{\"number_of_replicas\":\"0\",\"number_of_shards\":\"3\"}",
-      "EXCLUDE_TASKS": "type:search"
+      "TEST_WORKLOAD": "pmc",
+      "WORKLOAD_PARAMS": "{\"number_of_replicas\":\"0\",\"number_of_shards\":\"1\"}",
+      "CAPTURE_NODE_STAT": "true"
+    },
+    "cluster_configuration": {
+      "size": "Single-Node",
+      "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
+    }
+  },
+  "id_10": {
+    "description": "Indexing only configuration for stack-overflow workload",
+    "supported_major_versions": ["2", "3"],
+    "cluster-benchmark-configs": {
+      "SINGLE_NODE_CLUSTER": "true",
+      "MIN_DISTRIBUTION": "true",
+      "TEST_WORKLOAD": "so",
+      "WORKLOAD_PARAMS": "{\"number_of_replicas\":\"0\",\"number_of_shards\":\"1\"}",
+      "CAPTURE_NODE_STAT": "true"
     },
     "cluster_configuration": {
       "size": "Single-Node",

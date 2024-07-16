@@ -95,9 +95,6 @@ jobs:
           headRef=$(echo '${{ steps.get_pr.outputs.result }}' | jq -r '.headRef')
           echo "prHeadRepo=$headRepo" >> $GITHUB_ENV
           echo "prheadRef=$headRef" >> $GITHUB_ENV
-      - name: Print ENV
-        run: |
-          cat $GITHUB_ENV
       - name: Checkout PR Repo
         uses: actions/checkout@v2
         with:
