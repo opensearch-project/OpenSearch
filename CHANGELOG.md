@@ -74,6 +74,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactoring Grok.validatePatternBank by using an iterative approach ([#14206](https://github.com/opensearch-project/OpenSearch/pull/14206))
 - Update help output for _cat ([#14722](https://github.com/opensearch-project/OpenSearch/pull/14722))
 - Fix bulk upsert ignores the default_pipeline and final_pipeline when auto-created index matches the index template ([#12891](https://github.com/opensearch-project/OpenSearch/pull/12891))
+- Fix constant_keyword field type not working when creating index ([#14807](https://github.com/opensearch-project/OpenSearch/pull/14807))
 
 ### Security
 
