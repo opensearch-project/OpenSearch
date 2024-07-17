@@ -184,7 +184,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         assertThat(stats.getReplication(), Matchers.equalTo(replicationFactor));
     }
 
-    public void testIndicesShardStatsDefault() {
+    public void testIndicesShardStatsWithoutNodeIndexShardStats() {
         internalCluster().startNode();
         ensureGreen();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(false).get();
@@ -229,7 +229,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
     }
 
-    public void testIndicesShardStatsOptimised() {
+    public void testIndicesShardStatsWithNodeIndexShardStats() {
         internalCluster().startNode();
         ensureGreen();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().useOptimizedClusterStatsResponse(true).get();
