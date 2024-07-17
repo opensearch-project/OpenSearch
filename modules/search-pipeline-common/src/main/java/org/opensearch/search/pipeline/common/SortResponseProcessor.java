@@ -34,17 +34,22 @@ import java.util.stream.Collectors;
  * Throws exception is the specified field is not an array.
  */
 public class SortResponseProcessor extends AbstractProcessor implements SearchResponseProcessor {
-    /**
-     * Key to reference this processor type from a search pipeline.
-     */
+    /** Key to reference this processor type from a search pipeline. */
     public static final String TYPE = "sort";
+    /** Key defining the array field to be sorted. */
     public static final String SORT_FIELD = "field";
+    /** Optional key defining the sort order. */
     public static final String SORT_ORDER = "order";
+    /** Optional key to put the sorted values in a different field. */
     public static final String TARGET_FIELD = "target_field";
+    /** Default sort order if not specified */
     public static final String DEFAULT_ORDER = "asc";
 
+    /** Enum defining how elements will be sorted */
     public enum SortOrder {
+        /** Sort in ascending (natural) order */
         ASCENDING("asc"),
+        /** Sort in descending (reverse) order */
         DESCENDING("desc");
 
         private final String direction;
@@ -58,6 +63,11 @@ public class SortResponseProcessor extends AbstractProcessor implements SearchRe
             return this.direction;
         }
 
+        /**
+         * Converts the string representation of the enum value to the enum.
+         * @param value A string ("asc" or "desc")
+         * @return the corresponding enum value
+         */
         public static SortOrder fromString(String value) {
             if (value == null) {
                 throw new IllegalArgumentException("Sort direction cannot be null");
