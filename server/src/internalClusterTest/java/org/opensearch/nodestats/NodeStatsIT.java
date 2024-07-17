@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -260,14 +261,14 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
      * Default behavior - without consideration of request level param on level, the NodeStatsRequest always
      * returns ShardStats which is aggregated on the coordinator node when creating the XContent.
      */
-    public void testNodeIndicesStatsDefaultResponse() {
-        String testLevel = randomFrom(
-            "null",
-            NodeIndicesStats.Fields.NODE,
-            NodeIndicesStats.Fields.INDICES,
-            NodeIndicesStats.Fields.SHARDS,
-            "unknown"
-        );
+    public void testNodeIndicesStatWithDiscoveryNodesListInRequest() {
+        List<String> testLevels = new ArrayList<>();
+        testLevels.add("null");
+        testLevels.add(NodeIndicesStats.Fields.NODE);
+        testLevels.add(NodeIndicesStats.Fields.INDICES);
+        testLevels.add(NodeIndicesStats.Fields.SHARDS);
+        testLevels.add("unknown");
+
         internalCluster().startNode();
         ensureGreen();
         String indexName = "test1";
@@ -275,64 +276,66 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         refresh();
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
 
-        NodesStatsResponse response;
-        if (!testLevel.equals("null")) {
-            ArrayList<String> level_arg = new ArrayList<>();
-            level_arg.add(testLevel);
+        testLevels.forEach(testLevel -> {
+            NodesStatsResponse response;
+            if (!testLevel.equals("null")) {
+                ArrayList<String> level_arg = new ArrayList<>();
+                level_arg.add(testLevel);
 
-            CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
-            commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
-            response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
-        } else {
-            response = client().admin().cluster().prepareNodesStats().get();
-        }
-
-        response.getNodes().forEach(nodeStats -> {
-            assertNotNull(nodeStats.getIndices().getShardStats(clusterState.metadata().index(indexName).getIndex()));
-            try {
-                // Without any param - default is level = nodes
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-                builder.startObject();
-                builder = nodeStats.getIndices().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.endObject();
-
-                Map<String, Object> xContentMap = xContentBuilderToMap(builder);
-                LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
-                assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
-                assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
-
-                // With param containing level as 'indices', the indices stats are returned
-                builder = XContentFactory.jsonBuilder();
-                builder.startObject();
-                builder = nodeStats.getIndices()
-                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.INDICES)));
-                builder.endObject();
-
-                xContentMap = xContentBuilderToMap(builder);
-                indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
-                assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
-                assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
-
-                LinkedHashMap indexLevelStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES);
-                assertTrue(indexLevelStats.containsKey(indexName));
-
-                // With param containing level as 'shards', the shard stats are returned
-                builder = XContentFactory.jsonBuilder();
-                builder.startObject();
-                builder = nodeStats.getIndices()
-                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.SHARDS)));
-                builder.endObject();
-
-                xContentMap = xContentBuilderToMap(builder);
-                indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
-                assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
-                assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
-
-                LinkedHashMap shardLevelStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS);
-                assertTrue(shardLevelStats.containsKey(indexName));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+                commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
+                response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
+            } else {
+                response = client().admin().cluster().prepareNodesStats().get();
             }
+
+            response.getNodes().forEach(nodeStats -> {
+                assertNotNull(nodeStats.getIndices().getShardStats(clusterState.metadata().index(indexName).getIndex()));
+                try {
+                    // Without any param - default is level = nodes
+                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    builder.startObject();
+                    builder = nodeStats.getIndices().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    builder.endObject();
+
+                    Map<String, Object> xContentMap = xContentBuilderToMap(builder);
+                    LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
+                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
+                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
+
+                    // With param containing level as 'indices', the indices stats are returned
+                    builder = XContentFactory.jsonBuilder();
+                    builder.startObject();
+                    builder = nodeStats.getIndices()
+                        .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.INDICES)));
+                    builder.endObject();
+
+                    xContentMap = xContentBuilderToMap(builder);
+                    indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
+                    assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
+                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
+
+                    LinkedHashMap indexLevelStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES);
+                    assertTrue(indexLevelStats.containsKey(indexName));
+
+                    // With param containing level as 'shards', the shard stats are returned
+                    builder = XContentFactory.jsonBuilder();
+                    builder.startObject();
+                    builder = nodeStats.getIndices()
+                        .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.SHARDS)));
+                    builder.endObject();
+
+                    xContentMap = xContentBuilderToMap(builder);
+                    indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
+                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
+                    assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
+
+                    LinkedHashMap shardLevelStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS);
+                    assertTrue(shardLevelStats.containsKey(indexName));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         });
     }
 
@@ -340,85 +343,87 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
      * Optimized behavior - to avoid unnecessary IO in the form of shard-stats when not required, we not honor the levels on the
      * individual data nodes instead and pre-compute information as required.
      */
-    public void testNodeIndicesStatsOptimizedResponse() {
-        String testLevel = randomFrom(
-            "null",
-            NodeIndicesStats.Fields.NODE,
-            NodeIndicesStats.Fields.INDICES,
-            NodeIndicesStats.Fields.SHARDS,
-            "unknown"
-        );
+    public void testNodeIndicesStatWithDiscoveryNodesListNotInRequest() {
+        List<String> testLevels = new ArrayList<>();
+        testLevels.add("null");
+        testLevels.add(NodeIndicesStats.Fields.NODE);
+        testLevels.add(NodeIndicesStats.Fields.INDICES);
+        testLevels.add(NodeIndicesStats.Fields.SHARDS);
+        testLevels.add("unknown");
+
         internalCluster().startNode();
         ensureGreen();
         String indexName = "test1";
         index(indexName, "type", "1", "f", "f");
         refresh();
 
-        NodesStatsResponse response;
-        CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
-        commonStatsFlags.optimizeNodeIndicesStatsOnLevel(true);
-        if (!testLevel.equals("null")) {
-            ArrayList<String> level_arg = new ArrayList<>();
-            level_arg.add(testLevel);
+        testLevels.forEach(testLevel -> {
+            NodesStatsResponse response;
+            CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+            commonStatsFlags.optimizeNodeIndicesStatsOnLevel(true);
+            if (!testLevel.equals("null")) {
+                ArrayList<String> level_arg = new ArrayList<>();
+                level_arg.add(testLevel);
 
-            commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
-        }
-        response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
-
-        response.getNodes().forEach(nodeStats -> {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-
-                builder.startObject();
-                builder = nodeStats.getIndices()
-                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.SHARDS)));
-                builder.endObject();
-
-                Map<String, Object> xContentMap = xContentBuilderToMap(builder);
-                LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
-                LinkedHashMap indicesStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES);
-                LinkedHashMap shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS);
-                switch (testLevel) {
-                    case NodeIndicesStats.Fields.SHARDS:
-                        assertFalse(shardStats.isEmpty());
-                        assertNull(indicesStats);
-                        break;
-                    case NodeIndicesStats.Fields.INDICES:
-                    case NodeIndicesStats.Fields.NODE:
-                    case "null":
-                    case "unknown":
-                        assertTrue(shardStats.isEmpty());
-                        assertNull(indicesStats);
-                        break;
-                }
-
-                builder = XContentFactory.jsonBuilder();
-
-                builder.startObject();
-                builder = nodeStats.getIndices()
-                    .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.INDICES)));
-                builder.endObject();
-
-                xContentMap = xContentBuilderToMap(builder);
-                indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
-                indicesStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES);
-                shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS);
-                switch (testLevel) {
-                    case NodeIndicesStats.Fields.SHARDS:
-                    case NodeIndicesStats.Fields.INDICES:
-                        assertNull(shardStats);
-                        assertFalse(indicesStats.isEmpty());
-                        break;
-                    case NodeIndicesStats.Fields.NODE:
-                    case "null":
-                    case "unknown":
-                        assertNull(shardStats);
-                        assertTrue(indicesStats.isEmpty());
-                        break;
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
             }
+            response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
+
+            response.getNodes().forEach(nodeStats -> {
+                try {
+                    XContentBuilder builder = XContentFactory.jsonBuilder();
+
+                    builder.startObject();
+                    builder = nodeStats.getIndices()
+                        .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.SHARDS)));
+                    builder.endObject();
+
+                    Map<String, Object> xContentMap = xContentBuilderToMap(builder);
+                    LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
+                    LinkedHashMap indicesStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES);
+                    LinkedHashMap shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS);
+                    switch (testLevel) {
+                        case NodeIndicesStats.Fields.SHARDS:
+                            assertFalse(shardStats.isEmpty());
+                            assertNull(indicesStats);
+                            break;
+                        case NodeIndicesStats.Fields.INDICES:
+                        case NodeIndicesStats.Fields.NODE:
+                        case "null":
+                        case "unknown":
+                            assertTrue(shardStats.isEmpty());
+                            assertNull(indicesStats);
+                            break;
+                    }
+
+                    builder = XContentFactory.jsonBuilder();
+
+                    builder.startObject();
+                    builder = nodeStats.getIndices()
+                        .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.INDICES)));
+                    builder.endObject();
+
+                    xContentMap = xContentBuilderToMap(builder);
+                    indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
+                    indicesStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES);
+                    shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS);
+                    switch (testLevel) {
+                        case NodeIndicesStats.Fields.SHARDS:
+                        case NodeIndicesStats.Fields.INDICES:
+                            assertNull(shardStats);
+                            assertFalse(indicesStats.isEmpty());
+                            break;
+                        case NodeIndicesStats.Fields.NODE:
+                        case "null":
+                        case "unknown":
+                            assertNull(shardStats);
+                            assertTrue(indicesStats.isEmpty());
+                            break;
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         });
     }
 
