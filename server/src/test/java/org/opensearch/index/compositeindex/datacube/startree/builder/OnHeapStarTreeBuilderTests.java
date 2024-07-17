@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -159,7 +160,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
         builder = new OnHeapStarTreeBuilder(compositeField, writeState, mapperService);
     }
 
-    public void test_sortAndAggregateStarTreeDocuments() throws IOException {
+    public void test_sortAndAggregateStarTreeDocuments() {
 
         int noOfStarTreeDocuments = 5;
         StarTreeDocument[] starTreeDocuments = new StarTreeDocument[noOfStarTreeDocuments];
@@ -205,7 +206,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
 
     }
 
-    public void test_sortAndAggregateStarTreeDocuments_nullMetric() throws IOException {
+    public void test_sortAndAggregateStarTreeDocuments_nullMetric() {
 
         int noOfStarTreeDocuments = 5;
         StarTreeDocument[] starTreeDocuments = new StarTreeDocument[noOfStarTreeDocuments];
@@ -245,7 +246,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
 
     }
 
-    public void test_sortAndAggregateStarTreeDocument_longMaxAndLongMinDimensions() throws IOException {
+    public void test_sortAndAggregateStarTreeDocument_longMaxAndLongMinDimensions() {
 
         int noOfStarTreeDocuments = 5;
         StarTreeDocument[] starTreeDocuments = new StarTreeDocument[noOfStarTreeDocuments];
@@ -291,7 +292,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
 
     }
 
-    public void test_sortAndAggregateStarTreeDocument_DoubleMaxAndDoubleMinMetrics() throws IOException {
+    public void test_sortAndAggregateStarTreeDocument_DoubleMaxAndDoubleMinMetrics() {
 
         int noOfStarTreeDocuments = 5;
         StarTreeDocument[] starTreeDocuments = new StarTreeDocument[noOfStarTreeDocuments];
@@ -659,6 +660,21 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
         builder.build(segmentStarTreeDocumentIterator);
 
         List<StarTreeDocument> resultStarTreeDocuments = builder.getStarTreeDocuments();
+        Iterator<StarTreeDocument> expectedStarTreeDocumentIterator = expectedStarTreeDocuments();
+        Iterator<StarTreeDocument> resultStarTreeDocumentIterator = resultStarTreeDocuments.iterator();
+        while (resultStarTreeDocumentIterator.hasNext() && expectedStarTreeDocumentIterator.hasNext()) {
+            StarTreeDocument resultStarTreeDocument = resultStarTreeDocumentIterator.next();
+            StarTreeDocument expectedStarTreeDocument = expectedStarTreeDocumentIterator.next();
+
+            assertEquals(expectedStarTreeDocument.dimensions[0], resultStarTreeDocument.dimensions[0]);
+            assertEquals(expectedStarTreeDocument.dimensions[1], resultStarTreeDocument.dimensions[1]);
+            assertEquals(expectedStarTreeDocument.dimensions[2], resultStarTreeDocument.dimensions[2]);
+            assertEquals(expectedStarTreeDocument.metrics[0], resultStarTreeDocument.metrics[0]);
+        }
+
+    }
+
+    private Iterator<StarTreeDocument> expectedStarTreeDocuments() {
         List<StarTreeDocument> expectedStarTreeDocuments = List.of(
             new StarTreeDocument(new Long[] { 1L, 11L, 21L }, new Object[] { 400.0 }),
             new StarTreeDocument(new Long[] { 1L, 12L, 22L }, new Object[] { 200.0 }),
@@ -689,18 +705,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
             new StarTreeDocument(new Long[] { 3L, 12L, null }, new Object[] { 600.0 })
         );
 
-        Iterator<StarTreeDocument> expectedStarTreeDocumentIterator = expectedStarTreeDocuments.iterator();
-        Iterator<StarTreeDocument> resultStarTreeDocumentIterator = resultStarTreeDocuments.iterator();
-        while (resultStarTreeDocumentIterator.hasNext() && expectedStarTreeDocumentIterator.hasNext()) {
-            StarTreeDocument resultStarTreeDocument = resultStarTreeDocumentIterator.next();
-            StarTreeDocument expectedStarTreeDocument = expectedStarTreeDocumentIterator.next();
-
-            assertEquals(expectedStarTreeDocument.dimensions[0], resultStarTreeDocument.dimensions[0]);
-            assertEquals(expectedStarTreeDocument.dimensions[1], resultStarTreeDocument.dimensions[1]);
-            assertEquals(expectedStarTreeDocument.dimensions[2], resultStarTreeDocument.dimensions[2]);
-            assertEquals(expectedStarTreeDocument.metrics[0], resultStarTreeDocument.metrics[0]);
-        }
-
+        return expectedStarTreeDocuments.iterator();
     }
 
     public void testFlushFlow() throws IOException {
@@ -719,18 +724,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
         );
         List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5);
 
-        Dimension d1 = new NumericDimension("field1");
-        Dimension d2 = new NumericDimension("field3");
-        Metric m1 = new Metric("field2", List.of(MetricStat.SUM));
-        Metric m2 = new Metric("field2", List.of(MetricStat.COUNT));
-        List<Dimension> dims = List.of(d1, d2);
-        List<Metric> metrics = List.of(m1, m2);
-        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(
-            1000,
-            new HashSet<>(),
-            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
-        );
-        StarTreeField sf = new StarTreeField("sf", dims, metrics, c);
+        StarTreeField sf = getStarTreeFieldWithMultipleMetrics();
         SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
         SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
@@ -764,11 +758,27 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
         assertEquals(6, count);
     }
 
-    public void testMergeFlow() throws IOException {
-        List<Long> dimList = List.of(0L, 1L, 3L, 4L, 5L);
-        List<Integer> docsWithField = List.of(0, 1, 3, 4, 5);
-        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L);
-        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5);
+    private static StarTreeField getStarTreeFieldWithMultipleMetrics() {
+        Dimension d1 = new NumericDimension("field1");
+        Dimension d2 = new NumericDimension("field3");
+        Metric m1 = new Metric("field2", List.of(MetricStat.SUM));
+        Metric m2 = new Metric("field2", List.of(MetricStat.COUNT));
+        List<Dimension> dims = List.of(d1, d2);
+        List<Metric> metrics = List.of(m1, m2);
+        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(
+            1000,
+            new HashSet<>(),
+            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
+        );
+        StarTreeField sf = new StarTreeField("sf", dims, metrics, c);
+        return sf;
+    }
+
+    public void testMergeFlowWithSum() throws IOException {
+        List<Long> dimList = List.of(0L, 1L, 3L, 4L, 5L, 6L);
+        List<Integer> docsWithField = List.of(0, 1, 3, 4, 5, 6);
+        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L, -1L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5, 6);
 
         List<Long> metricsList = List.of(
             getLongFromDouble(0.0),
@@ -776,34 +786,38 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
             getLongFromDouble(20.0),
             getLongFromDouble(30.0),
             getLongFromDouble(40.0),
-            getLongFromDouble(50.0)
-        );
-        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5);
+            getLongFromDouble(50.0),
+            getLongFromDouble(60.0)
 
-        Dimension d1 = new NumericDimension("field1");
-        Dimension d2 = new NumericDimension("field3");
-        Metric m1 = new Metric("field2", List.of(MetricStat.SUM));
-        List<Dimension> dims = List.of(d1, d2);
-        List<Metric> metrics = List.of(m1);
-        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(
-            1000,
-            new HashSet<>(),
-            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
         );
-        StarTreeField sf = new StarTreeField("sf", dims, metrics, c);
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        StarTreeField sf = getStarTreeField(MetricStat.SUM);
         SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
         SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
         Map<String, DocIdSetIterator> dimDocIdSetIterators = Map.of("field1", d1sndv, "field3", d2sndv);
         Map<String, DocIdSetIterator> metricDocIdSetIterators = Map.of("field2", m1sndv);
-        StarTreeValues starTreeValues = new StarTreeValues(sf, null, dimDocIdSetIterators, metricDocIdSetIterators);
+        StarTreeValues starTreeValues = new StarTreeValues(
+            sf,
+            null,
+            dimDocIdSetIterators,
+            metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "6")
+        );
 
         SortedNumericDocValues f2d1sndv = getSortedNumericMock(dimList, docsWithField);
         SortedNumericDocValues f2d2sndv = getSortedNumericMock(dimList2, docsWithField2);
         SortedNumericDocValues f2m1sndv = getSortedNumericMock(metricsList, metricsWithField);
         Map<String, DocIdSetIterator> f2dimDocIdSetIterators = Map.of("field1", f2d1sndv, "field3", f2d2sndv);
         Map<String, DocIdSetIterator> f2metricDocIdSetIterators = Map.of("field2", f2m1sndv);
-        StarTreeValues starTreeValues2 = new StarTreeValues(sf, null, f2dimDocIdSetIterators, f2metricDocIdSetIterators);
+        StarTreeValues starTreeValues2 = new StarTreeValues(
+            sf,
+            null,
+            f2dimDocIdSetIterators,
+            f2metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "6")
+        );
         OnHeapStarTreeBuilder builder = new OnHeapStarTreeBuilder(sf, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
         /**
@@ -814,6 +828,8 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
          * [4, 4] | [80.0]
          * [5, 5] | [100.0]
          * [null, 2] | [40.0]
+         * ------------------ We only take non star docs
+         * [6,-1] | [120.0]
          */
         int count = 0;
         while (starTreeDocumentIterator.hasNext()) {
@@ -828,38 +844,40 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
     }
 
     public void testMergeFlowWithCount() throws IOException {
-        List<Long> dimList = List.of(0L, 1L, 3L, 4L, 5L);
-        List<Integer> docsWithField = List.of(0, 1, 3, 4, 5);
-        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L);
-        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5);
+        List<Long> dimList = List.of(0L, 1L, 3L, 4L, 5L, 6L);
+        List<Integer> docsWithField = List.of(0, 1, 3, 4, 5, 6);
+        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L, -1L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5, 6);
 
-        List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L);
-        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5);
+        List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
 
-        Dimension d1 = new NumericDimension("field1");
-        Dimension d2 = new NumericDimension("field3");
-        Metric m1 = new Metric("field2", List.of(MetricStat.COUNT));
-        List<Dimension> dims = List.of(d1, d2);
-        List<Metric> metrics = List.of(m1);
-        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(
-            1000,
-            new HashSet<>(),
-            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
-        );
-        StarTreeField sf = new StarTreeField("sf", dims, metrics, c);
+        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
         SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
         SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
         SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
         Map<String, DocIdSetIterator> dimDocIdSetIterators = Map.of("field1", d1sndv, "field3", d2sndv);
         Map<String, DocIdSetIterator> metricDocIdSetIterators = Map.of("field2", m1sndv);
-        StarTreeValues starTreeValues = new StarTreeValues(sf, null, dimDocIdSetIterators, metricDocIdSetIterators);
+        StarTreeValues starTreeValues = new StarTreeValues(
+            sf,
+            null,
+            dimDocIdSetIterators,
+            metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "6")
+        );
 
         SortedNumericDocValues f2d1sndv = getSortedNumericMock(dimList, docsWithField);
         SortedNumericDocValues f2d2sndv = getSortedNumericMock(dimList2, docsWithField2);
         SortedNumericDocValues f2m1sndv = getSortedNumericMock(metricsList, metricsWithField);
         Map<String, DocIdSetIterator> f2dimDocIdSetIterators = Map.of("field1", f2d1sndv, "field3", f2d2sndv);
         Map<String, DocIdSetIterator> f2metricDocIdSetIterators = Map.of("field2", f2m1sndv);
-        StarTreeValues starTreeValues2 = new StarTreeValues(sf, null, f2dimDocIdSetIterators, f2metricDocIdSetIterators);
+        StarTreeValues starTreeValues2 = new StarTreeValues(
+            sf,
+            null,
+            f2dimDocIdSetIterators,
+            f2metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "6")
+        );
         OnHeapStarTreeBuilder builder = new OnHeapStarTreeBuilder(sf, writeState, mapperService);
         Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
         /**
@@ -870,6 +888,8 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
          [4, 4] | [8]
          [5, 5] | [10]
          [null, 2] | [4]
+         ---------------
+         [6,-1] | [12]
          */
         int count = 0;
         while (starTreeDocumentIterator.hasNext()) {
@@ -878,6 +898,291 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
             assertEquals(starTreeDocument.dimensions[0] != null ? starTreeDocument.dimensions[0] * 2 : 4, starTreeDocument.metrics[0]);
         }
         assertEquals(6, count);
+    }
+
+    public void testMergeFlowWithDifferentDocsFromSegments() throws IOException {
+        List<Long> dimList = List.of(0L, 1L, 3L, 4L, 5L, 6L);
+        List<Integer> docsWithField = List.of(0, 1, 3, 4, 5, 6);
+        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L, -1L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        List<Long> dimList3 = List.of(5L, 6L, 8L, -1L);
+        List<Integer> docsWithField3 = List.of(0, 1, 3, 4);
+        List<Long> dimList4 = List.of(5L, 6L, 7L, 8L, -1L);
+        List<Integer> docsWithField4 = List.of(0, 1, 2, 3, 4);
+
+        List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
+        List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
+
+        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
+        SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
+        SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
+        Map<String, DocIdSetIterator> dimDocIdSetIterators = Map.of("field1", d1sndv, "field3", d2sndv);
+        Map<String, DocIdSetIterator> metricDocIdSetIterators = Map.of("field2", m1sndv);
+        StarTreeValues starTreeValues = new StarTreeValues(
+            sf,
+            null,
+            dimDocIdSetIterators,
+            metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "6")
+        );
+
+        SortedNumericDocValues f2d1sndv = getSortedNumericMock(dimList3, docsWithField3);
+        SortedNumericDocValues f2d2sndv = getSortedNumericMock(dimList4, docsWithField4);
+        SortedNumericDocValues f2m1sndv = getSortedNumericMock(metricsList2, metricsWithField2);
+        Map<String, DocIdSetIterator> f2dimDocIdSetIterators = Map.of("field1", f2d1sndv, "field3", f2d2sndv);
+        Map<String, DocIdSetIterator> f2metricDocIdSetIterators = Map.of("field2", f2m1sndv);
+        StarTreeValues starTreeValues2 = new StarTreeValues(
+            sf,
+            null,
+            f2dimDocIdSetIterators,
+            f2metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "4")
+        );
+        OnHeapStarTreeBuilder builder = new OnHeapStarTreeBuilder(sf, writeState, mapperService);
+        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
+        /**
+         * Asserting following dim / metrics [ dim1, dim2 / Count [ metric] ]
+         [0, 0] | [0]
+         [1, 1] | [1]
+         [3, 3] | [3]
+         [4, 4] | [4]
+         [5, 5] | [10]
+         [6, 6] | [6]
+         [8, 8] | [8]
+         [null, 2] | [2]
+         [null, 7] | [7]
+         */
+        int count = 0;
+        while (starTreeDocumentIterator.hasNext()) {
+            count++;
+            StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
+            if (starTreeDocument.dimensions[0] == null) {
+                assertEquals(starTreeDocument.dimensions[1], starTreeDocument.metrics[0]);
+            } else {
+                assertEquals(starTreeDocument.dimensions[0] * 2, starTreeDocument.metrics[0]);
+            }
+        }
+        assertEquals(9, count);
+    }
+
+    public void testMergeFlowWithMissingDocs() throws IOException {
+        List<Long> dimList = List.of(0L, 1L, 2L, 3L, 4L, 6L);
+        List<Integer> docsWithField = List.of(0, 1, 2, 3, 4, 6);
+        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L, -1L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        List<Long> dimList3 = List.of(5L, 6L, 8L, -1L);
+        List<Integer> docsWithField3 = List.of(0, 1, 3, 4);
+        List<Long> dimList4 = List.of(5L, 6L, 7L, 8L, -1L);
+        List<Integer> docsWithField4 = List.of(0, 1, 2, 3, 4);
+
+        List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
+        List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
+
+        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
+        SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
+        SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
+        Map<String, DocIdSetIterator> dimDocIdSetIterators = Map.of("field1", d1sndv, "field3", d2sndv);
+        Map<String, DocIdSetIterator> metricDocIdSetIterators = Map.of("field2", m1sndv);
+        StarTreeValues starTreeValues = new StarTreeValues(
+            sf,
+            null,
+            dimDocIdSetIterators,
+            metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "6")
+        );
+
+        SortedNumericDocValues f2d1sndv = getSortedNumericMock(dimList3, docsWithField3);
+        SortedNumericDocValues f2d2sndv = getSortedNumericMock(dimList4, docsWithField4);
+        SortedNumericDocValues f2m1sndv = getSortedNumericMock(metricsList2, metricsWithField2);
+        Map<String, DocIdSetIterator> f2dimDocIdSetIterators = Map.of("field1", f2d1sndv, "field3", f2d2sndv);
+        Map<String, DocIdSetIterator> f2metricDocIdSetIterators = Map.of("field2", f2m1sndv);
+        StarTreeValues starTreeValues2 = new StarTreeValues(
+            sf,
+            null,
+            f2dimDocIdSetIterators,
+            f2metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "4")
+        );
+        OnHeapStarTreeBuilder builder = new OnHeapStarTreeBuilder(sf, writeState, mapperService);
+        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
+        /**
+         * Asserting following dim / metrics [ dim1, dim2 / Count [ metric] ]
+         [0, 0] | [0]
+         [1, 1] | [1]
+         [2, 2] | [2]
+         [3, 3] | [3]
+         [4, 4] | [4]
+         [5, 5] | [5]
+         [6, 6] | [6]
+         [8, 8] | [8]
+         [null, 5] | [5]
+         [null, 7] | [7]
+         */
+        int count = 0;
+        while (starTreeDocumentIterator.hasNext()) {
+            count++;
+            StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
+            if (starTreeDocument.dimensions[0] == null) {
+                assertTrue(List.of(5L, 7L).contains(starTreeDocument.dimensions[1]));
+            }
+            assertEquals(starTreeDocument.dimensions[1], starTreeDocument.metrics[0]);
+        }
+        assertEquals(6, count);
+    }
+
+    public void testMergeFlowWithDocsMissingAtTheEnd() throws IOException {
+        List<Long> dimList = List.of(0L, 1L, 2L, 3L, 4L);
+        List<Integer> docsWithField = List.of(0, 1, 2, 3, 4);
+        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L, -1L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        List<Long> dimList3 = List.of(5L, 6L, 8L, -1L);
+        List<Integer> docsWithField3 = List.of(0, 1, 3, 4);
+        List<Long> dimList4 = List.of(5L, 6L, 7L, 8L, -1L);
+        List<Integer> docsWithField4 = List.of(0, 1, 2, 3, 4);
+
+        List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
+        List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
+
+        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
+        SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
+        SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
+        Map<String, DocIdSetIterator> dimDocIdSetIterators = Map.of("field1", d1sndv, "field3", d2sndv);
+        Map<String, DocIdSetIterator> metricDocIdSetIterators = Map.of("field2", m1sndv);
+        StarTreeValues starTreeValues = new StarTreeValues(
+            sf,
+            null,
+            dimDocIdSetIterators,
+            metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "6")
+        );
+
+        SortedNumericDocValues f2d1sndv = getSortedNumericMock(dimList3, docsWithField3);
+        SortedNumericDocValues f2d2sndv = getSortedNumericMock(dimList4, docsWithField4);
+        SortedNumericDocValues f2m1sndv = getSortedNumericMock(metricsList2, metricsWithField2);
+        Map<String, DocIdSetIterator> f2dimDocIdSetIterators = Map.of("field1", f2d1sndv, "field3", f2d2sndv);
+        Map<String, DocIdSetIterator> f2metricDocIdSetIterators = Map.of("field2", f2m1sndv);
+        StarTreeValues starTreeValues2 = new StarTreeValues(
+            sf,
+            null,
+            f2dimDocIdSetIterators,
+            f2metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "4")
+        );
+        OnHeapStarTreeBuilder builder = new OnHeapStarTreeBuilder(sf, writeState, mapperService);
+        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
+        /**
+         * Asserting following dim / metrics [ dim1, dim2 / Count [ metric] ]
+         [0, 0] | [0]
+         [1, 1] | [1]
+         [2, 2] | [2]
+         [3, 3] | [3]
+         [4, 4] | [4]
+         [5, 5] | [5]
+         [6, 6] | [6]
+         [8, 8] | [8]
+         [null, 5] | [5]
+         [null, 7] | [7]
+         */
+        int count = 0;
+        while (starTreeDocumentIterator.hasNext()) {
+            count++;
+            while (starTreeDocumentIterator.hasNext()) {
+                count++;
+                StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
+                if (starTreeDocument.dimensions[0] == null) {
+                    assertTrue(List.of(5L, 7L).contains(starTreeDocument.dimensions[1]));
+                }
+                assertEquals(starTreeDocument.dimensions[1], starTreeDocument.metrics[0]);
+            }
+        }
+        assertEquals(10, count);
+    }
+
+    public void testMergeFlowWithEmptyFieldsInOneSegment() throws IOException {
+        List<Long> dimList = List.of(0L, 1L, 2L, 3L, 4L);
+        List<Integer> docsWithField = List.of(0, 1, 2, 3, 4);
+        List<Long> dimList2 = List.of(0L, 1L, 2L, 3L, 4L, 5L, -1L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L);
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6);
+
+        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        SortedNumericDocValues d1sndv = getSortedNumericMock(dimList, docsWithField);
+        SortedNumericDocValues d2sndv = getSortedNumericMock(dimList2, docsWithField2);
+        SortedNumericDocValues m1sndv = getSortedNumericMock(metricsList, metricsWithField);
+        Map<String, DocIdSetIterator> dimDocIdSetIterators = Map.of("field1", d1sndv, "field3", d2sndv);
+        Map<String, DocIdSetIterator> metricDocIdSetIterators = Map.of("field2", m1sndv);
+        StarTreeValues starTreeValues = new StarTreeValues(
+            sf,
+            null,
+            dimDocIdSetIterators,
+            metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "6")
+        );
+
+        SortedNumericDocValues f2d1sndv = DocValues.emptySortedNumeric();
+        SortedNumericDocValues f2d2sndv = DocValues.emptySortedNumeric();
+        SortedNumericDocValues f2m1sndv = DocValues.emptySortedNumeric();
+        Map<String, DocIdSetIterator> f2dimDocIdSetIterators = Map.of("field1", f2d1sndv, "field3", f2d2sndv);
+        Map<String, DocIdSetIterator> f2metricDocIdSetIterators = Map.of("field2", f2m1sndv);
+        StarTreeValues starTreeValues2 = new StarTreeValues(
+            sf,
+            null,
+            f2dimDocIdSetIterators,
+            f2metricDocIdSetIterators,
+            Map.of("numSegmentDocs", "1")
+        );
+        OnHeapStarTreeBuilder builder = new OnHeapStarTreeBuilder(sf, writeState, mapperService);
+        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
+        /**
+         * Asserting following dim / metrics [ dim1, dim2 / Count [ metric] ]
+         [0, 0] | [0]
+         [1, 1] | [1]
+         [2, 2] | [2]
+         [3, 3] | [3]
+         [4, 4] | [4]
+         [null, 5] | [5]
+         */
+        int count = 0;
+        while (starTreeDocumentIterator.hasNext()) {
+            count++;
+            StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
+            if (starTreeDocument.dimensions[0] == null) {
+                assertEquals(5L, (long) starTreeDocument.dimensions[1]);
+            }
+            assertEquals(starTreeDocument.dimensions[1], starTreeDocument.metrics[0]);
+        }
+        assertEquals(6, count);
+    }
+
+    private static StarTreeField getStarTreeField(MetricStat count) {
+        Dimension d1 = new NumericDimension("field1");
+        Dimension d2 = new NumericDimension("field3");
+        Metric m1 = new Metric("field2", List.of(count));
+        List<Dimension> dims = List.of(d1, d2);
+        List<Metric> metrics = List.of(m1);
+        StarTreeFieldConfiguration c = new StarTreeFieldConfiguration(
+            1000,
+            new HashSet<>(),
+            StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP
+        );
+        return new StarTreeField("sf", dims, metrics, c);
     }
 
     private Long getLongFromDouble(Double num) {
@@ -892,7 +1197,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
             int index = -1;
 
             @Override
-            public long nextValue() throws IOException {
+            public long nextValue() {
                 return dimList.get(index);
             }
 
@@ -902,7 +1207,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public boolean advanceExact(int target) throws IOException {
+            public boolean advanceExact(int target) {
                 return false;
             }
 
@@ -912,7 +1217,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public int nextDoc() throws IOException {
+            public int nextDoc() {
                 if (index == docsWithField.size() - 1) {
                     return NO_MORE_DOCS;
                 }
@@ -921,7 +1226,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
             }
 
             @Override
-            public int advance(int target) throws IOException {
+            public int advance(int target) {
                 return 0;
             }
 

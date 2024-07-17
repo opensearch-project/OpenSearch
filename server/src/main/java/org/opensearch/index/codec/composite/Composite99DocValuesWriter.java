@@ -12,9 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
@@ -26,6 +30,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +50,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
     AtomicReference<MergeState> mergeState = new AtomicReference<>();
     private final Set<CompositeMappedFieldType> compositeMappedFieldTypes;
     private final Set<String> compositeFieldSet;
+    private final Set<String> segmentFieldSet;
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
     private static final Logger logger = LogManager.getLogger(Composite99DocValuesWriter.class);
@@ -56,6 +62,14 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         this.mapperService = mapperService;
         this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
         compositeFieldSet = new HashSet<>();
+        segmentFieldSet = new HashSet<>();
+        Iterator<FieldInfo> fieldInfoIterator = segmentWriteState.fieldInfos.iterator();
+        while (fieldInfoIterator.hasNext()) {
+            FieldInfo fi = fieldInfoIterator.next();
+            if (fi.getDocValuesType().equals(DocValuesType.SORTED_NUMERIC)) {
+                segmentFieldSet.add(fi.name);
+            }
+        }
         for (CompositeMappedFieldType type : compositeMappedFieldTypes) {
             compositeFieldSet.addAll(type.fields());
         }
@@ -101,6 +115,19 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             fieldProducerMap.put(field.name, valuesProducer);
             compositeFieldSet.remove(field.name);
         }
+        segmentFieldSet.remove(field.name);
+        if (segmentFieldSet.isEmpty()) {
+            while (compositeFieldSet.iterator().hasNext()) {
+                String compositeField = compositeFieldSet.iterator().next();
+                fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
+                    @Override
+                    public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
+                        return DocValues.emptySortedNumeric();
+                    }
+                });
+                compositeFieldSet.remove(compositeField);
+            }
+        }
         // we have all the required fields to build composite fields
         if (compositeFieldSet.isEmpty()) {
             for (CompositeMappedFieldType mappedType : compositeMappedFieldTypes) {
@@ -111,6 +138,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
                 }
             }
         }
+
     }
 
     @Override
@@ -158,9 +186,12 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
                         }
                         // assert star tree configuration is same across segments
                         else {
-                            assert starTreeFieldMap.get(fieldInfo.getField())
-                                .equals(((StarTreeValues) compositeIndexValues).getStarTreeField());
-                            logger.error("Star tree configuration is not same for segments during merge");
+                            if (starTreeFieldMap.get(fieldInfo.getField())
+                                .equals(((StarTreeValues) compositeIndexValues).getStarTreeField()) == false) {
+                                throw new IllegalArgumentException(
+                                    "star tree field configuration must match the configuration of the field being merged"
+                                );
+                            }
                         }
                         fieldsList.add((StarTreeValues) compositeIndexValues);
                         starTreeSubsPerField.put(fieldInfo.getField(), fieldsList);

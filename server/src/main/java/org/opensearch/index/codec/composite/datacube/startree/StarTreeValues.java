@@ -27,17 +27,20 @@ public class StarTreeValues implements CompositeIndexValues {
     private final StarTreeNode root;
     private final Map<String, DocIdSetIterator> dimensionDocValuesIteratorMap;
     private final Map<String, DocIdSetIterator> metricDocValuesIteratorMap;
+    private final Map<String, String> attributes;
 
     public StarTreeValues(
         StarTreeField starTreeField,
         StarTreeNode root,
         Map<String, DocIdSetIterator> dimensionDocValuesIteratorMap,
-        Map<String, DocIdSetIterator> metricDocValuesIteratorMap
+        Map<String, DocIdSetIterator> metricDocValuesIteratorMap,
+        Map<String, String> attributes
     ) {
         this.starTreeField = starTreeField;
         this.root = root;
         this.dimensionDocValuesIteratorMap = dimensionDocValuesIteratorMap;
         this.metricDocValuesIteratorMap = metricDocValuesIteratorMap;
+        this.attributes = attributes;
     }
 
     @Override
@@ -59,5 +62,9 @@ public class StarTreeValues implements CompositeIndexValues {
 
     public Map<String, DocIdSetIterator> getMetricDocValuesIteratorMap() {
         return metricDocValuesIteratorMap;
+    }
+
+    public Map<String, String> getAttributes() {
+        return attributes;
     }
 }

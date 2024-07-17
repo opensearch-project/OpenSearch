@@ -98,6 +98,8 @@ public class StarTreesBuilder implements Closeable {
         final Map<String, StarTreeField> starTreeFieldMap,
         final Map<String, List<StarTreeValues>> starTreeValuesSubsPerField
     ) throws IOException {
+        logger.debug("Starting merge of {} star-trees with star-tree fields", starTreeValuesSubsPerField.size());
+        long startTime = System.currentTimeMillis();
         for (Map.Entry<String, List<StarTreeValues>> entry : starTreeValuesSubsPerField.entrySet()) {
             List<StarTreeValues> starTreeValuesList = entry.getValue();
             StarTreeField starTreeField = starTreeFieldMap.get(entry.getKey());
@@ -105,6 +107,11 @@ public class StarTreesBuilder implements Closeable {
             builder.build(starTreeValuesList);
             builder.close();
         }
+        logger.debug(
+            "Took {} ms to merge {} star-trees with star-tree fields",
+            System.currentTimeMillis() - startTime,
+            starTreeValuesSubsPerField.size()
+        );
     }
 
     /**

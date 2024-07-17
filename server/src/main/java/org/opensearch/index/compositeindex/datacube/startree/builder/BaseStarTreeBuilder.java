@@ -10,8 +10,12 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -31,11 +35,13 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode.ALL;
@@ -69,6 +75,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     private final StarTreeField starTreeField;
     private final MapperService mapperService;
     private final SegmentWriteState state;
+    static String NUM_SEGMENT_DOCS = "numSegmentDocs";
 
     /**
      * Reads all the configuration related to dimensions and metrics, builds a star-tree based on the different construction parameters.
@@ -342,7 +349,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         }
 
         if (metricValue == null) {
-            throw new IllegalStateException("unable to cast segment metric");
+            return 0;
+            // TODO: handle this properly
+            // throw new IllegalStateException("unable to cast segment metric");
         }
         return metricValue;
     }
@@ -407,6 +416,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         for (int i = 0; i < numDimensions; i++) {
             String dimension = dimensionsSplitOrder.get(i).getField();
             FieldInfo dimensionFieldInfo = state.fieldInfos.fieldInfo(dimension);
+            if (dimensionFieldInfo == null) {
+                dimensionFieldInfo = getFieldInfo(dimension);
+            }
             dimensionReaders[i] = new SequentialDocValuesIterator(
                 fieldProducerMap.get(dimensionFieldInfo.name).getSortedNumeric(dimensionFieldInfo)
             );
@@ -415,6 +427,28 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         logger.debug("Sorting and aggregating star-tree in ms : {}", (System.currentTimeMillis() - startTime));
         build(starTreeDocumentIterator);
         logger.debug("Finished Building star-tree in ms : {}", (System.currentTimeMillis() - startTime));
+    }
+
+    private static FieldInfo getFieldInfo(String field) {
+        return new FieldInfo(
+            field,
+            1,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.SORTED_NUMERIC,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
     }
 
     /**
@@ -428,6 +462,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         for (Metric metric : this.starTreeField.getMetrics()) {
             for (MetricStat metricType : metric.getMetrics()) {
                 FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
+                if (metricFieldInfo == null) {
+                    metricFieldInfo = getFieldInfo(metric.getField());
+                }
                 // TODO
                 // if (metricType != MetricStat.COUNT) {
                 // Need not initialize the metric reader for COUNT metric type
@@ -551,10 +588,10 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         Long nodeDimensionValue = getDimensionValue(startDocId, dimensionId);
         for (int i = startDocId + 1; i < endDocId; i++) {
             Long dimensionValue = getDimensionValue(i, dimensionId);
-            if (!dimensionValue.equals(nodeDimensionValue)) {
+            if (Objects.equals(dimensionValue, nodeDimensionValue) == false) {
                 TreeNode child = getNewNode();
                 child.dimensionId = dimensionId;
-                child.dimensionValue = nodeDimensionValue;
+                child.dimensionValue = nodeDimensionValue != null ? nodeDimensionValue : ALL;
                 child.startDocId = nodeStartDocId;
                 child.endDocId = i;
                 nodes.put(nodeDimensionValue, child);
@@ -565,7 +602,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         }
         TreeNode lastNode = getNewNode();
         lastNode.dimensionId = dimensionId;
-        lastNode.dimensionValue = nodeDimensionValue;
+        lastNode.dimensionValue = nodeDimensionValue != null ? nodeDimensionValue : ALL;
         lastNode.startDocId = nodeStartDocId;
         lastNode.endDocId = endDocId;
         nodes.put(nodeDimensionValue, lastNode);

@@ -81,6 +81,11 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
     ) throws IOException {
         StarTreeDocument[] starTreeDocuments = new StarTreeDocument[totalSegmentDocs];
         for (int currentDocId = 0; currentDocId < totalSegmentDocs; currentDocId++) {
+            // TODO : fast exit if all dimensions are null ( indicating all iterators are exhausted )
+            // TODO : if all the dimensions are null, then we can skip adding the document
+            // TODO : if we come out of this loop with the very first document dimensions coming with doc iterators exhausted,
+            // then we need to return empty star tree
+            // TODO : we can save empty iterator for dimensions which are not part of segment
             starTreeDocuments[currentDocId] = getSegmentStarTreeDocument(currentDocId, dimensionReaders, metricReaders);
         }
         return sortAndAggregateStarTreeDocuments(starTreeDocuments);
@@ -128,21 +133,24 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
 
             boolean endOfDoc = false;
             int currentDocId = 0;
+            int numSegmentDocs = Integer.parseInt(
+                starTreeValues.getAttributes().getOrDefault(NUM_SEGMENT_DOCS, String.valueOf(DocIdSetIterator.NO_MORE_DOCS))
+            );
             while (!endOfDoc) {
                 Long[] dims = new Long[starTreeValues.getStarTreeField().getDimensionsOrder().size()];
                 int i = 0;
+                int endOfDocCounter = 0;
                 for (SequentialDocValuesIterator dimensionDocValueIterator : dimensionReaders) {
                     int doc = dimensionDocValueIterator.nextDoc(currentDocId);
                     Long val = dimensionDocValueIterator.value(currentDocId);
-                    // TODO : figure out how to identify a row with star tree docs here
-                    endOfDoc = (doc == DocIdSetIterator.NO_MORE_DOCS);
-                    if (endOfDoc) {
-                        break;
+                    if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+                        endOfDocCounter++;
                     }
                     dims[i] = val;
                     i++;
                 }
-                if (endOfDoc) {
+                // we've exhausted all dimension readers
+                if (endOfDocCounter == dims.length) {
                     break;
                 }
                 i = 0;
@@ -160,6 +168,7 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 StarTreeDocument starTreeDocument = new StarTreeDocument(dims, metrics);
                 starTreeDocuments.add(starTreeDocument);
                 currentDocId++;
+                if (currentDocId == numSegmentDocs) break;
             }
         }
         StarTreeDocument[] starTreeDocumentsArr = new StarTreeDocument[starTreeDocuments.size()];
