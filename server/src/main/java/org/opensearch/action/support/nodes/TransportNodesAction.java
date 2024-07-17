@@ -210,9 +210,12 @@ public abstract class TransportNodesAction<
     }
 
     /**
-     * Return the concrete nodes from the request node ids which will be later used for routing requests to nodes.
+     * Returns the concrete nodes from the request node ids which will be later used for routing requests to nodes.
+     * @param request Requests extended from {@link NodesRequest} which contains target nodeIDs.
+     * @param clusterState Cluster State fetched from {@link ClusterService}
+     * @return DiscoveryNode[] which is the collection of {@link DiscoveryNode} representation of NodeIDs from the request
      **/
-    protected DiscoveryNode[] resolveConcreteNodes(NodesRequest request, ClusterState clusterState) {
+    protected DiscoveryNode[] getConcreteNodes(NodesRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
         String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
         return Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new);
@@ -243,23 +246,32 @@ public abstract class TransportNodesAction<
             this.task = task;
             this.request = request;
             this.listener = listener;
-            if (request.concreteNodes() == null) {
+
+            // Check if concrete nodes are already available
+            if (request.concreteNodes() != null) {
+                this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
+
                 if (request.populateDiscoveryNodesInTransportRequest()) {
-                    resolveRequest(request, clusterService.state());
-                    assert request.concreteNodes() != null;
                     this.concreteNodes = null;
                 } else {
-                    this.concreteNodes = resolveConcreteNodes(request, clusterService.state());
+                    this.concreteNodes = request.concreteNodes();
+                    request.setConcreteNodes(null);
                     assert request.concreteNodes() == null;
                 }
-            } else {
-                this.concreteNodes = null;
+                return;
             }
-            if (request.concreteNodes() == null) {
-                assert concreteNodes != null;
-                this.responses = new AtomicReferenceArray<>(concreteNodes.length);
-            } else {
+
+            // Check if we want to populate the DiscoveryNodes in the transport Request and accordingly backfill the
+            // concrete nodes.
+            if (request.populateDiscoveryNodesInTransportRequest()) {
+                resolveRequest(request, clusterService.state());
+                assert request.concreteNodes() != null;
                 this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
+                this.concreteNodes = null;
+            } else {
+                this.concreteNodes = getConcreteNodes(request, clusterService.state());
+                assert request.concreteNodes() == null;
+                this.responses = new AtomicReferenceArray<>(concreteNodes.length);
             }
         }
 
