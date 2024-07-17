@@ -22,6 +22,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -48,6 +49,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.singletonMap;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -272,8 +274,14 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNode();
         ensureGreen();
         String indexName = "test1";
-        index(indexName, "type", "1", "f", "f");
-        refresh();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                clusterService().state().getNodes().getSize(),
+                Settings.builder().put("number_of_shards", 2).put("number_of_replicas", clusterService().state().getNodes().getSize() - 1)
+            )
+        );
+        ensureGreen();
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
 
         testLevels.forEach(testLevel -> {
@@ -354,8 +362,14 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         internalCluster().startNode();
         ensureGreen();
         String indexName = "test1";
-        index(indexName, "type", "1", "f", "f");
-        refresh();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                clusterService().state().getNodes().getSize(),
+                Settings.builder().put("number_of_shards", 2).put("number_of_replicas", clusterService().state().getNodes().getSize() - 1)
+            )
+        );
+        ensureGreen();
 
         testLevels.forEach(testLevel -> {
             NodesStatsResponse response;
