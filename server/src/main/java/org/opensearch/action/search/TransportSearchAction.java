@@ -86,6 +86,7 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.SearchTaskResourceOperationsListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
@@ -433,7 +434,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             requestOperationsListeners = searchRequestOperationsCompositeListenerFactory.buildCompositeListener(
                 originalSearchRequest,
                 logger,
-                TraceableSearchRequestOperationsListener.create(tracer, requestSpan)
+                TraceableSearchRequestOperationsListener.create(tracer, requestSpan),
+                new SearchTaskResourceOperationsListener(taskResourceTrackingService)
             );
             SearchRequestContext searchRequestContext = new SearchRequestContext(
                 requestOperationsListeners,
