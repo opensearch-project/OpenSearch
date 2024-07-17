@@ -628,7 +628,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 // If no star child exists, aggregate all aggregated documents from non-star children
                 if (node.children.values().size() == 1) {
                     for (TreeNode child : node.children.values()) {
-                        aggregatedStarTreeDocument = createAggregatedDocs(child);
+                        aggregatedStarTreeDocument = reduceStarTreeDocuments(aggregatedStarTreeDocument, createAggregatedDocs(child));
                         node.aggregatedDocId = child.aggregatedDocId;
                     }
                 } else {

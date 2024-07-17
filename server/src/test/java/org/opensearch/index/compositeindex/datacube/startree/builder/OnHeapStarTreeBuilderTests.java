@@ -695,6 +695,7 @@ public class OnHeapStarTreeBuilderTests extends OpenSearchTestCase {
             assertEquals(expectedStarTreeDocument.dimensions[2], resultStarTreeDocument.dimensions[2]);
             assertEquals(expectedStarTreeDocument.metrics[0], resultStarTreeDocument.metrics[0]);
         }
+
     }
 
     @Override
