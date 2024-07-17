@@ -68,11 +68,11 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
      */
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<String> value;
+        private final Parameter<String> value = Parameter.stringParam(valuePropertyName, false, m -> toType(m).value, null);
 
         public Builder(String name, String value) {
             super(name);
-            this.value = Parameter.stringParam(valuePropertyName, false, m -> toType(m).value, value);
+            this.value.setValue(value);
         }
 
         @Override
