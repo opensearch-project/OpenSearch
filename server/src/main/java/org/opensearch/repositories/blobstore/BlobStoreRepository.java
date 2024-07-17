@@ -784,6 +784,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return blobStore.get();
     }
 
+    boolean getPrefixModeVerification() {
+        return prefixModeVerification;
+    }
+
     /**
      * maintains single lazy instance of {@link BlobContainer}
      */
