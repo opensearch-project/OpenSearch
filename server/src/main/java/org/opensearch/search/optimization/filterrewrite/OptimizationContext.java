@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.optimization.ranges;
+package org.opensearch.search.optimization.filterrewrite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,7 +20,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 
-import static org.opensearch.search.optimization.ranges.Helper.loggerName;
+import static org.opensearch.search.optimization.filterrewrite.Helper.loggerName;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
@@ -100,8 +100,10 @@ public final class OptimizationContext {
      * Usage: invoked at segment level — in getLeafCollector of aggregator
      *
      * @param incrementDocCount consume the doc_count results for certain ordinal
+     * @param segmentMatchAll if your optimization can prepareFromSegment, you should pass in this flag to decide whether to prepareFromSegment
      */
-    public boolean tryOptimize(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount) throws IOException {
+    public boolean tryOptimize(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount, boolean segmentMatchAll)
+        throws IOException {
         segments++;
         if (!canOptimize) {
             return false;
@@ -124,7 +126,7 @@ public final class OptimizationContext {
             return false;
         }
 
-        Ranges ranges = buildRangesFromSegment(leafCtx);
+        Ranges ranges = tryBuildRangesFromSegment(leafCtx, segmentMatchAll);
         if (ranges == null) return false;
 
         aggregatorBridge.tryOptimize(values, incrementDocCount);
@@ -141,8 +143,8 @@ public final class OptimizationContext {
      * Even when ranges cannot be built at shard level, we can still build ranges
      * at segment level when it's functionally match-all at segment level
      */
-    private Ranges buildRangesFromSegment(LeafReaderContext leafCtx) throws IOException {
-        if (!preparedAtShardLevel && !aggregatorBridge.segmentMatchAll(leafCtx)) {
+    private Ranges tryBuildRangesFromSegment(LeafReaderContext leafCtx, boolean segmentMatchAll) throws IOException {
+        if (!preparedAtShardLevel && !segmentMatchAll) {
             return null;
         }
 

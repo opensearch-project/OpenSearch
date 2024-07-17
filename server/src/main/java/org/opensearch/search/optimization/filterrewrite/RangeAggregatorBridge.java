@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.optimization.ranges;
+package org.opensearch.search.optimization.filterrewrite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -18,8 +18,9 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
-import static org.opensearch.search.optimization.ranges.Helper.multiRangesTraverse;
+import static org.opensearch.search.optimization.filterrewrite.TreeTraversal.multiRangesTraverse;
 
 /**
  * For range aggregation
@@ -85,4 +86,9 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), incrementFunc, size)
         );
     }
+
+    /**
+     * Provides a function to produce bucket ordinals from index of the corresponding range in the range array
+     */
+    protected abstract Function<Object, Long> bucketOrdProducer();
 }

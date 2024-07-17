@@ -76,8 +76,8 @@ import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.DateHistogramAggregatorBridge;
-import org.opensearch.search.optimization.ranges.OptimizationContext;
+import org.opensearch.search.optimization.filterrewrite.CompositeAggregatorBridge;
+import org.opensearch.search.optimization.filterrewrite.OptimizationContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 
@@ -94,6 +94,7 @@ import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
+import static org.opensearch.search.optimization.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
 
 /**
  * Main aggregator that aggregates docs from multiple aggregations
@@ -166,7 +167,7 @@ public final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        optimizationContext = new OptimizationContext(new DateHistogramAggregatorBridge() {
+        optimizationContext = new OptimizationContext(new CompositeAggregatorBridge() {
             private RoundingValuesSource valuesSource;
             private long afterKey = -1L;
 
@@ -217,13 +218,8 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            protected Function<Object, Long> bucketOrdProducer() {
+            protected Function<Long, Long> bucketOrdProducer() {
                 return (key) -> bucketOrds.add(0, getRoundingPrepared().round((long) key));
-            }
-
-            @Override
-            protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
-                return segmentMatchAll(context, leaf);
             }
         });
         if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
@@ -563,7 +559,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();

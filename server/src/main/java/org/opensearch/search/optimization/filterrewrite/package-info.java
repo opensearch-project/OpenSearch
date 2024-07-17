@@ -7,12 +7,13 @@
  */
 
 /**
- * This package contains optimization for range-type aggregations
+ * This package contains filter rewrite optimization for range-type aggregations
  * <p>
  * The idea is to
  * <ul>
  * <li> figure out the "ranges" from the aggregation </li>
- * <li> leverage the "range filter" to get the result of range bucket quickly </li>
+ * <li> leverage the ranges and bkd index to get the result of each range bucket quickly </li>
  * </ul>
+ * More details in https://github.com/opensearch-project/OpenSearch/pull/14464
  */
-package org.opensearch.search.optimization.ranges;
+package org.opensearch.search.optimization.filterrewrite;

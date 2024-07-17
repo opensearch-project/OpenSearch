@@ -58,8 +58,8 @@ import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.OptimizationContext;
-import org.opensearch.search.optimization.ranges.RangeAggregatorBridge;
+import org.opensearch.search.optimization.filterrewrite.OptimizationContext;
+import org.opensearch.search.optimization.filterrewrite.RangeAggregatorBridge;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -284,12 +284,12 @@ public class RangeAggregator extends BucketsAggregator {
         optimizationContext = new OptimizationContext(new RangeAggregatorBridge() {
             @Override
             public boolean canOptimize() {
-                return canOptimize(config, RangeAggregator.this.ranges);
+                return canOptimize(config, ranges);
             }
 
             @Override
             public void prepare() {
-                buildRanges(RangeAggregator.this.ranges);
+                buildRanges(ranges);
             }
 
             @Override
@@ -312,7 +312,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.optimization.ranges;
+package org.opensearch.search.optimization.filterrewrite;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
@@ -16,8 +16,6 @@ import org.apache.lucene.search.Weight;
 import org.opensearch.common.Rounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
-import org.opensearch.search.aggregations.bucket.composite.RoundingValuesSource;
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -25,25 +23,14 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
-import static org.opensearch.search.optimization.ranges.Helper.multiRangesTraverse;
+import static org.opensearch.search.optimization.filterrewrite.TreeTraversal.multiRangesTraverse;
 
 /**
  * For date histogram aggregation
  */
 public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
-
-    protected boolean canOptimize(boolean missing, boolean hasScript, MappedFieldType fieldType) {
-        if (!missing && !hasScript) {
-            if (fieldType instanceof DateFieldMapper.DateFieldType) {
-                if (fieldType.isSearchable()) {
-                    this.fieldType = fieldType;
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 
     protected boolean canOptimize(ValuesSourceConfig config) {
         if (config.script() == null && config.missing() == null) {
@@ -56,11 +43,6 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
             }
         }
         return false;
-    }
-
-    protected boolean canOptimize(CompositeValuesSourceConfig[] sourceConfigs) {
-        if (sourceConfigs.length != 1 || !(sourceConfigs[0].valuesSource() instanceof RoundingValuesSource)) return false;
-        return canOptimize(sourceConfigs[0].missingBucket(), sourceConfigs[0].hasScript(), sourceConfigs[0].fieldType());
     }
 
     protected void buildRanges(SearchContext context) throws IOException {
@@ -165,7 +147,22 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
         return bucketOrd;
     }
 
-    protected boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
+    /**
+    * Provides a function to produce bucket ordinals from the lower bound of the range
+    */
+    protected abstract Function<Long, Long> bucketOrdProducer();
+
+    /**
+     * Checks whether the top level query matches all documents on the segment
+     *
+     * <p>This method creates a weight from the search context's query and checks whether the weight's
+     * document count matches the total number of documents in the leaf reader context.
+     *
+     * @param ctx      the search context
+     * @param leafCtx  the leaf reader context for the segment
+     * @return {@code true} if the segment matches all documents, {@code false} otherwise
+     */
+    public static boolean segmentMatchAll(SearchContext ctx, LeafReaderContext leafCtx) throws IOException {
         Weight weight = ctx.query().rewrite(ctx.searcher()).createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
         return weight != null && weight.count(leafCtx) == leafCtx.reader().numDocs();
     }

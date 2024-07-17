@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.optimization.ranges;
+package org.opensearch.search.optimization.filterrewrite;
 
 import org.apache.lucene.util.ArrayUtil;
 

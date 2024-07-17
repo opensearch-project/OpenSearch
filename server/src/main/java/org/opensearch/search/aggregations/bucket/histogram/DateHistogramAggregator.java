@@ -52,14 +52,16 @@ import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.ranges.DateHistogramAggregatorBridge;
-import org.opensearch.search.optimization.ranges.OptimizationContext;
+import org.opensearch.search.optimization.filterrewrite.DateHistogramAggregatorBridge;
+import org.opensearch.search.optimization.filterrewrite.OptimizationContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+
+import static org.opensearch.search.optimization.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
 
 /**
  * An aggregator for date values. Every date is rounded down using a configured
@@ -144,14 +146,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             }
 
             @Override
-            protected Function<Object, Long> bucketOrdProducer() {
+            protected Function<Long, Long> bucketOrdProducer() {
                 return (key) -> bucketOrds.add(0, preparedRounding.round((long) key));
             }
 
-            @Override
-            protected boolean segmentMatchAll(LeafReaderContext leaf) throws IOException {
-                return segmentMatchAll(context, leaf);
-            }
         });
         if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
             optimizationContext.prepare();
@@ -172,7 +170,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount);
+        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
