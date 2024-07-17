@@ -5,9 +5,6 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-/**
- * Core classes for handling star tree index.
- *
- * @opensearch.experimental
- */
-package org.opensearch.index.compositeindex.datacube.startree;
+
+/** Core classes responsible for handling all application based configuration templates related operations. */
+package org.opensearch.cluster.applicationtemplates;
