@@ -15,6 +15,7 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -49,7 +50,7 @@ public class RemoteMigrationIndexMetadataUpdater {
         DiscoveryNodes discoveryNodes,
         RoutingTable routingTable,
         IndexMetadata indexMetadata,
-        Settings clusterSettings,
+        @Nullable Settings clusterSettings,
         Logger logger
 
     ) {

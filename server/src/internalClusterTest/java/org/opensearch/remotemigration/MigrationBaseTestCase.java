@@ -46,6 +46,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
@@ -276,5 +277,31 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
         String uuid = getIndexResponse.getSettings().get(indexName).get(IndexMetadata.SETTING_INDEX_UUID);
         IndexService indexService = indicesService.indexService(new Index(indexName, uuid));
         return indexService.getShard(0);
+    }
+
+    public void changeReplicaCountAndEnsureGreen(int replicaCount, String indexName) {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, replicaCount))
+        );
+        ensureGreen(indexName);
+    }
+
+    public void completeDocRepToRemoteMigration() {
+        assertTrue(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "strict")
+                        .put(MIGRATION_DIRECTION_SETTING.getKey(), "none")
+                )
+                .get()
+                .isAcknowledged()
+        );
     }
 }
