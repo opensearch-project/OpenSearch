@@ -331,8 +331,8 @@ public class MetadataMappingService {
                     updatedMapping = true;
                     if (logger.isDebugEnabled()) {
                         logger.debug("{} create_mapping with source [{}]", index, updatedSource);
-                    } else if (logger.isInfoEnabled()) {
-                        logger.info("{} create_mapping", index);
+                    } else {
+                        logger.info("{} create_mapping", () -> index);
                     }
                 }
 

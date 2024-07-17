@@ -210,10 +210,9 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             logger.info("--> Creating index test{} with primary {} and replica {}", i, shardCount, replicaCount);
             createIndex("test" + i, shardCount, replicaCount, i % 2 == 0);
             ensureGreen(TimeValue.timeValueSeconds(60));
-            if (logger.isTraceEnabled()) {
-                state = client().admin().cluster().prepareState().execute().actionGet().getState();
-                logger.info(ShardAllocations.printShardDistribution(state));
-            }
+            logger.trace(
+                () -> ShardAllocations.printShardDistribution(client().admin().cluster().prepareState().execute().actionGet().getState())
+            );
         }
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         logger.info(ShardAllocations.printShardDistribution(state));
@@ -271,10 +270,9 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             logger.info("--> Creating index test{} with primary {} and replica {}", i, shardCount, replicaCount);
             createIndex("test" + i, shardCount, replicaCount, i % 2 == 0);
             ensureGreen(TimeValue.timeValueSeconds(60));
-            if (logger.isTraceEnabled()) {
-                state = client().admin().cluster().prepareState().execute().actionGet().getState();
-                logger.info(ShardAllocations.printShardDistribution(state));
-            }
+            logger.trace(
+                () -> ShardAllocations.printShardDistribution(client().admin().cluster().prepareState().execute().actionGet().getState())
+            );
         }
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         logger.info(ShardAllocations.printShardDistribution(state));
