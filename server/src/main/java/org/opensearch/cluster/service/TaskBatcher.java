@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -195,22 +196,31 @@ public abstract class TaskBatcher {
             }
 
             if (toExecute.isEmpty() == false) {
-                final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
+                final Supplier<String> tasksSummarySupplier = () -> processTasksBySource.entrySet().stream().map(entry -> {
                     String tasks = updateTask.describeTasks(entry.getValue());
                     return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
                 }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
-
+                final String tasksShortSummary = buildShortSummary(updateTask.batchingKey);
                 taskBatcherListener.onBeginProcessing(toExecute);
-                run(updateTask.batchingKey, toExecute, tasksSummary);
+                run(updateTask.batchingKey, toExecute, tasksSummarySupplier, tasksShortSummary);
             }
         }
+    }
+
+    private String buildShortSummary(final Object batchingKey) {
+        return "Tasks batched with key: " + batchingKey.toString().split("\\$")[0];
     }
 
     /**
      * Action to be implemented by the specific batching implementation
      * All tasks have the given batching key.
      */
-    protected abstract void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary);
+    protected abstract void run(
+        Object batchingKey,
+        List<? extends BatchedTask> tasks,
+        Supplier<String> tasksSummary,
+        String tasksShortSummary
+    );
 
     /**
      * Represents a runnable task that supports batching.

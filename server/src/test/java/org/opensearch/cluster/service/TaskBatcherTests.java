@@ -55,6 +55,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -78,7 +79,12 @@ public class TaskBatcherTests extends TaskExecutorTests {
         }
 
         @Override
-        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
+        protected void run(
+            Object batchingKey,
+            List<? extends BatchedTask> tasks,
+            Supplier<String> tasksSummarySupplier,
+            String tasksShortSummary
+        ) {
             List<UpdateTask> updateTasks = (List) tasks;
             ((TestExecutor) batchingKey).execute(updateTasks.stream().map(t -> t.task).collect(Collectors.toList()));
             updateTasks.forEach(updateTask -> updateTask.listener.processed(updateTask.source));
