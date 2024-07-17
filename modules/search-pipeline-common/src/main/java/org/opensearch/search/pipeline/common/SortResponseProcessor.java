@@ -23,11 +23,10 @@ import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Processor that sorts an array of items.
@@ -166,14 +165,26 @@ public class SortResponseProcessor extends AbstractProcessor implements SearchRe
         return response;
     }
 
-    private <T extends Comparable<T>> List<Object> getSortedValues(List<Object> values) {
-        List<T> comparableValues = new ArrayList<>(values.size());
+    private List<Object> getSortedValues(List<Object> values) {
+        // Downcast list elements to comparable (or throw exception) so we can sort
+        List<? extends Comparable<Object>> comparableValues = getComparableValues(values);
+        if (sortOrder.equals(SortOrder.ASCENDING)) {
+            Collections.sort(comparableValues);
+        } else {
+            Collections.sort(comparableValues, Collections.reverseOrder());
+        }
+        // Upcast list elements back to Object
+        return new ArrayList<>(comparableValues);
+    }
+
+    private List<? extends Comparable<Object>> getComparableValues(List<Object> values) {
+        List<Comparable<Object>> comparableValues = new ArrayList<>(values.size());
         for (Object obj : values) {
             if (obj == null) {
                 throw new IllegalArgumentException("field [" + sortField + "] contains a null value.]");
             } else if (Comparable.class.isAssignableFrom(obj.getClass())) {
                 @SuppressWarnings("unchecked")
-                T comp = (T) obj;
+                Comparable<Object> comp = (Comparable<Object>) obj;
                 comparableValues.add(comp);
             } else {
                 throw new IllegalArgumentException(
@@ -181,9 +192,7 @@ public class SortResponseProcessor extends AbstractProcessor implements SearchRe
                 );
             }
         }
-        return comparableValues.stream()
-            .sorted(sortOrder.equals(SortOrder.ASCENDING) ? Comparator.naturalOrder() : Comparator.reverseOrder())
-            .collect(Collectors.toList());
+        return comparableValues;
     }
 
     static class Factory implements Processor.Factory<SearchResponseProcessor> {
