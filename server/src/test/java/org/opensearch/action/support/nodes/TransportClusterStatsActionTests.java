@@ -25,6 +25,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -51,12 +52,42 @@ public class TransportClusterStatsActionTests extends TransportNodesActionTests 
         });
     }
 
+    public void testClusterStatsActionWithDiscoveryNodesListInRestRequestPopulated() {
+        ClusterStatsRequest request = new ClusterStatsRequest();
+        Collection<DiscoveryNode> discoveryNodes = clusterService.state().getNodes().getNodes().values();
+        request.setConcreteNodes(discoveryNodes.toArray(DiscoveryNode[]::new));
+        Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
+
+        assertNotNull(combinedSentRequest);
+        combinedSentRequest.forEach((node, capturedRequestList) -> {
+            assertNotNull(capturedRequestList);
+            capturedRequestList.forEach(sentRequest -> {
+                assertNotNull(sentRequest.getDiscoveryNodes());
+                assertEquals(sentRequest.getDiscoveryNodes().length, clusterService.state().nodes().getSize());
+            });
+        });
+    }
+
     /**
      * In the optimized ClusterStats Request, we do not send the DiscoveryNodes List to each node. This behavior is
      * asserted in this test.
      */
     public void testClusterStatsActionWithDiscoveryNodesListNotPopulated() {
         ClusterStatsRequest request = new ClusterStatsRequest();
+        request.populateDiscoveryNodesInTransportRequest(false);
+        Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
+
+        assertNotNull(combinedSentRequest);
+        combinedSentRequest.forEach((node, capturedRequestList) -> {
+            assertNotNull(capturedRequestList);
+            capturedRequestList.forEach(sentRequest -> { assertNull(sentRequest.getDiscoveryNodes()); });
+        });
+    }
+
+    public void testClusterStatsWithDiscoveryNodesListInRestRequestNotPopulated() {
+        ClusterStatsRequest request = new ClusterStatsRequest();
+        Collection<DiscoveryNode> discoveryNodes = clusterService.state().getNodes().getNodes().values();
+        request.setConcreteNodes(discoveryNodes.toArray(DiscoveryNode[]::new));
         request.populateDiscoveryNodesInTransportRequest(false);
         Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
 
