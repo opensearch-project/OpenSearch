@@ -912,6 +912,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
     public void testIsSwitchToStrictCompatibilityMode() {
         Settings mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "strict").build();
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(mockSettings);
         AllocationService allocationService = new AllocationService(
             new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(),
@@ -928,10 +930,11 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
             clusterService.getClusterSettings()
         );
-        assertTrue(transportClusterUpdateSettingsAction.isSwitchToStrictCompatibilityMode(mockSettings));
+        assertTrue(transportClusterUpdateSettingsAction.isSwitchToStrictCompatibilityMode(request));
 
         mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed").build();
-        assertFalse(transportClusterUpdateSettingsAction.isSwitchToStrictCompatibilityMode(mockSettings));
+        request.persistentSettings(mockSettings);
+        assertFalse(transportClusterUpdateSettingsAction.isSwitchToStrictCompatibilityMode(request));
     }
 
     public void testFinalizeMigrationWithAllRemoteNodes() {

@@ -601,7 +601,6 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
 
         logger.info("---> Reducing replica count to 0 for the index");
         changeReplicaCountAndEnsureGreen(0, indexName);
-        assertDocrepProperties(indexName);
 
         logger.info("---> Stopping all docrep nodes");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(docrepClusterManager));

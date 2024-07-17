@@ -159,6 +159,8 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
                 private volatile boolean changed = false;
 
+                private volatile boolean isSwitchingToStrictMode = false;
+
                 @Override
                 public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
                     return clusterUpdateSettingTaskKey;
@@ -266,21 +268,29 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    validateCompatibilityModeSettingRequest(request, state);
+                    boolean isCompatibilityModeChanging = validateCompatibilityModeSettingRequest(request, state);
                     final ClusterState clusterState = updater.updateSettings(
                         currentState,
                         clusterSettings.upgradeSettings(request.transientSettings()),
                         clusterSettings.upgradeSettings(request.persistentSettings()),
                         logger
                     );
-                    changed = clusterState != currentState;
-                    // Remote Store migration: Checks if the applied cluster settings
-                    // has switched the cluster to STRICT mode. If so, checks and applies
-                    // appropriate index settings depending on the current set of node types
-                    // in the cluster
-                    if (isSwitchToStrictCompatibilityMode(clusterState.metadata().settings())) {
-                        return finalizeMigration(clusterState);
+                    /*
+                     Remote Store migration: Checks if the applied cluster settings
+                     has switched the cluster to STRICT mode. If so, checks and applies
+                     appropriate index settings depending on the current set of node types
+                     in the cluster
+
+                     This has been intentionally done after the cluster settings update
+                     flow. That way we are not interfering with the usual settings update
+                     and the cluster state mutation that comes along with it
+                    */
+                    if (isCompatibilityModeChanging == true && isSwitchToStrictCompatibilityMode(request) == true) {
+                        ClusterState newStateAfterIndexMdChanges = finalizeMigration(clusterState);
+                        changed = newStateAfterIndexMdChanges != currentState;
+                        return newStateAfterIndexMdChanges;
                     }
+                    changed = clusterState != currentState;
                     return clusterState;
                 }
             }
@@ -289,17 +299,22 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
     /**
      * Runs various checks associated with changing cluster compatibility mode
+     *
      * @param request cluster settings update request, for settings to be updated and new values
      * @param clusterState current state of cluster, for information on nodes
+     * @return true if the incoming cluster settings update request is switching compatibility modes
      */
-    public void validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState clusterState) {
+    public boolean validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState clusterState) {
         Settings settings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
         if (RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.exists(settings)) {
+            String value = RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(settings).mode;
             validateAllNodesOfSameVersion(clusterState.nodes());
-            if (isSwitchToStrictCompatibilityMode(settings)) {
+            if (RemoteStoreNodeService.CompatibilityMode.STRICT.mode.equals(value)) {
                 validateAllNodesOfSameType(clusterState.nodes());
             }
+            return true;
         }
+        return false;
     }
 
     /**
@@ -342,8 +357,10 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
     public ClusterState finalizeMigration(ClusterState incomingState) {
         Map<String, DiscoveryNode> discoveryNodeMap = incomingState.nodes().getNodes();
         if (discoveryNodeMap.isEmpty() == false) {
-            boolean allNodesRemote = discoveryNodeMap.values().stream().allMatch(discoNode -> discoNode.isRemoteStoreNode() == true);
-            if (allNodesRemote == true) {
+            // At this point, we have already validated that all nodes in the cluster are of uniform type.
+            // Either all of them are remote store enabled, or all of them are docrep enabled
+            boolean remoteStoreEnabledNodePresent = discoveryNodeMap.values().stream().findFirst().get().isRemoteStoreNode();
+            if (remoteStoreEnabledNodePresent == true) {
                 List<IndexMetadata> indicesWithoutRemoteStoreSettings = getIndicesWithoutRemoteStoreSettings(incomingState);
                 if (indicesWithoutRemoteStoreSettings.isEmpty() == true) {
                     logger.info("All indices in the cluster has remote store based index settings");
@@ -352,7 +369,6 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                     return ClusterState.builder(incomingState).metadata(mutatedMetadata).build();
                 }
             } else {
-                // TODO: Revert all remote store settings for remote store -> docrep migration
                 logger.debug("All nodes in the cluster are not remote nodes. Skipping.");
             }
         }
@@ -386,13 +402,14 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.getMetadata());
         RoutingTable currentRoutingTable = clusterState.getRoutingTable();
         DiscoveryNodes currentDiscoveryNodes = clusterState.getNodes();
+        Settings currentClusterSettings = clusterState.metadata().settings();
         for (IndexMetadata indexMetadata : indicesWithRemoteStoreSettings) {
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
             RemoteMigrationIndexMetadataUpdater indexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
                 currentDiscoveryNodes,
                 currentRoutingTable,
                 indexMetadata,
-                null,
+                currentClusterSettings,
                 logger
             );
             indexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexMetadata.getIndex().getName());
@@ -406,9 +423,10 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
      * the cluster to `STRICT` compatibility mode
      * Visible only for tests
      */
-    public boolean isSwitchToStrictCompatibilityMode(Settings settings) {
+    public boolean isSwitchToStrictCompatibilityMode(ClusterUpdateSettingsRequest request) {
+        Settings incomingSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
         return RemoteStoreNodeService.CompatibilityMode.STRICT.mode.equals(
-            RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(settings).mode
+            RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(incomingSettings).mode
         );
     }
 }
