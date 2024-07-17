@@ -28,7 +28,7 @@ allprojects {
   apply plugin: 'idea'
 
   tasks.named('idea').configure {
-    doFirst { throw new GradleException("Use of the 'idea' task has been deprecated. For details on importing into IntelliJ see CONTRIBUTING.md.") }
+    doFirst { throw new GradleException("Use of the 'idea' task has been deprecated. For details on importing into IntelliJ see DEVELOPER_GUIDE.md.") }
   }
 }
 
@@ -81,7 +81,7 @@ if (System.getProperty('idea.active') == 'true') {
         }
         runConfigurations {
           defaults(JUnit) {
-            vmParameters = '-ea -Djava.locale.providers=SPI,COMPAT'
+            vmParameters = '-ea -Djava.locale.providers=SPI,CLDR'
             if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_17) {
               vmParameters += ' -Djava.security.manager=allow'
             }

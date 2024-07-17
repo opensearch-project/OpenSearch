@@ -80,6 +80,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -136,20 +137,36 @@ public class MasterServiceTests extends OpenSearchTestCase {
     }
 
     private ClusterManagerService createClusterManagerService(boolean makeClusterManager) {
-        return createClusterManagerService(makeClusterManager, NoopMetricsRegistry.INSTANCE);
+        return createClusterManagerService(makeClusterManager, Optional.empty());
     }
 
-    private ClusterManagerService createClusterManagerService(boolean makeClusterManager, MetricsRegistry metricsRegistry) {
+    private ClusterManagerService createClusterManagerService(
+        boolean makeClusterManager,
+        Optional<MetricsRegistry> metricsRegistryOptional
+    ) {
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        final ClusterManagerService clusterManagerService = new ClusterManagerService(
-            Settings.builder()
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-                .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-                .build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            new ClusterManagerMetrics(metricsRegistry)
-        );
+        final ClusterManagerService clusterManagerService;
+        if (metricsRegistryOptional != null && metricsRegistryOptional.isPresent()) {
+            clusterManagerService = new ClusterManagerService(
+                Settings.builder()
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                    .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+                    .build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                new ClusterManagerMetrics(metricsRegistryOptional.get())
+            );
+        } else {
+            clusterManagerService = new ClusterManagerService(
+                Settings.builder()
+                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+                    .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+                    .build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool
+            );
+        }
+
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
                 DiscoveryNodes.builder()
@@ -181,7 +198,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
             return clusterStatePublishHistogram;
         });
 
-        final ClusterManagerService nonClusterManager = createClusterManagerService(false, metricsRegistry);
+        final ClusterManagerService nonClusterManager = createClusterManagerService(false, Optional.of(metricsRegistry));
 
         final boolean[] taskFailed = { false };
         final CountDownLatch latch1 = new CountDownLatch(1);

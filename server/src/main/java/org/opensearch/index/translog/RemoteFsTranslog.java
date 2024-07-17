@@ -304,7 +304,7 @@ public class RemoteFsTranslog extends Translog {
         assert Objects.nonNull(pathStrategy);
         String indexUUID = shardId.getIndex().getUUID();
         String shardIdStr = String.valueOf(shardId.id());
-        RemoteStorePathStrategy.PathInput dataPathInput = RemoteStorePathStrategy.PathInput.builder()
+        RemoteStorePathStrategy.ShardDataPathInput dataPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
             .basePath(blobStoreRepository.basePath())
             .indexUUID(indexUUID)
             .shardId(shardIdStr)
@@ -312,7 +312,7 @@ public class RemoteFsTranslog extends Translog {
             .dataType(DATA)
             .build();
         BlobPath dataPath = pathStrategy.generatePath(dataPathInput);
-        RemoteStorePathStrategy.PathInput mdPathInput = RemoteStorePathStrategy.PathInput.builder()
+        RemoteStorePathStrategy.ShardDataPathInput mdPathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
             .basePath(blobStoreRepository.basePath())
             .indexUUID(indexUUID)
             .shardId(shardIdStr)
@@ -706,6 +706,10 @@ public class RemoteFsTranslog extends Translog {
      */
     @Override
     protected boolean shouldFlush() {
-        return readers.size() >= translogTransferManager.getMaxRemoteTranslogReadersSettings();
+        int maxRemoteTlogReaders = translogTransferManager.getMaxRemoteTranslogReadersSettings();
+        if (maxRemoteTlogReaders == -1) {
+            return false;
+        }
+        return readers.size() >= maxRemoteTlogReaders;
     }
 }

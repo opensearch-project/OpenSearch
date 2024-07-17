@@ -151,6 +151,14 @@ public final class IndexSettings {
         true,
         Property.IndexScope
     );
+
+    public static final Setting<Boolean> ALLOW_DERIVED_FIELDS = Setting.boolSetting(
+        "index.query.derived_field.enabled",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING = Setting.timeSetting(
         "index.translog.sync_interval",
         TimeValue.timeValueSeconds(5),
@@ -724,11 +732,11 @@ public final class IndexSettings {
     private final Settings nodeSettings;
     private final int numberOfShards;
     private final ReplicationType replicationType;
-    private final boolean isRemoteStoreEnabled;
+    private volatile boolean isRemoteStoreEnabled;
+    private final boolean isStoreLocalityPartial;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
-    private final String remoteStoreTranslogRepository;
-    private final String remoteStoreRepository;
-    private final boolean isRemoteSnapshot;
+    private volatile String remoteStoreTranslogRepository;
+    private volatile String remoteStoreRepository;
     private int remoteTranslogKeepExtraGen;
     private Version extendedCompatibilitySnapshotVersion;
 
@@ -764,6 +772,7 @@ public final class IndexSettings {
     private final boolean assignedOnRemoteNode;
     private final RemoteStorePathStrategy remoteStorePathStrategy;
     private final boolean isTranslogMetadataEnabled;
+    private volatile boolean allowDerivedField;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -857,6 +866,10 @@ public final class IndexSettings {
         this.defaultFields = defaultFields;
     }
 
+    private void setAllowDerivedField(boolean allowDerivedField) {
+        this.allowDerivedField = allowDerivedField;
+    }
+
     /**
      * Returns <code>true</code> if query string parsing should be lenient. The default is <code>false</code>
      */
@@ -883,6 +896,13 @@ public final class IndexSettings {
      */
     public boolean isDefaultAllowUnmappedFields() {
         return defaultAllowUnmappedFields;
+    }
+
+    /**
+     * Returns <code>true</code> if queries are allowed to define and use derived fields. The default is <code>true</code>
+     */
+    public boolean isDerivedFieldAllowed() {
+        return allowDerivedField;
     }
 
     /**
@@ -915,13 +935,16 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isStoreLocalityPartial = settings.get(
+            IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(),
+            IndexModule.DataLocalityType.FULL.toString()
+        ).equalsIgnoreCase(IndexModule.DataLocalityType.PARTIAL.toString());
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
         this.remoteTranslogKeepExtraGen = INDEX_REMOTE_TRANSLOG_KEEP_EXTRA_GEN_SETTING.get(settings);
-        isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
 
-        if (isRemoteSnapshot && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
+        if (isRemoteSnapshot() && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
             extendedCompatibilitySnapshotVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
         } else {
             extendedCompatibilitySnapshotVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
@@ -933,6 +956,7 @@ public final class IndexSettings {
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
+        this.allowDerivedField = scopedSettings.get(ALLOW_DERIVED_FIELDS);
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
@@ -1107,6 +1131,16 @@ public final class IndexSettings {
             INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING,
             this::setDocIdFuzzySetFalsePositiveProbability
         );
+        scopedSettings.addSettingsUpdateConsumer(ALLOW_DERIVED_FIELDS, this::setAllowDerivedField);
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, this::setRemoteStoreEnabled);
+        scopedSettings.addSettingsUpdateConsumer(
+            IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
+            this::setRemoteStoreRepository
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+            this::setRemoteStoreTranslogRepository
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1275,10 +1309,17 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns true if the store locality is partial
+     */
+    public boolean isStoreLocalityPartial() {
+        return isStoreLocalityPartial;
+    }
+
+    /**
      * Returns true if this is remote/searchable snapshot
      */
     public boolean isRemoteSnapshot() {
-        return isRemoteSnapshot;
+        return indexMetadata.isRemoteSnapshot();
     }
 
     /**
@@ -1917,5 +1958,17 @@ public final class IndexSettings {
 
     public boolean isTranslogMetadataEnabled() {
         return isTranslogMetadataEnabled;
+    }
+
+    public void setRemoteStoreEnabled(boolean isRemoteStoreEnabled) {
+        this.isRemoteStoreEnabled = isRemoteStoreEnabled;
+    }
+
+    public void setRemoteStoreRepository(String remoteStoreRepository) {
+        this.remoteStoreRepository = remoteStoreRepository;
+    }
+
+    public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
+        this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
     }
 }

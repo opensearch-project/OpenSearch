@@ -1299,4 +1299,61 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             }
         }
     }
+
+    public void testBulkWithRequireAlias() throws IOException {
+        {
+            String indexAliasName = "testindex-1";
+
+            BulkRequest bulkRequest = new BulkRequest(indexAliasName);
+            bulkRequest.requireAlias(true);
+            bulkRequest.add(new IndexRequest().id("1").source("{ \"name\": \"Biden\" }", XContentType.JSON));
+            bulkRequest.add(new IndexRequest().id("2").source("{ \"name\": \"Trump\" }", XContentType.JSON));
+
+            BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
+
+            assertFalse("Should not auto-create the '" + indexAliasName + "' index.", indexExists(indexAliasName));
+            assertTrue("Bulk response must have failures.", bulkResponse.hasFailures());
+        }
+        {
+            String indexAliasName = "testindex-2";
+
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.requireAlias(true);
+            bulkRequest.add(new IndexRequest().index(indexAliasName).id("1").source("{ \"name\": \"Biden\" }", XContentType.JSON));
+            bulkRequest.add(new IndexRequest().index(indexAliasName).id("2").source("{ \"name\": \"Trump\" }", XContentType.JSON));
+
+            BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
+
+            assertFalse("Should not auto-create the '" + indexAliasName + "' index.", indexExists(indexAliasName));
+            assertTrue("Bulk response must have failures.", bulkResponse.hasFailures());
+        }
+        {
+            String indexAliasName = "testindex-3";
+
+            BulkRequest bulkRequest = new BulkRequest(indexAliasName);
+            bulkRequest.add(new IndexRequest().id("1").setRequireAlias(true).source("{ \"name\": \"Biden\" }", XContentType.JSON));
+            bulkRequest.add(new IndexRequest().id("2").setRequireAlias(true).source("{ \"name\": \"Trump\" }", XContentType.JSON));
+
+            BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
+
+            assertFalse("Should not auto-create the '" + indexAliasName + "' index.", indexExists(indexAliasName));
+            assertTrue("Bulk response must have failures.", bulkResponse.hasFailures());
+        }
+        {
+            String indexAliasName = "testindex-4";
+
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(
+                new IndexRequest().index(indexAliasName).id("1").setRequireAlias(true).source("{ \"name\": \"Biden\" }", XContentType.JSON)
+            );
+            bulkRequest.add(
+                new IndexRequest().index(indexAliasName).id("2").setRequireAlias(true).source("{ \"name\": \"Trump\" }", XContentType.JSON)
+            );
+
+            BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
+
+            assertFalse("Should not auto-create the '" + indexAliasName + "' index.", indexExists(indexAliasName));
+            assertTrue("Bulk response must have failures.", bulkResponse.hasFailures());
+        }
+    }
 }
