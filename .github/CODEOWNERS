@@ -1,1 +1,16 @@
-*   @reta @anasalkouz @andrross @reta @Bukhtawar @CEHENKLE @dblock @gbbafna @setiah @kartg @kotwanikunal @mch2 @nknize @owaiskazi19 @adnapibar @Rishikesh1159 @ryanbogan @saratvemulapalli @shwetathareja @dreamer-89 @tlfeng @VachaShah @xuezhou25
+# CODEOWNERS manages notifications, not PR approvals
+# For PR approvals see /.github/workflows/maintainer-approval.yml
+
+# Files have a single rule applied, the last match decides the owner
+# If you would like to more specifically apply ownership, include existing owner in new sub fields
+
+# To verify changes of CODEOWNERS file
+# In VSCode
+#   1. Install extension https://marketplace.visualstudio.com/items?itemName=jasonnutter.vscode-codeowners
+#   2. Go to a file
+#   3. Use the command palette to run the CODEOWNERS: Show owners of current file command, which will display all code owners for the current file.
+
+# Default ownership for all repo files
+* @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @dblock @dbwiddis @gbbafna @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
+
+/MAINTAINERS.md @anasalkouz @andrross @ashking94 @Bukhtawar @CEHENKLE @dblock @dbwiddis @gaobinlong @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @nknize @owaiskazi19 @peternied @reta @Rishikesh1159 @sachinpkale @saratvemulapalli @shwetathareja @sohami @VachaShah
