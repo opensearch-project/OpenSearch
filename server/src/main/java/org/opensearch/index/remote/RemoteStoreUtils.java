@@ -214,13 +214,13 @@ public class RemoteStoreUtils {
         // does not support custom metadata.
         // https://github.com/opensearch-project/OpenSearch/issues/13745
         boolean blobStoreMetadataEnabled = false;
-        boolean translogMetadata = Version.CURRENT.compareTo(minNodeVersion) <= 0
+        boolean translogMetadata = Version.V_2_15_0.compareTo(minNodeVersion) <= 0
             && CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.get(clusterSettings)
             && blobStoreMetadataEnabled;
 
         remoteCustomData.put(IndexMetadata.TRANSLOG_METADATA_KEY, Boolean.toString(translogMetadata));
 
-        RemoteStoreEnums.PathType pathType = Version.CURRENT.compareTo(minNodeVersion) <= 0
+        RemoteStoreEnums.PathType pathType = Version.V_2_15_0.compareTo(minNodeVersion) <= 0
             ? CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING.get(clusterSettings)
             : RemoteStoreEnums.PathType.FIXED;
         RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm = pathType == RemoteStoreEnums.PathType.FIXED
