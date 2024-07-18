@@ -23,7 +23,7 @@ import static org.opensearch.cluster.metadata.QueryGroup.builder;
 /**
  * Transport action to create QueryGroup
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class TransportCreateQueryGroupAction extends HandledTransportAction<CreateQueryGroupRequest, CreateQueryGroupResponse> {
 

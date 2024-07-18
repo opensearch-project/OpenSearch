@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.DoubleAdder;
 
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
 import static org.opensearch.search.ResourceType.fromName;
@@ -131,16 +130,6 @@ public class QueryGroupTestUtils {
         listTwo.sort(Comparator.comparing(QueryGroup::getName));
         for (int i = 0; i < listOne.size(); i++) {
             assertTrue(listOne.get(i).equals(listTwo.get(i)));
-        }
-    }
-
-    public static void assertInflightValuesAreZero(QueryGroupPersistenceService queryGroupPersistenceService) {
-        assertEquals(0, queryGroupPersistenceService.getInflightCreateQueryGroupRequestCount().get());
-        Map<String, DoubleAdder> inflightResourceMap = queryGroupPersistenceService.getInflightResourceLimitValues();
-        if (inflightResourceMap != null) {
-            for (String resourceName : inflightResourceMap.keySet()) {
-                assertEquals(0, inflightResourceMap.get(resourceName).intValue());
-            }
         }
     }
 }

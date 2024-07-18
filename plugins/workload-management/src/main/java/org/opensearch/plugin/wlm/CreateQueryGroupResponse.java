@@ -22,7 +22,7 @@ import java.io.IOException;
 /**
  * Response for the create API for QueryGroup
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class CreateQueryGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final QueryGroup queryGroup;

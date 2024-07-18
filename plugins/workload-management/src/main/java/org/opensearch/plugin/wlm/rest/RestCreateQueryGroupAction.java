@@ -31,7 +31,7 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 /**
  * Rest action to create a QueryGroup
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
 public class RestCreateQueryGroupAction extends BaseRestHandler {
 

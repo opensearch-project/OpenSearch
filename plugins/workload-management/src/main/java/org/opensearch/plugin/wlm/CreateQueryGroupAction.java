@@ -13,7 +13,7 @@ import org.opensearch.action.ActionType;
 /**
  * Transport action to create QueryGroup
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
 public class CreateQueryGroupAction extends ActionType<CreateQueryGroupResponse> {
 

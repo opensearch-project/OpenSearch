@@ -25,11 +25,8 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.CreateQueryGroupResponse;
 import org.opensearch.search.ResourceType;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.DoubleAdder;
 
 import static org.opensearch.search.query_group.QueryGroupServiceSettings.MAX_QUERY_GROUP_COUNT;
 import static org.opensearch.search.query_group.QueryGroupServiceSettings.QUERY_GROUP_COUNT_SETTING_NAME;
@@ -44,8 +41,6 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
     private static final String CREATE_QUERY_GROUP_THROTTLING_KEY = "create-query-group";
     private static final String UPDATE_QUERY_GROUP_THROTTLING_KEY = "update-query-group";
     private static final String DELETE_QUERY_GROUP_THROTTLING_KEY = "delete-query-group";
-    private final AtomicInteger inflightCreateQueryGroupRequestCount;
-    private final Map<String, DoubleAdder> inflightResourceLimitValues;
     private volatile int maxQueryGroupCount;
     final ThrottlingKey createQueryGroupThrottlingKey;
     final ThrottlingKey updateQueryGroupThrottlingKey;
@@ -70,8 +65,6 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
         this.updateQueryGroupThrottlingKey = clusterService.registerClusterManagerTask(UPDATE_QUERY_GROUP_THROTTLING_KEY, true);
         maxQueryGroupCount = MAX_QUERY_GROUP_COUNT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxQueryGroupCount);
-        inflightCreateQueryGroupRequestCount = new AtomicInteger();
-        inflightResourceLimitValues = new HashMap<>();
     }
 
     /**
@@ -95,7 +88,7 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
      * @param queryGroup {@link QueryGroup} - the QueryGroup we're currently creating
      */
     void persistInClusterStateMetadata(QueryGroup queryGroup, ActionListener<CreateQueryGroupResponse> listener) {
-        clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.URGENT) {
+        clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.NORMAL) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return saveQueryGroupInClusterState(queryGroup, currentState);
@@ -108,34 +101,16 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
 
             @Override
             public void onFailure(String source, Exception e) {
-                restoreInflightValues(queryGroup.getResourceLimits());
-                inflightCreateQueryGroupRequestCount.decrementAndGet();
                 logger.warn("failed to save QueryGroup object due to error: {}, for source: {}", e.getMessage(), source);
                 listener.onFailure(e);
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                restoreInflightValues(queryGroup.getResourceLimits());
-                inflightCreateQueryGroupRequestCount.decrementAndGet();
                 CreateQueryGroupResponse response = new CreateQueryGroupResponse(queryGroup, RestStatus.OK);
                 listener.onResponse(response);
             }
         });
-    }
-
-    /**
-     * Get the allocation value for resourceName for the QueryGroup
-     * @param resourceName - the resourceName we want to get the usage for
-     * @param resourceLimits  - the resource limit from which to get the allocation value for resourceName
-     */
-    private double getResourceLimitValue(String resourceName, final Map<ResourceType, Object> resourceLimits) {
-        for (ResourceType resourceType : resourceLimits.keySet()) {
-            if (resourceType.getName().equals(resourceName)) {
-                return (double) resourceLimits.get(resourceType);
-            }
-        }
-        return 0.0;
     }
 
     /**
@@ -148,57 +123,49 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
         String groupName = queryGroup.getName();
         final Map<String, QueryGroup> previousGroups = metadata.queryGroups();
 
-        // check if there's any resource allocation that exceed limit of 1.0
-        String resourceNameWithThresholdExceeded = "";
-        for (ResourceType resourceType : queryGroup.getResourceLimits().keySet()) {
-            String resourceName = resourceType.getName();
-            double existingUsage = calculateExistingUsage(resourceName, previousGroups, groupName);
-            double newGroupUsage = getResourceLimitValue(resourceName, queryGroup.getResourceLimits());
-            inflightResourceLimitValues.computeIfAbsent(resourceName, k -> new DoubleAdder()).add(newGroupUsage);
-            double totalUsage = existingUsage + inflightResourceLimitValues.get(resourceName).doubleValue();
-            if (totalUsage > 1) {
-                resourceNameWithThresholdExceeded = resourceName;
-            }
+        // check if maxQueryGroupCount will breach
+        if (previousGroups.size() + 1 > maxQueryGroupCount) {
+            logger.error("{} value exceeded its assigned limit of {}", QUERY_GROUP_COUNT_SETTING_NAME, maxQueryGroupCount);
+            throw new RuntimeException("Can't create more than " + maxQueryGroupCount + " QueryGroups in the system");
         }
-        // check if group count exceed max
-        boolean groupCountExceeded = inflightCreateQueryGroupRequestCount.incrementAndGet() + previousGroups.size() > maxQueryGroupCount;
 
+        // check for duplicate name
         Optional<QueryGroup> findExistingGroup = previousGroups.values()
             .stream()
             .filter(group -> group.getName().equals(groupName))
             .findFirst();
-
         if (findExistingGroup.isPresent()) {
             logger.warn("QueryGroup with name {} already exists. Not creating a new one.", groupName);
             throw new RuntimeException("QueryGroup with name " + groupName + " already exists. Not creating a new one.");
         }
-        if (!resourceNameWithThresholdExceeded.isEmpty()) {
-            logger.error("Total resource allocation for {} will go above the max limit of 1.0", resourceNameWithThresholdExceeded);
-            throw new RuntimeException(
-                "Total resource allocation for " + resourceNameWithThresholdExceeded + " will go above the max limit of 1.0"
-            );
-        }
-        if (groupCountExceeded) {
-            logger.error("{} value exceeded its assigned limit of {}", QUERY_GROUP_COUNT_SETTING_NAME, maxQueryGroupCount);
-            throw new RuntimeException("Can't create more than " + maxQueryGroupCount + " QueryGroups in the system");
-        }
-        Metadata newData = Metadata.builder(metadata).put(queryGroup).build();
 
+        // check if there's any resource allocation that exceed limit of 1.0
+        for (ResourceType resourceType : queryGroup.getResourceLimits().keySet()) {
+            String resourceName = resourceType.getName();
+            double existingUsage = calculateExistingUsage(resourceName, previousGroups, groupName);
+            double newGroupUsage = getResourceLimitValue(resourceName, queryGroup.getResourceLimits());
+            if (existingUsage + newGroupUsage > 1) {
+                logger.error("Total resource allocation for {} will go above the max limit of 1.0", resourceName);
+                throw new RuntimeException("Total resource allocation for " + resourceName + " will go above the max limit of 1.0");
+            }
+        }
+
+        Metadata newData = Metadata.builder(metadata).put(queryGroup).build();
         return ClusterState.builder(currentClusterState).metadata(newData).build();
     }
 
     /**
-     * This method restores the inflight values to be before the QueryGroup is processed
-     * @param resourceLimits - the resourceLimits we're currently restoring
+     * Get the allocation value for resourceName from the resourceLimits of a QueryGroup
+     * @param resourceName - the resourceName we want to get the usage for
+     * @param resourceLimits  - the resource limit from which to get the allocation value for resourceName
      */
-    void restoreInflightValues(Map<ResourceType, Object> resourceLimits) {
-        if (resourceLimits == null || resourceLimits.isEmpty()) {
-            return;
-        }
+    private double getResourceLimitValue(String resourceName, final Map<ResourceType, Object> resourceLimits) {
         for (ResourceType resourceType : resourceLimits.keySet()) {
-            String currResourceName = resourceType.getName();
-            inflightResourceLimitValues.get(currResourceName).add(-getResourceLimitValue(currResourceName, resourceLimits));
+            if (resourceType.getName().equals(resourceName)) {
+                return (double) resourceLimits.get(resourceType);
+            }
         }
+        return 0.0;
     }
 
     /**
@@ -216,20 +183,6 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
             }
         }
         return existingUsage;
-    }
-
-    /**
-     * inflightCreateQueryGroupRequestCount getter
-     */
-    public AtomicInteger getInflightCreateQueryGroupRequestCount() {
-        return inflightCreateQueryGroupRequestCount;
-    }
-
-    /**
-     * inflightResourceLimitValues getter
-     */
-    public Map<String, DoubleAdder> getInflightResourceLimitValues() {
-        return inflightResourceLimitValues;
     }
 
     /**

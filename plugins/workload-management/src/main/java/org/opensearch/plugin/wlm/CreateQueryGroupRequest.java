@@ -16,6 +16,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.ResourceType;
 import org.joda.time.Instant;
@@ -36,7 +37,7 @@ import java.util.Map;
  *      }
  *  }
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class CreateQueryGroupRequest extends ActionRequest implements Writeable.Reader<CreateQueryGroupRequest> {
     private String name;
@@ -113,7 +114,7 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
         }
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException("expected start object but got a " + parser.currentToken());
+            throw new XContentParseException("expected start object but got a " + parser.currentToken());
         }
 
         XContentParser.Token token;
@@ -132,13 +133,11 @@ public class CreateQueryGroupRequest extends ActionRequest implements Writeable.
                 } else if (fieldName.equals("resiliency_mode")) {
                     mode = ResiliencyMode.fromName(parser.text());
                 } else {
-                    throw new IllegalArgumentException("unrecognised [field=" + fieldName + " in QueryGroup");
+                    throw new XContentParseException("unrecognised [field=" + fieldName + " in QueryGroup");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (!fieldName.equals("resourceLimits")) {
-                    throw new IllegalArgumentException(
-                        "QueryGroup.resourceLimits is an object and expected token was { " + " but found " + token
-                    );
+                    throw new XContentParseException("Invalid field passed. QueryGroup does not support " + fieldName + ".");
                 }
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {

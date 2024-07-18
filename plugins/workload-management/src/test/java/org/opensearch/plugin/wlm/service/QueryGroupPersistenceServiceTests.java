@@ -32,12 +32,10 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_NONE_EXISTED;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_TWO;
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertInflightValuesAreZero;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.compareQueryGroups;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.preparePersistenceServiceSetup;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupPersistenceService;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupTwo;
 import static org.opensearch.search.query_group.QueryGroupServiceSettings.QUERY_GROUP_COUNT_SETTING_NAME;
 import static org.mockito.Mockito.mock;
@@ -57,7 +55,6 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         listOne.add(queryGroupOne);
         listTwo.add(updatedGroupsMap.get(_ID_ONE));
         compareQueryGroups(listOne, listTwo);
-        assertInflightValuesAreZero(queryGroupPersistenceService());
     }
 
     public void testCreateAnotherQueryGroup() {
@@ -70,7 +67,6 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertTrue(updatedGroups.containsKey(_ID_TWO));
         Collection<QueryGroup> values = updatedGroups.values();
         compareQueryGroups(queryGroupList(), new ArrayList<>(values));
-        assertInflightValuesAreZero(queryGroupPersistenceService());
     }
 
     public void testCreateQueryGroupDuplicateName() {
