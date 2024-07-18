@@ -106,24 +106,24 @@ public class RemoteIndexMetadataManager extends AbstractRemoteWritableEntityMana
     @Override
     protected ActionListener<Void> getWriteActionListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteObject,
+        AbstractRemoteWritableBlobEntity remoteEntity,
         ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
         return ActionListener.wrap(
-            resp -> listener.onResponse(remoteObject.getUploadedMetadata()),
-            ex -> listener.onFailure(new RemoteStateTransferException("Upload failed for " + component, remoteObject, ex))
+            resp -> listener.onResponse(remoteEntity.getUploadedMetadata()),
+            ex -> listener.onFailure(new RemoteStateTransferException("Upload failed for " + component, remoteEntity, ex))
         );
     }
 
     @Override
     protected ActionListener<Object> getReadActionListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteObject,
+        AbstractRemoteWritableBlobEntity remoteEntity,
         ActionListener<RemoteReadResult> listener
     ) {
         return ActionListener.wrap(
             response -> listener.onResponse(new RemoteReadResult(response, RemoteIndexMetadata.INDEX, component)),
-            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteObject, ex))
+            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex))
         );
     }
 }

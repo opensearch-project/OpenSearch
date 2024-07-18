@@ -43,13 +43,13 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
      * Returns an ActionListener for handling the write operation for the specified component, remote object, and latched action listener.
      *
      * @param component the component for which the write operation is performed
-     * @param remoteObject the remote object to be written
+     * @param remoteEntity the remote object to be written
      * @param listener the listener to be notified when the write operation completes
      * @return an ActionListener for handling the write operation
      */
     protected abstract ActionListener<Void> getWriteActionListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteObject,
+        AbstractRemoteWritableBlobEntity remoteEntity,
         ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     );
 
@@ -58,13 +58,13 @@ public abstract class AbstractRemoteWritableEntityManager implements RemoteWrita
      * remote object, and latched action listener.
      *
      * @param component the component for which the read operation is performed
-     * @param remoteObject the remote object to be read
+     * @param remoteEntity the remote object to be read
      * @param listener the listener to be notified when the read operation completes
      * @return an ActionListener for handling the read operation
      */
     protected abstract ActionListener<Object> getReadActionListener(
         String component,
-        AbstractRemoteWritableBlobEntity remoteObject,
+        AbstractRemoteWritableBlobEntity remoteEntity,
         ActionListener<RemoteReadResult> listener
     );
 

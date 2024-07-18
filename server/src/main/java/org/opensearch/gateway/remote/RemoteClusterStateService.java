@@ -695,6 +695,16 @@ public class RemoteClusterStateService implements Closeable {
             exceptionList.forEach(exception::addSuppressed);
             throw exception;
         }
+        if (results.size() != uploadTasks.size()) {
+            throw new RemoteStateTransferException(
+                String.format(
+                    Locale.ROOT,
+                    "Some metadata components were not uploaded successfully. Objects to be uploaded: %s, uploaded objects: %s",
+                    String.join(", ", uploadTasks),
+                    String.join(", ", results.keySet())
+                )
+            );
+        }
         UploadedMetadataResults response = new UploadedMetadataResults();
         results.forEach((name, uploadedMetadata) -> {
             if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class)

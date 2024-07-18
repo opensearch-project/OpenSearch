@@ -46,7 +46,7 @@ public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase
         @Override
         protected ActionListener<Void> getWriteActionListener(
             String component,
-            AbstractRemoteWritableBlobEntity remoteObject,
+            AbstractRemoteWritableBlobEntity remoteEntity,
             ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
         ) {
             return null;
@@ -55,7 +55,7 @@ public class AbstractRemoteWritableEntityManagerTests extends OpenSearchTestCase
         @Override
         protected ActionListener<Object> getReadActionListener(
             String component,
-            AbstractRemoteWritableBlobEntity remoteObject,
+            AbstractRemoteWritableBlobEntity remoteEntity,
             ActionListener<RemoteReadResult> listener
         ) {
             return null;

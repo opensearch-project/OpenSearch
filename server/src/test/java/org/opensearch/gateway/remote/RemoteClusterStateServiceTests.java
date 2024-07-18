@@ -121,6 +121,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CUSTOM_DELIM
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.FORMAT_PARAMS;
 import static org.opensearch.gateway.remote.RemoteClusterStateUtils.getFormattedIndexFileName;
+import static org.opensearch.gateway.remote.RemoteGlobalMetadataManager.GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocks.CLUSTER_BLOCKS_FORMAT;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.randomClusterBlocks;
 import static org.opensearch.gateway.remote.model.RemoteClusterMetadataManifest.MANIFEST_CURRENT_CODEC_VERSION;
@@ -588,6 +589,55 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             AssertionError.class,
             () -> remoteClusterStateService.writeIncrementalMetadata(previousClusterState, clusterState, null)
         );
+    }
+
+    public void testWriteMetadataInParallelIncompleteUpload() throws IOException {
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        final RemoteClusterStateService rcssSpy = Mockito.spy(remoteClusterStateService);
+        rcssSpy.start();
+        RemoteIndexMetadataManager mockedIndexManager = mock(RemoteIndexMetadataManager.class);
+        RemoteGlobalMetadataManager mockedGlobalMetadataManager = mock(RemoteGlobalMetadataManager.class);
+        RemoteClusterStateAttributesManager mockedClusterStateAttributeManager = mock(RemoteClusterStateAttributesManager.class);
+        ClusterMetadataManifest.UploadedMetadata mockedUploadedMetadata = mock(ClusterMetadataManifest.UploadedMetadata.class);
+        rcssSpy.setRemoteIndexMetadataManager(mockedIndexManager);
+        rcssSpy.setRemoteGlobalMetadataManager(mockedGlobalMetadataManager);
+        rcssSpy.setRemoteClusterStateAttributesManager(mockedClusterStateAttributeManager);
+        ArgumentCaptor<LatchedActionListener> listenerArgumentCaptor = ArgumentCaptor.forClass(LatchedActionListener.class);
+
+        when(mockedGlobalMetadataManager.getGlobalMetadataUploadTimeout()).thenReturn(GLOBAL_METADATA_UPLOAD_TIMEOUT_DEFAULT);
+        when(mockedUploadedMetadata.getComponent()).thenReturn("test-component");
+        doAnswer(invocation -> {
+            listenerArgumentCaptor.getValue().onResponse(mockedUploadedMetadata);
+            return null;
+        }).when(mockedIndexManager).writeAsync(any(), any(), listenerArgumentCaptor.capture());
+        doAnswer(invocation -> {
+            listenerArgumentCaptor.getValue().onResponse(mockedUploadedMetadata);
+            return null;
+        }).when(mockedGlobalMetadataManager).writeAsync(anyString(), any(), listenerArgumentCaptor.capture());
+        doAnswer(invocation -> {
+            listenerArgumentCaptor.getValue().onResponse(mockedUploadedMetadata);
+            return null;
+        }).when(mockedClusterStateAttributeManager).writeAsync(any(), any(), listenerArgumentCaptor.capture());
+
+        RemoteStateTransferException exception = expectThrows(
+            RemoteStateTransferException.class,
+            () -> rcssSpy.writeMetadataInParallel(
+                clusterState,
+                new ArrayList<>(clusterState.getMetadata().indices().values()),
+                emptyMap(),
+                clusterState.getMetadata().customs(),
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                clusterState.getCustoms(),
+                true,
+                emptyList()
+            )
+        );
+        assertTrue(exception.getMessage().startsWith("Some metadata components were not uploaded successfully"));
     }
 
     public void testWriteIncrementalMetadataSuccess() throws IOException {
@@ -1509,7 +1559,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
             latchedActionListener.onResponse(new RemoteReadResult(newIndexMetadata, INDEX, "test-index-1"));
             return null;
-        }).when(mockedIndexManager).readAsync(eq("test-index-1"), argThat(new BlobNameMatcher(indexFilename)), any(LatchedActionListener.class));
+        }).when(mockedIndexManager)
+            .readAsync(eq("test-index-1"), argThat(new BlobNameMatcher(indexFilename)), any(LatchedActionListener.class));
         doAnswer(invocationOnMock -> {
             LatchedActionListener<RemoteReadResult> latchedActionListener = invocationOnMock.getArgument(2, LatchedActionListener.class);
             latchedActionListener.onResponse(new RemoteReadResult(customMetadata3, CUSTOM_METADATA, "custom_md_3"));
