@@ -263,7 +263,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
      * Default behavior - without consideration of request level param on level, the NodeStatsRequest always
      * returns ShardStats which is aggregated on the coordinator node when creating the XContent.
      */
-    public void testNodeIndicesStatWithDiscoveryNodesListInRequest() {
+    public void testNodeIndicesStatsWithoutAggregationOnNodes() {
         List<String> testLevels = new ArrayList<>();
         testLevels.add("null");
         testLevels.add(NodeIndicesStats.Fields.NODE);
@@ -348,10 +348,10 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Optimized behavior - to avoid unnecessary IO in the form of shard-stats when not required, we not honor the levels on the
+     * Aggregated behavior - to avoid unnecessary IO in the form of shard-stats when not required, we not honor the levels on the
      * individual data nodes instead and pre-compute information as required.
      */
-    public void testNodeIndicesStatWithDiscoveryNodesListNotInRequest() {
+    public void testNodeIndicesStatsWithAggregationOnNodes() {
         List<String> testLevels = new ArrayList<>();
         testLevels.add("null");
         testLevels.add(NodeIndicesStats.Fields.NODE);
@@ -374,7 +374,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         testLevels.forEach(testLevel -> {
             NodesStatsResponse response;
             CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
-            commonStatsFlags.optimizeNodeIndicesStatsOnLevel(true);
+            commonStatsFlags.aggregateNodeResponsesOnLevel(true);
             if (!testLevel.equals("null")) {
                 ArrayList<String> level_arg = new ArrayList<>();
                 level_arg.add(testLevel);

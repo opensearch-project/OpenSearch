@@ -1120,7 +1120,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         }
     }
 
-    public void testNodeIndicesStatsSerializationWithOldESVersionNodes() throws IOException {
+    public void testNodeIndicesStatsSerializationWithOldESVersionNodesWithoutAggregations() throws IOException {
         long numDocs = randomLongBetween(0, 10000);
         long numDeletedDocs = randomLongBetween(0, 100);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
@@ -1162,7 +1162,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         }
     }
 
-    public void testNodeIndicesStatsSerializationOnNewVersions() throws IOException {
+    public void testNodeIndicesStatsSerialization() throws IOException {
         long numDocs = randomLongBetween(0, 10000);
         long numDeletedDocs = randomLongBetween(0, 100);
         List<String> levelParams = new ArrayList<>();
@@ -1180,7 +1180,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
-        commonStatsFlags.optimizeNodeIndicesStatsOnLevel(true);
+        commonStatsFlags.aggregateNodeResponsesOnLevel(true);
 
         levelParams.forEach(levelParam -> {
             ArrayList<String> level_arg = new ArrayList<>();
@@ -1236,7 +1236,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
-        commonStatsFlags.optimizeNodeIndicesStatsOnLevel(true);
+        commonStatsFlags.aggregateNodeResponsesOnLevel(true);
 
         levelParams.forEach(levelParam -> {
             ArrayList<String> level_arg = new ArrayList<>();
@@ -1322,7 +1322,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        if (commonStatsFlags.optimizeNodeIndicesStatsOnLevel()) {
+        if (commonStatsFlags.aggregateNodeResponsesOnLevel()) {
             return new MockNodeIndicesStats(
                 new CommonStats(commonStatsFlags),
                 statsByShard,

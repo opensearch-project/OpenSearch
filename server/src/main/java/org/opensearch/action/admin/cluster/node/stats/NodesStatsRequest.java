@@ -128,11 +128,11 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     /**
-     * Use Optimized Response filtered based on level
+     * Use Aggregated Response based on level passed
      */
-    public NodesStatsRequest useOptimizedNodeIndicesStats(boolean useOptimizedNodeIndicesStats) {
+    public NodesStatsRequest aggregateResponsesOnLevel(boolean aggregateNodeResponsesOnLevel) {
         if (this.indices != null) {
-            this.indices.optimizeNodeIndicesStatsOnLevel(true);
+            this.indices.aggregateNodeResponsesOnLevel(aggregateNodeResponsesOnLevel);
         }
         return this;
     }

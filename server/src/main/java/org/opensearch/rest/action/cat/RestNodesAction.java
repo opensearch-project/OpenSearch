@@ -139,7 +139,7 @@ public class RestNodesAction extends AbstractCatAction {
                         nodesStatsRequest.timeout(request.param("timeout"));
                         nodesStatsRequest.clear()
                             .indices(true)
-                            .useOptimizedNodeIndicesStats(true)
+                            .aggregateResponsesOnLevel(true)
                             .addMetrics(
                                 NodesStatsRequest.Metric.JVM.metricName(),
                                 NodesStatsRequest.Metric.OS.metricName(),
