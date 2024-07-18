@@ -544,6 +544,7 @@ setup:
         body:
           settings:
             number_of_replicas: 0
+            number_of_shards: 1
             refresh_interval: -1
           mappings:
             properties:
@@ -566,6 +567,11 @@ setup:
           - '{"double" : 100}'
           - '{"index": {}}'
           - '{"double" : 50}'
+
+  - do:
+      indices.forcemerge:
+        index: test_profile
+        max_num_segments: 1
 
   - do:
       search:

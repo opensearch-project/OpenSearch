@@ -275,7 +275,6 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
      * After shard relocation completes, shuts down the docrep nodes and asserts remote
      * index settings are applied even when the index is in YELLOW state
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13737")
     public void testIndexSettingsUpdatedEvenForMisconfiguredReplicas() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
 
@@ -332,7 +331,6 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
      * After shard relocation completes, restarts the docrep node holding extra replica shard copy
      * and asserts remote index settings are applied as soon as the docrep replica copy is unassigned
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13871")
     public void testIndexSettingsUpdatedWhenDocrepNodeIsRestarted() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
 

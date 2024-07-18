@@ -9,10 +9,12 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Anas Alkouz              | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross              | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko             | [reta](https://github.com/reta)                         | Aiven       |
+| Ashish Singh             | [ashking94](https://github.com/ashking94)               | Amazon      |
 | Bukhtawar Khan           | [Bukhtawar](https://github.com/Bukhtawar)               | Amazon      |
 | Charlotte Henkle         | [CEHENKLE](https://github.com/CEHENKLE)                 | Amazon      |
 | Dan Widdis               | [dbwiddis](https://github.com/dbwiddis)                 | Amazon      |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)                     | Amazon      |
+| Gao Binlong              | [gaobinlong](https://github.com/gaobinlong)             | Amazon      |
 | Gaurav Bafna             | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
 | Jay Deng                 | [jed326](https://github.com/jed326)                     | Amazon      |
 | Kunal Kotwani            | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |

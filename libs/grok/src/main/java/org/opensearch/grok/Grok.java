@@ -37,14 +37,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Stack;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import org.jcodings.specific.UTF8Encoding;
@@ -86,6 +90,7 @@ public final class Grok {
         UTF8Encoding.INSTANCE,
         Syntax.DEFAULT
     );
+    private static final int MAX_PATTERN_DEPTH_SIZE = 500;
 
     private static final int MAX_TO_REGEX_ITERATIONS = 100_000; // sanity limit
 
@@ -128,7 +133,7 @@ public final class Grok {
             expressionBytes.length,
             Option.DEFAULT,
             UTF8Encoding.INSTANCE,
-            message -> logCallBack.accept(message)
+            logCallBack::accept
         );
 
         List<GrokCaptureConfig> captureConfig = new ArrayList<>();
@@ -144,7 +149,7 @@ public final class Grok {
      */
     private void validatePatternBank() {
         for (String patternName : patternBank.keySet()) {
-            validatePatternBank(patternName, new Stack<>());
+            validatePatternBank(patternName);
         }
     }
 
@@ -156,33 +161,84 @@ public final class Grok {
      * a reference to another named pattern. This method will navigate to all these named patterns and
      * check for a circular reference.
      */
-    private void validatePatternBank(String patternName, Stack<String> path) {
-        String pattern = patternBank.get(patternName);
-        boolean isSelfReference = pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":");
-        if (isSelfReference) {
-            throwExceptionForCircularReference(patternName, pattern);
-        } else if (path.contains(patternName)) {
-            // current pattern name is already in the path, fetch its predecessor
-            String prevPatternName = path.pop();
-            String prevPattern = patternBank.get(prevPatternName);
-            throwExceptionForCircularReference(prevPatternName, prevPattern, patternName, path);
-        }
-        path.push(patternName);
-        for (int i = pattern.indexOf("%{"); i != -1; i = pattern.indexOf("%{", i + 1)) {
-            int begin = i + 2;
-            int syntaxEndIndex = pattern.indexOf('}', begin);
-            if (syntaxEndIndex == -1) {
-                throw new IllegalArgumentException("Malformed pattern [" + patternName + "][" + pattern + "]");
+    private void validatePatternBank(String initialPatternName) {
+        Deque<Frame> stack = new ArrayDeque<>();
+        Set<String> visitedPatterns = new HashSet<>();
+        Map<String, List<String>> pathMap = new HashMap<>();
+
+        List<String> initialPath = new ArrayList<>();
+        initialPath.add(initialPatternName);
+        pathMap.put(initialPatternName, initialPath);
+        stack.push(new Frame(initialPatternName, initialPath, 0));
+
+        while (!stack.isEmpty()) {
+            Frame frame = stack.peek();
+            String patternName = frame.patternName;
+            List<String> path = frame.path;
+            int startIndex = frame.startIndex;
+            String pattern = patternBank.get(patternName);
+
+            if (visitedPatterns.contains(patternName)) {
+                stack.pop();
+                continue;
             }
-            int semanticNameIndex = pattern.indexOf(':', begin);
-            int end = syntaxEndIndex;
-            if (semanticNameIndex != -1) {
-                end = Math.min(syntaxEndIndex, semanticNameIndex);
+
+            visitedPatterns.add(patternName);
+            boolean foundDependency = false;
+
+            for (int i = startIndex; i < pattern.length(); i++) {
+                if (pattern.startsWith("%{", i)) {
+                    int begin = i + 2;
+                    int syntaxEndIndex = pattern.indexOf('}', begin);
+                    if (syntaxEndIndex == -1) {
+                        throw new IllegalArgumentException("Malformed pattern [" + patternName + "][" + pattern + "]");
+                    }
+
+                    int semanticNameIndex = pattern.indexOf(':', begin);
+                    int end = semanticNameIndex == -1 ? syntaxEndIndex : Math.min(syntaxEndIndex, semanticNameIndex);
+
+                    String dependsOnPattern = pattern.substring(begin, end);
+
+                    if (dependsOnPattern.equals(patternName)) {
+                        throwExceptionForCircularReference(patternName, pattern);
+                    }
+
+                    if (pathMap.containsKey(dependsOnPattern)) {
+                        throwExceptionForCircularReference(patternName, pattern, dependsOnPattern, path.subList(0, path.size() - 1));
+                    }
+
+                    List<String> newPath = new ArrayList<>(path);
+                    newPath.add(dependsOnPattern);
+                    pathMap.put(dependsOnPattern, newPath);
+
+                    stack.push(new Frame(dependsOnPattern, newPath, 0));
+                    frame.startIndex = i + 1;
+                    foundDependency = true;
+                    break;
+                }
             }
-            String dependsOnPattern = pattern.substring(begin, end);
-            validatePatternBank(dependsOnPattern, path);
+
+            if (!foundDependency) {
+                pathMap.remove(patternName);
+                stack.pop();
+            }
+
+            if (stack.size() > MAX_PATTERN_DEPTH_SIZE) {
+                throw new IllegalArgumentException("Pattern references exceeded maximum depth of " + MAX_PATTERN_DEPTH_SIZE);
+            }
         }
-        path.pop();
+    }
+
+    private static class Frame {
+        String patternName;
+        List<String> path;
+        int startIndex;
+
+        Frame(String patternName, List<String> path, int startIndex) {
+            this.patternName = patternName;
+            this.path = path;
+            this.startIndex = startIndex;
+        }
     }
 
     private static void throwExceptionForCircularReference(String patternName, String pattern) {
@@ -192,13 +248,13 @@ public final class Grok {
     private static void throwExceptionForCircularReference(
         String patternName,
         String pattern,
-        String originPatterName,
-        Stack<String> path
+        String originPatternName,
+        List<String> path
     ) {
         StringBuilder message = new StringBuilder("circular reference in pattern [");
         message.append(patternName).append("][").append(pattern).append("]");
-        if (originPatterName != null) {
-            message.append(" back to pattern [").append(originPatterName).append("]");
+        if (originPatternName != null) {
+            message.append(" back to pattern [").append(originPatternName).append("]");
         }
         if (path != null && path.size() > 1) {
             message.append(" via patterns [").append(String.join("=>", path)).append("]");
@@ -217,9 +273,7 @@ public final class Grok {
             int begin = region.getBeg(number);
             int end = region.getEnd(number);
             return new String(pattern.getBytes(StandardCharsets.UTF_8), begin, end - begin, StandardCharsets.UTF_8);
-        } catch (StringIndexOutOfBoundsException e) {
-            return null;
-        } catch (ValueException e) {
+        } catch (StringIndexOutOfBoundsException | ValueException e) {
             return null;
         }
     }

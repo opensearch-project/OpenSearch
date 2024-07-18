@@ -25,6 +25,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -152,17 +153,17 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         this.settingsMetadataUpdated = settingsMetadataUpdated;
         this.transientSettingsMetadataUpdated = transientSettingsMetadataUpdate;
         this.templatesMetadataUpdated = templatesMetadataUpdated;
-        this.customMetadataUpdated = customMetadataUpdated;
-        this.customMetadataDeleted = customMetadataDeleted;
-        this.indicesUpdated = indicesUpdated;
-        this.indicesDeleted = indicesDeleted;
+        this.customMetadataUpdated = Collections.unmodifiableList(customMetadataUpdated);
+        this.customMetadataDeleted = Collections.unmodifiableList(customMetadataDeleted);
+        this.indicesUpdated = Collections.unmodifiableList(indicesUpdated);
+        this.indicesDeleted = Collections.unmodifiableList(indicesDeleted);
         this.clusterBlocksUpdated = clusterBlocksUpdated;
         this.discoveryNodesUpdated = discoveryNodesUpdated;
-        this.indicesRoutingUpdated = indicesRoutingUpdated;
-        this.indicesRoutingDeleted = indicesRoutingDeleted;
+        this.indicesRoutingUpdated = Collections.unmodifiableList(indicesRoutingUpdated);
+        this.indicesRoutingDeleted = Collections.unmodifiableList(indicesRoutingDeleted);
         this.hashesOfConsistentSettingsUpdated = hashesOfConsistentSettingsUpdated;
-        this.clusterStateCustomUpdated = clusterStateCustomUpdated;
-        this.clusterStateCustomDeleted = clusterStateCustomDeleted;
+        this.clusterStateCustomUpdated = Collections.unmodifiableList(clusterStateCustomUpdated);
+        this.clusterStateCustomDeleted = Collections.unmodifiableList(clusterStateCustomDeleted);
     }
 
     public ClusterStateDiffManifest(StreamInput in) throws IOException {
@@ -563,7 +564,16 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         private List<String> clusterStateCustomUpdated;
         private List<String> clusterStateCustomDeleted;
 
-        public Builder() {}
+        public Builder() {
+            customMetadataUpdated = Collections.emptyList();
+            customMetadataDeleted = Collections.emptyList();
+            indicesUpdated = Collections.emptyList();
+            indicesDeleted = Collections.emptyList();
+            indicesRoutingUpdated = Collections.emptyList();
+            indicesRoutingDeleted = Collections.emptyList();
+            clusterStateCustomUpdated = Collections.emptyList();
+            clusterStateCustomDeleted = Collections.emptyList();
+        }
 
         public Builder fromStateUUID(String fromStateUUID) {
             this.fromStateUUID = fromStateUUID;

@@ -26,10 +26,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * A Manager which provides APIs to write and read Index Metadata to remote store
@@ -134,24 +131,6 @@ public class RemoteIndexMetadataManager {
                 e
             );
         }
-    }
-
-    /**
-     * Fetch latest index metadata from remote cluster state
-     *
-     * @param clusterMetadataManifest manifest file of cluster
-     * @param clusterUUID             uuid of cluster state to refer to in remote
-     * @return {@code Map<String, IndexMetadata>} latest IndexUUID to IndexMetadata map
-     */
-    Map<String, IndexMetadata> getIndexMetadataMap(String clusterUUID, ClusterMetadataManifest clusterMetadataManifest) {
-        assert Objects.equals(clusterUUID, clusterMetadataManifest.getClusterUUID())
-            : "Corrupt ClusterMetadataManifest found. Cluster UUID mismatch.";
-        Map<String, IndexMetadata> remoteIndexMetadata = new HashMap<>();
-        for (ClusterMetadataManifest.UploadedIndexMetadata uploadedIndexMetadata : clusterMetadataManifest.getIndices()) {
-            IndexMetadata indexMetadata = getIndexMetadata(uploadedIndexMetadata, clusterUUID);
-            remoteIndexMetadata.put(uploadedIndexMetadata.getIndexUUID(), indexMetadata);
-        }
-        return remoteIndexMetadata;
     }
 
     public TimeValue getIndexMetadataUploadTimeout() {
