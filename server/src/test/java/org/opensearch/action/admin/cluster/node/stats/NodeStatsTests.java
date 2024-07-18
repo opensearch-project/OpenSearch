@@ -110,10 +110,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.LinkedHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -1252,8 +1252,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             try {
                 builder = XContentFactory.jsonBuilder();
                 builder.startObject();
-                builder = mockNodeIndicesStats.toXContent(builder,
-                    new ToXContent.MapParams(Collections.singletonMap("level", levelParam)));
+                builder = mockNodeIndicesStats.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", levelParam)));
                 builder.endObject();
 
                 Map<String, Object> xContentMap = xContentBuilderToMap(builder);
@@ -1283,6 +1282,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
     private Map<String, Object> xContentBuilderToMap(XContentBuilder xContentBuilder) {
         return XContentHelper.convertToMap(BytesReference.bytes(xContentBuilder), true, xContentBuilder.contentType()).v2();
     }
+
     public MockNodeIndicesStats generateMockNodeIndicesStats(CommonStats commonStats, Index index, CommonStatsFlags commonStatsFlags) {
         DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
