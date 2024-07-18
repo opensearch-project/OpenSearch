@@ -573,7 +573,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.IGNORE_DEPRECATIONS,
                 context.parser(),
-                fieldType().name()
+                fieldType().name(),
+                null,
+                Integer.MAX_VALUE
             );
             /*
               JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
+import java.util.HashSet;
 
 /**
  * JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
@@ -44,6 +45,10 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
 
     private DeprecationHandler deprecationHandler;
 
+    private String nullValue;
+
+    private int ignoreAbove;
+
     private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
     private static final String VALUE_SUFFIX = "._value";
     private static final String DOT_SYMBOL = ".";
@@ -53,37 +58,56 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
         XContentParser parser,
-        String fieldTypeName
+        String fieldTypeName,
+        String nullValue,
+        int ignoreAbove
     ) throws IOException {
         super(xContentRegistry, deprecationHandler);
         this.deprecationHandler = deprecationHandler;
         this.xContentRegistry = xContentRegistry;
         this.parser = parser;
         this.fieldTypeName = fieldTypeName;
+        this.nullValue = nullValue;
+        this.ignoreAbove = ignoreAbove;
     }
 
     public XContentParser parseObject() throws IOException {
         builder.startObject();
         StringBuilder path = new StringBuilder(fieldTypeName);
-        parseToken(path, null);
-        builder.field(this.fieldTypeName, keyList);
-        builder.field(this.fieldTypeName + VALUE_SUFFIX, valueList);
-        builder.field(this.fieldTypeName + VALUE_AND_PATH_SUFFIX, valueAndPathList);
+        boolean isChildrenValueValid = parseToken(path, null, 1);
+        removeKeyIfNeed(isChildrenValueValid);
+        // deduplication the fieldName,valueList,valueAndPathList
+        builder.field(this.fieldTypeName, new HashSet<>(keyList));
+        builder.field(this.fieldTypeName + VALUE_SUFFIX, new HashSet<>(valueList));
+        builder.field(this.fieldTypeName + VALUE_AND_PATH_SUFFIX, new HashSet<>(valueAndPathList));
         builder.endObject();
         String jString = XContentHelper.convertToJson(BytesReference.bytes(builder), false, MediaTypeRegistry.JSON);
         return JsonXContent.jsonXContent.createParser(this.xContentRegistry, this.deprecationHandler, String.valueOf(jString));
     }
 
-    private void parseToken(StringBuilder path, String currentFieldName) throws IOException {
+    /**
+     * @return true if the child object contains no_null value, false otherwise
+     */
+    private boolean parseToken(StringBuilder path, String currentFieldName, int depth) throws IOException {
+
+        if (depth == 1 && processNoNestedValue()) {
+            return true;
+        }
+        boolean isChildrenValueValid = false;
+        boolean lastBrotherValueValid = true;
+        boolean visitFieldName = false;
 
         while (this.parser.nextToken() != Token.END_OBJECT) {
             if (this.parser.currentName() != null) {
                 currentFieldName = this.parser.currentName();
             }
-            StringBuilder parsedFields = new StringBuilder();
 
             if (this.parser.currentToken() == Token.FIELD_NAME) {
-                path.append(DOT_SYMBOL).append(currentFieldName);
+                visitFieldName = true;
+                if (lastBrotherValueValid == false) {
+                    removeKeyIfNeed(lastBrotherValueValid);
+                }
+
                 int dotIndex = currentFieldName.indexOf(DOT_SYMBOL);
                 String fieldNameSuffix = currentFieldName;
                 // The field name may be of the form foo.bar.baz
@@ -100,41 +124,73 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
                     this.keyList.add(fieldNameSuffix);
                 }
             } else if (this.parser.currentToken() == Token.START_ARRAY) {
-                parseToken(path, currentFieldName);
+                lastBrotherValueValid = parseToken(path, currentFieldName, depth);
+                isChildrenValueValid |= lastBrotherValueValid;
                 break;
             } else if (this.parser.currentToken() == Token.END_ARRAY) {
                 // skip
             } else if (this.parser.currentToken() == Token.START_OBJECT) {
-                parseToken(path, currentFieldName);
-                int dotIndex = path.lastIndexOf(DOT_SYMBOL, path.length());
-
-                if (dotIndex != -1 && path.length() > currentFieldName.length()) {
-                    path.setLength(path.length() - currentFieldName.length() - 1);
-                }
+                path.append(DOT_SYMBOL).append(currentFieldName);
+                boolean validValue = parseToken(path, currentFieldName, depth + 1);
+                isChildrenValueValid |= validValue;
+                removeKeyIfNeed(validValue);
+                assert path.length() > (currentFieldName.length() - 1);
+                path.setLength(path.length() - currentFieldName.length() - 1);
             } else {
-                if (!path.toString().contains(currentFieldName)) {
+                String parseValue = parseValue();
+                if (parseValue != null) {
                     path.append(DOT_SYMBOL).append(currentFieldName);
-                }
-                parseValue(parsedFields);
-                this.valueList.add(parsedFields.toString());
-                this.valueAndPathList.add(path + EQUAL_SYMBOL + parsedFields);
-                int dotIndex = path.lastIndexOf(DOT_SYMBOL, path.length());
-                if (dotIndex != -1 && path.length() > currentFieldName.length()) {
+                    this.valueList.add(parseValue);
+                    this.valueAndPathList.add(path + EQUAL_SYMBOL + parseValue);
+                    isChildrenValueValid = true;
+                    lastBrotherValueValid = true;
+                    assert path.length() > (currentFieldName.length() - 1);
                     path.setLength(path.length() - currentFieldName.length() - 1);
+                } else {
+                    lastBrotherValueValid = false;
                 }
             }
+        }
+        if (visitFieldName && isChildrenValueValid == true) {
+            removeKeyIfNeed(lastBrotherValueValid);
+        }
+        return isChildrenValueValid;
+    }
 
+    public void removeKeyIfNeed(boolean hasValidValue) {
+        if (hasValidValue == false) {
+            // it means that the value of the sub child (or the last brother) is invalid,
+            // we should delete the key from keyList.
+            assert keyList.size() > 0;
+            this.keyList.remove(keyList.size() - 1);
         }
     }
 
-    private void parseValue(StringBuilder parsedFields) throws IOException {
+    private boolean processNoNestedValue() throws IOException {
+        if (parser.currentToken() == Token.VALUE_NULL) {
+            if (nullValue != null) {
+                this.valueList.add(nullValue);
+            }
+            return true;
+        } else if (this.parser.currentToken() == Token.VALUE_STRING
+            || this.parser.currentToken() == Token.VALUE_NUMBER
+            || this.parser.currentToken() == Token.VALUE_BOOLEAN) {
+                String value = this.parser.textOrNull();
+                if (value != null && value.length() <= ignoreAbove) {
+                    this.valueList.add(value);
+                }
+                return true;
+            }
+        return false;
+    }
+
+    private String parseValue() throws IOException {
         switch (this.parser.currentToken()) {
             case VALUE_BOOLEAN:
             case VALUE_NUMBER:
             case VALUE_STRING:
             case VALUE_NULL:
-                parsedFields.append(this.parser.textOrNull());
-                break;
+                return this.parser.textOrNull();
             // Handle other token types as needed
             case FIELD_NAME:
             case VALUE_EMBEDDED_OBJECT:
@@ -144,6 +200,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
             default:
                 throw new IOException("Unsupported token type [" + parser.currentToken() + "]");
         }
+        return null;
     }
 
     @Override
