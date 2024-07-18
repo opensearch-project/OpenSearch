@@ -210,18 +210,6 @@ public abstract class TransportNodesAction<
     }
 
     /**
-     * Returns the concrete nodes from the request node ids which will be later used for routing requests to nodes.
-     * @param request Requests extended from {@link NodesRequest} which contains target nodeIDs.
-     * @param clusterState Cluster State fetched from {@link ClusterService}
-     * @return DiscoveryNode[] which is the collection of {@link DiscoveryNode} representation of NodeIDs from the request
-     **/
-    protected DiscoveryNode[] getConcreteNodes(NodesRequest request, ClusterState clusterState) {
-        assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
-        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
-        return Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new);
-    }
-
-    /**
      * Get a backwards compatible transport action name
      */
     protected String getTransportNodeAction(DiscoveryNode node) {
