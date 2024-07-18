@@ -72,7 +72,7 @@ public class RetryTests extends OpenSearchTestCase {
         super.setUp();
         this.bulkClient = new MockBulkClient(getTestName(), CALLS_TO_FAIL);
         // Stash some random headers so we can assert that we preserve them
-        bulkClient.threadPool().getThreadContext().stashContext();
+        // bulkClient.threadPool().getThreadContext().stashContext();
         expectedHeaders.clear();
         expectedHeaders.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         bulkClient.threadPool().getThreadContext().putHeader(expectedHeaders);

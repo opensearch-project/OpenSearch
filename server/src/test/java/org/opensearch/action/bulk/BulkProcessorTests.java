@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -68,11 +69,13 @@ import java.util.function.BiConsumer;
 public class BulkProcessorTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
+    private InternalContextSwitcher contextSwitcher;
     private final Logger logger = LogManager.getLogger(BulkProcessorTests.class);
 
     @Before
     public void startThreadPool() {
         threadPool = new TestThreadPool("BulkProcessorTests");
+        contextSwitcher = new InternalContextSwitcher(threadPool);
     }
 
     @After
@@ -99,7 +102,7 @@ public class BulkProcessorTests extends OpenSearchTestCase {
         final BulkProcessor bulkProcessor;
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
         assertNull(threadPool.getThreadContext().getTransient(transientKey));
-        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
             threadPool.getThreadContext().putHeader(headerKey, headerValue);
             threadPool.getThreadContext().putTransient(transientKey, transientValue);
             bulkProcessor = new BulkProcessor(

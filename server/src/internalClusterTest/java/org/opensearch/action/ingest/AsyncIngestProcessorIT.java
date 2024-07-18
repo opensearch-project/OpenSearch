@@ -36,9 +36,10 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.node.PluginAwareNodeClient;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -110,7 +111,7 @@ public class AsyncIngestProcessorIT extends OpenSearchSingleNodeTestCase {
 
         @Override
         public Collection<Object> createComponents(
-            PluginAwareNodeClient client,
+            Client client,
             ClusterService clusterService,
             ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService,
@@ -120,7 +121,8 @@ public class AsyncIngestProcessorIT extends OpenSearchSingleNodeTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            ContextSwitcher contextSwitcher
         ) {
             this.threadPool = threadPool;
             return Collections.emptyList();

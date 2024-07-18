@@ -34,11 +34,12 @@ package org.opensearch.systemd;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.client.node.PluginAwareNodeClient;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -90,7 +91,7 @@ public class SystemdModulePlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public Collection<Object> createComponents(
-        final PluginAwareNodeClient client,
+        final Client client,
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ResourceWatcherService resourceWatcherService,
@@ -100,7 +101,8 @@ public class SystemdModulePlugin extends Plugin implements ClusterPlugin {
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver expressionResolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        ContextSwitcher contextSwitcher
     ) {
         if (enabled == false) {
             extender.set(null);

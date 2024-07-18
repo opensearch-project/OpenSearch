@@ -42,10 +42,11 @@ import org.opensearch.action.ingest.GetPipelineResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
-import org.opensearch.client.node.PluginAwareNodeClient;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -363,7 +364,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
 
         @Override
         public Collection<Object> createComponents(
-            final PluginAwareNodeClient client,
+            final Client client,
             final ClusterService clusterService,
             final ThreadPool threadPool,
             final ResourceWatcherService resourceWatcherService,
@@ -373,7 +374,8 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier
+            final Supplier<RepositoriesService> repositoriesServiceSupplier,
+            ContextSwitcher contextSwitcher
         ) {
             return Collections.emptyList();
         }

@@ -39,6 +39,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
@@ -74,6 +75,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
     private static final Logger logger = LogManager.getLogger(NativeMessageHandler.class);
 
     private final ThreadPool threadPool;
+    private final InternalContextSwitcher contextSwitcher;
     private final NativeOutboundHandler outboundHandler;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportHandshaker handshaker;
@@ -99,6 +101,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
         TransportKeepAlive keepAlive
     ) {
         this.threadPool = threadPool;
+        this.contextSwitcher = new InternalContextSwitcher(threadPool);
         this.outboundHandler = new NativeOutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays, outboundHandler);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handshaker = handshaker;
@@ -139,7 +142,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
         final Header header = message.getHeader();
         assert header.needsToReadVariableHeader() == false;
         ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+        try (ThreadContext.StoredContext existing = contextSwitcher.switchContext()) {
             // Place the context with the headers from the message
             threadContext.setHeaders(header.getHeaders());
             threadContext.putTransient("_remote_address", remoteAddress);

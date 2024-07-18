@@ -49,6 +49,7 @@ import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -105,6 +106,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
     private Engine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
+    private InternalContextSwitcher contextSwitcher;
     private Store store;
     private MeanMetric refreshMetric;
 
@@ -114,14 +116,9 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         maxListeners = randomIntBetween(1, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
+        contextSwitcher = new InternalContextSwitcher(threadPool);
         refreshMetric = new MeanMetric();
-        listeners = new RefreshListeners(
-            () -> maxListeners,
-            () -> engine.refresh("too-many-listeners"),
-            logger,
-            threadPool.getThreadContext(),
-            refreshMetric
-        );
+        listeners = new RefreshListeners(() -> maxListeners, () -> engine.refresh("too-many-listeners"), logger, threadPool, refreshMetric);
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
@@ -218,7 +215,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         assertEquals(0, listeners.pendingCount());
         Engine.IndexResult index = index("1");
         CountDownLatch latch = new CountDownLatch(1);
-        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
             threadPool.getThreadContext().putHeader("test", "foobar");
             assertFalse(listeners.addOrNotify(index.getTranslogLocation(), forced -> {
                 assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));

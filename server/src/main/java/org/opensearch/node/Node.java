@@ -59,7 +59,6 @@ import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
@@ -115,6 +114,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -931,12 +931,10 @@ public class Node implements Closeable {
 
             final ViewService viewService = new ViewService(clusterService, client, null);
 
-            List<PluginAwareNodeClient> pluginNodeClients = new ArrayList<>();
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> {
-                PluginAwareNodeClient pluginClient = new PluginAwareNodeClient(settings, threadPool, p);
-                pluginNodeClients.add(pluginClient);
+                ContextSwitcher contextSwitcher = new ContextSwitcher(threadPool, p);
                 return p.createComponents(
-                    pluginClient,
+                    client,
                     clusterService,
                     threadPool,
                     resourceWatcherService,
@@ -946,17 +944,17 @@ public class Node implements Closeable {
                     nodeEnvironment,
                     namedWriteableRegistry,
                     clusterModule.getIndexNameExpressionResolver(),
-                    repositoriesServiceReference::get
+                    repositoriesServiceReference::get,
+                    contextSwitcher
                 ).stream();
             }).collect(Collectors.toList());
 
             Collection<Object> telemetryAwarePluginComponents = pluginsService.filterPlugins(TelemetryAwarePlugin.class)
                 .stream()
                 .flatMap(p -> {
-                    PluginAwareNodeClient pluginClient = new PluginAwareNodeClient(settings, threadPool, (Plugin) p);
-                    pluginNodeClients.add(pluginClient);
+                    ContextSwitcher contextSwitcher = new ContextSwitcher(threadPool, (Plugin) p);
                     return p.createComponents(
-                        pluginClient,
+                        client,
                         clusterService,
                         threadPool,
                         resourceWatcherService,
@@ -968,7 +966,8 @@ public class Node implements Closeable {
                         clusterModule.getIndexNameExpressionResolver(),
                         repositoriesServiceReference::get,
                         tracer,
-                        metricsRegistry
+                        metricsRegistry,
+                        contextSwitcher
                     ).stream();
                 })
                 .collect(Collectors.toList());
@@ -1432,14 +1431,6 @@ public class Node implements Closeable {
                 transportService.getRemoteClusterService(),
                 namedWriteableRegistry
             );
-            for (PluginAwareNodeClient pluginClient : pluginNodeClients) {
-                pluginClient.initialize(
-                    dynamicActionRegistry,
-                    () -> clusterService.localNode().getId(),
-                    transportService.getRemoteClusterService(),
-                    namedWriteableRegistry
-                );
-            }
             this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");

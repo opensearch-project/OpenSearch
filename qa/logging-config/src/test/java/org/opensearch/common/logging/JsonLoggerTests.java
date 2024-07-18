@@ -408,11 +408,8 @@ public class JsonLoggerTests extends OpenSearchTestCase {
 
     private void withThreadContext(CheckedConsumer<ThreadContext, Exception> consumer) throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            HeaderWarning.setThreadContext(threadContext);
-            consumer.accept(threadContext);
-        } finally {
-            HeaderWarning.removeThreadContext(threadContext);
-        }
+        HeaderWarning.setThreadContext(threadContext);
+        consumer.accept(threadContext);
+        HeaderWarning.removeThreadContext(threadContext);
     }
 }

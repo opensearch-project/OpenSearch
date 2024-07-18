@@ -60,6 +60,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
+import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.metrics.Histogram;
@@ -111,6 +112,7 @@ import static org.mockito.Mockito.when;
 public class MasterServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
+    private static InternalContextSwitcher contextSwitcher;
     private static long timeDiffInMillis;
 
     @BeforeClass
@@ -121,6 +123,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 return timeDiffInMillis * TimeValue.NSEC_PER_MSEC;
             }
         };
+        contextSwitcher = new InternalContextSwitcher(threadPool);
     }
 
     @AfterClass
@@ -246,7 +249,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
         final ClusterManagerService clusterManagerService = createClusterManagerService(true);
         final CountDownLatch latch = new CountDownLatch(1);
 
-        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+        try (ThreadContext.StoredContext ignored = contextSwitcher.switchContext()) {
             final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
             final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap(
                 "testResponse",

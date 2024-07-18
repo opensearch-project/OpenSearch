@@ -34,7 +34,7 @@ package org.opensearch.node;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
-import org.opensearch.client.node.PluginAwareNodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -466,7 +466,7 @@ public class NodeTests extends OpenSearchTestCase {
     public static class MockTelemetryAwarePlugin extends Plugin implements TelemetryAwarePlugin {
         @Override
         public Collection<Object> createComponents(
-            PluginAwareNodeClient client,
+            NodeClient client,
             ClusterService clusterService,
             ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService,

@@ -8,11 +8,12 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.client.node.PluginAwareNodeClient;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -61,7 +62,7 @@ public interface TelemetryAwarePlugin {
      * @param metricsRegistry the registry for metrics instrumentation.
      */
     default Collection<Object> createComponents(
-        PluginAwareNodeClient client,
+        NodeClient client,
         ClusterService clusterService,
         ThreadPool threadPool,
         ResourceWatcherService resourceWatcherService,
@@ -73,7 +74,8 @@ public interface TelemetryAwarePlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        MetricsRegistry metricsRegistry
+        MetricsRegistry metricsRegistry,
+        ContextSwitcher contextSwitcher
     ) {
         return Collections.emptyList();
     }

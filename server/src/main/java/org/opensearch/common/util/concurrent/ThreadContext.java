@@ -145,7 +145,7 @@ public final class ThreadContext implements Writeable {
      * Removes the current context and resets a default context. The removed context can be
      * restored by closing the returned {@link StoredContext}.
      */
-    public StoredContext stashContext() {
+    StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
         /*
           X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
@@ -182,7 +182,7 @@ public final class ThreadContext implements Writeable {
      * Removes the current context and resets a default context. Retains information about plugin stashing the context.
      * The removed context can be restored by closing the returned {@link StoredContext}.
      */
-    StoredContext stashContext(Class<?> pluginClass) {
+    public StoredContext stashContext(Class<?> pluginClass) {
         final ThreadContextStruct context = threadLocal.get();
         /*
           X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.

@@ -56,7 +56,6 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
@@ -111,12 +110,6 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         dynamicActionRegistry.registerUnmodifiableActionMap(actions);
         client.initialize(dynamicActionRegistry, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
         controller.registerHandler(action);
-    }
-
-    @Before
-    public void ensureCleanContext() {
-        // Make sure we have a clean context for each test
-        threadPool.getThreadContext().stashContext();
     }
 
     @AfterClass

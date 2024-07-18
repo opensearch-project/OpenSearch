@@ -39,6 +39,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
@@ -71,6 +72,7 @@ final class RemoteClusterConnection implements Closeable {
     private final RemoteConnectionStrategy connectionStrategy;
     private final String clusterAlias;
     private final ThreadPool threadPool;
+    private final InternalContextSwitcher contextSwitcher;
     private volatile boolean skipUnavailable;
     private final TimeValue initialConnectionTimeout;
 
@@ -91,6 +93,7 @@ final class RemoteClusterConnection implements Closeable {
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias)
             .get(settings);
         this.threadPool = transportService.threadPool;
+        this.contextSwitcher = new InternalContextSwitcher(this.threadPool);
         initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
     }
 
@@ -134,7 +137,7 @@ final class RemoteClusterConnection implements Closeable {
             final ThreadContext threadContext = threadPool.getThreadContext();
             final ContextPreservingActionListener<Function<String, DiscoveryNode>> contextPreservingActionListener =
                 new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
                 // we stash any context here since this is an internal execution and should not leak any existing context information
                 threadContext.markAsSystemContext();
 

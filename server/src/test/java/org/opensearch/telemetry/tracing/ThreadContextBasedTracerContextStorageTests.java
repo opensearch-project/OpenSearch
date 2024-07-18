@@ -10,6 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.opensearch.telemetry.Telemetry;
@@ -18,6 +19,8 @@ import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,6 +42,8 @@ import static org.hamcrest.CoreMatchers.nullValue;
 
 public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestCase {
     private Tracer tracer;
+    private ThreadPool threadPool;
+    private InternalContextSwitcher contextSwitcher;
     private ThreadContext threadContext;
     private TracerContextStorage<String, Span> threadContextStorage;
     private ExecutorService executorService;
@@ -61,7 +66,9 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
         final TracingTelemetry tracingTelemetry = new MockTracingTelemetry();
 
-        threadContext = new ThreadContext(Settings.EMPTY);
+        threadPool = new TestThreadPool(getTestName());
+        threadContext = threadPool.getThreadContext();
+        contextSwitcher = new InternalContextSwitcher(threadPool);
         threadContextStorage = new ThreadContextBasedTracerContextStorage(threadContext, tracingTelemetry);
 
         tracer = new TracerFactory(telemetrySettings, Optional.of(new Telemetry() {
@@ -116,7 +123,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
         final Span span = tracer.startSpan(SpanCreationContext.internal().name("test"));
 
         try (SpanScope scope = tracer.withSpanInScope(span)) {
-            try (StoredContext ignored = threadContext.stashContext()) {
+            try (StoredContext ignored = contextSwitcher.switchContext()) {
                 assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
                 assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(span));
             }
@@ -154,7 +161,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
                 final Span local1 = tracer.startSpan(SpanCreationContext.internal().name("test-local-1"));
                 try (SpanScope localScope = tracer.withSpanInScope(local1)) {
-                    try (StoredContext ignored = threadContext.stashContext()) {
+                    try (StoredContext ignored = contextSwitcher.switchContext()) {
                         assertThat(local1.getParentSpan(), is(nullValue()));
                         assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local1));
                     }
@@ -162,7 +169,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
                 final Span local2 = tracer.startSpan(SpanCreationContext.internal().name("test-local-2"));
                 try (SpanScope localScope = tracer.withSpanInScope(local2)) {
-                    try (StoredContext ignored = threadContext.stashContext()) {
+                    try (StoredContext ignored = contextSwitcher.switchContext()) {
                         assertThat(local2.getParentSpan(), is(nullValue()));
                         assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local2));
                     }
@@ -170,7 +177,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
                 final Span local3 = tracer.startSpan(SpanCreationContext.internal().name("test-local-3"));
                 try (SpanScope localScope = tracer.withSpanInScope(local3)) {
-                    try (StoredContext ignored = threadContext.stashContext()) {
+                    try (StoredContext ignored = contextSwitcher.switchContext()) {
                         assertThat(local3.getParentSpan(), is(nullValue()));
                         assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local3));
                     }
@@ -195,7 +202,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
                     final Span local1 = tracer.startSpan(SpanCreationContext.internal().name("test-local-1"));
                     try (SpanScope localScope = tracer.withSpanInScope(local1)) {
-                        try (StoredContext ignored = threadContext.stashContext()) {
+                        try (StoredContext ignored = contextSwitcher.switchContext()) {
                             assertThat(local1.getParentSpan(), is(span));
                             assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local1));
                         }
@@ -203,7 +210,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
                     final Span local2 = tracer.startSpan(SpanCreationContext.internal().name("test-local-2"));
                     try (SpanScope localScope = tracer.withSpanInScope(local2)) {
-                        try (StoredContext ignored = threadContext.stashContext()) {
+                        try (StoredContext ignored = contextSwitcher.switchContext()) {
                             assertThat(local2.getParentSpan(), is(span));
                             assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local2));
                         }
@@ -211,7 +218,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
                     final Span local3 = tracer.startSpan(SpanCreationContext.internal().name("test-local-3"));
                     try (SpanScope localScope = tracer.withSpanInScope(local3)) {
-                        try (StoredContext ignored = threadContext.stashContext()) {
+                        try (StoredContext ignored = contextSwitcher.switchContext()) {
                             assertThat(local3.getParentSpan(), is(span));
                             assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(local3));
                         }
@@ -235,7 +242,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
                 public void run() {
                     final Span local = tracer.startSpan(SpanCreationContext.internal().name("test-local"));
                     try (SpanScope localScope = tracer.withSpanInScope(local)) {
-                        try (StoredContext ignored = threadContext.stashContext()) {
+                        try (StoredContext ignored = contextSwitcher.switchContext()) {
                             assertThat(
                                 threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN),
                                 is(not(nullValue()))
@@ -257,7 +264,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
         final Span span = tracer.startSpan(SpanCreationContext.internal().name("test"));
 
         try (SpanScope scope = tracer.withSpanInScope(span)) {
-            try (StoredContext ignored = threadContext.stashContext()) {
+            try (StoredContext ignored = contextSwitcher.switchContext()) {
                 assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
                 assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(span));
                 threadContext.markAsSystemContext();

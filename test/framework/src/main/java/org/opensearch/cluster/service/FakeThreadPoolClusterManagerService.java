@@ -41,6 +41,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -63,6 +64,7 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
     private final String name;
     private final List<Runnable> pendingTasks = new ArrayList<>();
     private final Consumer<Runnable> onTaskAvailableToRun;
+    private final InternalContextSwitcher contextSwitcher;
     private boolean scheduledNextTask = false;
     private boolean taskInProgress = false;
     private boolean waitForPublish = false;
@@ -81,6 +83,7 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
         );
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
+        this.contextSwitcher = new InternalContextSwitcher(threadPool);
     }
 
     @Override
@@ -133,7 +136,7 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
                     taskInProgress = true;
                     scheduledNextTask = false;
                     final ThreadContext threadContext = threadPool.getThreadContext();
-                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    try (ThreadContext.StoredContext ignored = contextSwitcher.switchContext()) {
                         threadContext.markAsSystemContext();
                         task.run();
                     }

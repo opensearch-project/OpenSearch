@@ -9,7 +9,6 @@
 package org.opensearch.http;
 
 import org.opensearch.client.Client;
-import org.opensearch.client.node.PluginAwareNodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -27,6 +26,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -35,15 +35,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
-
 public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
 
-    private PluginAwareNodeClient client;
+    private ContextSwitcher contextSwitcher;
+    private ThreadPool threadPool;
 
     @Override
     public Collection<Object> createComponents(
-        PluginAwareNodeClient client,
+        Client client,
         ClusterService clusterService,
         ThreadPool threadPool,
         ResourceWatcherService resourceWatcherService,
@@ -53,9 +52,11 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
-    ) {
-        this.client = client;
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        ContextSwitcher contextSwitcher) {
+        // TODO Fix this
+        this.contextSwitcher = null;
+        this.threadPool = threadPool;
         return Collections.emptyList();
     }
 
@@ -63,6 +64,6 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return List.of(new TestGetExecutionContextRestAction(client));
+        return List.of(new TestGetExecutionContextRestAction(contextSwitcher, threadPool));
     }
 }

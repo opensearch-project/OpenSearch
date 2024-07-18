@@ -9,7 +9,7 @@
 package org.opensearch.plugin.correlation;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.client.node.PluginAwareNodeClient;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -18,6 +18,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -77,7 +78,7 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
 
     @Override
     public Collection<Object> createComponents(
-        PluginAwareNodeClient client,
+        Client client,
         ClusterService clusterService,
         ThreadPool threadPool,
         ResourceWatcherService resourceWatcherService,
@@ -87,7 +88,8 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        ContextSwitcher contextSwitcher
     ) {
         correlationRuleIndices = new CorrelationRuleIndices(client, clusterService);
         return List.of(correlationRuleIndices);

@@ -45,6 +45,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.transport.PortsRange;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
@@ -99,6 +100,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final NetworkService networkService;
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
+    protected final InternalContextSwitcher contextSwitcher;
     protected final Dispatcher dispatcher;
     protected final CorsHandler corsHandler;
     private final NamedXContentRegistry xContentRegistry;
@@ -130,6 +132,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
+        this.contextSwitcher = new InternalContextSwitcher(threadPool);
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
@@ -385,7 +388,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         RestChannel traceableRestChannel = channel;
         final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
             final Span span = tracer.startSpan(SpanBuilder.from(restRequest));
             try (final SpanScope spanScope = tracer.withSpanInScope(span)) {
                 if (channel != null) {

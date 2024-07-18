@@ -47,6 +47,7 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -84,6 +85,8 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     public static final String ACTION_NAME = "indices:admin/seq_no/retention_lease_background_sync";
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
+    private final InternalContextSwitcher contextSwitcher;
+
     protected Logger getLogger() {
         return LOGGER;
     }
@@ -111,6 +114,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             Request::new,
             ThreadPool.Names.MANAGEMENT
         );
+        this.contextSwitcher = new InternalContextSwitcher(threadPool);
     }
 
     @Override
@@ -120,7 +124,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
 
     final void backgroundSync(ShardId shardId, String primaryAllocationId, long primaryTerm, RetentionLeases retentionLeases) {
         final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
             final Request request = new Request(shardId, retentionLeases);
