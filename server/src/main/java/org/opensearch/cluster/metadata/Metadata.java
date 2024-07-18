@@ -127,7 +127,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(false);
     }
 
-    public Map<String, Sandbox> sandboxes() {
+    public Map<String, QueryGroup> queryGroups() {
         // stub
         return Collections.emptyMap();
     }

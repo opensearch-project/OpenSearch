@@ -16,7 +16,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -29,6 +28,7 @@ import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuress
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
+import org.opensearch.search.resourcetypes.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
@@ -45,7 +45,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,8 +55,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
-import static org.opensearch.search.ResourceType.CPU;
-import static org.opensearch.search.ResourceType.MEMORY;
 import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.createMockTaskWithResourceStats;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -100,10 +97,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         NodeDuressTracker cpuUsageTracker = new NodeDuressTracker(() -> cpuUsage.get() >= 0.5, () -> 3);
         NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> heapUsage.get() >= 0.5, () -> 3);
 
-        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+        HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(ResourceType.MEMORY, heapUsageTracker);
-                put(ResourceType.CPU, cpuUsageTracker);
+                put(ResourceType.fromName("jvm"), heapUsageTracker);
+                put(ResourceType.fromName("cpu"), cpuUsageTracker);
             }
         };
 
@@ -160,7 +157,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            new NodeDuressTrackers(new EnumMap<>(ResourceType.class)),
+            new NodeDuressTrackers(new HashMap<>()),
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             taskManager
@@ -191,7 +188,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             mockTaskResourceTrackingService,
             threadPool,
             mockTimeNanosSupplier,
-            new NodeDuressTrackers(new EnumMap<>(ResourceType.class)),
+            new NodeDuressTrackers(new HashMap<>()),
             new TaskResourceUsageTrackers(),
             taskResourceUsageTrackers,
             taskManager
@@ -231,10 +228,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> false, () -> 3);
 
-        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+        HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(MEMORY, heapUsageTracker);
-                put(CPU, mockNodeDuressTracker);
+                put(ResourceType.fromName("jvm"), heapUsageTracker);
+                put(ResourceType.fromName("cpu"), mockNodeDuressTracker);
             }
         };
 
@@ -306,10 +303,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         LongSupplier mockTimeNanosSupplier = mockTime::get;
         NodeDuressTracker mockNodeDuressTracker = new NodeDuressTracker(() -> true, () -> 3);
 
-        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+        HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
-                put(CPU, mockNodeDuressTracker);
+                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> false, () -> 3));
+                put(ResourceType.fromName("cpu"), mockNodeDuressTracker);
             }
         };
         NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers);
@@ -399,10 +396,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         AtomicLong mockTime = new AtomicLong(0);
         LongSupplier mockTimeNanosSupplier = mockTime::get;
 
-        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+        HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
-                put(CPU, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> false, () -> 3));
+                put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> true, () -> 3));
             }
         };
 
@@ -493,10 +490,10 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         AtomicLong mockTime = new AtomicLong(0);
         LongSupplier mockTimeNanosSupplier = mockTime::get;
 
-        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+        HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
-                put(CPU, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> false, () -> 3));
+                put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> true, () -> 3));
             }
         };
 
