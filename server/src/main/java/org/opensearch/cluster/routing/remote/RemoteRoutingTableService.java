@@ -9,16 +9,13 @@
 package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.action.LatchedActionListener;
-import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.IOException;
@@ -47,8 +44,8 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
     List<IndexRoutingTable> getIndicesRouting(RoutingTable routingTable);
 
     CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+        String clusterUUID,
         String uploadedFilename,
-        Index index,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
     );
 
@@ -62,11 +59,12 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         RoutingTable after
     );
 
-    CheckedRunnable<IOException> getIndexRoutingAsyncAction(
-        ClusterState clusterState,
+    CheckedRunnable<IOException> getAsyncIndexRoutingWriteAction(
+        String clusterUUID,
+        long term,
+        long version,
         IndexRoutingTable indexRouting,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener,
-        BlobPath clusterBasePath
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     );
 
     List<ClusterMetadataManifest.UploadedIndexMetadata> getAllUploadedIndicesRouting(
