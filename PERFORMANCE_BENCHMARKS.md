@@ -1,4 +1,4 @@
-# README: Running Performance Benchmarks on Pull Requests
+## README: Running Performance Benchmarks on Pull Requests
 
 ## Overview
 
