@@ -86,7 +86,6 @@ import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
-import org.opensearch.tasks.SearchTaskRequestOperationsListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
@@ -175,6 +174,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchPipelineService searchPipelineService;
     private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
     private final Tracer tracer;
+    private final SearchTaskRequestOperationsListener searchTaskRequestOperationsListener;
 
     private final MetricsRegistry metricsRegistry;
 
@@ -216,6 +216,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
         this.tracer = tracer;
         this.taskResourceTrackingService = taskResourceTrackingService;
+        this.searchTaskRequestOperationsListener = new SearchTaskRequestOperationsListener(taskResourceTrackingService);
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -435,7 +436,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 originalSearchRequest,
                 logger,
                 TraceableSearchRequestOperationsListener.create(tracer, requestSpan),
-                SearchTaskRequestOperationsListener.getInstance(taskResourceTrackingService)
+                searchTaskRequestOperationsListener
             );
             SearchRequestContext searchRequestContext = new SearchRequestContext(
                 requestOperationsListeners,

@@ -6,11 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.tasks;
+package org.opensearch.action.search;
 
-import org.opensearch.action.search.SearchPhaseContext;
-import org.opensearch.action.search.SearchRequestContext;
-import org.opensearch.action.search.SearchRequestOperationsListener;
+import org.opensearch.tasks.TaskResourceTrackingService;
 
 /**
  * SearchTaskRequestOperationsListener subscriber for operations on search tasks resource usages.
@@ -18,19 +16,11 @@ import org.opensearch.action.search.SearchRequestOperationsListener;
  * upon request completion.
  *
  */
-public final class SearchTaskRequestOperationsListener extends SearchRequestOperationsListener {
-    private static SearchTaskRequestOperationsListener instance;
+final class SearchTaskRequestOperationsListener extends SearchRequestOperationsListener {
     private final TaskResourceTrackingService taskResourceTrackingService;
 
-    private SearchTaskRequestOperationsListener(TaskResourceTrackingService taskResourceTrackingService) {
+    SearchTaskRequestOperationsListener(TaskResourceTrackingService taskResourceTrackingService) {
         this.taskResourceTrackingService = taskResourceTrackingService;
-    }
-
-    public static synchronized SearchTaskRequestOperationsListener getInstance(TaskResourceTrackingService taskResourceTrackingService) {
-        if (instance == null) {
-            instance = new SearchTaskRequestOperationsListener(taskResourceTrackingService);
-        }
-        return instance;
     }
 
     @Override
