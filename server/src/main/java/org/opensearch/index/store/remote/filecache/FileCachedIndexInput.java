@@ -39,9 +39,9 @@ public class FileCachedIndexInput extends IndexInput implements RandomAccessInpu
     protected IndexInput luceneIndexInput;
 
     /** indicates if this IndexInput instance is a clone or not */
-    private final boolean isClone;
+    protected final boolean isClone;
 
-    private volatile boolean closed = false;
+    protected volatile boolean closed = false;
 
     public FileCachedIndexInput(FileCache cache, Path filePath, IndexInput underlyingIndexInput) {
         this(cache, filePath, underlyingIndexInput, false);

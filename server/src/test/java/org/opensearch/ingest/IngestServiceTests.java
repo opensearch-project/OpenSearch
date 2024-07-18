@@ -81,6 +81,7 @@ import org.opensearch.threadpool.ThreadPool.Names;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -88,6 +89,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -97,7 +99,6 @@ import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
@@ -1604,6 +1605,13 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(result, is(true));
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
+
+        // index name matches with ITMD for bulk upsert
+        UpdateRequest updateRequest = new UpdateRequest("idx", "id1").upsert(emptyMap()).script(mockScript("1"));
+        result = IngestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
+        assertThat(result, is(true));
+        assertThat(updateRequest.upsertRequest().isPipelineResolved(), is(true));
+        assertThat(updateRequest.upsertRequest().getPipeline(), equalTo("default-pipeline"));
     }
 
     public void testResolveFinalPipeline() {
@@ -1641,6 +1649,13 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(indexRequest.isPipelineResolved(), is(true));
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+
+        // index name matches with ITMD for bulk upsert:
+        UpdateRequest updateRequest = new UpdateRequest("idx", "id1").upsert(emptyMap()).script(mockScript("1"));
+        result = IngestService.resolvePipelines(updateRequest, TransportBulkAction.getIndexWriteRequest(updateRequest), metadata);
+        assertThat(result, is(true));
+        assertThat(updateRequest.upsertRequest().isPipelineResolved(), is(true));
+        assertThat(updateRequest.upsertRequest().getFinalPipeline(), equalTo("final-pipeline"));
     }
 
     public void testResolveRequestOrDefaultPipelineAndFinalPipeline() {
@@ -1923,27 +1938,21 @@ public class IngestServiceTests extends OpenSearchTestCase {
             return null;
         }).when(mockCompoundProcessor).batchExecute(any(), any());
 
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        final IntConsumer dropHandler = mock(IntConsumer.class);
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        final List<Integer> dropHandler = new ArrayList<>();
         ingestService.executeBulkRequest(
             3,
             bulkRequest.requests(),
-            failureHandler,
-            completionHandler,
-            dropHandler,
+            failureHandler::put,
+            completionHandler::put,
+            dropHandler::add,
             Names.WRITE,
             bulkRequest
         );
-        ArgumentCaptor<Integer> failureSlotCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(failureHandler, times(1)).accept(failureSlotCaptor.capture(), any());
-        assertEquals(1, failureSlotCaptor.getValue().intValue());
-        ArgumentCaptor<Integer> dropSlotCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(dropHandler, times(1)).accept(dropSlotCaptor.capture());
-        assertEquals(2, dropSlotCaptor.getValue().intValue());
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        assertEquals(Set.of(1), failureHandler.keySet());
+        assertEquals(List.of(2), dropHandler);
+        assertEquals(Set.of(Thread.currentThread()), completionHandler.keySet());
         verify(mockCompoundProcessor, times(1)).batchExecute(any(), any());
         verify(mockCompoundProcessor, never()).execute(any(), any());
     }

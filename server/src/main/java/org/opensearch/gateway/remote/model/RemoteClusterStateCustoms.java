@@ -34,12 +34,12 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
  */
 public class RemoteClusterStateCustoms extends AbstractRemoteWritableBlobEntity<Custom> {
     public static final String CLUSTER_STATE_CUSTOM = "cluster-state-custom";
+    public final ChecksumWritableBlobStoreFormat<ClusterState.Custom> clusterStateCustomsFormat;
 
     private long stateVersion;
     private final String customType;
     private ClusterState.Custom custom;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final ChecksumWritableBlobStoreFormat<ClusterState.Custom> clusterStateCustomsFormat;
 
     public RemoteClusterStateCustoms(
         final ClusterState.Custom custom,

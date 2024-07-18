@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN;
+
 /**
  * Abstract class for a blob type storage
  *
@@ -72,7 +74,9 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
     public T read(final U entity) throws IOException {
         // TODO Add timing logs and tracing
         assert entity.getFullBlobName() != null;
-        return entity.deserialize(transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName()));
+        try (InputStream inputStream = transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName())) {
+            return entity.deserialize(inputStream);
+        }
     }
 
     @Override
@@ -86,18 +90,26 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
         });
     }
 
-    private BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<T> obj) {
-        BlobPath blobPath = blobStoreRepository.basePath()
-            .add(RemoteClusterStateUtils.encodeString(clusterName))
-            .add("cluster-state")
-            .add(obj.clusterUUID());
+    public String getClusterName() {
+        return clusterName;
+    }
+
+    public BlobPath getBlobPathPrefix(String clusterUUID) {
+        return blobStoreRepository.basePath()
+            .add(RemoteClusterStateUtils.encodeString(getClusterName()))
+            .add(CLUSTER_STATE_PATH_TOKEN)
+            .add(clusterUUID);
+    }
+
+    public BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<T> obj) {
+        BlobPath blobPath = getBlobPathPrefix(obj.clusterUUID());
         for (String token : obj.getBlobPathParameters().getPathTokens()) {
             blobPath = blobPath.add(token);
         }
         return blobPath;
     }
 
-    private BlobPath getBlobPathForDownload(final AbstractRemoteWritableBlobEntity<T> obj) {
+    public BlobPath getBlobPathForDownload(final AbstractRemoteWritableBlobEntity<T> obj) {
         String[] pathTokens = obj.getBlobPathTokens();
         BlobPath blobPath = new BlobPath();
         if (pathTokens == null || pathTokens.length < 1) {

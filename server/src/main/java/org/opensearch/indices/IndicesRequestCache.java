@@ -81,6 +81,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -506,7 +507,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      * */
     class IndicesRequestCacheCleanupManager implements Closeable {
         private final Set<CleanupKey> keysToClean;
-        private final ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> cleanupKeyToCountMap;
+        private final ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap;
         private final AtomicInteger staleKeysCount;
         private volatile double stalenessThreshold;
         private final IndicesRequestCacheCleaner cacheCleaner;
@@ -514,7 +515,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         IndicesRequestCacheCleanupManager(ThreadPool threadpool, TimeValue cleanInterval, double stalenessThreshold) {
             this.stalenessThreshold = stalenessThreshold;
             this.keysToClean = ConcurrentCollections.newConcurrentSet();
-            this.cleanupKeyToCountMap = ConcurrentCollections.newConcurrentMap();
+            this.cleanupKeyToCountMap = new ConcurrentHashMap<>();
             this.staleKeysCount = new AtomicInteger(0);
             this.cacheCleaner = new IndicesRequestCacheCleaner(this, threadpool, cleanInterval);
             threadpool.schedule(cacheCleaner, cleanInterval, ThreadPool.Names.SAME);
@@ -572,8 +573,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
         // pkg-private for testing
         void addToCleanupKeyToCountMap(ShardId shardId, String readerCacheKeyId) {
-            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentMap())
-                .merge(readerCacheKeyId, 1, Integer::sum);
+            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> new ConcurrentHashMap<>()).merge(readerCacheKeyId, 1, Integer::sum);
         }
 
         /**
@@ -831,7 +831,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         }
 
         // for testing
-        ConcurrentMap<ShardId, ConcurrentMap<String, Integer>> getCleanupKeyToCountMap() {
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> getCleanupKeyToCountMap() {
             return cleanupKeyToCountMap;
         }
 

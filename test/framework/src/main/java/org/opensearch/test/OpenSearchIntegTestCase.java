@@ -90,6 +90,7 @@ import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.cluster.service.applicationtemplates.TestSystemTemplatesRepositoryPlugin;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
 import org.opensearch.common.collect.Tuple;
@@ -682,6 +683,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
         // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
+        featureSettings.put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getKey(), true);
 
         return featureSettings.build();
     }
@@ -864,6 +866,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return ensureColor(ClusterHealthStatus.GREEN, timeout, false, indices);
     }
 
+    public ClusterHealthStatus ensureGreen(TimeValue timeout, boolean waitForNoRelocatingShards, String... indices) {
+        return ensureColor(ClusterHealthStatus.GREEN, timeout, waitForNoRelocatingShards, false, indices);
+    }
+
     /**
      * Ensures the cluster has a yellow state via the cluster health API.
      */
@@ -892,6 +898,16 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         boolean waitForNoInitializingShards,
         String... indices
     ) {
+        return ensureColor(clusterHealthStatus, timeout, true, waitForNoInitializingShards, indices);
+    }
+
+    private ClusterHealthStatus ensureColor(
+        ClusterHealthStatus clusterHealthStatus,
+        TimeValue timeout,
+        boolean waitForNoRelocatingShards,
+        boolean waitForNoInitializingShards,
+        String... indices
+    ) {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
@@ -899,7 +915,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
-            .waitForNoRelocatingShards(true)
+            .waitForNoRelocatingShards(waitForNoRelocatingShards)
             .waitForNoInitializingShards(waitForNoInitializingShards)
             // We currently often use ensureGreen or ensureYellow to check whether the cluster is back in a good state after shutting down
             // a node. If the node that is stopped is the cluster-manager node, another node will become cluster-manager and publish a
@@ -2077,6 +2093,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return true;
     }
 
+    protected boolean addMockIndexStorePlugin() {
+        return true;
+    }
+
     /** Returns {@code true} iff this test cluster should use a dummy http transport */
     protected boolean addMockHttpTransport() {
         return true;
@@ -2119,7 +2139,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             if (randomBoolean() && addMockTransportService()) {
                 mocks.add(MockTransportService.TestPlugin.class);
             }
-            if (randomBoolean()) {
+            if (randomBoolean() && addMockIndexStorePlugin()) {
                 mocks.add(MockFSIndexStore.TestPlugin.class);
             }
             if (randomBoolean()) {
@@ -2150,6 +2170,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockTelemetryPlugin()) {
             mocks.add(MockTelemetryPlugin.class);
         }
+        mocks.add(TestSystemTemplatesRepositoryPlugin.class);
         return Collections.unmodifiableList(mocks);
     }
 

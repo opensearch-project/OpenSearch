@@ -58,9 +58,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, IngestPlugin {
+
+    static final Setting<List<String>> PROCESSORS_ALLOWLIST_SETTING = Setting.listSetting(
+        "ingest.common.processors.allowed",
+        List.of(),
+        Function.identity(),
+        Setting.Property.NodeScope
+    );
 
     static final Setting<TimeValue> WATCHDOG_INTERVAL = Setting.timeSetting(
         "ingest.grok.watchdog.interval",
@@ -77,7 +87,7 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        Map<String, Processor.Factory> processors = new HashMap<>();
+        final Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService));
         processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService));
         processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService));
@@ -110,7 +120,7 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         processors.put(RemoveByPatternProcessor.TYPE, new RemoveByPatternProcessor.Factory());
         processors.put(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory());
         processors.put(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory());
-        return Collections.unmodifiableMap(processors);
+        return filterForAllowlistSetting(parameters.env.settings(), processors);
     }
 
     @Override
@@ -133,7 +143,7 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
+        return Arrays.asList(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME, PROCESSORS_ALLOWLIST_SETTING);
     }
 
     private static MatcherWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
@@ -147,4 +157,27 @@ public class IngestCommonModulePlugin extends Plugin implements ActionPlugin, In
         );
     }
 
+    private Map<String, Processor.Factory> filterForAllowlistSetting(Settings settings, Map<String, Processor.Factory> map) {
+        if (PROCESSORS_ALLOWLIST_SETTING.exists(settings) == false) {
+            return Map.copyOf(map);
+        }
+        final Set<String> allowlist = Set.copyOf(PROCESSORS_ALLOWLIST_SETTING.get(settings));
+        // Assert that no unknown processors are defined in the allowlist
+        final Set<String> unknownAllowlistProcessors = allowlist.stream()
+            .filter(p -> map.containsKey(p) == false)
+            .collect(Collectors.toUnmodifiableSet());
+        if (unknownAllowlistProcessors.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "Processor(s) "
+                    + unknownAllowlistProcessors
+                    + " were defined in ["
+                    + PROCESSORS_ALLOWLIST_SETTING.getKey()
+                    + "] but do not exist"
+            );
+        }
+        return map.entrySet()
+            .stream()
+            .filter(e -> allowlist.contains(e.getKey()))
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
 }

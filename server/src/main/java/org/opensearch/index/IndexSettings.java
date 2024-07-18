@@ -732,10 +732,11 @@ public final class IndexSettings {
     private final Settings nodeSettings;
     private final int numberOfShards;
     private final ReplicationType replicationType;
-    private final boolean isRemoteStoreEnabled;
+    private volatile boolean isRemoteStoreEnabled;
+    private final boolean isStoreLocalityPartial;
     private volatile TimeValue remoteTranslogUploadBufferInterval;
-    private final String remoteStoreTranslogRepository;
-    private final String remoteStoreRepository;
+    private volatile String remoteStoreTranslogRepository;
+    private volatile String remoteStoreRepository;
     private int remoteTranslogKeepExtraGen;
     private Version extendedCompatibilitySnapshotVersion;
 
@@ -934,6 +935,10 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
+        isStoreLocalityPartial = settings.get(
+            IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(),
+            IndexModule.DataLocalityType.FULL.toString()
+        ).equalsIgnoreCase(IndexModule.DataLocalityType.PARTIAL.toString());
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
         remoteTranslogUploadBufferInterval = INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
         remoteStoreRepository = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
@@ -1127,6 +1132,15 @@ public final class IndexSettings {
             this::setDocIdFuzzySetFalsePositiveProbability
         );
         scopedSettings.addSettingsUpdateConsumer(ALLOW_DERIVED_FIELDS, this::setAllowDerivedField);
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING, this::setRemoteStoreEnabled);
+        scopedSettings.addSettingsUpdateConsumer(
+            IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING,
+            this::setRemoteStoreRepository
+        );
+        scopedSettings.addSettingsUpdateConsumer(
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+            this::setRemoteStoreTranslogRepository
+        );
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1292,6 +1306,13 @@ public final class IndexSettings {
 
     public String getRemoteStoreTranslogRepository() {
         return remoteStoreTranslogRepository;
+    }
+
+    /**
+     * Returns true if the store locality is partial
+     */
+    public boolean isStoreLocalityPartial() {
+        return isStoreLocalityPartial;
     }
 
     /**
@@ -1937,5 +1958,17 @@ public final class IndexSettings {
 
     public boolean isTranslogMetadataEnabled() {
         return isTranslogMetadataEnabled;
+    }
+
+    public void setRemoteStoreEnabled(boolean isRemoteStoreEnabled) {
+        this.isRemoteStoreEnabled = isRemoteStoreEnabled;
+    }
+
+    public void setRemoteStoreRepository(String remoteStoreRepository) {
+        this.remoteStoreRepository = remoteStoreRepository;
+    }
+
+    public void setRemoteStoreTranslogRepository(String remoteStoreTranslogRepository) {
+        this.remoteStoreTranslogRepository = remoteStoreTranslogRepository;
     }
 }

@@ -540,7 +540,7 @@ final class RequestConverters {
         Request request;
 
         if (searchTemplateRequest.isSimulate()) {
-            request = new Request(HttpGet.METHOD_NAME, "_render/template");
+            request = new Request(HttpGet.METHOD_NAME, "/_render/template");
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
             String endpoint = endpoint(searchRequest.indices(), "_search/template");
@@ -803,8 +803,7 @@ final class RequestConverters {
     }
 
     static Request mtermVectors(MultiTermVectorsRequest mtvrequest) throws IOException {
-        String endpoint = "_mtermvectors";
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Request request = new Request(HttpGet.METHOD_NAME, "/_mtermvectors");
         request.setEntity(createEntity(mtvrequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

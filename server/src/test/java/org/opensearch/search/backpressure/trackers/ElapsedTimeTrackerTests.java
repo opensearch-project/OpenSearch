@@ -47,7 +47,7 @@ public class ElapsedTimeTrackerTests extends OpenSearchTestCase {
     }
 
     public void testSearchShardTaskEligibleForCancellation() {
-        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 1, 0);
+        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 1, 0, randomNonNegativeLong());
         ElapsedTimeTracker tracker = new ElapsedTimeTracker(
             mockSettings.getSearchShardTaskSettings()::getElapsedTimeNanosThreshold,
             () -> 200000000
@@ -60,7 +60,7 @@ public class ElapsedTimeTrackerTests extends OpenSearchTestCase {
     }
 
     public void testNotEligibleForCancellation() {
-        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 1, 150000000);
+        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 1, 150000000, randomNonNegativeLong());
         ElapsedTimeTracker tracker = new ElapsedTimeTracker(
             mockSettings.getSearchShardTaskSettings()::getElapsedTimeNanosThreshold,
             () -> 200000000
