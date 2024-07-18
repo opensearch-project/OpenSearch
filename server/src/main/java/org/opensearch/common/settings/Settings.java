@@ -557,25 +557,6 @@ public final class Settings implements ToXContentFragment {
         return Objects.equals(settings, that.settings);
     }
 
-    public boolean equalsIgnores(Settings that, Set<String> ignoredSettings) {
-        if (settings == null || that.settings == null) {
-            return settings == that.settings;
-        }
-
-        // Filter out settings to ignore and collect to new maps
-        Map<String, Object> filteredSettings1 = settings.entrySet()
-            .stream()
-            .filter(entry -> ignoredSettings.contains(entry.getKey()) == false)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        Map<String, Object> filteredSettings2 = that.settings.entrySet()
-            .stream()
-            .filter(entry -> ignoredSettings.contains(entry.getKey()) == false)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        return Objects.deepEquals(filteredSettings1, filteredSettings2);
-    }
-
     @Override
     public int hashCode() {
         return settings != null ? settings.hashCode() : 0;

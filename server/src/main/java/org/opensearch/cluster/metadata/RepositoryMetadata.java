@@ -41,9 +41,6 @@ import org.opensearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Set;
-
-import static org.opensearch.repositories.blobstore.BlobStoreRepository.PREFIX_MODE_VERIFICATION_SETTING;
 
 /**
  * Metadata about registered repository
@@ -53,7 +50,6 @@ import static org.opensearch.repositories.blobstore.BlobStoreRepository.PREFIX_M
 @PublicApi(since = "1.0.0")
 public class RepositoryMetadata implements Writeable {
 
-    private final static Set<String> IGNORED_SETTINGS = Set.of(PREFIX_MODE_VERIFICATION_SETTING.getKey());
     private final String name;
     private final String type;
     private final Settings settings;
@@ -212,7 +208,7 @@ public class RepositoryMetadata implements Writeable {
     public boolean equalsIgnoreGenerations(RepositoryMetadata other) {
         return name.equals(other.name)
             && type.equals(other.type())
-            && settings.equalsIgnores(other.settings(), IGNORED_SETTINGS)
+            && settings.equals(other.settings())
             && Objects.equals(cryptoMetadata, other.cryptoMetadata());
     }
 
