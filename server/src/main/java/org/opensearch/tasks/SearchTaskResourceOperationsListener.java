@@ -13,9 +13,11 @@ import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.action.search.SearchRequestOperationsListener;
 
 /**
- * SearchTaskResourceOperationsListener subscriber for operations on search tasks resource usages
+ * SearchTaskResourceOperationsListener subscriber for operations on search tasks resource usages.
+ * Listener ensures to refreshResourceStats on request end capturing the search task resource usage
+ * upon request completion.
  *
- * @opensearch.internal
+ * @PublicApi
  */
 public final class SearchTaskResourceOperationsListener extends SearchRequestOperationsListener {
     private final TaskResourceTrackingService taskResourceTrackingService;
