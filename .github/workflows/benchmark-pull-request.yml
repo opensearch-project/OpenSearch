@@ -66,7 +66,7 @@ jobs:
           approvers: ${{ steps.get_approvers.outputs.approvers }}
           minimum-approvals: 1
           issue-title: 'Request to approve/deny benchmark for PR #${{ env.PR_NUMBER }}'
-          issue-body: "Please approve or deny the release for PR #${{ env.PR_NUMBER }}"
+          issue-body: "Please approve or deny the benchmark run for PR #${{ env.PR_NUMBER }}"
           exclude-workflow-initiator-as-approver: false
       - name: Get PR Details
         id: get_pr
