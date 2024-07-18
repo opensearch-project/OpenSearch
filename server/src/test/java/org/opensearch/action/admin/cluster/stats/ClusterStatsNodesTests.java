@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
+import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
@@ -43,8 +44,10 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.cache.query.QueryCacheStats;
@@ -186,8 +189,6 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         List<ClusterStatsNodeResponse> defaultClusterStatsNodeResponses = new ArrayList<>();
         List<ClusterStatsNodeResponse> optimizedClusterStatsNodeResponses = new ArrayList<>();
 
-        boolean optimiseClusterStats = randomBoolean();
-
         for (int i = 0; i < numberOfNodes; i++) {
             DiscoveryNode node = new DiscoveryNode("node-" + i, buildNewFakeTransportAddress(), Version.CURRENT);
             CommonStats commonStats = createRandomCommonStats();
@@ -198,7 +199,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
                 shardStats,
                 testIndex,
                 false,
-                optimiseClusterStats
+                true
             );
             defaultClusterStatsNodeResponses.add(customClusterStatsResponse);
             optimizedClusterStatsNodeResponses.add(customOptimizedClusterStatsResponse);
@@ -207,6 +208,10 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         ClusterStatsIndices defaultClusterStatsIndices = new ClusterStatsIndices(defaultClusterStatsNodeResponses, null, null);
         ClusterStatsIndices optimzedClusterStatsIndices = new ClusterStatsIndices(optimizedClusterStatsNodeResponses, null, null);
 
+        assertClusterStatsIndices(defaultClusterStatsIndices, optimzedClusterStatsIndices);
+    }
+
+    public void assertClusterStatsIndices(ClusterStatsIndices defaultClusterStatsIndices, ClusterStatsIndices optimzedClusterStatsIndices) {
         assertEquals(defaultClusterStatsIndices.getIndexCount(), optimzedClusterStatsIndices.getIndexCount());
 
         assertEquals(defaultClusterStatsIndices.getShards().getIndices(), optimzedClusterStatsIndices.getShards().getIndices());
@@ -318,6 +323,33 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         );
     }
 
+    public void testNodeIndexShardStatsSuccessfulSerializationDeserialization() throws IOException {
+        Index testIndex = new Index("test-index", "_na_");
+
+        DiscoveryNode node = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
+        CommonStats commonStats = createRandomCommonStats();
+        ShardStats[] shardStats = createshardStats(node, testIndex, commonStats);
+        ClusterStatsNodeResponse customOptimizedClusterStatsResponse = createClusterStatsNodeResponse(
+            node,
+            shardStats,
+            testIndex,
+            false,
+            true
+        );
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        customOptimizedClusterStatsResponse.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+
+        ClusterStatsNodeResponse newClusterStatsNodeRequest = new ClusterStatsNodeResponse(in);
+
+        ClusterStatsIndices beforeSerialization = new ClusterStatsIndices(List.of(customOptimizedClusterStatsResponse), null, null);
+        ClusterStatsIndices afterSerialization = new ClusterStatsIndices(List.of(newClusterStatsNodeRequest), null, null);
+
+        assertClusterStatsIndices(beforeSerialization, afterSerialization);
+
+    }
+
     private ClusterStatsNodeResponse createClusterStatsNodeResponse(
         DiscoveryNode node,
         ShardStats[] shardStats,
@@ -325,10 +357,59 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         boolean defaultBehavior,
         boolean optimized
     ) {
+        NodeInfo nodeInfo = new NodeInfo(
+            Version.CURRENT,
+            Build.CURRENT,
+            node,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        NodeStats nodeStats = new NodeStats(
+            node,
+            randomNonNegativeLong(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         if (defaultBehavior) {
-            return new ClusterStatsNodeResponse(node, null, null, null, shardStats);
+            return new ClusterStatsNodeResponse(node, null, nodeInfo, nodeStats, shardStats);
         } else {
-            return new ClusterStatsNodeResponse(node, null, null, null, shardStats, optimized);
+            return new ClusterStatsNodeResponse(node, null, nodeInfo, nodeStats, shardStats, optimized);
         }
 
     }
