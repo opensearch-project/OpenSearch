@@ -88,7 +88,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         final NodesInfoRequest nodesInfoRequest = prepareRequest(request);
         nodesInfoRequest.timeout(request.param("timeout"));
         settingsFilter.addFilterSettingParams(request);
-        nodesInfoRequest.populateDiscoveryNodesInTransportRequest(false);
+        nodesInfoRequest.retainDiscoveryNodes(false);
         return channel -> client.admin().cluster().nodesInfo(nodesInfoRequest, new NodesResponseRestListener<>(channel));
     }
 

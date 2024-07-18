@@ -125,7 +125,7 @@ public class RestNodesAction extends AbstractCatAction {
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
                 nodesInfoRequest.timeout(request.param("timeout"));
-                nodesInfoRequest.populateDiscoveryNodesInTransportRequest(false);
+                nodesInfoRequest.retainDiscoveryNodes(false);
                 nodesInfoRequest.clear()
                     .addMetrics(
                         NodesInfoRequest.Metric.JVM.metricName(),
@@ -138,7 +138,7 @@ public class RestNodesAction extends AbstractCatAction {
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
                         nodesStatsRequest.timeout(request.param("timeout"));
-                        nodesStatsRequest.populateDiscoveryNodesInTransportRequest(false);
+                        nodesStatsRequest.retainDiscoveryNodes(false);
                         nodesStatsRequest.clear()
                             .indices(true)
                             .addMetrics(

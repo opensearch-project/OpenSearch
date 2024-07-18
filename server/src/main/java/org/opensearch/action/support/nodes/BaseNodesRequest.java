@@ -72,7 +72,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      *
      * Setting default behavior as `true` but can be explicitly changed in requests that do not require.
      */
-    private boolean populateDiscoveryNodesInTransportRequest = true;
+    private boolean retainDiscoveryNodes = true;
     private final TimeValue DEFAULT_TIMEOUT_SECS = TimeValue.timeValueSeconds(30);
 
     private TimeValue timeout;
@@ -127,12 +127,12 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         this.concreteNodes = concreteNodes;
     }
 
-    public void populateDiscoveryNodesInTransportRequest(boolean value) {
-        populateDiscoveryNodesInTransportRequest = value;
+    public void retainDiscoveryNodes(boolean value) {
+        retainDiscoveryNodes = value;
     }
 
-    public boolean populateDiscoveryNodesInTransportRequest() {
-        return populateDiscoveryNodesInTransportRequest;
+    public boolean retainDiscoveryNodes() {
+        return retainDiscoveryNodes;
     }
 
     @Override

@@ -246,32 +246,20 @@ public abstract class TransportNodesAction<
             this.task = task;
             this.request = request;
             this.listener = listener;
-
-            // Check if concrete nodes are already available
-            if (request.concreteNodes() != null) {
-                this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
-
-                if (request.populateDiscoveryNodesInTransportRequest()) {
-                    this.concreteNodes = null;
-                } else {
-                    this.concreteNodes = request.concreteNodes();
-                    request.setConcreteNodes(null);
-                    assert request.concreteNodes() == null;
-                }
-                return;
-            }
-
-            // Check if we want to populate the DiscoveryNodes in the transport Request and accordingly backfill the
-            // concrete nodes.
-            if (request.populateDiscoveryNodesInTransportRequest()) {
+            if (request.concreteNodes() == null) {
                 resolveRequest(request, clusterService.state());
                 assert request.concreteNodes() != null;
-                this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
-                this.concreteNodes = null;
+            }
+            this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
+
+            if (request.retainDiscoveryNodes() == false) {
+                // We transfer the ownership of discovery nodes to route the request to into the AsyncAction class.
+                // This reduces the payload of the request and improves the number of concrete nodes in the memory
+                this.concreteNodes = request.concreteNodes();
+                request.setConcreteNodes(null);
             } else {
-                this.concreteNodes = getConcreteNodes(request, clusterService.state());
-                assert request.concreteNodes() == null;
-                this.responses = new AtomicReferenceArray<>(concreteNodes.length);
+                // initializing it separately as we keep the `concreteNodes` as final since we want it to be immutable.
+                this.concreteNodes = null;
             }
         }
 

@@ -35,9 +35,9 @@ public class TransportNodesInfoActionTests extends TransportNodesActionTests {
      * By default, we send discovery nodes list to each request that is sent across from the coordinator node. This
      * behavior is asserted in this test.
      */
-    public void testNodesInfoActionWithDiscoveryNodesListPopulated() {
+    public void testNodesInfoActionWithRetentionOfDiscoveryNodesList() {
         NodesInfoRequest request = new NodesInfoRequest();
-        request.populateDiscoveryNodesInTransportRequest(true);
+        request.retainDiscoveryNodes(true);
         Map<String, List<MockNodesInfoRequest>> combinedSentRequest = performNodesInfoAction(request);
 
         assertNotNull(combinedSentRequest);
@@ -54,9 +54,9 @@ public class TransportNodesInfoActionTests extends TransportNodesActionTests {
      * In the optimized ClusterStats Request, we do not send the DiscoveryNodes List to each node. This behavior is
      * asserted in this test.
      */
-    public void testNodesInfoActionWithDiscoveryNodesListNotPopulated() {
+    public void testNodesInfoActionWithoutRetentionOfDiscoveryNodesList() {
         NodesInfoRequest request = new NodesInfoRequest();
-        request.populateDiscoveryNodesInTransportRequest(false);
+        request.retainDiscoveryNodes(false);
         Map<String, List<MockNodesInfoRequest>> combinedSentRequest = performNodesInfoAction(request);
 
         assertNotNull(combinedSentRequest);
