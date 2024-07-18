@@ -435,7 +435,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 originalSearchRequest,
                 logger,
                 TraceableSearchRequestOperationsListener.create(tracer, requestSpan),
-                new SearchTaskRequestOperationsListener(taskResourceTrackingService)
+                SearchTaskRequestOperationsListener.getInstance(taskResourceTrackingService)
             );
             SearchRequestContext searchRequestContext = new SearchRequestContext(
                 requestOperationsListeners,

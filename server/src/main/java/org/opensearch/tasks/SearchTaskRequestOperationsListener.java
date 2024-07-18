@@ -19,10 +19,18 @@ import org.opensearch.action.search.SearchRequestOperationsListener;
  *
  */
 public final class SearchTaskRequestOperationsListener extends SearchRequestOperationsListener {
+    private static SearchTaskRequestOperationsListener instance;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
-    public SearchTaskRequestOperationsListener(TaskResourceTrackingService taskResourceTrackingService) {
+    private SearchTaskRequestOperationsListener(TaskResourceTrackingService taskResourceTrackingService) {
         this.taskResourceTrackingService = taskResourceTrackingService;
+    }
+
+    public static synchronized SearchTaskRequestOperationsListener getInstance(TaskResourceTrackingService taskResourceTrackingService) {
+        if (instance == null) {
+            instance = new SearchTaskRequestOperationsListener(taskResourceTrackingService);
+        }
+        return instance;
     }
 
     @Override
