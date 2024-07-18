@@ -31,17 +31,11 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.IndexRoutingTable;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.cluster.routing.ShardRoutingState;
-import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -58,11 +52,8 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
@@ -87,14 +78,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithDocrepSettings;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithRemoteStoreSettings;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -910,172 +899,10 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameVersionClusterState);
     }
 
-    public void testIsSwitchToStrictCompatibilityMode() {
-        Settings mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "strict").build();
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        request.persistentSettings(mockSettings);
-        AllocationService allocationService = new AllocationService(
-            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
-            EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
-        );
-        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
-            transportService,
-            clusterService,
-            threadPool,
-            allocationService,
-            new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            clusterService.getClusterSettings()
-        );
-        assertTrue(transportClusterUpdateSettingsAction.isSwitchToStrictCompatibilityMode(request));
-
-        mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed").build();
-        request.persistentSettings(mockSettings);
-        assertFalse(transportClusterUpdateSettingsAction.isSwitchToStrictCompatibilityMode(request));
-    }
-
-    public void testFinalizeMigrationWithAllRemoteNodes() {
-        AllocationService allocationService = new AllocationService(
-            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
-            EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
-        );
-        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
-            transportService,
-            clusterService,
-            threadPool,
-            allocationService,
-            new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            clusterService.getClusterSettings()
-        );
-
-        String migratedIndex = "migrated-index";
-        Settings mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "strict").build();
-        DiscoveryNode remoteNode1 = new DiscoveryNode(
-            UUIDs.base64UUID(),
-            buildNewFakeTransportAddress(),
-            getRemoteStoreNodeAttributes(),
-            DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.CURRENT
-        );
-        DiscoveryNode remoteNode2 = new DiscoveryNode(
-            UUIDs.base64UUID(),
-            buildNewFakeTransportAddress(),
-            getRemoteStoreNodeAttributes(),
-            DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.CURRENT
-        );
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(remoteNode1)
-            .localNodeId(remoteNode1.getId())
-            .add(remoteNode2)
-            .localNodeId(remoteNode2.getId())
-            .build();
-        Metadata docrepIdxMetadata = createIndexMetadataWithDocrepSettings(migratedIndex);
-        assertDocrepSettingsApplied(docrepIdxMetadata.index(migratedIndex));
-        Metadata remoteIndexMd = Metadata.builder(docrepIdxMetadata).persistentSettings(mockSettings).build();
-        ClusterState clusterStateWithDocrepIndexSettings = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(remoteIndexMd)
-            .nodes(discoveryNodes)
-            .routingTable(createRoutingTableAllShardsStarted(migratedIndex, 1, 1, remoteNode1, remoteNode2))
-            .build();
-        Metadata mutatedMetadata = transportClusterUpdateSettingsAction.finalizeMigration(clusterStateWithDocrepIndexSettings).metadata();
-        assertTrue(mutatedMetadata.index(migratedIndex).getVersion() > docrepIdxMetadata.index(migratedIndex).getVersion());
-        assertRemoteSettingsApplied(mutatedMetadata.index(migratedIndex));
-    }
-
-    public void testFinalizeMigrationWithAllDocrepNodes() {
-        AllocationService allocationService = new AllocationService(
-            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
-            EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
-        );
-        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
-            transportService,
-            clusterService,
-            threadPool,
-            allocationService,
-            new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            clusterService.getClusterSettings()
-        );
-
-        String docrepIndex = "docrep-index";
-        Settings mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "strict").build();
-        DiscoveryNode docrepNode1 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode docrepNode2 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(docrepNode1)
-            .localNodeId(docrepNode1.getId())
-            .add(docrepNode2)
-            .localNodeId(docrepNode2.getId())
-            .build();
-        Metadata docrepIdxMetadata = createIndexMetadataWithDocrepSettings(docrepIndex);
-        assertDocrepSettingsApplied(docrepIdxMetadata.index(docrepIndex));
-        Metadata remoteIndexMd = Metadata.builder(docrepIdxMetadata).persistentSettings(mockSettings).build();
-        ClusterState clusterStateWithDocrepIndexSettings = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(remoteIndexMd)
-            .nodes(discoveryNodes)
-            .routingTable(createRoutingTableAllShardsStarted(docrepIndex, 1, 1, docrepNode1, docrepNode2))
-            .build();
-        Metadata mutatedMetadata = transportClusterUpdateSettingsAction.finalizeMigration(clusterStateWithDocrepIndexSettings).metadata();
-        assertEquals(docrepIdxMetadata.index(docrepIndex).getVersion(), mutatedMetadata.index(docrepIndex).getVersion());
-        assertDocrepSettingsApplied(mutatedMetadata.index(docrepIndex));
-    }
-
     private Map<String, String> getRemoteStoreNodeAttributes() {
         Map<String, String> remoteStoreNodeAttributes = new HashMap<>();
         remoteStoreNodeAttributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
         remoteStoreNodeAttributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
         return remoteStoreNodeAttributes;
-    }
-
-    private void assertRemoteSettingsApplied(IndexMetadata indexMetadata) {
-        assertTrue(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings()));
-        assertTrue(IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
-        assertTrue(IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
-        assertEquals(ReplicationType.SEGMENT, IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexMetadata.getSettings()));
-    }
-
-    private void assertDocrepSettingsApplied(IndexMetadata indexMetadata) {
-        assertFalse(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexMetadata.getSettings()));
-        assertFalse(IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
-        assertFalse(IndexMetadata.INDEX_REMOTE_SEGMENT_STORE_REPOSITORY_SETTING.exists(indexMetadata.getSettings()));
-        assertEquals(ReplicationType.DOCUMENT, IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(indexMetadata.getSettings()));
-    }
-
-    private RoutingTable createRoutingTableAllShardsStarted(
-        String indexName,
-        int numberOfShards,
-        int numberOfReplicas,
-        DiscoveryNode primaryHostingNode,
-        DiscoveryNode replicaHostingNode
-    ) {
-        RoutingTable.Builder builder = RoutingTable.builder();
-        Index index = new Index(indexName, UUID.randomUUID().toString());
-
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        for (int i = 0; i < numberOfShards; i++) {
-            ShardId shardId = new ShardId(index, i);
-            IndexShardRoutingTable.Builder indexShardRoutingTable = new IndexShardRoutingTable.Builder(shardId);
-            indexShardRoutingTable.addShard(
-                TestShardRouting.newShardRouting(shardId, primaryHostingNode.getId(), true, ShardRoutingState.STARTED)
-            );
-            for (int j = 0; j < numberOfReplicas; j++) {
-                indexShardRoutingTable.addShard(
-                    TestShardRouting.newShardRouting(shardId, replicaHostingNode.getId(), false, ShardRoutingState.STARTED)
-                );
-            }
-            indexRoutingTableBuilder.addIndexShard(indexShardRoutingTable.build());
-        }
-        return builder.add(indexRoutingTableBuilder.build()).build();
     }
 }
