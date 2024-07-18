@@ -1,12 +1,9 @@
 name: Performance Label Action
 
-on:
-  pull_request:
-    types: [labeled]
+on: [pull_request]
 
 jobs:
   add-comment:
-    if: github.event.label.name == 'Performance'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
