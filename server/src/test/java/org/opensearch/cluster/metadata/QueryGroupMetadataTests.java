@@ -14,7 +14,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.ResourceType;
+import org.opensearch.search.resourcetypes.ResourceType;
 import org.opensearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ public class QueryGroupMetadataTests extends AbstractDiffableSerializationTestCa
                     "test",
                     "ajakgakg983r92_4242",
                     QueryGroup.ResiliencyMode.ENFORCED,
-                    Map.of(ResourceType.MEMORY, 0.5),
+                    Map.of(ResourceType.fromName("jvm"), 0.5),
                     updatedAt
                 )
             )

@@ -18,7 +18,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -34,6 +33,7 @@ import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuress
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
+import org.opensearch.search.resourcetypes.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
 import org.opensearch.tasks.Task;
@@ -47,7 +47,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,9 +68,9 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
     private static final Map<TaskResourceUsageTrackerType, Function<NodeDuressTrackers, Boolean>> trackerApplyConditions = Map.of(
         TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
-        (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.CPU),
+        (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.fromName("cpu")),
         TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
-        (nodeDuressTrackers) -> isHeapTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.MEMORY),
+        (nodeDuressTrackers) -> isHeapTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.fromName("jvm")),
         TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER,
         (nodeDuressTrackers) -> true
     );
@@ -94,10 +93,10 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         ThreadPool threadPool,
         TaskManager taskManager
     ) {
-        this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {
+        this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new HashMap<>() {
             {
                 put(
-                    ResourceType.CPU,
+                    ResourceType.fromName("cpu"),
                     new NodeDuressTracker(
                         () -> ProcessProbe.getInstance().getProcessCpuPercent() / 100.0 >= settings.getNodeDuressSettings()
                             .getCpuThreshold(),
@@ -105,7 +104,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                     )
                 );
                 put(
-                    ResourceType.MEMORY,
+                    ResourceType.fromName("jvm"),
                     new NodeDuressTracker(
                         () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings()
                             .getHeapThreshold(),

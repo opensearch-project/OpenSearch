@@ -17,7 +17,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.ResourceType;
+import org.opensearch.search.resourcetypes.ResourceType;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -225,6 +225,17 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
 
     public String get_id() {
         return _id;
+    }
+
+    /**
+     * Converts the threshold percentage for the given resource type to a long value.
+     *
+     * @param resourceType The resource type for which the threshold is to be converted
+     * @return The threshold value in long format
+     */
+    public long getThresholdInLong(ResourceType resourceType) {
+        Double thresholdInPercentage = (Double) resourceLimits.get(resourceType);
+        return resourceType.convertThresholdPercentageToLong(thresholdInPercentage);
     }
 
     public long getUpdatedAtInMillis() {
