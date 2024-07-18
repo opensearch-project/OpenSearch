@@ -297,8 +297,8 @@ public class MigrationBaseTestCase extends OpenSearchIntegTestCase {
                 .prepareUpdateSettings()
                 .setPersistentSettings(
                     Settings.builder()
-                        .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "strict")
-                        .put(MIGRATION_DIRECTION_SETTING.getKey(), "none")
+                        .putNull(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey())
+                        .putNull(MIGRATION_DIRECTION_SETTING.getKey())
                 )
                 .get()
                 .isAcknowledged()

@@ -285,7 +285,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                      flow. That way we are not interfering with the usual settings update
                      and the cluster state mutation that comes along with it
                     */
-                    if (isCompatibilityModeChanging == true && isSwitchToStrictCompatibilityMode(request) == true) {
+                    if (isCompatibilityModeChanging && isSwitchToStrictCompatibilityMode(request)) {
                         ClusterState newStateAfterIndexMdChanges = finalizeMigration(clusterState);
                         changed = newStateAfterIndexMdChanges != currentState;
                         return newStateAfterIndexMdChanges;
