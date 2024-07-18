@@ -49,7 +49,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -196,13 +195,17 @@ public abstract class TaskBatcher {
             }
 
             if (toExecute.isEmpty() == false) {
-                final Supplier<String> tasksSummarySupplier = () -> processTasksBySource.entrySet().stream().map(entry -> {
-                    String tasks = updateTask.describeTasks(entry.getValue());
-                    return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-                }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
-                final String tasksShortSummary = buildShortSummary(updateTask.batchingKey);
+                Function<Boolean, String> taskSummaryGenerator = (longSummaryRequired) -> {
+                    if (longSummaryRequired == null || !longSummaryRequired) {
+                        return buildShortSummary(updateTask.batchingKey);
+                    }
+                    return processTasksBySource.entrySet().stream().map(entry -> {
+                        String tasks = updateTask.describeTasks(entry.getValue());
+                        return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
+                    }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
+                };
                 taskBatcherListener.onBeginProcessing(toExecute);
-                run(updateTask.batchingKey, toExecute, tasksSummarySupplier, tasksShortSummary);
+                run(updateTask.batchingKey, toExecute, taskSummaryGenerator);
             }
         }
     }
@@ -215,12 +218,7 @@ public abstract class TaskBatcher {
      * Action to be implemented by the specific batching implementation
      * All tasks have the given batching key.
      */
-    protected abstract void run(
-        Object batchingKey,
-        List<? extends BatchedTask> tasks,
-        Supplier<String> tasksSummary,
-        String tasksShortSummary
-    );
+    protected abstract void run(Object batchingKey, List<? extends BatchedTask> tasks, Function<Boolean, String> taskSummaryGenerator);
 
     /**
      * Represents a runnable task that supports batching.

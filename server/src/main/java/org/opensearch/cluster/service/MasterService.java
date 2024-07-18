@@ -84,6 +84,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -221,15 +222,10 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        protected void run(
-            Object batchingKey,
-            List<? extends BatchedTask> tasks,
-            Supplier<String> tasksSummarySupplier,
-            String tasksShortSummary
-        ) {
+        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, Function<Boolean, String> taskSummaryGenerator) {
             ClusterStateTaskExecutor<Object> taskExecutor = (ClusterStateTaskExecutor<Object>) batchingKey;
             List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
-            runTasks(new TaskInputs(taskExecutor, updateTasks, tasksSummarySupplier, tasksShortSummary));
+            runTasks(new TaskInputs(taskExecutor, updateTasks, taskSummaryGenerator));
         }
 
         class UpdateTask extends BatchedTask {
@@ -302,8 +298,8 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private void runTasks(TaskInputs taskInputs) {
-        final String longSummary = logger.isTraceEnabled() ? taskInputs.summarySupplier.get() : "";
-        final String shortSummary = taskInputs.shortSummary;
+        final String longSummary = logger.isTraceEnabled() ? taskInputs.taskSummaryGenerator.apply(true) : "";
+        final String shortSummary = taskInputs.taskSummaryGenerator.apply(false);
 
         if (!lifecycle.started()) {
             logger.debug("processing [{}]: ignoring, cluster-manager service not started", shortSummary);
@@ -464,8 +460,8 @@ public class MasterService extends AbstractLifecycleComponent {
         // TODO: do we want to call updateTask.onFailure here?
     }
 
-    private TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState, String longSummary) {
-        ClusterTasksResult<Object> clusterTasksResult = executeTasks(taskInputs, previousClusterState, longSummary);
+    private TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState, String taskSummary) {
+        ClusterTasksResult<Object> clusterTasksResult = executeTasks(taskInputs, previousClusterState, taskSummary);
         ClusterState newClusterState = patchVersions(previousClusterState, clusterTasksResult);
         return new TaskOutputs(
             taskInputs,
@@ -909,7 +905,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private ClusterTasksResult<Object> executeTasks(TaskInputs taskInputs, ClusterState previousClusterState, String longSummary) {
+    private ClusterTasksResult<Object> executeTasks(TaskInputs taskInputs, ClusterState previousClusterState, String taskSummary) {
         ClusterTasksResult<Object> clusterTasksResult;
         try {
             List<Object> inputs = taskInputs.updateTasks.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
@@ -925,7 +921,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     "failed to execute cluster state update (on version: [{}], uuid: [{}]) for [{}]\n{}{}{}",
                     previousClusterState.version(),
                     previousClusterState.stateUUID(),
-                    longSummary,
+                    taskSummary,
                     previousClusterState.nodes(),
                     previousClusterState.routingTable(),
                     previousClusterState.getRoutingNodes()
@@ -970,19 +966,16 @@ public class MasterService extends AbstractLifecycleComponent {
 
         final List<Batcher.UpdateTask> updateTasks;
         final ClusterStateTaskExecutor<Object> executor;
-        final Supplier<String> summarySupplier;
-        final String shortSummary;
+        final Function<Boolean, String> taskSummaryGenerator;
 
         TaskInputs(
             ClusterStateTaskExecutor<Object> executor,
             List<Batcher.UpdateTask> updateTasks,
-            Supplier<String> summarySupplier,
-            String shortSummary
+            final Function<Boolean, String> taskSummaryGenerator
         ) {
             this.executor = executor;
             this.updateTasks = updateTasks;
-            this.summarySupplier = summarySupplier;
-            this.shortSummary = shortSummary;
+            this.taskSummaryGenerator = taskSummaryGenerator;
         }
 
         boolean runOnlyWhenClusterManager() {
