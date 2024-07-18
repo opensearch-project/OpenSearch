@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.metadata.DataStream.TimestampField;
@@ -183,7 +184,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
-        this.context = in.readOptionalWriteable(Context::new);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            this.context = in.readOptionalWriteable(Context::new);
+        }
     }
 
     public List<String> indexPatterns() {
@@ -243,7 +246,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         out.writeOptionalVLong(this.version);
         out.writeMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
-        out.writeOptionalWriteable(context);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(context);
+        }
     }
 
     @Override
@@ -284,7 +289,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             this.priority,
             this.version,
             this.metadata,
-            this.dataStreamTemplate
+            this.dataStreamTemplate,
+            this.context
         );
     }
 
@@ -303,7 +309,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             && Objects.equals(this.priority, other.priority)
             && Objects.equals(this.version, other.version)
             && Objects.equals(this.metadata, other.metadata)
-            && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate);
+            && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
+            && Objects.equals(this.context, other.context);
     }
 
     @Override

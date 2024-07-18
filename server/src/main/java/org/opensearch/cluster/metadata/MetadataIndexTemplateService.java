@@ -581,7 +581,7 @@ public class MetadataIndexTemplateService {
             && !ClusterStateSystemTemplateLoader.TEMPLATE_LOADER_IDENTIFIER.equals(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME)
             )) {
-            throw new IllegalArgumentException("A system template can only be created with a repository");
+            throw new IllegalArgumentException("A system template can only be created/updated/deleted with a repository");
         }
     }
 

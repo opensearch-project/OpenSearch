@@ -10,6 +10,8 @@ package org.opensearch.cluster.applicationtemplates;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.util.Objects;
+
 /**
  * Metadata information about a template available in a template repository.
  */
@@ -65,5 +67,27 @@ public class SystemTemplateMetadata {
 
     public final String fullyQualifiedName() {
         return type + DELIMITER + name + DELIMITER + version;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SystemTemplateMetadata that = (SystemTemplateMetadata) o;
+        return version == that.version && Objects.equals(type, that.type) && Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(version, type, name);
+    }
+
+    @Override
+    public String toString() {
+        return "SystemTemplateMetadata{" +
+            "version=" + version +
+            ", type='" + type + '\'' +
+            ", name='" + name + '\'' +
+            '}';
     }
 }

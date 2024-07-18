@@ -20,6 +20,7 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Class encapsulating the context metadata associated with an index template/index.
@@ -47,6 +48,10 @@ public class Context extends AbstractDiffable<ComposableIndexTemplate> implement
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), VERSION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS);
+    }
+
+    public Context(String name) {
+        this(name, LATEST_VERSION, Map.of());
     }
 
     public Context(String name, String version, Map<String, Object> params) {
@@ -106,5 +111,18 @@ public class Context extends AbstractDiffable<ComposableIndexTemplate> implement
 
     public static Context fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Context context = (Context) o;
+        return Objects.equals(name, context.name) && Objects.equals(version, context.version) && Objects.equals(params, context.params);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, version, params);
     }
 }
