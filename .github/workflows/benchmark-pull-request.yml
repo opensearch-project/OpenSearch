@@ -121,7 +121,7 @@ jobs:
       - name: Checkout opensearch-build repo
         uses: actions/checkout@v4
         with:
-          repository: rishabh6788/opensearch-build
+          repository: opensearch-project/opensearch-build
           ref: main
           path: opensearch-build
       - name: Trigger jenkins workflow to run gradle check
