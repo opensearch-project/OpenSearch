@@ -81,10 +81,6 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
     ) throws IOException {
         StarTreeDocument[] starTreeDocuments = new StarTreeDocument[totalSegmentDocs];
         for (int currentDocId = 0; currentDocId < totalSegmentDocs; currentDocId++) {
-            // TODO : fast exit if all dimensions are null ( indicating all iterators are exhausted )
-            // TODO : if all the dimensions are null, then we can skip adding the document
-            // TODO : if we come out of this loop with the very first document dimensions coming with doc iterators exhausted,
-            // then we need to return empty star tree
             // TODO : we can save empty iterator for dimensions which are not part of segment
             starTreeDocuments[currentDocId] = getSegmentStarTreeDocument(currentDocId, dimensionReaders, metricReaders);
         }
@@ -103,8 +99,9 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @param starTreeValuesSubs StarTreeValues from multiple segments
      * @return iterator of star tree documents
      */
+    @Override
     Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValuesSubs) throws IOException {
-        return sortAndAggregateStarTreeDocuments(mergeStarTreeValues(starTreeValuesSubs), true);
+        return sortAndAggregateStarTreeDocuments(reduceStarTreeDocumentsInSubs(starTreeValuesSubs), true);
     }
 
     /**
@@ -113,13 +110,11 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @param starTreeValuesSubs StarTreeValues from multiple segments
      * @return array of star tree documents
      */
-    StarTreeDocument[] mergeStarTreeValues(List<StarTreeValues> starTreeValuesSubs) throws IOException {
+    StarTreeDocument[] reduceStarTreeDocumentsInSubs(List<StarTreeValues> starTreeValuesSubs) throws IOException {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
         for (StarTreeValues starTreeValues : starTreeValuesSubs) {
             List<Dimension> dimensionsSplitOrder = starTreeValues.getStarTreeField().getDimensionsOrder();
-            SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[starTreeValues.getStarTreeField()
-                .getDimensionsOrder()
-                .size()];
+            SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[dimensionsSplitOrder.size()];
 
             for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
                 String dimension = dimensionsSplitOrder.get(i).getField();
@@ -136,22 +131,14 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
             int numSegmentDocs = Integer.parseInt(
                 starTreeValues.getAttributes().getOrDefault(NUM_SEGMENT_DOCS, String.valueOf(DocIdSetIterator.NO_MORE_DOCS))
             );
-            while (!endOfDoc) {
-                Long[] dims = new Long[starTreeValues.getStarTreeField().getDimensionsOrder().size()];
+            while (currentDocId < numSegmentDocs) {
+                Long[] dims = new Long[dimensionsSplitOrder.size()];
                 int i = 0;
-                int endOfDocCounter = 0;
                 for (SequentialDocValuesIterator dimensionDocValueIterator : dimensionReaders) {
-                    int doc = dimensionDocValueIterator.nextDoc(currentDocId);
+                    dimensionDocValueIterator.nextDoc(currentDocId);
                     Long val = dimensionDocValueIterator.value(currentDocId);
-                    if (doc == DocIdSetIterator.NO_MORE_DOCS) {
-                        endOfDocCounter++;
-                    }
                     dims[i] = val;
                     i++;
-                }
-                // we've exhausted all dimension readers
-                if (endOfDocCounter == dims.length) {
-                    break;
                 }
                 i = 0;
                 Object[] metrics = new Object[metricReaders.size()];
@@ -168,7 +155,6 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 StarTreeDocument starTreeDocument = new StarTreeDocument(dims, metrics);
                 starTreeDocuments.add(starTreeDocument);
                 currentDocId++;
-                if (currentDocId == numSegmentDocs) break;
             }
         }
         StarTreeDocument[] starTreeDocumentsArr = new StarTreeDocument[starTreeDocuments.size()];

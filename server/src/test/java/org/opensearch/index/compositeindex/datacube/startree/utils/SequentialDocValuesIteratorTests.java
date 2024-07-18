@@ -123,6 +123,7 @@ public class SequentialDocValuesIteratorTests extends OpenSearchTestCase {
         sequentialDocValuesIterator2.nextDoc(0);
         assertEquals(0, sequentialDocValuesIterator1.getDocId());
         assertEquals(9L, (long) sequentialDocValuesIterator1.value(0));
+        assertNull(sequentialDocValuesIterator2.value(0));
         assertNotEquals(0, sequentialDocValuesIterator2.getDocId());
         assertEquals(1, sequentialDocValuesIterator2.getDocId());
         assertEquals(9L, (long) sequentialDocValuesIterator2.value(1));

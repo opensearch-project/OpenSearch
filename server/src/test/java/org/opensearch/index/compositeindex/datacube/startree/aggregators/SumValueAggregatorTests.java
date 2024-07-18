@@ -20,7 +20,7 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        aggregator = new SumValueAggregator();
+        aggregator = new SumValueAggregator(StarTreeNumericType.LONG);
     }
 
     public void testGetAggregationType() {
@@ -32,21 +32,18 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
-        assertEquals(1.0, aggregator.getInitialAggregatedValueForSegmentDocValue(1L, StarTreeNumericType.LONG), 0.0);
-        assertThrows(
-            NullPointerException.class,
-            () -> aggregator.getInitialAggregatedValueForSegmentDocValue(null, StarTreeNumericType.DOUBLE)
-        );
+        assertEquals(1.0, aggregator.getInitialAggregatedValueForSegmentDocValue(1L), 0.0);
+        assertThrows(NullPointerException.class, () -> aggregator.getInitialAggregatedValueForSegmentDocValue(null));
     }
 
     public void testMergeAggregatedValueAndSegmentValue() {
         aggregator.getInitialAggregatedValue(2.0);
-        assertEquals(5.0, aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L, StarTreeNumericType.LONG), 0.0);
+        assertEquals(5.0, aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L), 0.0);
     }
 
     public void testMergeAggregatedValueAndSegmentValue_nullSegmentDocValue() {
         aggregator.getInitialAggregatedValue(2.0);
-        assertThrows(NullPointerException.class, () -> aggregator.mergeAggregatedValueAndSegmentValue(2.0, null, StarTreeNumericType.LONG));
+        assertThrows(NullPointerException.class, () -> aggregator.mergeAggregatedValueAndSegmentValue(2.0, null));
     }
 
     public void testMergeAggregatedValues() {

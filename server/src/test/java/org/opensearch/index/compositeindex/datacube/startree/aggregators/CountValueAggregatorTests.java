@@ -13,7 +13,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
 import org.opensearch.test.OpenSearchTestCase;
 
 public class CountValueAggregatorTests extends OpenSearchTestCase {
-    private final CountValueAggregator aggregator = new CountValueAggregator();
+    private final CountValueAggregator aggregator = new CountValueAggregator(StarTreeNumericType.LONG);
 
     public void testGetAggregationType() {
         assertEquals(MetricStat.COUNT.getTypeName(), aggregator.getAggregationType().getTypeName());
@@ -24,11 +24,11 @@ public class CountValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
-        assertEquals(1L, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong(), StarTreeNumericType.LONG), 0.0);
+        assertEquals(1L, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong()), 0.0);
     }
 
     public void testMergeAggregatedValueAndSegmentValue() {
-        assertEquals(3L, aggregator.mergeAggregatedValueAndSegmentValue(2L, 3L, StarTreeNumericType.LONG), 0.0);
+        assertEquals(3L, aggregator.mergeAggregatedValueAndSegmentValue(2L, 3L), 0.0);
     }
 
     public void testMergeAggregatedValues() {

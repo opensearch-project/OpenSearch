@@ -74,8 +74,7 @@ public class StarTreesBuilder implements Closeable {
         logger.debug("Starting building {} star-trees with star-tree fields", numStarTrees);
 
         // Build all star-trees
-        for (int i = 0; i < numStarTrees; i++) {
-            StarTreeField starTreeField = starTreeFields.get(i);
+        for (StarTreeField starTreeField : starTreeFields) {
             try (StarTreeBuilder starTreeBuilder = getSingleTreeBuilder(starTreeField, state, mapperService)) {
                 starTreeBuilder.build(fieldProducerMap);
             }
@@ -91,18 +90,18 @@ public class StarTreesBuilder implements Closeable {
     /**
      * Merges star tree fields from multiple segments
      *
-     * @param starTreeFieldMap             StarTreeField configuration per field
      * @param starTreeValuesSubsPerField   starTreeValuesSubs per field
      */
-    public void buildDuringMerge(
-        final Map<String, StarTreeField> starTreeFieldMap,
-        final Map<String, List<StarTreeValues>> starTreeValuesSubsPerField
-    ) throws IOException {
+    public void buildDuringMerge(final Map<String, List<StarTreeValues>> starTreeValuesSubsPerField) throws IOException {
         logger.debug("Starting merge of {} star-trees with star-tree fields", starTreeValuesSubsPerField.size());
         long startTime = System.currentTimeMillis();
         for (Map.Entry<String, List<StarTreeValues>> entry : starTreeValuesSubsPerField.entrySet()) {
             List<StarTreeValues> starTreeValuesList = entry.getValue();
-            StarTreeField starTreeField = starTreeFieldMap.get(entry.getKey());
+            if (starTreeValuesList.isEmpty()) {
+                logger.debug("StarTreeValues is empty for all segments for field : {}", entry.getKey());
+                continue;
+            }
+            StarTreeField starTreeField = starTreeValuesList.get(0).getStarTreeField();
             StarTreeBuilder builder = getSingleTreeBuilder(starTreeField, state, mapperService);
             builder.build(starTreeValuesList);
             builder.close();

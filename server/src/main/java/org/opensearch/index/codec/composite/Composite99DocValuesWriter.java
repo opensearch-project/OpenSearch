@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,10 +62,8 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         this.compositeMappedFieldTypes = mapperService.getCompositeFieldTypes();
         compositeFieldSet = new HashSet<>();
         segmentFieldSet = new HashSet<>();
-        Iterator<FieldInfo> fieldInfoIterator = segmentWriteState.fieldInfos.iterator();
-        while (fieldInfoIterator.hasNext()) {
-            FieldInfo fi = fieldInfoIterator.next();
-            if (fi.getDocValuesType().equals(DocValuesType.SORTED_NUMERIC)) {
+        for (FieldInfo fi : segmentWriteState.fieldInfos) {
+            if (DocValuesType.SORTED_NUMERIC.equals(fi.getDocValuesType())) {
                 segmentFieldSet.add(fi.name);
             }
         }
@@ -117,8 +114,8 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         }
         segmentFieldSet.remove(field.name);
         if (segmentFieldSet.isEmpty()) {
-            while (compositeFieldSet.iterator().hasNext()) {
-                String compositeField = compositeFieldSet.iterator().next();
+            Set<String> compositeFieldSetCopy = new HashSet<>(compositeFieldSet);
+            for (String compositeField : compositeFieldSetCopy) {
                 fieldProducerMap.put(compositeField, new EmptyDocValuesProducer() {
                     @Override
                     public SortedNumericDocValues getSortedNumeric(FieldInfo field) {
@@ -162,7 +159,6 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
      */
     private void mergeStarTreeFields(MergeState mergeState) throws IOException {
         Map<String, List<StarTreeValues>> starTreeSubsPerField = new HashMap<>();
-        Map<String, StarTreeField> starTreeFieldMap = new HashMap<>();
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             CompositeIndexReader reader = null;
             if (mergeState.docValuesProducers[i] == null) {
@@ -176,30 +172,30 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
 
             List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
             for (CompositeIndexFieldInfo fieldInfo : compositeFieldInfo) {
+                StarTreeField starTreeField = null;
                 if (fieldInfo.getType().equals(CompositeMappedFieldType.CompositeFieldType.STAR_TREE)) {
                     CompositeIndexValues compositeIndexValues = reader.getCompositeIndexValues(fieldInfo);
                     if (compositeIndexValues instanceof StarTreeValues) {
+                        StarTreeValues starTreeValues = (StarTreeValues) compositeIndexValues;
                         List<StarTreeValues> fieldsList = starTreeSubsPerField.getOrDefault(fieldInfo.getField(), Collections.emptyList());
-
-                        if (!starTreeFieldMap.containsKey(fieldInfo.getField())) {
-                            starTreeFieldMap.put(fieldInfo.getField(), ((StarTreeValues) compositeIndexValues).getStarTreeField());
+                        if (starTreeField == null) {
+                            starTreeField = starTreeValues.getStarTreeField();
                         }
                         // assert star tree configuration is same across segments
                         else {
-                            if (starTreeFieldMap.get(fieldInfo.getField())
-                                .equals(((StarTreeValues) compositeIndexValues).getStarTreeField()) == false) {
+                            if (starTreeField.equals(starTreeValues.getStarTreeField()) == false) {
                                 throw new IllegalArgumentException(
                                     "star tree field configuration must match the configuration of the field being merged"
                                 );
                             }
                         }
-                        fieldsList.add((StarTreeValues) compositeIndexValues);
+                        fieldsList.add(starTreeValues);
                         starTreeSubsPerField.put(fieldInfo.getField(), fieldsList);
                     }
                 }
             }
         }
         final StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService);
-        starTreesBuilder.buildDuringMerge(starTreeFieldMap, starTreeSubsPerField);
+        starTreesBuilder.buildDuringMerge(starTreeSubsPerField);
     }
 }

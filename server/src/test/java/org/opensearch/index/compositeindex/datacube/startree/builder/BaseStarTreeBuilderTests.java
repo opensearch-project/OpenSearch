@@ -192,6 +192,11 @@ public class BaseStarTreeBuilderTests extends OpenSearchTestCase {
                 throws IOException {
                 return null;
             }
+
+            @Override
+            Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValues) throws IOException {
+                return null;
+            }
         };
     }
 

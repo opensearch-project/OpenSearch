@@ -33,8 +33,8 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
      */
     public MetricAggregatorInfo(MetricStat metricStat, String field, String starFieldName, IndexNumericFieldData.NumericType numericType) {
         this.metricStat = metricStat;
-        this.valueAggregators = ValueAggregatorFactory.getValueAggregator(metricStat);
         this.starTreeNumericType = StarTreeNumericType.fromNumericType(numericType);
+        this.valueAggregators = ValueAggregatorFactory.getValueAggregator(metricStat, this.starTreeNumericType);
         this.field = field;
         this.starFieldName = starFieldName;
         this.metric = toFieldName();

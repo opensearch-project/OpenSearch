@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -291,10 +292,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     if (isMerge) {
                         metrics[i] = metricValueAggregator.getInitialAggregatedValue(segmentDocument.metrics[i]);
                     } else {
-                        metrics[i] = metricValueAggregator.getInitialAggregatedValueForSegmentDocValue(
-                            getLong(segmentDocument.metrics[i]),
-                            starTreeNumericType
-                        );
+                        metrics[i] = metricValueAggregator.getInitialAggregatedValueForSegmentDocValue(getLong(segmentDocument.metrics[i]));
                     }
 
                 } catch (Exception e) {
@@ -310,14 +308,13 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     StarTreeNumericType starTreeNumericType = metricAggregatorInfos.get(i).getAggregatedValueType();
                     if (isMerge) {
                         aggregatedSegmentDocument.metrics[i] = metricValueAggregator.mergeAggregatedValues(
-                            aggregatedSegmentDocument.metrics[i],
-                            segmentDocument.metrics[i]
+                            segmentDocument.metrics[i],
+                            aggregatedSegmentDocument.metrics[i]
                         );
                     } else {
                         aggregatedSegmentDocument.metrics[i] = metricValueAggregator.mergeAggregatedValueAndSegmentValue(
                             aggregatedSegmentDocument.metrics[i],
-                            getLong(segmentDocument.metrics[i]),
-                            starTreeNumericType
+                            getLong(segmentDocument.metrics[i])
                         );
                     }
                 } catch (Exception e) {
@@ -715,4 +712,5 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
     }
 
+    abstract Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValues) throws IOException;
 }

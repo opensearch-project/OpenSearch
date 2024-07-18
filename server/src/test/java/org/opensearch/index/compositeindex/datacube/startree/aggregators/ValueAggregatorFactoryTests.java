@@ -15,7 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 public class ValueAggregatorFactoryTests extends OpenSearchTestCase {
 
     public void testGetValueAggregatorForSumType() {
-        ValueAggregator aggregator = ValueAggregatorFactory.getValueAggregator(MetricStat.SUM);
+        ValueAggregator aggregator = ValueAggregatorFactory.getValueAggregator(MetricStat.SUM, StarTreeNumericType.LONG);
         assertNotNull(aggregator);
         assertEquals(SumValueAggregator.class, aggregator.getClass());
     }
