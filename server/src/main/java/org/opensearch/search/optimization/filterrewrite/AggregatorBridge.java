@@ -11,6 +11,7 @@ package org.opensearch.search.optimization.filterrewrite;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -72,5 +73,5 @@ public abstract class AggregatorBridge {
      * @param values              the point values (index structure for numeric values) for a segment
      * @param incrementDocCount   a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
      */
-    public abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException;
+    public abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, final LeafBucketCollector sub) throws IOException;
 }

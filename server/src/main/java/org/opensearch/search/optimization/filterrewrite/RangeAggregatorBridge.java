@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumericPointEncoder;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
@@ -19,6 +20,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.List;
 
 import static org.opensearch.search.optimization.filterrewrite.TreeTraversal.multiRangesTraverse;
 
@@ -74,17 +76,23 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
+    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, final LeafBucketCollector sub) throws IOException {
         int size = Integer.MAX_VALUE;
 
-        BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
+        BiConsumer<Integer, List<Integer>> collectRangeIDs = (activeIndex, docIDs) -> {
             long ord = bucketOrdProducer().apply(activeIndex);
-            incrementDocCount.accept(ord, (long) docCount);
+            incrementDocCount.accept(ord, (long) docIDs.size());
+
+            try {
+                for (int docID : docIDs) {
+                    sub.collect(docID, activeIndex);
+                }
+            } catch ( IOException ioe) {
+                throw new RuntimeException(ioe);
+            }
         };
 
-        optimizationContext.consumeDebugInfo(
-            multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), incrementFunc, size)
-        );
+        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), collectRangeIDs, size));
     }
 
     /**

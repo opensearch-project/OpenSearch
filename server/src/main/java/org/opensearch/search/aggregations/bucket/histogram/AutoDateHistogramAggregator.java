@@ -205,7 +205,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             }
 
         });
-        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
+        if (optimizationContext.canOptimize(parent, context)) {
             optimizationContext.prepare();
         }
     }
@@ -239,7 +239,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
+        boolean optimized = optimizationContext.tryOptimize(ctx, sub, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);

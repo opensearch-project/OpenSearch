@@ -16,11 +16,13 @@ import org.apache.lucene.search.Weight;
 import org.opensearch.common.Rounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.histogram.LongBounds;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -123,20 +125,26 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
+    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, final LeafBucketCollector sub) throws IOException {
         int size = getSize();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
-        BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
+        BiConsumer<Integer, List<Integer>> collectRangeIDs = (activeIndex, docIDs) -> {
             long rangeStart = LongPoint.decodeDimension(optimizationContext.getRanges().lowers[activeIndex], 0);
             rangeStart = fieldType.convertNanosToMillis(rangeStart);
             long ord = getBucketOrd(bucketOrdProducer().apply(rangeStart));
-            incrementDocCount.accept(ord, (long) docCount);
+            incrementDocCount.accept(ord, (long) docIDs.size());
+
+            try {
+                for (int docID : docIDs) {
+                    sub.collect(docID, ord);
+                }
+            } catch ( IOException ioe) {
+                throw new RuntimeException(ioe);
+            }
         };
 
-        optimizationContext.consumeDebugInfo(
-            multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), incrementFunc, size)
-        );
+        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), collectRangeIDs, size));
     }
 
     private static long getBucketOrd(long bucketOrd) {

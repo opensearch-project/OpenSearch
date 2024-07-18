@@ -297,7 +297,7 @@ public class RangeAggregator extends BucketsAggregator {
                 return (activeIndex) -> subBucketOrdinal(0, (int) activeIndex);
             }
         });
-        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
+        if (optimizationContext.canOptimize(parent, context)) {
             optimizationContext.prepare();
         }
     }
@@ -312,7 +312,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false);
+        boolean optimized = optimizationContext.tryOptimize(ctx, sub, this::incrementBucketDocCount, false);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);

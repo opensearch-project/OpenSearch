@@ -16,6 +16,8 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.common.CheckedRunnable;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.search.optimization.filterrewrite.Helper.loggerName;
@@ -42,14 +44,14 @@ final class TreeTraversal {
      *
      * @param tree                 the point tree to traverse
      * @param ranges               the set of ranges to intersect with
-     * @param incrementDocCount    a callback to increment the document count for a range bucket
+     * @param collectRangeIDs      a callback to collect the doc ids for a range bucket
      * @param maxNumNonZeroRanges  the maximum number of non-zero ranges to collect
      * @return a {@link OptimizationContext.DebugInfo} object containing debug information about the traversal
      */
     static OptimizationContext.DebugInfo multiRangesTraverse(
         final PointValues.PointTree tree,
         final Ranges ranges,
-        final BiConsumer<Integer, Integer> incrementDocCount,
+        final BiConsumer<Integer, List<Integer>> collectRangeIDs,
         final int maxNumNonZeroRanges
     ) throws IOException {
         OptimizationContext.DebugInfo debugInfo = new OptimizationContext.DebugInfo();
@@ -58,7 +60,7 @@ final class TreeTraversal {
             logger.debug("No ranges match the query, skip the fast filter optimization");
             return debugInfo;
         }
-        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(incrementDocCount, maxNumNonZeroRanges, ranges, activeIndex);
+        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(collectRangeIDs, maxNumNonZeroRanges, ranges, activeIndex);
         PointValues.IntersectVisitor visitor = getIntersectVisitor(collector);
         try {
             intersectWithRanges(visitor, tree, collector, debugInfo);
@@ -80,7 +82,7 @@ final class TreeTraversal {
 
         switch (r) {
             case CELL_INSIDE_QUERY:
-                collector.countNode((int) pointTree.size());
+                pointTree.visitDocIDs(visitor);
                 debug.visitInner();
                 break;
             case CELL_CROSSES_QUERY:
@@ -110,19 +112,21 @@ final class TreeTraversal {
 
             @Override
             public void visit(int docID, byte[] packedValue) throws IOException {
-                visitPoints(packedValue, collector::count);
+                if (canCollect(packedValue)) {
+                    collector.count(docID);
+                }
             }
 
             @Override
             public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
-                visitPoints(packedValue, () -> {
+                if (canCollect(packedValue)) {
                     for (int doc = iterator.nextDoc(); doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                        collector.count();
+                        collector.count(iterator.docID());
                     }
-                });
+                }
             }
 
-            private void visitPoints(byte[] packedValue, CheckedRunnable<IOException> collect) throws IOException {
+            private boolean canCollect(byte[] packedValue) {
                 if (!collector.withinUpperBound(packedValue)) {
                     collector.finalizePreviousRange();
                     if (collector.iterateRangeEnd(packedValue)) {
@@ -130,9 +134,7 @@ final class TreeTraversal {
                     }
                 }
 
-                if (collector.withinRange(packedValue)) {
-                    collect.run();
-                }
+                return collector.withinRange(packedValue);
             }
 
             @Override
@@ -158,39 +160,37 @@ final class TreeTraversal {
     }
 
     private static class RangeCollectorForPointTree {
-        private final BiConsumer<Integer, Integer> incrementRangeDocCount;
-        private int counter = 0;
-
+        private final BiConsumer<Integer, List<Integer>> collectRangeIDs;
+        private final List<Integer> DIDList = new ArrayList<>();
         private final Ranges ranges;
         private int activeIndex;
-
         private int visitedRange = 0;
         private final int maxNumNonZeroRange;
 
         public RangeCollectorForPointTree(
-            BiConsumer<Integer, Integer> incrementRangeDocCount,
+            BiConsumer<Integer, List<Integer>> collectRangeIDs,
             int maxNumNonZeroRange,
             Ranges ranges,
             int activeIndex
         ) {
-            this.incrementRangeDocCount = incrementRangeDocCount;
+            this.collectRangeIDs = collectRangeIDs;
             this.maxNumNonZeroRange = maxNumNonZeroRange;
             this.ranges = ranges;
             this.activeIndex = activeIndex;
         }
 
-        private void count() {
-            counter++;
+        private void count(int docID) {
+            DIDList.add(docID);
         }
 
-        private void countNode(int count) {
-            counter += count;
+        private void countNode(List<Integer> docIDs) {
+            DIDList.addAll(docIDs);
         }
 
         private void finalizePreviousRange() {
-            if (counter > 0) {
-                incrementRangeDocCount.accept(activeIndex, counter);
-                counter = 0;
+            if (!DIDList.isEmpty()) {
+                collectRangeIDs.accept(activeIndex, DIDList);
+                DIDList.clear();
             }
         }
 

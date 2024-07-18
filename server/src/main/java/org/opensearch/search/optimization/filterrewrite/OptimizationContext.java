@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -54,10 +55,9 @@ public final class OptimizationContext {
         this.aggregatorBridge = aggregatorBridge;
     }
 
-    public boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) {
+    public boolean canOptimize(final Object parent, SearchContext context) {
         if (context.maxAggRewriteFilters() == 0) return false;
-
-        if (parent != null || subAggLength != 0) return false;
+        if (parent != null) return false;
 
         this.canOptimize = aggregatorBridge.canOptimize();
         if (canOptimize) {
@@ -102,7 +102,7 @@ public final class OptimizationContext {
      * @param incrementDocCount consume the doc_count results for certain ordinal
      * @param segmentMatchAll if your optimization can prepareFromSegment, you should pass in this flag to decide whether to prepareFromSegment
      */
-    public boolean tryOptimize(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount, boolean segmentMatchAll)
+    public boolean tryOptimize(final LeafReaderContext leafCtx, LeafBucketCollector sub, final BiConsumer<Long, Long> incrementDocCount, boolean segmentMatchAll)
         throws IOException {
         segments++;
         if (!canOptimize) {
@@ -129,7 +129,7 @@ public final class OptimizationContext {
         Ranges ranges = tryBuildRangesFromSegment(leafCtx, segmentMatchAll);
         if (ranges == null) return false;
 
-        aggregatorBridge.tryOptimize(values, incrementDocCount);
+        aggregatorBridge.tryOptimize(values, incrementDocCount, sub);
 
         optimizedSegments++;
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
