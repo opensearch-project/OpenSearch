@@ -71,7 +71,6 @@ public final class SearchRequestOperationsCompositeListenerFactory {
         final List<SearchRequestOperationsListener> searchListenersList = Stream.concat(
             searchRequestListenersList.stream(),
             Arrays.stream(perRequestListeners)
-
         )
             .filter((searchRequestOperationsListener -> searchRequestOperationsListener.isEnabled(searchRequest)))
             .collect(Collectors.toList());
