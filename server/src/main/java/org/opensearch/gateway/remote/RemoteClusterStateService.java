@@ -259,7 +259,7 @@ public class RemoteClusterStateService implements Closeable {
                 uploadedMetadataResults.uploadedIndicesRoutingMetadata.size()
             );
         } else {
-            logger.info(
+            logger.debug(
                 "writing cluster state took [{}ms]; " + "wrote full state with [{}] indices, [{}] indicesRouting and global metadata",
                 durationMillis,
                 uploadedMetadataResults.uploadedIndexMetadata.size(),
@@ -458,8 +458,8 @@ public class RemoteClusterStateService implements Closeable {
                 customsDiff.getUpserts().size()
             );
         } else {
-            logger.info("{}; {}", clusterStateUploadTimeMessage, metadataUpdateMessage);
-            logger.info(
+            logger.debug("{}; {}", clusterStateUploadTimeMessage, metadataUpdateMessage);
+            logger.debug(
                 "writing cluster state for version [{}] took [{}ms]; "
                     + "wrote metadata for [{}] indices and skipped [{}] unchanged indices, coordination metadata updated : [{}], "
                     + "settings metadata updated : [{}], templates metadata updated : [{}], custom metadata updated : [{}]",
