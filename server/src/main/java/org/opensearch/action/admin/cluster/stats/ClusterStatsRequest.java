@@ -51,11 +51,11 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            useOptimizedClusterStatsResponse = in.readOptionalBoolean();
+            useAggregatedNodeLevelResponses = in.readOptionalBoolean();
         }
     }
 
-    private Boolean useOptimizedClusterStatsResponse = false;
+    private Boolean useAggregatedNodeLevelResponses = false;
 
     /**
      * Get stats from nodes based on the nodes ids specified. If none are passed, stats
@@ -65,19 +65,19 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         super(nodesIds);
     }
 
-    public boolean useOptimizedClusterStatsResponse() {
-        return useOptimizedClusterStatsResponse;
+    public boolean useAggregatedNodeLevelResponses() {
+        return useAggregatedNodeLevelResponses;
     }
 
-    public void useOptimizedClusterStatsResponse(boolean useOptimizedClusterStatsResponse) {
-        this.useOptimizedClusterStatsResponse = useOptimizedClusterStatsResponse;
+    public void useAggregatedNodeLevelResponses(boolean useAggregatedNodeLevelResponses) {
+        this.useAggregatedNodeLevelResponses = useAggregatedNodeLevelResponses;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalBoolean(useOptimizedClusterStatsResponse);
+            out.writeOptionalBoolean(useAggregatedNodeLevelResponses);
         }
     }
 

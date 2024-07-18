@@ -81,21 +81,21 @@ public class ClusterStatsIndices implements ToXContentFragment {
         this.segments = new SegmentsStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
-            // Optimized response from the node
-            if (r.getNodeIndexShardStats() != null) {
-                r.getNodeIndexShardStats().indexStatsMap.forEach(
+            // Aggregated response from the node
+            if (r.getAggregatedNodeLevelStats() != null) {
+                r.getAggregatedNodeLevelStats().indexStatsMap.forEach(
                     (index, indexCountStats) -> countsPerIndex.merge(index, indexCountStats, (v1, v2) -> {
                         v1.addStatsFrom(v2);
                         return v1;
                     })
                 );
 
-                docs.add(r.getNodeIndexShardStats().docs);
-                store.add(r.getNodeIndexShardStats().store);
-                fieldData.add(r.getNodeIndexShardStats().fieldData);
-                queryCache.add(r.getNodeIndexShardStats().queryCache);
-                completion.add(r.getNodeIndexShardStats().completion);
-                segments.add(r.getNodeIndexShardStats().segments);
+                docs.add(r.getAggregatedNodeLevelStats().docs);
+                store.add(r.getAggregatedNodeLevelStats().store);
+                fieldData.add(r.getAggregatedNodeLevelStats().fieldData);
+                queryCache.add(r.getAggregatedNodeLevelStats().queryCache);
+                completion.add(r.getAggregatedNodeLevelStats().completion);
+                segments.add(r.getAggregatedNodeLevelStats().segments);
             } else {
                 // Default response from the node
                 for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {

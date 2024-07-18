@@ -28,7 +28,7 @@ import java.util.Map;
 /**
  * Node level statistics used for ClusterStatsIndices for _cluster/stats call.
  */
-public class NodeIndexShardStats extends BaseNodeResponse {
+public class AggregatedNodeLevelStats extends BaseNodeResponse {
 
     DocsStats docs;
     StoreStats store;
@@ -38,7 +38,7 @@ public class NodeIndexShardStats extends BaseNodeResponse {
     SegmentsStats segments;
     Map<String, ClusterStatsIndices.ShardStats> indexStatsMap;
 
-    protected NodeIndexShardStats(StreamInput in) throws IOException {
+    protected AggregatedNodeLevelStats(StreamInput in) throws IOException {
         super(in);
         docs = in.readOptionalWriteable(DocsStats::new);
         store = in.readOptionalWriteable(StoreStats::new);
@@ -49,7 +49,7 @@ public class NodeIndexShardStats extends BaseNodeResponse {
         indexStatsMap = in.readMap(StreamInput::readString, ClusterStatsIndices.ShardStats::new);
     }
 
-    protected NodeIndexShardStats(DiscoveryNode node, ShardStats[] indexShardsStats) {
+    protected AggregatedNodeLevelStats(DiscoveryNode node, ShardStats[] indexShardsStats) {
         super(node);
 
         this.docs = new DocsStats();

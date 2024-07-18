@@ -51,8 +51,8 @@ public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<
         super(client, action, new ClusterStatsRequest());
     }
 
-    public final ClusterStatsRequestBuilder useOptimizedClusterStatsResponse(boolean useOptimizedClusterStatsResponse) {
-        request.useOptimizedClusterStatsResponse(useOptimizedClusterStatsResponse);
-        return (ClusterStatsRequestBuilder) this;
+    public final ClusterStatsRequestBuilder useAggregatedNodeLevelResponses(boolean useAggregatedNodeLevelResponses) {
+        request.useAggregatedNodeLevelResponses(useAggregatedNodeLevelResponses);
+        return this;
     }
 }

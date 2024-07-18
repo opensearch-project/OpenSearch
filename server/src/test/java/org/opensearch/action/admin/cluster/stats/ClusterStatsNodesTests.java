@@ -180,21 +180,21 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         );
     }
 
-    public void testMultiVersionScenario() {
-        // Assuming the default behavior will be the type of response expected from a node of version prior to version containing optimized
-        // output
+    public void testMultiVersionScenarioWithAggregatedNodeLevelStats() {
+        // Assuming the default behavior will be the type of response expected from a node of version prior to version containing
+        // aggregated node level information
         int numberOfNodes = randomIntBetween(1, 4);
         Index testIndex = new Index("test-index", "_na_");
 
         List<ClusterStatsNodeResponse> defaultClusterStatsNodeResponses = new ArrayList<>();
-        List<ClusterStatsNodeResponse> optimizedClusterStatsNodeResponses = new ArrayList<>();
+        List<ClusterStatsNodeResponse> aggregatedNodeLevelClusterStatsNodeResponses = new ArrayList<>();
 
         for (int i = 0; i < numberOfNodes; i++) {
             DiscoveryNode node = new DiscoveryNode("node-" + i, buildNewFakeTransportAddress(), Version.CURRENT);
             CommonStats commonStats = createRandomCommonStats();
             ShardStats[] shardStats = createshardStats(node, testIndex, commonStats);
             ClusterStatsNodeResponse customClusterStatsResponse = createClusterStatsNodeResponse(node, shardStats, testIndex, true, false);
-            ClusterStatsNodeResponse customOptimizedClusterStatsResponse = createClusterStatsNodeResponse(
+            ClusterStatsNodeResponse customNodeLevelAggregatedClusterStatsResponse = createClusterStatsNodeResponse(
                 node,
                 shardStats,
                 testIndex,
@@ -202,125 +202,70 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
                 true
             );
             defaultClusterStatsNodeResponses.add(customClusterStatsResponse);
-            optimizedClusterStatsNodeResponses.add(customOptimizedClusterStatsResponse);
+            aggregatedNodeLevelClusterStatsNodeResponses.add(customNodeLevelAggregatedClusterStatsResponse);
         }
 
         ClusterStatsIndices defaultClusterStatsIndices = new ClusterStatsIndices(defaultClusterStatsNodeResponses, null, null);
-        ClusterStatsIndices optimzedClusterStatsIndices = new ClusterStatsIndices(optimizedClusterStatsNodeResponses, null, null);
+        ClusterStatsIndices aggregatedNodeLevelClusterStatsIndices = new ClusterStatsIndices(
+            aggregatedNodeLevelClusterStatsNodeResponses,
+            null,
+            null
+        );
 
-        assertClusterStatsIndices(defaultClusterStatsIndices, optimzedClusterStatsIndices);
+        assertClusterStatsIndicesEqual(defaultClusterStatsIndices, aggregatedNodeLevelClusterStatsIndices);
     }
 
-    public void assertClusterStatsIndices(ClusterStatsIndices defaultClusterStatsIndices, ClusterStatsIndices optimzedClusterStatsIndices) {
-        assertEquals(defaultClusterStatsIndices.getIndexCount(), optimzedClusterStatsIndices.getIndexCount());
+    public void assertClusterStatsIndicesEqual(ClusterStatsIndices first, ClusterStatsIndices second) {
+        assertEquals(first.getIndexCount(), second.getIndexCount());
 
-        assertEquals(defaultClusterStatsIndices.getShards().getIndices(), optimzedClusterStatsIndices.getShards().getIndices());
-        assertEquals(defaultClusterStatsIndices.getShards().getTotal(), optimzedClusterStatsIndices.getShards().getTotal());
-        assertEquals(defaultClusterStatsIndices.getShards().getPrimaries(), optimzedClusterStatsIndices.getShards().getPrimaries());
-        assertEquals(
-            defaultClusterStatsIndices.getShards().getMinIndexShards(),
-            optimzedClusterStatsIndices.getShards().getMaxIndexShards()
-        );
-        assertEquals(
-            defaultClusterStatsIndices.getShards().getMinIndexPrimaryShards(),
-            optimzedClusterStatsIndices.getShards().getMinIndexPrimaryShards()
-        );
+        assertEquals(first.getShards().getIndices(), second.getShards().getIndices());
+        assertEquals(first.getShards().getTotal(), second.getShards().getTotal());
+        assertEquals(first.getShards().getPrimaries(), second.getShards().getPrimaries());
+        assertEquals(first.getShards().getMinIndexShards(), second.getShards().getMaxIndexShards());
+        assertEquals(first.getShards().getMinIndexPrimaryShards(), second.getShards().getMinIndexPrimaryShards());
 
         // As AssertEquals with double is deprecated and can only be used to compare floating-point numbers
-        assertTrue(defaultClusterStatsIndices.getShards().getReplication() == optimzedClusterStatsIndices.getShards().getReplication());
-        assertTrue(
-            defaultClusterStatsIndices.getShards().getAvgIndexShards() == optimzedClusterStatsIndices.getShards().getAvgIndexShards()
-        );
-        assertTrue(
-            defaultClusterStatsIndices.getShards().getMaxIndexPrimaryShards() == optimzedClusterStatsIndices.getShards()
-                .getMaxIndexPrimaryShards()
-        );
-        assertTrue(
-            defaultClusterStatsIndices.getShards().getAvgIndexPrimaryShards() == optimzedClusterStatsIndices.getShards()
-                .getAvgIndexPrimaryShards()
-        );
-        assertTrue(
-            defaultClusterStatsIndices.getShards().getMinIndexReplication() == optimzedClusterStatsIndices.getShards()
-                .getMinIndexReplication()
-        );
-        assertTrue(
-            defaultClusterStatsIndices.getShards().getAvgIndexReplication() == optimzedClusterStatsIndices.getShards()
-                .getAvgIndexReplication()
-        );
-        assertTrue(
-            defaultClusterStatsIndices.getShards().getMaxIndexReplication() == optimzedClusterStatsIndices.getShards()
-                .getMaxIndexReplication()
-        );
+        assertTrue(first.getShards().getReplication() == second.getShards().getReplication());
+        assertTrue(first.getShards().getAvgIndexShards() == second.getShards().getAvgIndexShards());
+        assertTrue(first.getShards().getMaxIndexPrimaryShards() == second.getShards().getMaxIndexPrimaryShards());
+        assertTrue(first.getShards().getAvgIndexPrimaryShards() == second.getShards().getAvgIndexPrimaryShards());
+        assertTrue(first.getShards().getMinIndexReplication() == second.getShards().getMinIndexReplication());
+        assertTrue(first.getShards().getAvgIndexReplication() == second.getShards().getAvgIndexReplication());
+        assertTrue(first.getShards().getMaxIndexReplication() == second.getShards().getMaxIndexReplication());
 
         // Docs stats
-        assertEquals(
-            defaultClusterStatsIndices.getDocs().getAverageSizeInBytes(),
-            optimzedClusterStatsIndices.getDocs().getAverageSizeInBytes()
-        );
-        assertEquals(defaultClusterStatsIndices.getDocs().getDeleted(), optimzedClusterStatsIndices.getDocs().getDeleted());
-        assertEquals(defaultClusterStatsIndices.getDocs().getCount(), optimzedClusterStatsIndices.getDocs().getCount());
-        assertEquals(
-            defaultClusterStatsIndices.getDocs().getTotalSizeInBytes(),
-            optimzedClusterStatsIndices.getDocs().getTotalSizeInBytes()
-        );
+        assertEquals(first.getDocs().getAverageSizeInBytes(), second.getDocs().getAverageSizeInBytes());
+        assertEquals(first.getDocs().getDeleted(), second.getDocs().getDeleted());
+        assertEquals(first.getDocs().getCount(), second.getDocs().getCount());
+        assertEquals(first.getDocs().getTotalSizeInBytes(), second.getDocs().getTotalSizeInBytes());
 
         // Store Stats
-        assertEquals(defaultClusterStatsIndices.getStore().getSizeInBytes(), optimzedClusterStatsIndices.getStore().getSizeInBytes());
-        assertEquals(defaultClusterStatsIndices.getStore().getSize(), optimzedClusterStatsIndices.getStore().getSize());
-        assertEquals(defaultClusterStatsIndices.getStore().getReservedSize(), optimzedClusterStatsIndices.getStore().getReservedSize());
+        assertEquals(first.getStore().getSizeInBytes(), second.getStore().getSizeInBytes());
+        assertEquals(first.getStore().getSize(), second.getStore().getSize());
+        assertEquals(first.getStore().getReservedSize(), second.getStore().getReservedSize());
 
         // Query Cache
-        assertEquals(
-            defaultClusterStatsIndices.getQueryCache().getCacheCount(),
-            optimzedClusterStatsIndices.getQueryCache().getCacheCount()
-        );
-        assertEquals(defaultClusterStatsIndices.getQueryCache().getCacheSize(), optimzedClusterStatsIndices.getQueryCache().getCacheSize());
-        assertEquals(defaultClusterStatsIndices.getQueryCache().getEvictions(), optimzedClusterStatsIndices.getQueryCache().getEvictions());
-        assertEquals(defaultClusterStatsIndices.getQueryCache().getHitCount(), optimzedClusterStatsIndices.getQueryCache().getHitCount());
-        assertEquals(
-            defaultClusterStatsIndices.getQueryCache().getTotalCount(),
-            optimzedClusterStatsIndices.getQueryCache().getTotalCount()
-        );
-        assertEquals(defaultClusterStatsIndices.getQueryCache().getMissCount(), optimzedClusterStatsIndices.getQueryCache().getMissCount());
-        assertEquals(
-            defaultClusterStatsIndices.getQueryCache().getMemorySize(),
-            optimzedClusterStatsIndices.getQueryCache().getMemorySize()
-        );
-        assertEquals(
-            defaultClusterStatsIndices.getQueryCache().getMemorySizeInBytes(),
-            optimzedClusterStatsIndices.getQueryCache().getMemorySizeInBytes()
-        );
+        assertEquals(first.getQueryCache().getCacheCount(), second.getQueryCache().getCacheCount());
+        assertEquals(first.getQueryCache().getCacheSize(), second.getQueryCache().getCacheSize());
+        assertEquals(first.getQueryCache().getEvictions(), second.getQueryCache().getEvictions());
+        assertEquals(first.getQueryCache().getHitCount(), second.getQueryCache().getHitCount());
+        assertEquals(first.getQueryCache().getTotalCount(), second.getQueryCache().getTotalCount());
+        assertEquals(first.getQueryCache().getMissCount(), second.getQueryCache().getMissCount());
+        assertEquals(first.getQueryCache().getMemorySize(), second.getQueryCache().getMemorySize());
+        assertEquals(first.getQueryCache().getMemorySizeInBytes(), second.getQueryCache().getMemorySizeInBytes());
 
         // Completion Stats
-        assertEquals(
-            defaultClusterStatsIndices.getCompletion().getSizeInBytes(),
-            optimzedClusterStatsIndices.getCompletion().getSizeInBytes()
-        );
-        assertEquals(defaultClusterStatsIndices.getCompletion().getSize(), optimzedClusterStatsIndices.getCompletion().getSize());
+        assertEquals(first.getCompletion().getSizeInBytes(), second.getCompletion().getSizeInBytes());
+        assertEquals(first.getCompletion().getSize(), second.getCompletion().getSize());
 
         // Segment Stats
-        assertEquals(
-            defaultClusterStatsIndices.getSegments().getBitsetMemory(),
-            optimzedClusterStatsIndices.getSegments().getBitsetMemory()
-        );
-        assertEquals(defaultClusterStatsIndices.getSegments().getCount(), optimzedClusterStatsIndices.getSegments().getCount());
-        assertEquals(
-            defaultClusterStatsIndices.getSegments().getBitsetMemoryInBytes(),
-            optimzedClusterStatsIndices.getSegments().getBitsetMemoryInBytes()
-        );
-        assertEquals(defaultClusterStatsIndices.getSegments().getFileSizes(), optimzedClusterStatsIndices.getSegments().getFileSizes());
-        assertEquals(
-            defaultClusterStatsIndices.getSegments().getIndexWriterMemoryInBytes(),
-            optimzedClusterStatsIndices.getSegments().getIndexWriterMemoryInBytes()
-        );
-        assertEquals(
-            defaultClusterStatsIndices.getSegments().getVersionMapMemory(),
-            optimzedClusterStatsIndices.getSegments().getVersionMapMemory()
-        );
-        assertEquals(
-            defaultClusterStatsIndices.getSegments().getVersionMapMemoryInBytes(),
-            optimzedClusterStatsIndices.getSegments().getVersionMapMemoryInBytes()
-        );
+        assertEquals(first.getSegments().getBitsetMemory(), second.getSegments().getBitsetMemory());
+        assertEquals(first.getSegments().getCount(), second.getSegments().getCount());
+        assertEquals(first.getSegments().getBitsetMemoryInBytes(), second.getSegments().getBitsetMemoryInBytes());
+        assertEquals(first.getSegments().getFileSizes(), second.getSegments().getFileSizes());
+        assertEquals(first.getSegments().getIndexWriterMemoryInBytes(), second.getSegments().getIndexWriterMemoryInBytes());
+        assertEquals(first.getSegments().getVersionMapMemory(), second.getSegments().getVersionMapMemory());
+        assertEquals(first.getSegments().getVersionMapMemoryInBytes(), second.getSegments().getVersionMapMemoryInBytes());
     }
 
     public void testNodeIndexShardStatsSuccessfulSerializationDeserialization() throws IOException {
@@ -329,7 +274,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         DiscoveryNode node = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
         CommonStats commonStats = createRandomCommonStats();
         ShardStats[] shardStats = createshardStats(node, testIndex, commonStats);
-        ClusterStatsNodeResponse customOptimizedClusterStatsResponse = createClusterStatsNodeResponse(
+        ClusterStatsNodeResponse aggregatedNodeLevelClusterStatsNodeResponse = createClusterStatsNodeResponse(
             node,
             shardStats,
             testIndex,
@@ -338,15 +283,15 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         );
 
         BytesStreamOutput out = new BytesStreamOutput();
-        customOptimizedClusterStatsResponse.writeTo(out);
+        aggregatedNodeLevelClusterStatsNodeResponse.writeTo(out);
         StreamInput in = out.bytes().streamInput();
 
         ClusterStatsNodeResponse newClusterStatsNodeRequest = new ClusterStatsNodeResponse(in);
 
-        ClusterStatsIndices beforeSerialization = new ClusterStatsIndices(List.of(customOptimizedClusterStatsResponse), null, null);
+        ClusterStatsIndices beforeSerialization = new ClusterStatsIndices(List.of(aggregatedNodeLevelClusterStatsNodeResponse), null, null);
         ClusterStatsIndices afterSerialization = new ClusterStatsIndices(List.of(newClusterStatsNodeRequest), null, null);
 
-        assertClusterStatsIndices(beforeSerialization, afterSerialization);
+        assertClusterStatsIndicesEqual(beforeSerialization, afterSerialization);
 
     }
 
@@ -355,7 +300,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         ShardStats[] shardStats,
         Index index,
         boolean defaultBehavior,
-        boolean optimized
+        boolean aggregateNodeLevelStats
     ) {
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,
@@ -409,7 +354,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
         if (defaultBehavior) {
             return new ClusterStatsNodeResponse(node, null, nodeInfo, nodeStats, shardStats);
         } else {
-            return new ClusterStatsNodeResponse(node, null, nodeInfo, nodeStats, shardStats, optimized);
+            return new ClusterStatsNodeResponse(node, null, nodeInfo, nodeStats, shardStats, aggregateNodeLevelStats);
         }
 
     }

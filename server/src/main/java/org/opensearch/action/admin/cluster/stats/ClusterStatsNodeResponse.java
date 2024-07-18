@@ -56,7 +56,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final NodeStats nodeStats;
     private final ShardStats[] shardsStats;
     private ClusterHealthStatus clusterStatus;
-    private NodeIndexShardStats nodeIndexShardStats;
+    private AggregatedNodeLevelStats aggregatedNodeLevelStats;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -68,7 +68,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeStats = new NodeStats(in);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             this.shardsStats = in.readOptionalArray(ShardStats::new, ShardStats[]::new);
-            this.nodeIndexShardStats = in.readOptionalWriteable(NodeIndexShardStats::new);
+            this.aggregatedNodeLevelStats = in.readOptionalWriteable(AggregatedNodeLevelStats::new);
         } else {
             this.shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
         }
@@ -94,13 +94,13 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         NodeInfo nodeInfo,
         NodeStats nodeStats,
         ShardStats[] shardsStats,
-        boolean optimized
+        boolean useAggregatedNodeLevelResponses
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
-        if (optimized) {
-            this.nodeIndexShardStats = new NodeIndexShardStats(node, shardsStats);
+        if (useAggregatedNodeLevelResponses) {
+            this.aggregatedNodeLevelStats = new AggregatedNodeLevelStats(node, shardsStats);
         }
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
@@ -126,8 +126,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return this.shardsStats;
     }
 
-    public NodeIndexShardStats getNodeIndexShardStats() {
-        return nodeIndexShardStats;
+    public AggregatedNodeLevelStats getAggregatedNodeLevelStats() {
+        return aggregatedNodeLevelStats;
     }
 
     public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
@@ -146,9 +146,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            if (nodeIndexShardStats != null) {
+            if (aggregatedNodeLevelStats != null) {
                 out.writeOptionalArray(null);
-                out.writeOptionalWriteable(nodeIndexShardStats);
+                out.writeOptionalWriteable(aggregatedNodeLevelStats);
             } else {
                 out.writeOptionalArray(shardsStats);
                 out.writeOptionalWriteable(null);
