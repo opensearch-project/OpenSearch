@@ -195,7 +195,8 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
                 }
             }
         }
-        final StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService);
-        starTreesBuilder.buildDuringMerge(starTreeSubsPerField);
+        try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService)) {
+            starTreesBuilder.buildDuringMerge(starTreeSubsPerField);
+        }
     }
 }

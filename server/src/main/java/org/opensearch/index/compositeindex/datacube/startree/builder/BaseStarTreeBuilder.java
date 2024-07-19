@@ -120,7 +120,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     public List<MetricAggregatorInfo> generateMetricAggregatorInfos(MapperService mapperService) {
         List<MetricAggregatorInfo> metricAggregatorInfos = new ArrayList<>();
         for (Metric metric : this.starTreeField.getMetrics()) {
-            for (MetricStat metricType : metric.getMetrics()) {
+            for (MetricStat metricStat : metric.getMetrics()) {
                 IndexNumericFieldData.NumericType numericType;
                 Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper(metric.getField());
                 if (fieldMapper instanceof NumberFieldMapper) {
@@ -131,7 +131,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 }
 
                 MetricAggregatorInfo metricAggregatorInfo = new MetricAggregatorInfo(
-                    metricType,
+                    metricStat,
                     metric.getField(),
                     starTreeField.getName(),
                     numericType
@@ -457,13 +457,13 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         throws IOException {
         List<SequentialDocValuesIterator> metricReaders = new ArrayList<>();
         for (Metric metric : this.starTreeField.getMetrics()) {
-            for (MetricStat metricType : metric.getMetrics()) {
+            for (MetricStat metricStat : metric.getMetrics()) {
                 FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
                 if (metricFieldInfo == null) {
                     metricFieldInfo = getFieldInfo(metric.getField());
                 }
                 // TODO
-                // if (metricType != MetricStat.COUNT) {
+                // if (metricStat != MetricStat.COUNT) {
                 // Need not initialize the metric reader for COUNT metric type
                 SequentialDocValuesIterator metricReader = new SequentialDocValuesIterator(
                     fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
@@ -514,6 +514,10 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         // Serialize and save in disk
         // Write star tree metadata for off heap implementation
 
+    }
+
+    TreeNode getRootNode() {
+        return rootNode;
     }
 
     /**
