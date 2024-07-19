@@ -52,6 +52,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
     private long[] docCount = { 0 };
 
+    private final PointRangeQuery pointRangeQuery;
+
     protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims) {
         this(field, lowerPoint, upperPoint, numDims, 10_000, SortOrder.ASC);
     }
@@ -84,6 +86,12 @@ public abstract class ApproximatePointRangeQuery extends Query {
         this.upperPoint = upperPoint;
         this.size = size;
         this.sortOrder = sortOrder;
+        this.pointRangeQuery = new PointRangeQuery(field, lowerPoint, upperPoint, numDims) {
+            @Override
+            protected String toString(int dimension, byte[] value) {
+                return ApproximatePointRangeQuery.this.toString();
+            }
+        };
     }
 
     public int getSize() {
@@ -104,13 +112,12 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
     @Override
     public void visit(QueryVisitor visitor) {
-        if (visitor.acceptField(field)) {
-            visitor.visitLeaf(this);
-        }
+        pointRangeQuery.visit(visitor);
     }
 
     @Override
     public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        Weight pointRangeQueryWeight = pointRangeQuery.createWeight(searcher, scoreMode, boost);
 
         // We don't use RandomAccessWeight here: it's no good to approximate with "match all docs".
         // This is an inverted structure and should be used in the first pass:
@@ -454,35 +461,12 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
-                }
-                return scorerSupplier.get(Long.MAX_VALUE);
+                return pointRangeQueryWeight.scorer(context);
             }
 
             @Override
             public int count(LeafReaderContext context) throws IOException {
-                LeafReader reader = context.reader();
-
-                PointValues values = (PointValues) reader.getPointValues(field);
-                if (checkValidPointValues(values) == false) {
-                    return 0;
-                }
-
-                if (reader.hasDeletions() == false) {
-                    if (relate(values.getMinPackedValue(), values.getMaxPackedValue()) == PointValues.Relation.CELL_INSIDE_QUERY) {
-                        return values.getDocCount();
-                    }
-                    // only 1D: we have the guarantee that it will actually run fast since there are at most 2
-                    // crossing leaves.
-                    // docCount == size : counting according number of points in leaf node, so must be
-                    // single-valued.
-                    if (numDims == 1 && values.getDocCount() == values.size()) {
-                        return (int) pointCount((PointValues.PointTree) values.getPointTree(), this::relate, this::matches);
-                    }
-                }
-                return super.count(context);
+                return pointRangeQueryWeight.count(context);
             }
 
             /**
@@ -565,7 +549,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return true;
+                return pointRangeQueryWeight.isCacheable(ctx);
             }
         };
     }
@@ -592,18 +576,12 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
     @Override
     public final int hashCode() {
-        int hash = classHash();
-        hash = 31 * hash + field.hashCode();
-        hash = 31 * hash + Arrays.hashCode(lowerPoint);
-        hash = 31 * hash + Arrays.hashCode(upperPoint);
-        hash = 31 * hash + numDims;
-        hash = 31 * hash + Objects.hashCode(bytesPerDim);
-        return hash;
+        return pointRangeQuery.hashCode();
     }
 
     @Override
     public final boolean equals(Object o) {
-        return sameClassAs(o) && equalsTo(getClass().cast(o));
+        return pointRangeQuery.equals(o);
     }
 
     private boolean equalsTo(ApproximatePointRangeQuery other) {
@@ -616,29 +594,6 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
     @Override
     public final String toString(String field) {
-        final StringBuilder sb = new StringBuilder();
-        if (this.field.equals(field) == false) {
-            sb.append(this.field);
-            sb.append(':');
-        }
-
-        // print ourselves as "range per dimension"
-        for (int i = 0; i < numDims; i++) {
-            if (i > 0) {
-                sb.append(',');
-            }
-
-            int startOffset = bytesPerDim * i;
-
-            sb.append('[');
-            sb.append(toString(i, ArrayUtil.copyOfSubArray(lowerPoint, startOffset, startOffset + bytesPerDim)));
-            sb.append(" TO ");
-            sb.append(toString(i, ArrayUtil.copyOfSubArray(upperPoint, startOffset, startOffset + bytesPerDim)));
-            sb.append(']');
-        }
-
-        return sb.toString();
+       return pointRangeQuery.toString(field);
     }
-
-    protected abstract String toString(int dimension, byte[] value);
 }

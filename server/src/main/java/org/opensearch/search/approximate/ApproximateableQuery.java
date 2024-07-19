@@ -47,17 +47,6 @@ public final class ApproximateableQuery extends Query {
         this.approximationQueryWeight = approximationQueryWeight;
     }
 
-    public void setOriginalQueryWeight(Weight originalQueryWeight) {
-        this.originalQueryWeight = originalQueryWeight;
-    }
-
-    public void setApproximationQueryWeight(Weight approximationQueryWeight) {
-        this.approximationQueryWeight = approximationQueryWeight;
-    }
-
-    public Weight getOriginalQueryWeight() {
-        return originalQueryWeight;
-    }
 
     public Weight getApproximationQueryWeight() {
         return approximationQueryWeight;
@@ -73,10 +62,8 @@ public final class ApproximateableQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        final Weight originalQueryWeight = originalQuery.createWeight(searcher, scoreMode, boost);
-        setOriginalQueryWeight(originalQueryWeight);
-        final Weight approximationQueryWeight = approximationQuery.createWeight(searcher, scoreMode, boost);
-        setApproximationQueryWeight(approximationQueryWeight);
+        this.originalQueryWeight = originalQuery.createWeight(searcher, scoreMode, boost);
+        this.approximationQueryWeight = approximationQuery.createWeight(searcher, scoreMode, boost);
 
         return new Weight(this) {
             @Override
