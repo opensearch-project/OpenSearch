@@ -28,8 +28,6 @@ import org.apache.lucene.util.IntsRef;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -554,26 +552,6 @@ public abstract class ApproximatePointRangeQuery extends Query {
         };
     }
 
-    public String getField() {
-        return field;
-    }
-
-    public int getNumDims() {
-        return numDims;
-    }
-
-    public int getBytesPerDim() {
-        return bytesPerDim;
-    }
-
-    public byte[] getLowerPoint() {
-        return lowerPoint.clone();
-    }
-
-    public byte[] getUpperPoint() {
-        return upperPoint.clone();
-    }
-
     @Override
     public final int hashCode() {
         return pointRangeQuery.hashCode();
@@ -584,16 +562,18 @@ public abstract class ApproximatePointRangeQuery extends Query {
         return pointRangeQuery.equals(o);
     }
 
-    private boolean equalsTo(ApproximatePointRangeQuery other) {
-        return Objects.equals(field, other.getField())
-            && numDims == other.getNumDims()
-            && bytesPerDim == other.getBytesPerDim()
-            && Arrays.equals(lowerPoint, other.getLowerPoint())
-            && Arrays.equals(upperPoint, other.getUpperPoint());
-    }
-
     @Override
     public final String toString(String field) {
         return pointRangeQuery.toString(field);
     }
+
+    /**
+     * Returns a string of a single value in a human-readable format for debugging. This is used by
+     * {@link #toString()}.
+     *
+     * @param dimension dimension of the particular value
+     * @param value single value, never null
+     * @return human readable value for debugging
+     */
+    protected abstract String toString(int dimension, byte[] value);
 }
