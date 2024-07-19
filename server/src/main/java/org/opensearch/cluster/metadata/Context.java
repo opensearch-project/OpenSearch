@@ -56,7 +56,9 @@ public class Context extends AbstractDiffable<ComposableIndexTemplate> implement
 
     public Context(String name, String version, Map<String, Object> params) {
         this.name = name;
-        this.version = version;
+        if (version != null) {
+            this.version = version;
+        }
         this.params = params;
     }
 

@@ -49,9 +49,6 @@ public class TemplateRepositoryMetadata {
 
     @Override
     public String toString() {
-        return "TemplateRepositoryMetadata{" +
-            "id='" + id + '\'' +
-            ", version=" + version +
-            '}';
+        return "TemplateRepositoryMetadata{" + "id='" + id + '\'' + ", version=" + version + '}';
     }
 }

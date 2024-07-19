@@ -43,6 +43,7 @@ import org.opensearch.cluster.Diffable;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.NamedDiffable;
 import org.opensearch.cluster.NamedDiffableValueSerializer;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -280,6 +281,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private final SortedMap<String, IndexAbstraction> indicesLookup;
 
+    private final Map<String, SortedMap<Long, String>> systemTemplatesLookup;
+
     Metadata(
         String clusterUUID,
         boolean clusterUUIDCommitted,
@@ -328,6 +331,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.allClosedIndices = allClosedIndices;
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
+
+        this.systemTemplatesLookup = new HashMap<>();
+        Optional.ofNullable((ComponentTemplateMetadata) this.custom(ComponentTemplateMetadata.TYPE))
+            .map(ComponentTemplateMetadata::componentTemplates)
+            .orElseGet(Collections::emptyMap)
+            .forEach((k, v) -> {
+                if (MetadataIndexTemplateService.isSystemTemplate(v)) {
+                    SystemTemplateMetadata templateMetadata = SystemTemplateMetadata.fromComponentTemplate(k);
+                    systemTemplatesLookup.compute(templateMetadata.name(), (ik, iv) -> {
+                        if (iv == null) {
+                            iv = new TreeMap<>();
+                        }
+                        iv.put(templateMetadata.version(), k);
+                        return iv;
+                    });
+                }
+            });
     }
 
     public long version() {
@@ -826,6 +846,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ComponentTemplateMetadata) this.custom(ComponentTemplateMetadata.TYPE))
             .map(ComponentTemplateMetadata::componentTemplates)
             .orElse(Collections.emptyMap());
+    }
+
+    public Map<String, SortedMap<Long, String>> systemTemplatesLookup() {
+        return systemTemplatesLookup;
     }
 
     public Map<String, ComposableIndexTemplate> templatesV2() {

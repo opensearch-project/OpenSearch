@@ -186,6 +186,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             this.context = in.readOptionalWriteable(Context::new);
+        } else {
+            this.context = null;
         }
     }
 

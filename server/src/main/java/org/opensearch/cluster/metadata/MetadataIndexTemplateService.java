@@ -58,9 +58,9 @@ import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
-import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
@@ -536,7 +536,7 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
-        final boolean isContextAllowed = settings.get(SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED);
+        final boolean isContextAllowed = FeatureFlags.isEnabled(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES);
 
         final List<String> missingComponentTemplates = template.composedOf()
             .stream()
@@ -589,38 +589,19 @@ public class MetadataIndexTemplateService {
         if (context == null) {
             return null;
         }
-        long maxVersionSeen = -1L;
         final boolean searchSpecificVersion = !Context.LATEST_VERSION.equals(context.version());
-
-        String systemTemplateToUse = null;
-        for (Map.Entry<String, ComponentTemplate> entry : metadata.componentTemplates().entrySet()) {
-            if (isSystemTemplate(entry.getValue())) {
-                SystemTemplateMetadata templateMetadata = SystemTemplateMetadata.fromComponentTemplate(entry.getKey());
-                if (templateMetadata.name().equals(context.name())) {
-                    if (!searchSpecificVersion && maxVersionSeen < templateMetadata.version()) {
-                        maxVersionSeen = templateMetadata.version();
-                        systemTemplateToUse = entry.getKey();
-                    } else if (searchSpecificVersion && templateMetadata.version() == Long.parseLong(context.version())) {
-                        systemTemplateToUse = entry.getKey();
-                    }
-                }
-            }
-        }
-        return systemTemplateToUse;
+        return Optional.ofNullable(metadata.systemTemplatesLookup())
+            .map(coll -> coll.get(context.name()))
+            .map(coll -> coll.get(searchSpecificVersion ? Long.parseLong(context.version()) : coll.lastKey()))
+            .orElse(null);
     }
 
-    private static boolean isSystemTemplate(ComponentTemplate componentTemplate) {
+    public static boolean isSystemTemplate(ComponentTemplate componentTemplate) {
         return Optional.ofNullable(componentTemplate)
             .map(ComponentTemplate::metadata)
             .map(md -> md.get(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY))
             .filter(ob -> SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE.equals(ob.toString()))
             .isPresent();
-    }
-
-    private static boolean hasOverlap(Settings.Builder userCollection, Settings baseSettings) {
-        final Set<String> userSet = new HashSet<>(userCollection.keys());
-        Optional.ofNullable(userCollection.getSecureSettings()).map(SecureSettings::getSettingNames).ifPresent(userSet::addAll);
-        return !Sets.intersection(userSet, baseSettings.names()).isEmpty();
     }
 
     public ClusterState addIndexTemplateV2(
@@ -1338,14 +1319,7 @@ public class MetadataIndexTemplateService {
         // Add the template referred by context since it will take the highest precedence.
         final String systemTemplate = findContextTemplate(metadata, template.context());
         final ComponentTemplate componentTemplate = metadata.componentTemplates().get(systemTemplate);
-        Optional.ofNullable(componentTemplate).map(ComponentTemplate::template).map(Template::settings).ifPresent(s -> {
-            if (hasOverlap(templateSettings, s)) {
-                throw new IllegalArgumentException(
-                    "Template override settings which are declared in " + "template referred through context"
-                );
-            }
-            templateSettings.put(s);
-        });
+        Optional.ofNullable(componentTemplate).map(ComponentTemplate::template).map(Template::settings).ifPresent(templateSettings::put);
 
         return templateSettings.build();
     }

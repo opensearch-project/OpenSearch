@@ -84,10 +84,6 @@ public class SystemTemplateMetadata {
 
     @Override
     public String toString() {
-        return "SystemTemplateMetadata{" +
-            "version=" + version +
-            ", type='" + type + '\'' +
-            ", name='" + name + '\'' +
-            '}';
+        return "SystemTemplateMetadata{" + "version=" + version + ", type='" + type + '\'' + ", name='" + name + '\'' + '}';
     }
 }
