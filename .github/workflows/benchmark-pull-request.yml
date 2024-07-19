@@ -25,20 +25,41 @@ jobs:
           echo "USER_TAGS=pull_request_number:${{ github.event.issue.number }},repository:OpenSearch" >> $GITHUB_ENV
       - name: Check comment format
         id: check_comment
-        run: |
-          comment='${{ github.event.comment.body }}'
-          if echo "$comment" | jq -e 'has("run-benchmark-test")'; then
-            echo "Valid comment format detected, check if valid config id is provided"
-            config_id=$(echo $comment | jq -r '.["run-benchmark-test"]')
-            benchmark_configs=$(cat .github/benchmark-configs.json)
-            if echo $benchmark_configs | jq -e --arg id "$config_id" 'has($id)' && echo "$benchmark_configs" | jq -e --arg version "$OPENSEARCH_MAJOR_VERSION" --arg id "$config_id" '.[$id].supported_major_versions | index($version) != null' > /dev/null; then
-              echo $benchmark_configs | jq -r --arg id "$config_id" '.[$id]."cluster-benchmark-configs" | to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
-            else
-              echo "invalid=true" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "invalid=true" >> $GITHUB_OUTPUT
-          fi
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = context.payload.comment.body;
+            let commentJson;
+            try {
+              commentJson = JSON.parse(comment);
+            } catch (error) {
+              core.setOutput('invalid', 'true');
+              return;
+            }
+            if (!commentJson.hasOwnProperty('run-benchmark-test')) {
+              core.setOutput('invalid', 'true');
+              return;
+            }
+            const configId = commentJson['run-benchmark-test'];
+            let benchmarkConfigs;
+            try {
+              benchmarkConfigs = JSON.parse(fs.readFileSync('.github/benchmark-configs.json', 'utf8'));
+            } catch (error) {
+              core.setFailed('Failed to read benchmark-configs.json');
+              return;
+            }
+            const openSearchMajorVersion = process.env.OPENSEARCH_MAJOR_VERSION;
+            console.log('MAJOR_VERSION', openSearchMajorVersion)
+            if (!benchmarkConfigs.hasOwnProperty(configId) ||
+              !benchmarkConfigs[configId].supported_major_versions.includes(openSearchMajorVersion)) {
+              core.setOutput('invalid', 'true');
+              return;
+            }
+            const clusterBenchmarkConfigs = benchmarkConfigs[configId]['cluster-benchmark-configs'];
+            for (const [key, value] of Object.entries(clusterBenchmarkConfigs)) {
+              core.exportVariable(key, value);
+            }
       - name: Post invalid format comment
         if: steps.check_comment.outputs.invalid == 'true'
         uses: actions/github-script@v6
