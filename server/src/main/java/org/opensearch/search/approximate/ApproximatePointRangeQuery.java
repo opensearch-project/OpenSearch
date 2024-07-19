@@ -564,7 +564,32 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
     @Override
     public final String toString(String field) {
-        return pointRangeQuery.toString(field);
+        final StringBuilder sb = new StringBuilder();
+        if (this.field.equals(field) == false) {
+            sb.append(this.field);
+            sb.append(':');
+        }
+
+        // print ourselves as "range per dimension"
+        for (int i = 0; i < numDims; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+
+            int startOffset = bytesPerDim * i;
+
+            sb.append('[');
+            sb.append(
+                    toString(
+                            i, ArrayUtil.copyOfSubArray(lowerPoint, startOffset, startOffset + bytesPerDim)));
+            sb.append(" TO ");
+            sb.append(
+                    toString(
+                            i, ArrayUtil.copyOfSubArray(upperPoint, startOffset, startOffset + bytesPerDim)));
+            sb.append(']');
+        }
+
+        return sb.toString();
     }
 
     /**
