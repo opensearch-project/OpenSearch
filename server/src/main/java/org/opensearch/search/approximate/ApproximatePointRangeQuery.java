@@ -579,13 +579,9 @@ public abstract class ApproximatePointRangeQuery extends Query {
             int startOffset = bytesPerDim * i;
 
             sb.append('[');
-            sb.append(
-                    toString(
-                            i, ArrayUtil.copyOfSubArray(lowerPoint, startOffset, startOffset + bytesPerDim)));
+            sb.append(toString(i, ArrayUtil.copyOfSubArray(lowerPoint, startOffset, startOffset + bytesPerDim)));
             sb.append(" TO ");
-            sb.append(
-                    toString(
-                            i, ArrayUtil.copyOfSubArray(upperPoint, startOffset, startOffset + bytesPerDim)));
+            sb.append(toString(i, ArrayUtil.copyOfSubArray(upperPoint, startOffset, startOffset + bytesPerDim)));
             sb.append(']');
         }
 
