@@ -56,6 +56,10 @@ public abstract class ApproximatePointRangeQuery extends Query {
         this(field, lowerPoint, upperPoint, numDims, 10_000, SortOrder.ASC);
     }
 
+    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size) {
+        this(field, lowerPoint, upperPoint, numDims, size, SortOrder.ASC);
+    }
+
     protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size, SortOrder sortOrder) {
         checkArgs(field, lowerPoint, upperPoint);
         this.field = field;
@@ -234,6 +238,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 assert pointTree.moveToParent() == false;
             }
 
+            // custom intersect visitor to walk the left of the tree
             private long intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count)
                 throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
@@ -246,16 +251,14 @@ public abstract class ApproximatePointRangeQuery extends Query {
                         break;
                     case CELL_INSIDE_QUERY:
                         // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when
-                        // we have sufficient doc count
+                        // we have sufficient doc count. We first move down and then move to the left child
                         if (pointTree.moveToChild()) {
                             do {
                                 docCount[0] += intersectLeft(visitor, pointTree, count);
                             } while (pointTree.moveToSibling() && docCount[0] <= count);
                             pointTree.moveToParent();
                         } else {
-                            // TODO: we can assert that the first value here in fact matches what the pointTree
-                            // claimed?
-                            // Leaf node; scan and filter all points in this block:
+                            // we're at the leaf node, if we're under the count, visit all the docIds in this node.
                             if (docCount[0] <= count) {
                                 pointTree.visitDocIDs(visitor);
                                 docCount[0] += pointTree.size();
@@ -287,6 +290,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 return docCount[0] > 0 ? docCount[0] : 0;
             }
 
+            // custom intersect visitor to walk the right of tree
             private long intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count)
                 throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
@@ -299,16 +303,14 @@ public abstract class ApproximatePointRangeQuery extends Query {
                         break;
                     case CELL_INSIDE_QUERY:
                         // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when
-                        // we have sufficient doc count
+                        // we have sufficient doc count. We first move down and then move right
                         if (pointTree.moveToChild()) {
                             while (pointTree.moveToSibling() && docCount[0] <= count) {
                                 docCount[0] += intersectRight(visitor, pointTree, count);
                             }
                             pointTree.moveToParent();
                         } else {
-                            // TODO: we can assert that the first value here in fact matches what the pointTree
-                            // claimed?
-                            // Leaf node; scan and filter all points in this block:
+                            // we're at the leaf node, if we're under the count, visit all the docIds in this node.
                             if (docCount[0] <= count) {
                                 pointTree.visitDocIDs(visitor);
                                 docCount[0] += pointTree.size();
