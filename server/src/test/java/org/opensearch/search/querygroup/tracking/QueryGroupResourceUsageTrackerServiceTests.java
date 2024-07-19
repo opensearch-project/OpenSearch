@@ -68,7 +68,9 @@ public class QueryGroupResourceUsageTrackerServiceTests extends OpenSearchTestCa
         for (String queryGroupId : queryGroupIds) {
             assertEquals(
                 400,
-                (long) stringQueryGroupLevelResourceUsageViewMap.get(queryGroupId).getResourceUsageData().get(ResourceType.fromName("JVM"))
+                (long) stringQueryGroupLevelResourceUsageViewMap.get(queryGroupId)
+                    .getResourceUsageData()
+                    .get(ResourceType.fromName("Memory"))
             );
             assertEquals(2, stringQueryGroupLevelResourceUsageViewMap.get(queryGroupId).getActiveTasks().size());
         }
@@ -89,7 +91,7 @@ public class QueryGroupResourceUsageTrackerServiceTests extends OpenSearchTestCa
         Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = queryGroupResourceUsageTrackerService
             .constructQueryGroupLevelUsageViews();
 
-        assertEquals(600, (long) queryGroupViews.get("queryGroup1").getResourceUsageData().get(ResourceType.fromName("JVM")));
+        assertEquals(600, (long) queryGroupViews.get("queryGroup1").getResourceUsageData().get(ResourceType.fromName("Memory")));
         assertEquals(2, queryGroupViews.get("queryGroup1").getActiveTasks().size());
     }
 

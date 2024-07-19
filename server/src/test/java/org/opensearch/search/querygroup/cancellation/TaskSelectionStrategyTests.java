@@ -30,7 +30,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
         long threshold = 100L;
         long reduceBy = 50L;
-        ResourceType resourceType = ResourceType.fromName("JVM");
+        ResourceType resourceType = ResourceType.fromName("Memory");
         List<Task> tasks = QueryGroupTestHelpers.getListOfTasks(threshold);
 
         List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
@@ -42,7 +42,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
         long threshold = 100L;
         long reduceBy = -50L;
-        ResourceType resourceType = ResourceType.fromName("JVM");
+        ResourceType resourceType = ResourceType.fromName("Memory");
         List<Task> tasks = QueryGroupTestHelpers.getListOfTasks(threshold);
 
         try {
@@ -57,7 +57,7 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
         TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
         long threshold = 100L;
         long reduceBy = 0;
-        ResourceType resourceType = ResourceType.fromName("JVM");
+        ResourceType resourceType = ResourceType.fromName("Memory");
         List<Task> tasks = QueryGroupTestHelpers.getListOfTasks(threshold);
 
         List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);

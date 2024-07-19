@@ -33,7 +33,7 @@ public class CPU extends ResourceType {
      */
     @Override
     public String getName() {
-        return "CPU";
+        return "cpu";
     }
 
     @Override
