@@ -23,7 +23,7 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        resourceUsage = Map.of(ResourceType.fromName("JVM"), 34L, ResourceType.fromName("CPU"), 12L);
+        resourceUsage = Map.of(ResourceType.fromName("Memory"), 34L, ResourceType.fromName("CPU"), 12L);
         activeTasks = List.of(getRandomTask(4321));
     }
 
@@ -61,6 +61,6 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
     }
 
     private boolean assertResourceUsageData(Map<ResourceType, Long> resourceUsageData) {
-        return resourceUsageData.get(ResourceType.fromName("JVM")) == 34L && resourceUsageData.get(ResourceType.fromName("CPU")) == 12L;
+        return resourceUsageData.get(ResourceType.fromName("Memory")) == 34L && resourceUsageData.get(ResourceType.fromName("CPU")) == 12L;
     }
 }

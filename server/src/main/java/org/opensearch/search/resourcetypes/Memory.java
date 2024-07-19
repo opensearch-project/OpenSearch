@@ -12,15 +12,15 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.tasks.Task;
 
 /**
- * Represents the JVM resource type for tasks.
- * This class provides methods to retrieve JVM usage and convert threshold percentages to long values.
+ * Represents the Memory resource type for tasks.
+ * This class provides methods to retrieve Memory usage and convert threshold percentages to long values.
  */
-public class JVM extends ResourceType {
+public class Memory extends ResourceType {
     /**
-     * Returns the JVM usage of the provided task.
+     * Returns the Memory usage of the provided task.
      *
-     * @param task The task whose JVM usage is to be returned
-     * @return The JVM usage of the task
+     * @param task The task whose Memory usage is to be returned
+     * @return The Memory usage of the task
      */
     @Override
     public long getResourceUsage(Task task) {
@@ -30,21 +30,21 @@ public class JVM extends ResourceType {
     /**
      * Returns the name of the resource type.
      *
-     * @return The name of the resource type, which is "JVM"
+     * @return The name of the resource type, which is "Memory"
      */
     @Override
     public String getName() {
-        return "JVM";
+        return "memory";
     }
 
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof JVM;
+        return obj instanceof Memory;
     }
 
     @Override
     public int hashCode() {
-        return "JVM".hashCode();
+        return "Memory".hashCode();
     }
 
     /**

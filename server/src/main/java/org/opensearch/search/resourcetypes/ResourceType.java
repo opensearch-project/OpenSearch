@@ -20,7 +20,7 @@ import java.io.IOException;
 @PublicApi(since = "2.x")
 public abstract class ResourceType {
     public static ResourceType[] values() {
-        return new ResourceType[] { new CPU(), new JVM() };
+        return new ResourceType[] { new CPU(), new Memory() };
     }
 
     /**
@@ -34,7 +34,7 @@ public abstract class ResourceType {
 
     /**
      * Creates a SystemResource from a string.
-     * If the string is "JVM", a JVM is returned.
+     * If the string is "Memory", a Memory is returned.
      * If the string is "CPU", a CPU is returned.
      * If the string is not recognized, an IllegalArgumentException is thrown.
      *
@@ -43,8 +43,8 @@ public abstract class ResourceType {
      * @throws IllegalArgumentException If the string is not recognized
      */
     public static ResourceType fromName(String type) {
-        if (type.equalsIgnoreCase("JVM")) {
-            return new JVM();
+        if (type.equalsIgnoreCase("JVM") || type.equalsIgnoreCase("memory")) {
+            return new Memory();
         } else if (type.equalsIgnoreCase("CPU")) {
             return new CPU();
         } else {
