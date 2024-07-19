@@ -25,7 +25,5 @@ public class QueryGroupModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(QueryGroupUsageTracker.class).to(QueryGroupResourceUsageTrackerService.class).asEagerSingleton();
-        // bind(AbstractTaskCancellation.class).to(QueryGroupResourceUsageTrackerService.class).asEagerSingleton();
-        // bind(QueryGroupPruner.class).to(QueryGroupResourceUsageTrackerService.class).asEagerSingleton();
     }
 }

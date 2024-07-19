@@ -15,7 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.search.querygroup.cancellation.QueryGroupTestHelpers.getRandomTask;
+import static org.opensearch.search.querygroup.QueryGroupTestHelpers.getRandomTask;
 
 public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
     Map<ResourceType, Long> resourceUsage;
