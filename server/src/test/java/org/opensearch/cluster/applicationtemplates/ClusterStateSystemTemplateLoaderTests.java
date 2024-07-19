@@ -145,4 +145,9 @@ public class ClusterStateSystemTemplateLoaderTests extends OpenSearchSingleNodeT
             )
         );
     }
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
 }
