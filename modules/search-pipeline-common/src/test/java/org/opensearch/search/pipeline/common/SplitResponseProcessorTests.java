@@ -32,6 +32,7 @@ public class SplitResponseProcessorTests extends OpenSearchTestCase {
 
     private static final String NO_TRAILING = "one,two,three";
     private static final String TRAILING = "alpha,beta,gamma,";
+    private static final String REGEX_DELIM = "one1two2three";
 
     private SearchRequest createDummyRequest() {
         QueryBuilder query = new TermQueryBuilder("field", "value");
@@ -56,6 +57,20 @@ public class SplitResponseProcessorTests extends OpenSearchTestCase {
         hits[1].score(2f);
 
         SearchHits searchHits = new SearchHits(hits, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 2);
+        SearchResponseSections searchResponseSections = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
+        return new SearchResponse(searchResponseSections, null, 1, 1, 0, 10, null, null);
+    }
+
+    private SearchResponse createTestResponseRegex() {
+        SearchHit[] hits = new SearchHit[1];
+
+        Map<String, DocumentField> dsvMap = new HashMap<>();
+        dsvMap.put("dsv", new DocumentField("dsv", List.of(REGEX_DELIM)));
+        hits[0] = new SearchHit(0, "doc 1", dsvMap, Collections.emptyMap());
+        hits[0].sourceRef(new BytesArray("{ \"dsv\" : \"" + REGEX_DELIM + "\" }"));
+        hits[0].score(1f);
+
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1);
         SearchResponseSections searchResponseSections = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
         return new SearchResponse(searchResponseSections, null, 1, 1, 0, 10, null, null);
     }
@@ -120,6 +135,22 @@ public class SplitResponseProcessorTests extends OpenSearchTestCase {
         assertEquals(TRAILING, splitResponse.getHits().getHits()[1].field("csv").getValue());
         assertEquals(List.of("alpha", "beta", "gamma"), splitResponse.getHits().getHits()[1].field("split").getValues());
         assertNull(splitResponse.getHits().getHits()[1].getSourceAsMap());
+    }
+
+    public void testSplitResponseRegex() throws Exception {
+        SearchRequest request = createDummyRequest();
+
+        SplitResponseProcessor splitResponseProcessor = new SplitResponseProcessor(null, null, false, "dsv", "\\d", false, "split");
+        SearchResponse response = createTestResponseRegex();
+        SearchResponse splitResponse = splitResponseProcessor.processResponse(request, response);
+
+        assertEquals(response.getHits(), splitResponse.getHits());
+
+        assertEquals(REGEX_DELIM, splitResponse.getHits().getHits()[0].field("dsv").getValue());
+        assertEquals(List.of("one", "two", "three"), splitResponse.getHits().getHits()[0].field("split").getValues());
+        Map<String, Object> map = splitResponse.getHits().getHits()[0].getSourceAsMap();
+        assertNotNull(map);
+        assertEquals(List.of("one", "two", "three"), map.get("split"));
     }
 
     public void testSplitResponseSameField() throws Exception {

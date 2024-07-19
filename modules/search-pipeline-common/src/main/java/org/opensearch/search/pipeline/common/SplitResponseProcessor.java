@@ -22,11 +22,10 @@ import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Processor that sorts an array of items.
@@ -117,7 +116,7 @@ public class SplitResponseProcessor extends AbstractProcessor implements SearchR
                     throw new IllegalArgumentException("field [" + splitField + "] is not a string, cannot split");
                 }
                 String[] strings = ((String) val).split(separator, preserveTrailing ? -1 : 0);
-                List<Object> splitList = Stream.of(strings).collect(Collectors.toList());
+                List<Object> splitList = List.copyOf(Arrays.asList(strings));
                 hit.setDocumentField(targetField, new DocumentField(targetField, splitList));
             }
             if (hit.hasSource()) {
@@ -133,7 +132,7 @@ public class SplitResponseProcessor extends AbstractProcessor implements SearchR
                     Object val = sourceAsMap.get(splitField);
                     if (val instanceof String) {
                         String[] strings = ((String) val).split(separator, preserveTrailing ? -1 : 0);
-                        List<Object> splitList = Stream.of(strings).collect(Collectors.toList());
+                        List<Object> splitList = List.copyOf(Arrays.asList(strings));
                         sourceAsMap.put(targetField, splitList);
                     }
                     XContentBuilder builder = XContentBuilder.builder(typeAndSourceMap.v1().xContent());
@@ -156,10 +155,10 @@ public class SplitResponseProcessor extends AbstractProcessor implements SearchR
             Map<String, Object> config,
             PipelineContext pipelineContext
         ) {
-            String splitField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
-            String separator = ConfigurationUtils.readStringProperty(TYPE, tag, config, "separator");
-            boolean preserveTrailing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "preserve_trailing", false);
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field", splitField);
+            String splitField = ConfigurationUtils.readStringProperty(TYPE, tag, config, SPLIT_FIELD);
+            String separator = ConfigurationUtils.readStringProperty(TYPE, tag, config, SEPARATOR);
+            boolean preserveTrailing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, PRESERVE_TRAILING, false);
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD, splitField);
             return new SplitResponseProcessor(tag, description, ignoreFailure, splitField, separator, preserveTrailing, targetField);
         }
     }
