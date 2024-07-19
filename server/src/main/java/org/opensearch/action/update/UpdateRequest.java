@@ -717,7 +717,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private IndexRequest safeDoc() {
         if (doc == null) {
-            doc = new IndexRequest();
+            doc = new IndexRequest(index);
         }
         return doc;
     }
@@ -803,7 +803,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private IndexRequest safeUpsertRequest() {
         if (upsertRequest == null) {
-            upsertRequest = new IndexRequest();
+            upsertRequest = new IndexRequest(index);
         }
         return upsertRequest;
     }
