@@ -11,17 +11,23 @@ package org.opensearch.index.remote;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -29,7 +35,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_HASH_ALGORITHM_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PATH_TYPE_SETTING;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_TRANSLOG_METADATA;
@@ -249,5 +257,120 @@ public class RemoteStoreUtils {
             .filter(DiscoveryNode::isRemoteStoreNode)
             .findFirst();
         return remoteNode.map(RemoteStoreNodeAttribute::getDataRepoNames).orElseGet(HashMap::new);
+    }
+
+    /**
+     * Invoked after a cluster settings update.
+     * Checks if the applied cluster settings has switched the cluster to STRICT mode.
+     * If so, checks and applies appropriate index settings depending on the current set
+     * of node types in the cluster
+     * This has been intentionally done after the cluster settings update
+     * flow. That way we are not interfering with the usual settings update
+     * and the cluster state mutation that comes along with it
+     *
+     * @param isCompatibilityModeChanging flag passed from cluster settings update call to denote if a compatibility mode change has been done
+     * @param request request payload passed from cluster settings update
+     * @param currentState cluster state generated after changing cluster settings were applied
+     * @param logger Logger reference
+     * @return Mutated cluster state with remote store index settings applied, no-op if the cluster is not switching to `STRICT` compatibility mode
+     */
+    public static ClusterState checkAndFinalizeRemoteStoreMigration(
+        boolean isCompatibilityModeChanging,
+        ClusterUpdateSettingsRequest request,
+        ClusterState currentState,
+        Logger logger
+    ) {
+        if (isCompatibilityModeChanging && isSwitchToStrictCompatibilityMode(request)) {
+            return finalizeMigration(currentState, logger);
+        }
+        return currentState;
+    }
+
+    /**
+     * Finalizes the docrep to remote-store migration process by applying remote store based index settings
+     * on indices that are missing them. No-Op if all indices already have the settings applied through
+     * IndexMetadataUpdater
+     *
+     * @param incomingState mutated cluster state after cluster settings were applied
+     * @return new cluster state with index settings updated
+     */
+    public static ClusterState finalizeMigration(ClusterState incomingState, Logger logger) {
+        Map<String, DiscoveryNode> discoveryNodeMap = incomingState.nodes().getNodes();
+        if (discoveryNodeMap.isEmpty() == false) {
+            // At this point, we have already validated that all nodes in the cluster are of uniform type.
+            // Either all of them are remote store enabled, or all of them are docrep enabled
+            boolean remoteStoreEnabledNodePresent = discoveryNodeMap.values().stream().findFirst().get().isRemoteStoreNode();
+            if (remoteStoreEnabledNodePresent == true) {
+                List<IndexMetadata> indicesWithoutRemoteStoreSettings = getIndicesWithoutRemoteStoreSettings(incomingState, logger);
+                if (indicesWithoutRemoteStoreSettings.isEmpty() == true) {
+                    logger.info("All indices in the cluster has remote store based index settings");
+                } else {
+                    Metadata mutatedMetadata = applyRemoteStoreSettings(incomingState, indicesWithoutRemoteStoreSettings, logger);
+                    return ClusterState.builder(incomingState).metadata(mutatedMetadata).build();
+                }
+            } else {
+                logger.debug("All nodes in the cluster are not remote nodes. Skipping.");
+            }
+        }
+        return incomingState;
+    }
+
+    /**
+     * Filters out indices which does not have remote store based
+     * index settings applied even after all shard copies have
+     * migrated to remote store enabled nodes
+     */
+    private static List<IndexMetadata> getIndicesWithoutRemoteStoreSettings(ClusterState clusterState, Logger logger) {
+        Collection<IndexMetadata> allIndicesMetadata = clusterState.metadata().indices().values();
+        if (allIndicesMetadata.isEmpty() == false) {
+            List<IndexMetadata> indicesWithoutRemoteSettings = allIndicesMetadata.stream()
+                .filter(idxMd -> indexHasRemoteStoreSettings(idxMd.getSettings()) == false)
+                .collect(Collectors.toList());
+            logger.debug(
+                "Attempting to switch to strict mode. Count of indices without remote store settings {}",
+                indicesWithoutRemoteSettings.size()
+            );
+            return indicesWithoutRemoteSettings;
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Applies remote store index settings through {@link RemoteMigrationIndexMetadataUpdater}
+     */
+    private static Metadata applyRemoteStoreSettings(
+        ClusterState clusterState,
+        List<IndexMetadata> indicesWithoutRemoteStoreSettings,
+        Logger logger
+    ) {
+        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.getMetadata());
+        RoutingTable currentRoutingTable = clusterState.getRoutingTable();
+        DiscoveryNodes currentDiscoveryNodes = clusterState.getNodes();
+        Settings currentClusterSettings = clusterState.metadata().settings();
+        for (IndexMetadata indexMetadata : indicesWithoutRemoteStoreSettings) {
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+            RemoteMigrationIndexMetadataUpdater indexMetadataUpdater = new RemoteMigrationIndexMetadataUpdater(
+                currentDiscoveryNodes,
+                currentRoutingTable,
+                indexMetadata,
+                currentClusterSettings,
+                logger
+            );
+            indexMetadataUpdater.maybeAddRemoteIndexSettings(indexMetadataBuilder, indexMetadata.getIndex().getName());
+            metadataBuilder.put(indexMetadataBuilder);
+        }
+        return metadataBuilder.build();
+    }
+
+    /**
+     * Checks if the incoming cluster settings payload is attempting to switch
+     * the cluster to `STRICT` compatibility mode
+     * Visible only for tests
+     */
+    public static boolean isSwitchToStrictCompatibilityMode(ClusterUpdateSettingsRequest request) {
+        Settings incomingSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
+        return RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(
+            incomingSettings
+        ) == RemoteStoreNodeService.CompatibilityMode.STRICT;
     }
 }
