@@ -174,7 +174,7 @@ public class SortResponseProcessor extends AbstractProcessor implements SearchRe
             Collections.sort(comparableValues, Collections.reverseOrder());
         }
         // Upcast list elements back to Object
-        return new ArrayList<>(comparableValues);
+        return List.copyOf(comparableValues);
     }
 
     private List<? extends Comparable<Object>> getComparableValues(List<Object> values) {
