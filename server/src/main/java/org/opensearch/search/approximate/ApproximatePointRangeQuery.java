@@ -31,8 +31,6 @@ import java.io.IOException;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
-import static org.apache.lucene.search.PointRangeQuery.checkArgs;
-
 /**
  * An approximate-able version of {@link PointRangeQuery}. It creates an instance of {@link PointRangeQuery} but short-circuits the intersect logic
  * after {@code size} is hit
@@ -62,7 +60,28 @@ public abstract class ApproximatePointRangeQuery extends Query {
         this.pointRangeQuery = new PointRangeQuery(field, lowerPoint, upperPoint, numDims) {
             @Override
             protected String toString(int dimension, byte[] value) {
-                return super.toString(field);
+                final StringBuilder sb = new StringBuilder();
+                if (pointRangeQuery.getField().equals(field) == false) {
+                    sb.append(pointRangeQuery.getField());
+                    sb.append(':');
+                }
+
+                // print ourselves as "range per dimension"
+                for (int i = 0; i < pointRangeQuery.getNumDims(); i++) {
+                    if (i > 0) {
+                        sb.append(',');
+                    }
+
+                    int startOffset = bytesPerDim * i;
+
+                    sb.append('[');
+                    sb.append(toString(i, ArrayUtil.copyOfSubArray(pointRangeQuery.getLowerPoint(), startOffset, startOffset + bytesPerDim)));
+                    sb.append(" TO ");
+                    sb.append(toString(i, ArrayUtil.copyOfSubArray(pointRangeQuery.getUpperPoint(), startOffset, startOffset + bytesPerDim)));
+                    sb.append(']');
+                }
+
+                return sb.toString();
             }
         };
         this.bytesPerDim = pointRangeQuery.getLowerPoint().length / pointRangeQuery.getNumDims();
