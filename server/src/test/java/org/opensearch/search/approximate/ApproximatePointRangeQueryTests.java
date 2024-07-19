@@ -102,7 +102,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                             pack(upper).bytes,
                             dims,
                             10,
-                                SortOrder.ASC
+                            SortOrder.ASC
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
@@ -114,7 +114,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                             pack(upper).bytes,
                             dims,
                             100,
-                                SortOrder.ASC
+                            SortOrder.ASC
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
@@ -159,7 +159,14 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     try {
                         long lower = 0;
                         long upper = 100;
-                        Query approximateQuery = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims, 10, SortOrder.ASC) {
+                        Query approximateQuery = new ApproximatePointRangeQuery(
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            10,
+                            SortOrder.ASC
+                        ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }

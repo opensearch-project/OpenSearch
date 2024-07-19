@@ -8,8 +8,6 @@
 
 package org.opensearch.search.approximate;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -224,17 +222,20 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 return true;
             }
 
-            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, int count) throws IOException {
+            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, int count)
+                throws IOException {
                 intersectLeft(visitor, pointTree, count);
                 assert pointTree.moveToParent() == false;
             }
 
-            private void intersectRight(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, int count) throws IOException {
+            private void intersectRight(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, int count)
+                throws IOException {
                 intersectRight(visitor, pointTree, count);
                 assert pointTree.moveToParent() == false;
             }
 
-            private long intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count) throws IOException {
+            private long intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count)
+                throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= count) {
                     return 0;
@@ -244,7 +245,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
                         // This cell is fully outside the query shape: stop recursing
                         break;
                     case CELL_INSIDE_QUERY:
-                        // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when we have sufficient doc count
+                        // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when
+                        // we have sufficient doc count
                         if (pointTree.moveToChild()) {
                             do {
                                 docCount[0] += intersectLeft(visitor, pointTree, count);
@@ -285,7 +287,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 return docCount[0] > 0 ? docCount[0] : 0;
             }
 
-            private long intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count) throws IOException {
+            private long intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count)
+                throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= count) {
                     return 0;
@@ -295,9 +298,10 @@ public abstract class ApproximatePointRangeQuery extends Query {
                         // This cell is fully outside the query shape: stop recursing
                         break;
                     case CELL_INSIDE_QUERY:
-                        // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when we have sufficient doc count
+                        // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when
+                        // we have sufficient doc count
                         if (pointTree.moveToChild()) {
-                            while (pointTree.moveToSibling() && docCount[0] <= count){
+                            while (pointTree.moveToSibling() && docCount[0] <= count) {
                                 docCount[0] += intersectRight(visitor, pointTree, count);
                             }
                             pointTree.moveToParent();

@@ -331,9 +331,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (searchContext.size() > 10_000) ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSize(searchContext.size());
             if (searchContext.request() != null && searchContext.request().source() != null) {
                 FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
-                if (primarySortField != null
-                        && primarySortField.missing() == null) {
-                    if(primarySortField.order() == SortOrder.DESC){
+                if (primarySortField != null && primarySortField.missing() == null) {
+                    if (primarySortField.order() == SortOrder.DESC) {
                         ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSortOrder(SortOrder.DESC);
                     }
                 }
