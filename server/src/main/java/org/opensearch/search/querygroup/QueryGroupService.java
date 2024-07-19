@@ -15,8 +15,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.search.querygroup.cancellation.DefaultTaskCancellation;
-import org.opensearch.search.querygroup.cancellation.LongestRunningTaskFirstStrategy;
 import org.opensearch.search.querygroup.tracker.QueryGroupUsageTracker;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -34,9 +32,7 @@ public class QueryGroupService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(QueryGroupService.class);
 
     private final QueryGroupUsageTracker queryGroupUsageTracker;
-    // private final QueryGroupPruner queryGroupPruner;
     private volatile Scheduler.Cancellable scheduledFuture;
-    // private final QueryGroupServiceSettings queryGroupServiceSettings;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
@@ -44,9 +40,7 @@ public class QueryGroupService extends AbstractLifecycleComponent {
      * Guice managed constructor
      *
      * @param queryGroupUsageTracker tracker service
-    //     * @param queryGroupPruner
-    //     * @param queryGroupServiceSettings
-     * @param threadPool threadpool this will be used to schedule the service
+     * @param threadPool threadPool this will be used to schedule the service
      */
     @Inject
     public QueryGroupService(
@@ -70,13 +64,6 @@ public class QueryGroupService extends AbstractLifecycleComponent {
         Map<String, QueryGroupLevelResourceUsageView> queryGroupLevelResourceUsageViews = queryGroupUsageTracker
             .constructQueryGroupLevelUsageViews();
         Set<QueryGroup> activeQueryGroups = getActiveQueryGroups();
-        DefaultTaskCancellation taskCancellation = new DefaultTaskCancellation(
-            new LongestRunningTaskFirstStrategy(),
-            queryGroupLevelResourceUsageViews,
-            activeQueryGroups
-        );
-        taskCancellation.cancelTasks();
-        // TODO Prune the QueryGroups
     }
 
     private Set<QueryGroup> getActiveQueryGroups() {

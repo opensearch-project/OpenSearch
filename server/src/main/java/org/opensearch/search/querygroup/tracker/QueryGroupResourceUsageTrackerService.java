@@ -106,7 +106,6 @@ public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTra
                 for (ResourceType resourceType : TRACKED_RESOURCES) {
                     long currentUsage = queryGroupUsage.getOrDefault(resourceType, 0L);
                     long taskUsage = resourceType.getResourceUsage(task);
-                    // task.getTotalResourceStats().getCpuTimeInNanos();
                     queryGroupUsage.put(resourceType, currentUsage + taskUsage);
                 }
             }
