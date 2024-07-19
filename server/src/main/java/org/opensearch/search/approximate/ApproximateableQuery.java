@@ -47,7 +47,6 @@ public final class ApproximateableQuery extends Query {
         this.approximationQueryWeight = approximationQueryWeight;
     }
 
-
     public Weight getApproximationQueryWeight() {
         return approximationQueryWeight;
     }

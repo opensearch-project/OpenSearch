@@ -594,6 +594,6 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
     @Override
     public final String toString(String field) {
-       return pointRangeQuery.toString(field);
+        return pointRangeQuery.toString(field);
     }
 }
