@@ -793,16 +793,6 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
             @Override
             public Query termsQuery(String field, List<Object> values, boolean hasDocValues, boolean isSearchable) {
-                if (values.get(0) instanceof BytesArray) {
-                    RoaringBitmap bitmap = new RoaringBitmap();
-                    try {
-                        bitmap.deserialize(ByteBuffer.wrap(((BytesArray) values.get(0)).array()));
-                        return new BitMapFilterQuery(field, bitmap);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-
                 int[] v = new int[values.size()];
                 int upTo = 0;
 
@@ -835,6 +825,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     return SortedNumericDocValuesField.newSlowSetQuery(field, points);
                 }
                 return IntPoint.newSetQuery(field, v);
+            }
+
+            @Override
+            public Query bitmapQuery(String field, BytesArray bitmapArray) {
+                RoaringBitmap bitmap = new RoaringBitmap();
+                try {
+                    bitmap.deserialize(ByteBuffer.wrap(bitmapArray.array()));
+                    return new BitMapFilterQuery(field, bitmap);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             @Override
@@ -1189,6 +1190,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public abstract Query termsQuery(String field, List<Object> values, boolean hasDocValues, boolean isSearchable);
 
+        public Query bitmapQuery(String field, BytesArray bitmap) {
+            throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support bitmap queries");
+        }
+
         public abstract Query rangeQuery(
             String field,
             Object lowerTerm,
@@ -1508,6 +1513,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 query = new BoostQuery(query, boost());
             }
             return query;
+        }
+
+        public Query bitmapQuery(BytesArray bitmap) {
+            return type.bitmapQuery(name(), bitmap);
         }
 
         @Override

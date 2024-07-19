@@ -42,9 +42,11 @@ import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -53,6 +55,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.TermsLookup;
 
 import java.io.IOException;
@@ -77,10 +80,18 @@ import java.util.stream.IntStream;
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
+
     private final String fieldName;
     private final List<?> values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
+
+    private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
+    private String valueType;
+    public final TermsQueryBuilder valueType(String valueType) {
+        this.valueType = valueType;
+        return this;
+    }
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
         this(fieldName, null, termsLookup);
@@ -187,11 +198,21 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.supplier = null;
     }
 
+    private TermsQueryBuilder(String fieldName, Iterable<?> values, String valueType) {
+       this(fieldName, values);
+       this.valueType = valueType;
+    }
+
     private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier) {
         this.fieldName = fieldName;
         this.values = null;
         this.termsLookup = null;
         this.supplier = supplier;
+    }
+
+    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, String valueType) {
+        this(fieldName, supplier);
+        this.valueType = valueType;
     }
 
     /**
@@ -371,6 +392,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
+        String valueType = null;
+
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -406,6 +429,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     boost = parser.floatValue();
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
+                } else if (VALUE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    valueType = parser.text();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -430,7 +455,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             );
         }
 
-        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
+        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
@@ -473,6 +498,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
+        if (valueType != null && valueType.equals("bitmap")) {
+            if (values.size() == 1 && values.get(0) instanceof BytesArray) {
+                if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+                    return ((NumberFieldMapper.NumberFieldType) fieldType).bitmapQuery((BytesArray) values.get(0));
+                }
+            }
+        }
         return fieldType.termsQuery(values, context);
     }
 
@@ -507,14 +539,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (supplier != null) {
-            return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
+            return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get(), valueType);
         } else if (this.termsLookup != null) {
             SetOnce<List<?>> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, ActionListener.map(listener, list -> {
                 supplier.set(list);
                 return null;
             })));
-            return new TermsQueryBuilder(this.fieldName, supplier::get);
+            return new TermsQueryBuilder(this.fieldName, supplier::get, valueType);
         }
 
         if (values == null || values.isEmpty()) {
