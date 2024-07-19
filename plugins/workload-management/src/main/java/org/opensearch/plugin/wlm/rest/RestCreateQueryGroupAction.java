@@ -50,7 +50,7 @@ public class RestCreateQueryGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "_wlm/_query_group/"), new Route(PUT, "_wlm/_query_group/"));
+        return List.of(new Route(POST, "_wlm/query_group/"), new Route(PUT, "_wlm/query_group/"));
     }
 
     @Override

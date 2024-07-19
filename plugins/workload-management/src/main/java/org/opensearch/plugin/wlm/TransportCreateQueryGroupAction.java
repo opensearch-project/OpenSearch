@@ -13,7 +13,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.plugin.wlm.service.Persistable;
+import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -28,7 +28,7 @@ import static org.opensearch.cluster.metadata.QueryGroup.builder;
 public class TransportCreateQueryGroupAction extends HandledTransportAction<CreateQueryGroupRequest, CreateQueryGroupResponse> {
 
     private final ThreadPool threadPool;
-    private final Persistable<QueryGroup> queryGroupPersistenceService;
+    private final QueryGroupPersistenceService queryGroupPersistenceService;
 
     /**
      * Constructor for TransportCreateQueryGroupAction
@@ -37,7 +37,7 @@ public class TransportCreateQueryGroupAction extends HandledTransportAction<Crea
      * @param transportService - a {@link TransportService} object
      * @param actionFilters - a {@link ActionFilters} object
      * @param threadPool - a {@link ThreadPool} object
-     * @param queryGroupPersistenceService - a {@link Persistable} object
+     * @param queryGroupPersistenceService - a {@link QueryGroupPersistenceService} object
      */
     @Inject
     public TransportCreateQueryGroupAction(
@@ -45,7 +45,7 @@ public class TransportCreateQueryGroupAction extends HandledTransportAction<Crea
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        Persistable<QueryGroup> queryGroupPersistenceService
+        QueryGroupPersistenceService queryGroupPersistenceService
     ) {
         super(CreateQueryGroupAction.NAME, transportService, actionFilters, CreateQueryGroupRequest::new);
         this.threadPool = threadPool;
@@ -60,6 +60,7 @@ public class TransportCreateQueryGroupAction extends HandledTransportAction<Crea
             .resourceLimits(request.getResourceLimits())
             .updatedAt(request.getUpdatedAtInMillis())
             .build();
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> queryGroupPersistenceService.persist(queryGroup, listener));
+        threadPool.executor(ThreadPool.Names.GENERIC)
+            .execute(() -> queryGroupPersistenceService.persistInClusterStateMetadata(queryGroup, listener));
     }
 }

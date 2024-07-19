@@ -8,11 +8,7 @@
 
 package org.opensearch.plugin.wlm;
 
-import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.inject.AbstractModule;
-import org.opensearch.common.inject.TypeLiteral;
-import org.opensearch.plugin.wlm.service.Persistable;
-import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
 
 /**
  * Guice Module to manage WorkloadManagement related objects
@@ -25,8 +21,5 @@ public class WorkloadManagementPluginModule extends AbstractModule {
     public WorkloadManagementPluginModule() {}
 
     @Override
-    protected void configure() {
-        bind(new TypeLiteral<Persistable<QueryGroup>>() {
-        }).to(QueryGroupPersistenceService.class).asEagerSingleton();
-    }
+    protected void configure() {}
 }

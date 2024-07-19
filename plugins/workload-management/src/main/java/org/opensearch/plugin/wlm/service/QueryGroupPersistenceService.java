@@ -34,7 +34,7 @@ import static org.opensearch.search.query_group.QueryGroupServiceSettings.QUERY_
 /**
  * This class defines the functions for QueryGroup persistence
  */
-public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
+public class QueryGroupPersistenceService {
     private static final Logger logger = LogManager.getLogger(QueryGroupPersistenceService.class);
     private final ClusterService clusterService;
     private static final String SOURCE = "query-group-persistence-service";
@@ -78,16 +78,12 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
         this.maxQueryGroupCount = newMaxQueryGroupCount;
     }
 
-    @Override
-    public void persist(QueryGroup queryGroup, ActionListener<CreateQueryGroupResponse> listener) {
-        persistInClusterStateMetadata(queryGroup, listener);
-    }
-
     /**
      * Update cluster state to include the new QueryGroup
      * @param queryGroup {@link QueryGroup} - the QueryGroup we're currently creating
+     * @param listener - ActionListener for CreateQueryGroupResponse
      */
-    void persistInClusterStateMetadata(QueryGroup queryGroup, ActionListener<CreateQueryGroupResponse> listener) {
+    public void persistInClusterStateMetadata(QueryGroup queryGroup, ActionListener<CreateQueryGroupResponse> listener) {
         clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.NORMAL) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -183,12 +179,5 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
             }
         }
         return existingUsage;
-    }
-
-    /**
-     * clusterService getter
-     */
-    public ClusterService getClusterService() {
-        return clusterService;
     }
 }

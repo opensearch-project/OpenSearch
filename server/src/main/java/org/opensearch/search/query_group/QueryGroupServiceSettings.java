@@ -18,20 +18,26 @@ import org.opensearch.common.unit.TimeValue;
  */
 public class QueryGroupServiceSettings {
     private static final Long DEFAULT_RUN_INTERVAL_MILLIS = 1000l;
-    private static final Double DEFAULT_NODE_LEVEL_REJECTION_THRESHOLD = 0.8;
-    private static final Double DEFAULT_NODE_LEVEL_CANCELLATION_THRESHOLD = 0.9;
+    private static final Double DEFAULT_NODE_LEVEL_MEMORY_REJECTION_THRESHOLD = 0.8;
+    private static final Double DEFAULT_NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = 0.9;
+    private static final Double DEFAULT_NODE_LEVEL_CPU_REJECTION_THRESHOLD = 0.8;
+    private static final Double DEFAULT_NODE_LEVEL_CPU_CANCELLATION_THRESHOLD = 0.9;
     /**
      * default max queryGroup count on any node at any given point in time
      */
     public static final int DEFAULT_MAX_QUERY_GROUP_COUNT_VALUE = 100;
 
     public static final String QUERY_GROUP_COUNT_SETTING_NAME = "node.query_group.max_count";
-    public static final double NODE_LEVEL_CANCELLATION_THRESHOLD_MAX_VALUE = 0.95;
-    public static final double NODE_LEVEL_REJECTION_THRESHOLD_MAX_VALUE = 0.90;
+    public static final double NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD_MAX_VALUE = 0.95;
+    public static final double NODE_LEVEL_MEMORY_REJECTION_THRESHOLD_MAX_VALUE = 0.90;
+    public static final double NODE_LEVEL_CPU_CANCELLATION_THRESHOLD_MAX_VALUE = 0.95;
+    public static final double NODE_LEVEL_CPU_REJECTION_THRESHOLD_MAX_VALUE = 0.90;
 
     private TimeValue runIntervalMillis;
     private Double nodeLevelMemoryCancellationThreshold;
     private Double nodeLevelMemoryRejectionThreshold;
+    private Double nodeLevelCpuCancellationThreshold;
+    private Double nodeLevelCpuRejectionThreshold;
     private volatile int maxQueryGroupCount;
     /**
      *  max QueryGroup count setting
@@ -64,28 +70,54 @@ public class QueryGroupServiceSettings {
     );
 
     /**
-     * Setting name for node level rejection threshold for QSB
+     * Setting name for node level memory rejection threshold for QSB
      */
-    public static final String NODE_REJECTION_THRESHOLD_SETTING_NAME = "query_group.node.rejection_threshold";
+    public static final String NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME = "query_group.node.memory_rejection_threshold";
     /**
-     * Setting to control the rejection threshold
+     * Setting to control the memory rejection threshold
      */
-    public static final Setting<Double> NODE_LEVEL_REJECTION_THRESHOLD = Setting.doubleSetting(
-        NODE_REJECTION_THRESHOLD_SETTING_NAME,
-        DEFAULT_NODE_LEVEL_REJECTION_THRESHOLD,
+    public static final Setting<Double> NODE_LEVEL_MEMORY_REJECTION_THRESHOLD = Setting.doubleSetting(
+        NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME,
+        DEFAULT_NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level cancellation threshold
+     * Setting name for node level cpu rejection threshold for QSB
      */
-    public static final String NODE_CANCELLATION_THRESHOLD_SETTING_NAME = "query_group.node.cancellation_threshold";
+    public static final String NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME = "query_group.node.cpu_rejection_threshold";
     /**
-     * Setting name for node level cancellation threshold
+     * Setting to control the cpu rejection threshold
      */
-    public static final Setting<Double> NODE_LEVEL_CANCELLATION_THRESHOLD = Setting.doubleSetting(
-        NODE_CANCELLATION_THRESHOLD_SETTING_NAME,
-        DEFAULT_NODE_LEVEL_CANCELLATION_THRESHOLD,
+    public static final Setting<Double> NODE_LEVEL_CPU_REJECTION_THRESHOLD = Setting.doubleSetting(
+        NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME,
+        DEFAULT_NODE_LEVEL_CPU_REJECTION_THRESHOLD,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    /**
+     * Setting name for node level memory cancellation threshold
+     */
+    public static final String NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME = "query_group.node.memory_cancellation_threshold";
+    /**
+     * Setting name for node level memory cancellation threshold
+     */
+    public static final Setting<Double> NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = Setting.doubleSetting(
+        NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME,
+        DEFAULT_NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    /**
+     * Setting name for node level cpu cancellation threshold
+     */
+    public static final String NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME = "query_group.node.cpu_cancellation_threshold";
+    /**
+     * Setting name for node level cpu cancellation threshold
+     */
+    public static final Setting<Double> NODE_LEVEL_CPU_CANCELLATION_THRESHOLD = Setting.doubleSetting(
+        NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME,
+        DEFAULT_NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -97,15 +129,20 @@ public class QueryGroupServiceSettings {
      */
     public QueryGroupServiceSettings(Settings settings, ClusterSettings clusterSettings) {
         runIntervalMillis = new TimeValue(QUERY_GROUP_RUN_INTERVAL_SETTING.get(settings));
-        nodeLevelMemoryCancellationThreshold = NODE_LEVEL_CANCELLATION_THRESHOLD.get(settings);
-        nodeLevelMemoryRejectionThreshold = NODE_LEVEL_REJECTION_THRESHOLD.get(settings);
+        nodeLevelMemoryCancellationThreshold = NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD.get(settings);
+        nodeLevelMemoryRejectionThreshold = NODE_LEVEL_MEMORY_REJECTION_THRESHOLD.get(settings);
+        nodeLevelCpuCancellationThreshold = NODE_LEVEL_CPU_CANCELLATION_THRESHOLD.get(settings);
+        nodeLevelCpuRejectionThreshold = NODE_LEVEL_CPU_REJECTION_THRESHOLD.get(settings);
         maxQueryGroupCount = MAX_QUERY_GROUP_COUNT.get(settings);
 
-        ensureRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
+        ensureMemoryRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
+        ensureCpuRejectionThresholdIsLessThanCancellation(nodeLevelCpuRejectionThreshold, nodeLevelCpuCancellationThreshold);
 
         clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxQueryGroupCount);
-        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CANCELLATION_THRESHOLD, this::setNodeLevelMemoryCancellationThreshold);
-        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_REJECTION_THRESHOLD, this::setNodeLevelMemoryRejectionThreshold);
+        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD, this::setNodeLevelMemoryCancellationThreshold);
+        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_MEMORY_REJECTION_THRESHOLD, this::setNodeLevelMemoryRejectionThreshold);
+        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CPU_CANCELLATION_THRESHOLD, this::setNodeLevelCpuCancellationThreshold);
+        clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CPU_REJECTION_THRESHOLD, this::setNodeLevelCpuRejectionThreshold);
     }
 
     /**
@@ -128,62 +165,125 @@ public class QueryGroupServiceSettings {
     }
 
     /**
-     * Method to get the node level cancellation threshold
-     * @return current node level cancellation threshold
+     * Method to get the node level memory cancellation threshold
+     * @return current node level memory cancellation threshold
      */
     public Double getNodeLevelMemoryCancellationThreshold() {
         return nodeLevelMemoryCancellationThreshold;
     }
 
     /**
-     * Method to set the node level cancellation threshold
-     * @param nodeLevelMemoryCancellationThreshold sets the new node level cancellation threshold
+     * Method to set the node level memory cancellation threshold
+     * @param nodeLevelMemoryCancellationThreshold sets the new node level memory cancellation threshold
      * @throws IllegalArgumentException if the value is &gt; 0.95 and cancellation &lt; rejection threshold
      */
     public void setNodeLevelMemoryCancellationThreshold(Double nodeLevelMemoryCancellationThreshold) {
-        if (Double.compare(nodeLevelMemoryCancellationThreshold, NODE_LEVEL_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
+        if (Double.compare(nodeLevelMemoryCancellationThreshold, NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
-                NODE_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be greater than 0.95 as it pose a threat of node drop"
+                NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be greater than 0.95 as it pose a threat of node drop"
             );
         }
 
-        ensureRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
+        ensureMemoryRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
 
         this.nodeLevelMemoryCancellationThreshold = nodeLevelMemoryCancellationThreshold;
     }
 
     /**
-     * Method to get the node level rejection threshold
-     * @return the current node level rejection threshold
+     * Method to get the node level cpu cancellation threshold
+     * @return current node level cpu cancellation threshold
+     */
+    public Double getNodeLevelCpuCancellationThreshold() {
+        return nodeLevelCpuCancellationThreshold;
+    }
+
+    /**
+     * Method to set the node level cpu cancellation threshold
+     * @param nodeLevelCpuCancellationThreshold sets the new node level cpu cancellation threshold
+     * @throws IllegalArgumentException if the value is &gt; 0.95 and cancellation &lt; rejection threshold
+     */
+    public void setNodeLevelCpuCancellationThreshold(Double nodeLevelCpuCancellationThreshold) {
+        if (Double.compare(nodeLevelCpuCancellationThreshold, NODE_LEVEL_CPU_CANCELLATION_THRESHOLD_MAX_VALUE) > 0) {
+            throw new IllegalArgumentException(
+                NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be greater than 0.95 as it pose a threat of node drop"
+            );
+        }
+
+        ensureCpuRejectionThresholdIsLessThanCancellation(nodeLevelCpuRejectionThreshold, nodeLevelCpuCancellationThreshold);
+
+        this.nodeLevelCpuCancellationThreshold = nodeLevelCpuCancellationThreshold;
+    }
+
+    /**
+     * Method to get the memory node level rejection threshold
+     * @return the current memory node level rejection threshold
      */
     public Double getNodeLevelMemoryRejectionThreshold() {
         return nodeLevelMemoryRejectionThreshold;
     }
 
     /**
-     * Method to set the node level rejection threshold
-     * @param nodeLevelMemoryRejectionThreshold sets the new rejection threshold
+     * Method to set the node level memory rejection threshold
+     * @param nodeLevelMemoryRejectionThreshold sets the new memory rejection threshold
      * @throws IllegalArgumentException if rejection &gt; 0.90 and rejection &lt; cancellation threshold
      */
     public void setNodeLevelMemoryRejectionThreshold(Double nodeLevelMemoryRejectionThreshold) {
-        if (Double.compare(nodeLevelMemoryRejectionThreshold, NODE_LEVEL_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
+        if (Double.compare(nodeLevelMemoryRejectionThreshold, NODE_LEVEL_MEMORY_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
             throw new IllegalArgumentException(
-                NODE_REJECTION_THRESHOLD_SETTING_NAME + " value not be greater than 0.90 as it pose a threat of node drop"
+                NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME + " value not be greater than 0.90 as it pose a threat of node drop"
             );
         }
 
-        ensureRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
+        ensureMemoryRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
 
         this.nodeLevelMemoryRejectionThreshold = nodeLevelMemoryRejectionThreshold;
     }
 
-    private void ensureRejectionThresholdIsLessThanCancellation(
+    /**
+     * Method to get the cpu node level rejection threshold
+     * @return the current cpu node level rejection threshold
+     */
+    public Double getNodeLevelCpuRejectionThreshold() {
+        return nodeLevelCpuRejectionThreshold;
+    }
+
+    /**
+     * Method to set the node level cpu rejection threshold
+     * @param nodeLevelCpuRejectionThreshold sets the new cpu rejection threshold
+     * @throws IllegalArgumentException if rejection &gt; 0.90 and rejection &lt; cancellation threshold
+     */
+    public void setNodeLevelCpuRejectionThreshold(Double nodeLevelCpuRejectionThreshold) {
+        if (Double.compare(nodeLevelCpuRejectionThreshold, NODE_LEVEL_CPU_REJECTION_THRESHOLD_MAX_VALUE) > 0) {
+            throw new IllegalArgumentException(
+                NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME + " value not be greater than 0.90 as it pose a threat of node drop"
+            );
+        }
+
+        ensureCpuRejectionThresholdIsLessThanCancellation(nodeLevelCpuRejectionThreshold, nodeLevelCpuCancellationThreshold);
+
+        this.nodeLevelCpuRejectionThreshold = nodeLevelCpuRejectionThreshold;
+    }
+
+    private void ensureMemoryRejectionThresholdIsLessThanCancellation(
         Double nodeLevelMemoryRejectionThreshold,
         Double nodeLevelMemoryCancellationThreshold
     ) {
         if (Double.compare(nodeLevelMemoryCancellationThreshold, nodeLevelMemoryRejectionThreshold) < 0) {
             throw new IllegalArgumentException(
-                NODE_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be less than " + NODE_REJECTION_THRESHOLD_SETTING_NAME
+                NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME
+                    + " value should not be less than "
+                    + NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME
+            );
+        }
+    }
+
+    private void ensureCpuRejectionThresholdIsLessThanCancellation(
+        Double nodeLevelCpuRejectionThreshold,
+        Double nodeLevelCpuCancellationThreshold
+    ) {
+        if (Double.compare(nodeLevelCpuCancellationThreshold, nodeLevelCpuRejectionThreshold) < 0) {
+            throw new IllegalArgumentException(
+                NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be less than " + NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME
             );
         }
     }
