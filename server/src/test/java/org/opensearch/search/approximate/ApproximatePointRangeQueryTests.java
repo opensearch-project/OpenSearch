@@ -21,6 +21,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -100,7 +101,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                             pack(lower).bytes,
                             pack(upper).bytes,
                             dims,
-                            10
+                            10,
+                                SortOrder.ASC
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
@@ -111,7 +113,8 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                             pack(lower).bytes,
                             pack(upper).bytes,
                             dims,
-                            100
+                            100,
+                                SortOrder.ASC
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
@@ -156,7 +159,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     try {
                         long lower = 0;
                         long upper = 100;
-                        Query approximateQuery = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims, 10) {
+                        Query approximateQuery = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims, 10, SortOrder.ASC) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }

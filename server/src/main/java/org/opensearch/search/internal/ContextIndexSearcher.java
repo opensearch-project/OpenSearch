@@ -83,6 +83,7 @@ import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -328,6 +329,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (isApproximateableRangeQuery()) {
             ApproximateableQuery query = ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery());
             if (searchContext.size() > 10_000) ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSize(searchContext.size());
+            if (searchContext.request() != null && searchContext.request().source() != null) {
+                FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
+                if (primarySortField != null
+                        && primarySortField.missing() == null) {
+                    if(primarySortField.order() == SortOrder.DESC){
+                        ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSortOrder(SortOrder.DESC);
+                    }
+                }
+            }
             weight = query.getApproximationQueryWeight();
         }
         if (liveDocsBitSet == null) {
@@ -422,23 +432,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private boolean isApproximateableRangeQuery() {
-        boolean isTopLevelRangeQuery = searchContext.query() instanceof IndexOrDocValuesQuery
+        return searchContext.query() instanceof IndexOrDocValuesQuery
             && ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery() instanceof ApproximateableQuery
             && ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery())
                 .getOriginalQuery() instanceof PointRangeQuery;
-
-        boolean hasSort = false;
-
-        if (searchContext.request() != null && searchContext.request().source() != null) {
-            FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
-            if (primarySortField != null
-                && primarySortField.missing() == null
-                && Objects.equals(searchContext.trackTotalHitsUpTo(), SearchContext.TRACK_TOTAL_HITS_DISABLED)) {
-                hasSort = true;
-            }
-        }
-
-        return isTopLevelRangeQuery && !hasSort;
     }
 
     static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled)

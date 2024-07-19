@@ -8,6 +8,8 @@
 
 package org.opensearch.search.approximate;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -25,6 +27,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,13 +50,15 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
     private int size;
 
+    private SortOrder sortOrder;
+
     private long[] docCount = { 0 };
 
     protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims) {
-        this(field, lowerPoint, upperPoint, numDims, 10_000);
+        this(field, lowerPoint, upperPoint, numDims, 10_000, SortOrder.ASC);
     }
 
-    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size) {
+    protected ApproximatePointRangeQuery(String field, byte[] lowerPoint, byte[] upperPoint, int numDims, int size, SortOrder sortOrder) {
         checkArgs(field, lowerPoint, upperPoint);
         this.field = field;
         if (numDims <= 0) {
@@ -76,6 +81,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
         this.lowerPoint = lowerPoint;
         this.upperPoint = upperPoint;
         this.size = size;
+        this.sortOrder = sortOrder;
     }
 
     public int getSize() {
@@ -84,6 +90,14 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
     public void setSize(int size) {
         this.size = size;
+    }
+
+    public SortOrder getSortOrder() {
+        return this.sortOrder;
+    }
+
+    public void setSortOrder(SortOrder sortOrder) {
+        this.sortOrder = sortOrder;
     }
 
     @Override
@@ -210,12 +224,17 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 return true;
             }
 
-            private void intersect(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, int count) throws IOException {
-                intersect(visitor, pointTree, count);
+            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, int count) throws IOException {
+                intersectLeft(visitor, pointTree, count);
                 assert pointTree.moveToParent() == false;
             }
 
-            private long intersect(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count) throws IOException {
+            private void intersectRight(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor, int count) throws IOException {
+                intersectRight(visitor, pointTree, count);
+                assert pointTree.moveToParent() == false;
+            }
+
+            private long intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count) throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= count) {
                     return 0;
@@ -225,16 +244,80 @@ public abstract class ApproximatePointRangeQuery extends Query {
                         // This cell is fully outside the query shape: stop recursing
                         break;
                     case CELL_INSIDE_QUERY:
-                        // This cell is fully inside the query shape: recursively add all points in this cell
-                        // without filtering
-                        pointTree.visitDocIDs(visitor);
-                        return pointTree.size();
+                        // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when we have sufficient doc count
+                        if (pointTree.moveToChild()) {
+                            do {
+                                docCount[0] += intersectLeft(visitor, pointTree, count);
+                            } while (pointTree.moveToSibling() && docCount[0] <= count);
+                            pointTree.moveToParent();
+                        } else {
+                            // TODO: we can assert that the first value here in fact matches what the pointTree
+                            // claimed?
+                            // Leaf node; scan and filter all points in this block:
+                            if (docCount[0] <= count) {
+                                pointTree.visitDocIDs(visitor);
+                                docCount[0] += pointTree.size();
+                                return docCount[0];
+                            } else break;
+                        }
+                        break;
                     case CELL_CROSSES_QUERY:
                         // The cell crosses the shape boundary, or the cell fully contains the query, so we fall
                         // through and do full filtering:
                         if (pointTree.moveToChild()) {
                             do {
-                                docCount[0] += intersect(visitor, pointTree, count);
+                                docCount[0] += intersectLeft(visitor, pointTree, count);
+                            } while (pointTree.moveToSibling() && docCount[0] <= count);
+                            pointTree.moveToParent();
+                        } else {
+                            // TODO: we can assert that the first value here in fact matches what the pointTree
+                            // claimed?
+                            // Leaf node; scan and filter all points in this block:
+                            if (docCount[0] <= count) {
+                                pointTree.visitDocValues(visitor);
+                            } else break;
+                        }
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unreachable code");
+                }
+                // docCount can be updated by the local visitor so we ensure that we return docCount after pointTree.visitDocValues(visitor)
+                return docCount[0] > 0 ? docCount[0] : 0;
+            }
+
+            private long intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree, int count) throws IOException {
+                PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+                if (docCount[0] >= count) {
+                    return 0;
+                }
+                switch (r) {
+                    case CELL_OUTSIDE_QUERY:
+                        // This cell is fully outside the query shape: stop recursing
+                        break;
+                    case CELL_INSIDE_QUERY:
+                        // If the cell is fully inside, we keep moving to child until we reach a point where we can no longer move or when we have sufficient doc count
+                        if (pointTree.moveToChild()) {
+                            while (pointTree.moveToSibling() && docCount[0] <= count){
+                                docCount[0] += intersectRight(visitor, pointTree, count);
+                            }
+                            pointTree.moveToParent();
+                        } else {
+                            // TODO: we can assert that the first value here in fact matches what the pointTree
+                            // claimed?
+                            // Leaf node; scan and filter all points in this block:
+                            if (docCount[0] <= count) {
+                                pointTree.visitDocIDs(visitor);
+                                docCount[0] += pointTree.size();
+                                return docCount[0];
+                            } else break;
+                        }
+                        break;
+                    case CELL_CROSSES_QUERY:
+                        // The cell crosses the shape boundary, or the cell fully contains the query, so we fall
+                        // through and do full filtering:
+                        if (pointTree.moveToChild()) {
+                            do {
+                                docCount[0] += intersectRight(visitor, pointTree, count);
                             } while (pointTree.moveToSibling() && docCount[0] <= count);
                             pointTree.moveToParent();
                         } else {
@@ -312,6 +395,31 @@ public abstract class ApproximatePointRangeQuery extends Query {
                         }
                     };
                 } else {
+                    if (sortOrder.equals(SortOrder.ASC)) {
+                        return new ScorerSupplier() {
+
+                            final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, field);
+                            final PointValues.IntersectVisitor visitor = getIntersectVisitor(result);
+                            long cost = -1;
+
+                            @Override
+                            public Scorer get(long leadCost) throws IOException {
+                                intersectLeft(values.getPointTree(), visitor, size);
+                                DocIdSetIterator iterator = result.build().iterator();
+                                return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
+                            }
+
+                            @Override
+                            public long cost() {
+                                if (cost == -1) {
+                                    // Computing the cost may be expensive, so only do it if necessary
+                                    cost = values.estimateDocCount(visitor);
+                                    assert cost >= 0;
+                                }
+                                return cost;
+                            }
+                        };
+                    }
                     return new ScorerSupplier() {
 
                         final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, field);
@@ -320,7 +428,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
                         @Override
                         public Scorer get(long leadCost) throws IOException {
-                            intersect(values.getPointTree(), visitor, size);
+                            intersectRight(values.getPointTree(), visitor, size);
                             DocIdSetIterator iterator = result.build().iterator();
                             return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
                         }
