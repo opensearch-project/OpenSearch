@@ -15,7 +15,7 @@ import org.opensearch.tasks.Task;
 import java.io.IOException;
 
 /**
- * Enum to hold the resource type
+ * Abstract class representing a resource type.
  */
 @PublicApi(since = "2.x")
 public abstract class ResourceType {
