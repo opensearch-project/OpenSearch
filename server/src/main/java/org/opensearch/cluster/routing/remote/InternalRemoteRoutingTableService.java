@@ -16,6 +16,7 @@ import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -56,13 +57,13 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteR
  * @opensearch.internal
  */
 public class InternalRemoteRoutingTableService extends AbstractLifecycleComponent implements RemoteRoutingTableService {
-    
+
     private static final Logger logger = LogManager.getLogger(InternalRemoteRoutingTableService.class);
     private final Settings settings;
     private final Supplier<RepositoriesService> repositoriesService;
     private Compressor compressor;
     private RemoteWritableEntityStore<IndexRoutingTable, RemoteIndexRoutingTable> remoteIndexRoutingTableStore;
-    private RemoteWritableEntityStore<RemoteIndexRoutingTableDiff, RemoteIndexRoutingTableDiff> remoteIndexRoutingTableDiffStore;
+    private RemoteWritableEntityStore<RoutingTableIncrementalDiff, RemoteIndexRoutingTableDiff> remoteIndexRoutingTableDiffStore;
     private final ClusterSettings clusterSettings;
     private BlobStoreRepository blobStoreRepository;
     private final ThreadPool threadPool;
@@ -206,10 +207,10 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     public CheckedRunnable<IOException> getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<Map<String, Diff<IndexRoutingTable>>> latchedActionListener
+        LatchedActionListener<RoutingTableIncrementalDiff> latchedActionListener
     ) {
-        ActionListener<RemoteIndexRoutingTableDiff> actionListener = ActionListener.wrap(
-            response -> latchedActionListener.onResponse(response.getDiffs()),
+        ActionListener<RoutingTableIncrementalDiff> actionListener = ActionListener.wrap(
+            latchedActionListener::onResponse,
             latchedActionListener::onFailure
         );
 

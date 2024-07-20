@@ -44,10 +44,6 @@ public abstract class AbstractRemoteWritableBlobEntity<T> implements RemoteWrite
         this(clusterUUID, compressor, null);
     }
 
-    public AbstractRemoteWritableBlobEntity() {
-        this(null, null, null);
-    }
-
     public abstract BlobPathParameters getBlobPathParameters();
 
     public abstract String getType();

@@ -160,8 +160,8 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         this.indicesDeleted = Collections.unmodifiableList(indicesDeleted);
         this.clusterBlocksUpdated = clusterBlocksUpdated;
         this.discoveryNodesUpdated = discoveryNodesUpdated;
-        this.indicesRoutingUpdated = indicesRoutingUpdated;
-        this.indicesRoutingDeleted = indicesRoutingDeleted;
+        this.indicesRoutingUpdated = Collections.unmodifiableList(indicesRoutingUpdated);
+        this.indicesRoutingDeleted = Collections.unmodifiableList(indicesRoutingDeleted);
         this.indicesRoutingDiffPath = indicesRoutingDiffPath;
         this.hashesOfConsistentSettingsUpdated = hashesOfConsistentSettingsUpdated;
         this.clusterStateCustomUpdated = Collections.unmodifiableList(clusterStateCustomUpdated);

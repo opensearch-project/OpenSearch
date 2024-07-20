@@ -27,6 +27,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableServiceFactory;
 import org.opensearch.cluster.service.ClusterService;
@@ -1041,7 +1042,7 @@ public class RemoteClusterStateService implements Closeable {
         List<CheckedRunnable<IOException>> asyncMetadataReadActions = new ArrayList<>();
         List<RemoteReadResult> readResults = Collections.synchronizedList(new ArrayList<>());
         List<IndexRoutingTable> readIndexRoutingTableResults = Collections.synchronizedList(new ArrayList<>());
-        AtomicReference<RemoteIndexRoutingTableDiff> readIndexRoutingTableDiffResults = new AtomicReference<>();
+        AtomicReference<RoutingTableIncrementalDiff> readIndexRoutingTableDiffResults = new AtomicReference<>();
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
 
         LatchedActionListener<RemoteReadResult> listener = new LatchedActionListener<>(ActionListener.wrap(response -> {
@@ -1079,14 +1080,12 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
 
-        LatchedActionListener<Map<String, Diff<IndexRoutingTable>>> routingTableDiffLatchedActionListener = new LatchedActionListener<>(
+        LatchedActionListener<RoutingTableIncrementalDiff> routingTableDiffLatchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(response -> {
-                logger.debug("Successfully read cluster state diff component from remote");
-                readIndexRoutingTableDiffResults.set(
-                    new RemoteIndexRoutingTableDiff(response, clusterUUID, blobStoreRepository.getCompressor())
-                );
+                logger.debug("Successfully read routing table diff component from remote");
+                readIndexRoutingTableDiffResults.set(response);
             }, ex -> {
-                logger.error("Failed to read cluster state diff from remote", ex);
+                logger.error("Failed to read routing table diff from remote", ex);
                 exceptionList.add(ex);
             }),
             latch
@@ -1326,7 +1325,7 @@ public class RemoteClusterStateService implements Closeable {
         readIndexRoutingTableResults.forEach(
             indexRoutingTable -> indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable)
         );
-        RemoteIndexRoutingTableDiff routingTableDiff = readIndexRoutingTableDiffResults.get();
+        RoutingTableIncrementalDiff routingTableDiff = readIndexRoutingTableDiffResults.get();
         if (routingTableDiff != null) {
             routingTableDiff.getDiffs().forEach((key, diff) -> {
                 IndexRoutingTable previousIndexRoutingTable = indicesRouting.get(key);

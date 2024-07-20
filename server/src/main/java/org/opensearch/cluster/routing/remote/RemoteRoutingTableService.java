@@ -14,12 +14,12 @@ import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
-import org.opensearch.gateway.remote.routingtable.RemoteIndexShardRoutingTableDiff;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,7 +63,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
                         diffs.add(currentShardRoutingTable);
                     }
                 }
-                return new RemoteIndexShardRoutingTableDiff(diffs);
+                return new RoutingTableIncrementalDiff.IndexShardRoutingTableDiff(diffs);
             }
         };
 
@@ -78,7 +78,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
     CheckedRunnable<IOException> getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
-        LatchedActionListener<Map<String, Diff<IndexRoutingTable>>> latchedActionListener
+        LatchedActionListener<RoutingTableIncrementalDiff> latchedActionListener
     );
 
     List<ClusterMetadataManifest.UploadedIndexMetadata> getUpdatedIndexRoutingTableMetadata(
