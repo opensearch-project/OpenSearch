@@ -241,12 +241,15 @@ public class RemoteClusterStateService implements Closeable {
             remoteRoutingTableService.getIndicesRouting(clusterState.getRoutingTable()),
             null
         );
-        ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(clusterState, ClusterState.EMPTY_STATE, null);
-        if (uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null) {
-            clusterStateDiffManifest.setIndicesRoutingDiffPath(
-                uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
-            );
-        }
+
+        ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
+            clusterState,
+            ClusterState.EMPTY_STATE,
+            null,
+            uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null
+                ? uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
+                : null
+        );
         final RemoteClusterStateManifestInfo manifestDetails = remoteManifestManager.uploadManifest(
             clusterState,
             uploadedMetadataResults,
@@ -432,13 +435,12 @@ public class RemoteClusterStateService implements Closeable {
         ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
             clusterState,
             previousClusterState,
-            routingTableIncrementalDiff
+            routingTableIncrementalDiff,
+            uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null
+                ? uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
+                : null
         );
-        if (uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null) {
-            clusterStateDiffManifest.setIndicesRoutingDiffPath(
-                uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
-            );
-        }
+
         final RemoteClusterStateManifestInfo manifestDetails = remoteManifestManager.uploadManifest(
             clusterState,
             uploadedMetadataResults,

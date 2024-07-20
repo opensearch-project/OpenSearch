@@ -114,7 +114,7 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         diffManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final ClusterStateDiffManifest parsedManifest = ClusterStateDiffManifest.fromXContent(parser);
+            final ClusterStateDiffManifest parsedManifest = ClusterStateDiffManifest.fromXContent(parser, 0);
             assertEquals(diffManifest, parsedManifest);
         }
     }
@@ -191,7 +191,7 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         }
         ClusterState updatedClusterState = clusterStateBuilder.metadata(metadataBuilder.build()).build();
 
-        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(updatedClusterState, initialState, null);
+        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(updatedClusterState, initialState, null, null);
         assertEquals(indicesToAdd.stream().map(im -> im.getIndex().getName()).collect(toList()), manifest.getIndicesUpdated());
         assertEquals(indicesToRemove, manifest.getIndicesDeleted());
         assertEquals(new ArrayList<>(customsToAdd.keySet()), manifest.getCustomMetadataUpdated());

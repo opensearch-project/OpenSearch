@@ -191,6 +191,7 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 new ClusterStateDiffManifest(
                     RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
                     ClusterState.EMPTY_STATE,
+                    null,
                     null
                 )
             )

@@ -65,7 +65,7 @@ public class RoutingTableIncrementalDiff implements Diff<IndexRoutingTable> {
             }
 
             // Create a diff object for the index
-            Diff<IndexRoutingTable> diff = new IndexShardRoutingTableDiff(shardRoutingTables);
+            Diff<IndexRoutingTable> diff = new IndexRoutingTableIncrementalDiff(shardRoutingTables);
 
             // Put the diff into the map with the key
             diffs.put(key, diff);
@@ -106,7 +106,7 @@ public class RoutingTableIncrementalDiff implements Diff<IndexRoutingTable> {
     /**
      * Represents a difference between {@link IndexShardRoutingTable} objects that can be serialized and deserialized.
      */
-    public static class IndexShardRoutingTableDiff implements Diff<IndexRoutingTable> {
+    public static class IndexRoutingTableIncrementalDiff implements Diff<IndexRoutingTable> {
 
         private final List<IndexShardRoutingTable> indexShardRoutingTables;
 
@@ -115,7 +115,7 @@ public class RoutingTableIncrementalDiff implements Diff<IndexRoutingTable> {
          *
          * @param indexShardRoutingTables a list of IndexShardRoutingTable representing the differences.
          */
-        public IndexShardRoutingTableDiff(List<IndexShardRoutingTable> indexShardRoutingTables) {
+        public IndexRoutingTableIncrementalDiff(List<IndexShardRoutingTable> indexShardRoutingTables) {
             this.indexShardRoutingTables = indexShardRoutingTables;
         }
 
@@ -154,20 +154,20 @@ public class RoutingTableIncrementalDiff implements Diff<IndexRoutingTable> {
         }
 
         /**
-         * Reads a {@link IndexShardRoutingTableDiff} from the given {@link StreamInput}.
+         * Reads a {@link IndexRoutingTableIncrementalDiff} from the given {@link StreamInput}.
          *
          * @param in the input stream to read from.
          * @return the deserialized IndexShardRoutingTableDiff.
          * @throws IOException if an I/O exception occurs while reading from the stream.
          */
-        public static IndexShardRoutingTableDiff readFrom(StreamInput in) throws IOException {
+        public static IndexRoutingTableIncrementalDiff readFrom(StreamInput in) throws IOException {
             int size = in.readVInt();
             List<IndexShardRoutingTable> indexShardRoutingTables = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 IndexShardRoutingTable shardRoutingTable = IndexShardRoutingTable.Builder.readFrom(in);
                 indexShardRoutingTables.add(shardRoutingTable);
             }
-            return new IndexShardRoutingTableDiff(indexShardRoutingTables);
+            return new IndexRoutingTableIncrementalDiff(indexShardRoutingTables);
         }
     }
 }

@@ -63,7 +63,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
                         diffs.add(currentShardRoutingTable);
                     }
                 }
-                return new RoutingTableIncrementalDiff.IndexShardRoutingTableDiff(diffs);
+                return new RoutingTableIncrementalDiff.IndexRoutingTableIncrementalDiff(diffs);
             }
         };
 

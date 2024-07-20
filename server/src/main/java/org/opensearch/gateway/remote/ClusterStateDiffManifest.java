@@ -33,6 +33,7 @@ import java.util.Objects;
 import static org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer.getAbstractInstance;
 import static org.opensearch.cluster.DiffableUtils.getStringKeySerializer;
 import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
 
 /**
  * Manifest of diff between two cluster states
@@ -80,7 +81,8 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
     public ClusterStateDiffManifest(
         ClusterState state,
         ClusterState previousState,
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff,
+        String indicesRoutingDiffPath
     ) {
         fromStateUUID = previousState.stateUUID();
         toStateUUID = state.stateUUID();
@@ -110,6 +112,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
 
         indicesRoutingUpdated = new ArrayList<>();
         indicesRoutingDeleted = new ArrayList<>();
+        this.indicesRoutingDiffPath = indicesRoutingDiffPath;
         if (routingTableIncrementalDiff != null) {
             routingTableIncrementalDiff.getUpserts().forEach((k, v) -> indicesRoutingUpdated.add(k));
             indicesRoutingDeleted.addAll(routingTableIncrementalDiff.getDeletes());
@@ -259,7 +262,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         return builder;
     }
 
-    public static ClusterStateDiffManifest fromXContent(XContentParser parser) throws IOException {
+    public static ClusterStateDiffManifest fromXContent(XContentParser parser, long codec_version) throws IOException {
         Builder builder = new Builder();
         if (parser.currentToken() == null) { // fresh parser? move to next token
             parser.nextToken();
@@ -348,7 +351,9 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
                                 builder.indicesRoutingDeleted(convertListToString(parser.listOrderedMap()));
                                 break;
                             case DIFF_FIELD:
-                                builder.indicesRoutingDiffPath(parser.textOrNull());
+                                if (codec_version >= CODEC_V3) {
+                                    builder.indicesRoutingDiffPath(parser.textOrNull());
+                                }
                                 break;
                             default:
                                 throw new XContentParseException("Unexpected field [" + currentFieldName + "]");
