@@ -128,16 +128,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     /**
-     * Use Aggregated Response based on level passed
-     */
-    public NodesStatsRequest aggregateResponsesOnLevel(boolean aggregateNodeResponsesOnLevel) {
-        if (this.indices != null) {
-            this.indices.aggregateNodeResponsesOnLevel(aggregateNodeResponsesOnLevel);
-        }
-        return this;
-    }
-
-    /**
      * Get the names of requested metrics, excluding indices, which are
      * handled separately.
      */

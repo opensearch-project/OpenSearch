@@ -68,6 +68,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Global information on indices stats running on a specific node.
@@ -133,19 +135,27 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             this.stats.search.setSearchRequestStats(searchRequestStats);
         }
 
+        Fields level = getFirstAcceptedLevel(levels);
         if (levels != null) {
-            Arrays.stream(levels).anyMatch(level -> {
-                switch (level) {
-                    case Fields.INDICES:
-                        this.statsByIndex = createStatsByIndex(statsByShard);
-                        return true;
-                    case Fields.SHARDS:
-                        this.statsByShard = statsByShard;
-                        return true;
-                }
-                return false;
-            });
+            switch (level) {
+                case INDICES:
+                    this.statsByIndex = createStatsByIndex(statsByShard);
+                    break;
+                case SHARDS:
+                    this.statsByShard = statsByShard;
+                    break;
+            }
         }
+    }
+
+    public static Fields getFirstAcceptedLevel(String[] levels) {
+        if (levels != null) {
+            Optional<Fields> level = Arrays.stream(levels)
+                .flatMap(passedLevel -> Arrays.stream(Fields.values()).filter(field -> field.getRestName().equals(passedLevel)))
+                .findFirst();
+            return level.orElse(null);
+        }
+        return null;
     }
 
     private void readStatsByIndex(StreamInput in) throws IOException {
@@ -292,10 +302,10 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final String level = params.param("level", Fields.NODE);
-        final boolean isLevelValid = Fields.NODE.equalsIgnoreCase(level)
-            || Fields.INDICES.equalsIgnoreCase(level)
-            || Fields.SHARDS.equalsIgnoreCase(level);
+        final String level = params.param("level", Fields.NODE.getRestName());
+        final boolean isLevelValid = Fields.NODE.getRestName().equalsIgnoreCase(level)
+            || Fields.INDICES.getRestName().equalsIgnoreCase(level)
+            || Fields.SHARDS.getRestName().equalsIgnoreCase(level);
         if (!isLevelValid) {
             throw new IllegalArgumentException(
                 "level parameter must be one of ["
@@ -312,14 +322,14 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         // "node" level
-        builder.startObject(Fields.INDICES);
+        builder.startObject(Fields.INDICES.getRestName());
         stats.toXContent(builder, params);
 
-        if (Fields.INDICES.equals(level)) {
+        if (Fields.INDICES.getRestName().equals(level)) {
             if (statsByIndex == null && statsByShard != null) {
                 statsByIndex = createStatsByIndex(statsByShard);
             }
-            builder.startObject(Fields.INDICES);
+            builder.startObject(Fields.INDICES.getRestName());
             if (statsByIndex != null) {
                 for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
                     builder.startObject(entry.getKey().getName());
@@ -328,8 +338,8 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
                 }
             }
             builder.endObject();
-        } else if (Fields.SHARDS.equals(level)) {
-            builder.startObject(Fields.SHARDS);
+        } else if (Fields.SHARDS.getRestName().equals(level)) {
+            builder.startObject(Fields.SHARDS.getRestName());
             if (statsByShard != null) {
                 for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
                     builder.startArray(entry.getKey().getName());
@@ -380,10 +390,24 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      *
      * @opensearch.internal
      */
-    public static final class Fields {
-        public static final String INDICES = "indices";
-        public static final String SHARDS = "shards";
-        public static final String NODE = "node";
+    @PublicApi(since = "2.0.0")
+    public enum Fields {
+        INDICES("indices"),
+        SHARDS("shards"),
+        NODE("node");
 
+        private final String restName;
+
+        Fields(String restName) {
+            this.restName = restName;
+        }
+
+        public String getRestName() {
+            return restName;
+        }
+
+        public static List<String> acceptedValues() {
+            return Arrays.stream(Fields.values()).map(Fields::getRestName).collect(Collectors.toList());
+        }
     }
 }

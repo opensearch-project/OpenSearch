@@ -1165,7 +1165,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
     public void testNodeIndicesStatsSerialization() throws IOException {
         long numDocs = randomLongBetween(0, 10000);
         long numDeletedDocs = randomLongBetween(0, 100);
-        List<String> levelParams = new ArrayList<>();
+        List<NodeIndicesStats.Fields> levelParams = new ArrayList<>();
         levelParams.add(NodeIndicesStats.Fields.INDICES);
         levelParams.add(NodeIndicesStats.Fields.SHARDS);
         levelParams.add(NodeIndicesStats.Fields.NODE);
@@ -1184,7 +1184,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         levelParams.forEach(levelParam -> {
             ArrayList<String> level_arg = new ArrayList<>();
-            level_arg.add(levelParam);
+            level_arg.add(levelParam.getRestName());
 
             commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
 
@@ -1198,15 +1198,15 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 try (StreamInput in = out.bytes().streamInput()) {
                     MockNodeIndicesStats newNodeIndicesStats = new MockNodeIndicesStats(in);
                     switch (levelParam) {
-                        case "node":
+                        case NODE:
                             assertNull(newNodeIndicesStats.getStatsByIndex());
                             assertNull(newNodeIndicesStats.getStatsByShard());
                             break;
-                        case "indices":
+                        case INDICES:
                             assertNull(newNodeIndicesStats.getStatsByShard());
                             assertNotNull(newNodeIndicesStats.getStatsByIndex());
                             break;
-                        case "shards":
+                        case SHARDS:
                             assertNull(newNodeIndicesStats.getStatsByIndex());
                             assertNotNull(newNodeIndicesStats.getStatsByShard());
                             break;
@@ -1221,7 +1221,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
     public void testNodeIndicesStatsToXContent() {
         long numDocs = randomLongBetween(0, 10000);
         long numDeletedDocs = randomLongBetween(0, 100);
-        List<String> levelParams = new ArrayList<>();
+        List<NodeIndicesStats.Fields> levelParams = new ArrayList<>();
         levelParams.add(NodeIndicesStats.Fields.INDICES);
         levelParams.add(NodeIndicesStats.Fields.SHARDS);
         levelParams.add(NodeIndicesStats.Fields.NODE);
@@ -1240,7 +1240,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         levelParams.forEach(levelParam -> {
             ArrayList<String> level_arg = new ArrayList<>();
-            level_arg.add(levelParam);
+            level_arg.add(levelParam.getRestName());
 
             commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
 
@@ -1252,24 +1252,27 @@ public class NodeStatsTests extends OpenSearchTestCase {
             try {
                 builder = XContentFactory.jsonBuilder();
                 builder.startObject();
-                builder = mockNodeIndicesStats.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("level", levelParam)));
+                builder = mockNodeIndicesStats.toXContent(
+                    builder,
+                    new ToXContent.MapParams(Collections.singletonMap("level", levelParam.getRestName()))
+                );
                 builder.endObject();
 
                 Map<String, Object> xContentMap = xContentBuilderToMap(builder);
-                LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES);
+                LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
 
                 switch (levelParam) {
-                    case NodeIndicesStats.Fields.NODE:
-                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
-                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
+                    case NODE:
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
                         break;
-                    case NodeIndicesStats.Fields.INDICES:
-                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
-                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
+                    case INDICES:
+                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
                         break;
-                    case NodeIndicesStats.Fields.SHARDS:
-                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
-                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
+                    case SHARDS:
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
+                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
                         break;
                 }
             } catch (IOException e) {

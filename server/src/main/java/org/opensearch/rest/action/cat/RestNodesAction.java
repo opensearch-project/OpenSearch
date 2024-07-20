@@ -139,7 +139,6 @@ public class RestNodesAction extends AbstractCatAction {
                         nodesStatsRequest.timeout(request.param("timeout"));
                         nodesStatsRequest.clear()
                             .indices(true)
-                            .aggregateResponsesOnLevel(true)
                             .addMetrics(
                                 NodesStatsRequest.Metric.JVM.metricName(),
                                 NodesStatsRequest.Metric.OS.metricName(),
@@ -147,6 +146,7 @@ public class RestNodesAction extends AbstractCatAction {
                                 NodesStatsRequest.Metric.PROCESS.metricName(),
                                 NodesStatsRequest.Metric.SCRIPT.metricName()
                             );
+                        nodesStatsRequest.indices().aggregateNodeResponsesOnLevel(true);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
