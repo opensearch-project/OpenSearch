@@ -511,7 +511,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
-        getRequest.storedFields(termsLookup.path());
+        if (termsLookup.store()) {
+            getRequest.storedFields(termsLookup.path());
+        }
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
             terms.addAll(getResponse.getField(termsLookup.path()).getValues());

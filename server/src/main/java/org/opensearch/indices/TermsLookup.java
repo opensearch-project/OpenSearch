@@ -121,6 +121,13 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
+    private boolean store;
+    public boolean store() { return store; }
+    public TermsLookup store(boolean store) {
+        this.store = store;
+        return this;
+    }
+
     private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
         String index = (String) args[0];
         String id = (String) args[1];
@@ -132,6 +139,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("path"));
         PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
+        PARSER.declareBoolean(TermsLookup::store, new ParseField("store"));
     }
 
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
