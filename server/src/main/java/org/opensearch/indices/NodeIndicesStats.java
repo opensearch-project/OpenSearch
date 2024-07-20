@@ -136,7 +136,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         Fields level = getFirstAcceptedLevel(levels);
-        if (levels != null) {
+        if (level != null) {
             switch (level) {
                 case INDICES:
                     this.statsByIndex = createStatsByIndex(statsByShard);
@@ -309,12 +309,12 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         if (!isLevelValid) {
             throw new IllegalArgumentException(
                 "level parameter must be one of ["
-                    + Fields.INDICES
+                    + Fields.INDICES.getRestName()
                     + "] or "
                     + "["
-                    + Fields.NODE
+                    + Fields.NODE.getRestName()
                     + "] or ["
-                    + Fields.SHARDS
+                    + Fields.SHARDS.getRestName()
                     + "] but was ["
                     + level
                     + "]"
