@@ -23,7 +23,6 @@ import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -115,9 +114,8 @@ public class SplitResponseProcessor extends AbstractProcessor implements SearchR
                 if (val == null || !String.class.isAssignableFrom(val.getClass())) {
                     throw new IllegalArgumentException("field [" + splitField + "] is not a string, cannot split");
                 }
-                String[] strings = ((String) val).split(separator, preserveTrailing ? -1 : 0);
-                List<Object> splitList = List.copyOf(Arrays.asList(strings));
-                hit.setDocumentField(targetField, new DocumentField(targetField, splitList));
+                Object[] strings = ((String) val).split(separator, preserveTrailing ? -1 : 0);
+                hit.setDocumentField(targetField, new DocumentField(targetField, Arrays.asList(strings)));
             }
             if (hit.hasSource()) {
                 BytesReference sourceRef = hit.getSourceRef();
@@ -131,9 +129,8 @@ public class SplitResponseProcessor extends AbstractProcessor implements SearchR
                 if (sourceAsMap.containsKey(splitField)) {
                     Object val = sourceAsMap.get(splitField);
                     if (val instanceof String) {
-                        String[] strings = ((String) val).split(separator, preserveTrailing ? -1 : 0);
-                        List<Object> splitList = List.copyOf(Arrays.asList(strings));
-                        sourceAsMap.put(targetField, splitList);
+                        Object[] strings = ((String) val).split(separator, preserveTrailing ? -1 : 0);
+                        sourceAsMap.put(targetField, Arrays.asList(strings));
                     }
                     XContentBuilder builder = XContentBuilder.builder(typeAndSourceMap.v1().xContent());
                     builder.map(sourceAsMap);
