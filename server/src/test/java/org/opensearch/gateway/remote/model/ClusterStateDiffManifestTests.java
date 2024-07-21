@@ -41,8 +41,8 @@ import static java.util.stream.Collectors.toList;
 import static org.opensearch.Version.CURRENT;
 import static org.opensearch.cluster.ClusterState.EMPTY_STATE;
 import static org.opensearch.core.common.transport.TransportAddress.META_ADDRESS;
-import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.randomClusterBlocks;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
+import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.randomClusterBlocks;
 
 public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
 

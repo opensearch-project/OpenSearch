@@ -57,6 +57,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         return () -> {};
     }
 
+    @Override
     public CheckedRunnable<IOException> getAsyncIndexRoutingDiffWriteAction(
         String clusterUUID,
         long term,
@@ -88,6 +89,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         return () -> {};
     }
 
+    @Override
     public CheckedRunnable<IOException> getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,

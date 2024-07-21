@@ -137,6 +137,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         return () -> remoteIndexRoutingTableStore.writeAsync(remoteIndexRoutingTable, completionListener);
     }
 
+    @Override
     public CheckedRunnable<IOException> getAsyncIndexRoutingDiffWriteAction(
         String clusterUUID,
         long term,
@@ -203,7 +204,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         return () -> remoteIndexRoutingTableStore.readAsync(remoteIndexRoutingTable, actionListener);
     }
 
-    // @Override
+    @Override
     public CheckedRunnable<IOException> getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,

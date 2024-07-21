@@ -246,9 +246,7 @@ public class RemoteClusterStateService implements Closeable {
             clusterState,
             ClusterState.EMPTY_STATE,
             null,
-            uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null
-                ? uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
-                : null
+            null
         );
         final RemoteClusterStateManifestInfo manifestDetails = remoteManifestManager.uploadManifest(
             clusterState,
