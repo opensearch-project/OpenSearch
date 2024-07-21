@@ -258,6 +258,82 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertEquals(0, diff.getDeletes().size());
     }
 
+    public void testGetIndicesRoutingMapDiffShardChanged() {
+        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
+        int noOfShards = between(1, 1000);
+        int noOfReplicas = randomInt(10);
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                .build()
+        ).numberOfShards(noOfShards).numberOfReplicas(noOfReplicas).build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
+
+        final IndexMetadata indexMetadata2 = new IndexMetadata.Builder(indexName).settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                .build()
+        ).numberOfShards(noOfShards + 1).numberOfReplicas(noOfReplicas).build();
+        RoutingTable routingTable2 = RoutingTable.builder().addAsNew(indexMetadata2).build();
+
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
+            .getIndicesRoutingMapDiff(routingTable, routingTable2);
+        assertEquals(0, diff.getUpserts().size());
+        assertEquals(1, diff.getDiffs().size());
+        assertNotNull(diff.getDiffs().get(indexName));
+        assertEquals(noOfShards + 1, diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).shards().size());
+        assertEquals(
+            noOfReplicas + 1,
+            diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).getShards().get(0).getSize()
+        );
+        assertEquals(0, diff.getDeletes().size());
+
+        final IndexMetadata indexMetadata3 = new IndexMetadata.Builder(indexName).settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                .build()
+        ).numberOfShards(noOfShards + 1).numberOfReplicas(noOfReplicas + 1).build();
+        RoutingTable routingTable3 = RoutingTable.builder().addAsNew(indexMetadata3).build();
+
+        diff = remoteRoutingTableService.getIndicesRoutingMapDiff(routingTable2, routingTable3);
+        assertEquals(0, diff.getUpserts().size());
+        assertEquals(1, diff.getDiffs().size());
+        assertNotNull(diff.getDiffs().get(indexName));
+        assertEquals(noOfShards + 1, diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).shards().size());
+        assertEquals(
+            noOfReplicas + 2,
+            diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).getShards().get(0).getSize()
+        );
+        assertEquals(0, diff.getDeletes().size());
+    }
+
+    public void testGetIndicesRoutingMapDiffShardDetailChanged() {
+        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
+        int noOfShards = between(1, 1000);
+        int noOfReplicas = randomInt(10);
+        final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                .build()
+        ).numberOfShards(noOfShards).numberOfReplicas(noOfReplicas).build();
+
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
+        RoutingTable routingTable2 = RoutingTable.builder().addAsRecovery(indexMetadata).build();
+
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
+            .getIndicesRoutingMapDiff(routingTable, routingTable2);
+        assertEquals(1, diff.getDiffs().size());
+        assertNotNull(diff.getDiffs().get(indexName));
+        assertEquals(noOfShards, diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).shards().size());
+        assertEquals(0, diff.getUpserts().size());
+        assertEquals(0, diff.getDeletes().size());
+    }
+
     public void testGetIndicesRoutingMapDiffIndexDeleted() {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(

@@ -42,6 +42,7 @@ import static org.opensearch.Version.CURRENT;
 import static org.opensearch.cluster.ClusterState.EMPTY_STATE;
 import static org.opensearch.core.common.transport.TransportAddress.META_ADDRESS;
 import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.randomClusterBlocks;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
 
 public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
 
@@ -114,7 +115,7 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         diffManifest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-            final ClusterStateDiffManifest parsedManifest = ClusterStateDiffManifest.fromXContent(parser, 0);
+            final ClusterStateDiffManifest parsedManifest = ClusterStateDiffManifest.fromXContent(parser, CODEC_V3);
             assertEquals(diffManifest, parsedManifest);
         }
     }
