@@ -22,11 +22,11 @@ import org.opensearch.search.pipeline.AbstractProcessor;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Processor that sorts an array of items.
@@ -166,33 +166,21 @@ public class SortResponseProcessor extends AbstractProcessor implements SearchRe
     }
 
     private List<Object> getSortedValues(List<Object> values) {
-        // Downcast list elements to comparable (or throw exception) so we can sort
-        List<? extends Comparable<Object>> comparableValues = getComparableValues(values);
-        if (sortOrder.equals(SortOrder.ASCENDING)) {
-            Collections.sort(comparableValues);
-        } else {
-            Collections.sort(comparableValues, Collections.reverseOrder());
-        }
-        // Upcast list elements back to Object
-        return List.copyOf(comparableValues);
+        return values.stream()
+            .map(this::downcastToComparable)
+            .sorted(sortOrder.equals(SortOrder.ASCENDING) ? Comparator.naturalOrder() : Comparator.reverseOrder())
+            .collect(Collectors.toList());
     }
 
-    private List<? extends Comparable<Object>> getComparableValues(List<Object> values) {
-        List<Comparable<Object>> comparableValues = new ArrayList<>(values.size());
-        for (Object obj : values) {
-            if (obj == null) {
-                throw new IllegalArgumentException("field [" + sortField + "] contains a null value.]");
-            } else if (Comparable.class.isAssignableFrom(obj.getClass())) {
-                @SuppressWarnings("unchecked")
-                Comparable<Object> comp = (Comparable<Object>) obj;
-                comparableValues.add(comp);
-            } else {
-                throw new IllegalArgumentException(
-                    "field [" + sortField + "] of type [" + obj.getClass().getName() + "] is not comparable.]"
-                );
-            }
+    @SuppressWarnings("unchecked")
+    private Comparable<Object> downcastToComparable(Object obj) {
+        if (obj == null) {
+            throw new IllegalArgumentException("field [" + sortField + "] contains a null value.]");
+        } else if (Comparable.class.isAssignableFrom(obj.getClass())) {
+            return (Comparable<Object>) obj;
+        } else {
+            throw new IllegalArgumentException("field [" + sortField + "] of type [" + obj.getClass().getName() + "] is not comparable.]");
         }
-        return comparableValues;
     }
 
     static class Factory implements Processor.Factory<SearchResponseProcessor> {
