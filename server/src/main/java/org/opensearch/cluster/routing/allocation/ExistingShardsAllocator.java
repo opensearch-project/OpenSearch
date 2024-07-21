@@ -38,9 +38,13 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BatchRunnableExecutor;
+import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -108,14 +112,26 @@ public interface ExistingShardsAllocator {
      *
      * Allocation service will currently run the default implementation of it implemented by {@link ShardsBatchGatewayAllocator}
      */
-    default void allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    default BatchRunnableExecutor allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        List<TimeoutAwareRunnable> runnables = new ArrayList<>();
         while (iterator.hasNext()) {
             ShardRouting shardRouting = iterator.next();
             if (shardRouting.primary() == primary) {
-                allocateUnassigned(shardRouting, allocation, iterator);
+                runnables.add(new TimeoutAwareRunnable() {
+                    @Override
+                    public void onTimeout() {
+                        throw new UnsupportedOperationException("Timeout not supported for non batched allocator");
+                    }
+
+                    @Override
+                    public void run() {
+                        allocateUnassigned(shardRouting, allocation, iterator);
+                    }
+                });
             }
         }
+        return new BatchRunnableExecutor(runnables, () -> TimeValue.MINUS_ONE);
     }
 
     /**

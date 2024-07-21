@@ -58,6 +58,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
@@ -72,6 +73,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -617,10 +619,10 @@ public class AllocationService {
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        allocator.allocateAllUnassignedShards(allocation, true);
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, true)).ifPresent(BatchRunnableExecutor::run);
         allocator.afterPrimariesBeforeReplicas(allocation);
         // Replicas Assignment
-        allocator.allocateAllUnassignedShards(allocation, false);
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, false)).ifPresent(BatchRunnableExecutor::run);
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {
