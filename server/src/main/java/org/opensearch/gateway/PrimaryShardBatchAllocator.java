@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.core.index.shard.ShardId;
@@ -119,6 +120,19 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
             }
         }
         logger.trace("Finished shard allocation execution for unassigned primary shards: {}", shardRoutings.size());
+    }
+
+    public void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+        Set<ShardRouting> batchShardRoutingSet = new HashSet<>(shardRoutings);
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        while (iterator.hasNext()) {
+            ShardRouting unassignedShard = iterator.next();
+            AllocateUnassignedDecision allocationDecision;
+            if (unassignedShard.primary() && batchShardRoutingSet.contains(unassignedShard)) {
+                allocationDecision = new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L);
+                executeDecision(unassignedShard, allocationDecision, allocation, iterator);
+            }
+        }
     }
 
     /**

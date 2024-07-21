@@ -41,7 +41,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Searches for, and allocates, shards for which there is an existing on-disk copy somewhere in the cluster. The default implementation is
@@ -108,14 +110,16 @@ public interface ExistingShardsAllocator {
      *
      * Allocation service will currently run the default implementation of it implemented by {@link ShardsBatchGatewayAllocator}
      */
-    default void allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    default List<Consumer<Boolean>> allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        List<Consumer<Boolean>> runnables = new ArrayList<>();
         while (iterator.hasNext()) {
             ShardRouting shardRouting = iterator.next();
             if (shardRouting.primary() == primary) {
-                allocateUnassigned(shardRouting, allocation, iterator);
+                runnables.add((t) -> allocateUnassigned(shardRouting, allocation, iterator));
             }
         }
+        return runnables;
     }
 
     /**

@@ -168,6 +168,23 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         logger.trace("Finished shard allocation execution for unassigned replica shards: {}", shardRoutings.size());
     }
 
+    public void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+        Set<ShardId> shardIdsFromBatch = new HashSet<>();
+        for (ShardRouting shardRouting : shardRoutings) {
+            ShardId shardId = shardRouting.shardId();
+            shardIdsFromBatch.add(shardId);
+        }
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        while (iterator.hasNext()) {
+            ShardRouting unassignedShard = iterator.next();
+            AllocateUnassignedDecision allocationDecision;
+            if (!unassignedShard.primary() && shardIdsFromBatch.contains(unassignedShard.shardId())) {
+                allocationDecision = new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L);
+                executeDecision(unassignedShard, allocationDecision, allocation, iterator);
+            }
+        }
+    }
+
     private AllocateUnassignedDecision getUnassignedShardAllocationDecision(
         ShardRouting shardRouting,
         RoutingAllocation allocation,

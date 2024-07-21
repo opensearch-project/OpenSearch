@@ -73,7 +73,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -100,6 +102,7 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private SnapshotsInfoService snapshotsInfoService;
     private final ClusterManagerMetrics clusterManagerMetrics;
+    private final long maxRunTimeoutInMillis = 5;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -617,10 +620,22 @@ public class AllocationService {
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        allocator.allocateAllUnassignedShards(allocation, true);
+        executeTimedRunnables(allocator.allocateAllUnassignedShards(allocation, true), () -> maxRunTimeoutInMillis);
         allocator.afterPrimariesBeforeReplicas(allocation);
         // Replicas Assignment
-        allocator.allocateAllUnassignedShards(allocation, false);
+        executeTimedRunnables(allocator.allocateAllUnassignedShards(allocation, false), () -> maxRunTimeoutInMillis);
+    }
+
+    private void executeTimedRunnables(List<Consumer<Boolean>> runnables, Supplier<Long> maxRunTimeSupplier) {
+        Collections.shuffle(runnables);
+        long startTime = System.nanoTime();
+        for (Consumer<Boolean> workQueue : runnables) {
+            if (System.nanoTime() - startTime < TimeValue.timeValueMillis(maxRunTimeSupplier.get()).nanos()) {
+                workQueue.accept(false);
+            } else {
+                workQueue.accept(true);
+            }
+        }
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {

@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator {
 
@@ -102,9 +103,9 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
     };
 
     @Override
-    public void allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    public List<Consumer<Boolean>> allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         currentNodes = allocation.nodes();
-        innerAllocateUnassignedBatch(allocation, primaryBatchShardAllocator, replicaBatchShardAllocator, primary);
+        return innerAllocateUnassignedBatch(allocation, primaryBatchShardAllocator, replicaBatchShardAllocator, primary);
     }
 
     @Override

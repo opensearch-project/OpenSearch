@@ -41,6 +41,7 @@ import org.opensearch.indices.store.TransportNodesListShardStoreMetadataBatch.No
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +52,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -187,14 +189,14 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
+    public List<Consumer<Boolean>> allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
 
         assert primaryShardBatchAllocator != null;
         assert replicaShardBatchAllocator != null;
-        innerAllocateUnassignedBatch(allocation, primaryShardBatchAllocator, replicaShardBatchAllocator, primary);
+        return innerAllocateUnassignedBatch(allocation, primaryShardBatchAllocator, replicaShardBatchAllocator, primary);
     }
 
-    protected void innerAllocateUnassignedBatch(
+    protected List<Consumer<Boolean>> innerAllocateUnassignedBatch(
         RoutingAllocation allocation,
         PrimaryShardBatchAllocator primaryBatchShardAllocator,
         ReplicaShardBatchAllocator replicaBatchShardAllocator,
@@ -203,21 +205,37 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         // create batches for unassigned shards
         Set<String> batchesToAssign = createAndUpdateBatches(allocation, primary);
         if (batchesToAssign.isEmpty()) {
-            return;
+            return Collections.emptyList();
         }
+        List<Consumer<Boolean>> runnables = new ArrayList<>();
         if (primary) {
             batchIdToStartedShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
                 .forEach(
-                    shardsBatch -> primaryBatchShardAllocator.allocateUnassignedBatch(shardsBatch.getBatchedShardRoutings(), allocation)
+                    shardsBatch -> runnables.add((timedOut) -> {
+                        if(timedOut) {
+                            primaryBatchShardAllocator.allocateUnassignedBatchOnTimeout(shardsBatch.getBatchedShardRoutings(), allocation);
+                        } else {
+                            primaryBatchShardAllocator.allocateUnassignedBatch(shardsBatch.getBatchedShardRoutings(), allocation);
+                        }
+                    })
                 );
         } else {
             batchIdToStoreShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
-                .forEach(batch -> replicaBatchShardAllocator.allocateUnassignedBatch(batch.getBatchedShardRoutings(), allocation));
+                .forEach(
+                    batch -> runnables.add((timedOut) -> {
+                        if(timedOut) {
+                            replicaBatchShardAllocator.allocateUnassignedBatchOnTimeout(batch.getBatchedShardRoutings(), allocation);
+                        } else {
+                            replicaBatchShardAllocator.allocateUnassignedBatch(batch.getBatchedShardRoutings(), allocation);
+                        }
+                    })
+                );
         }
+        return runnables;
     }
 
     // visible for testing
