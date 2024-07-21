@@ -39,7 +39,7 @@ public class TransportClusterStatsActionTests extends TransportNodesActionTests 
      */
     public void testClusterStatsActionWithRetentionOfDiscoveryNodesList() {
         ClusterStatsRequest request = new ClusterStatsRequest();
-        request.retainDiscoveryNodes(true);
+        request.sendDiscoveryNodes(true);
         Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
 
         assertNotNull(combinedSentRequest);
@@ -74,7 +74,7 @@ public class TransportClusterStatsActionTests extends TransportNodesActionTests 
      */
     public void testClusterStatsActionWithoutRetentionOfDiscoveryNodesList() {
         ClusterStatsRequest request = new ClusterStatsRequest();
-        request.retainDiscoveryNodes(false);
+        request.sendDiscoveryNodes(false);
         Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
 
         assertNotNull(combinedSentRequest);
@@ -88,7 +88,7 @@ public class TransportClusterStatsActionTests extends TransportNodesActionTests 
         ClusterStatsRequest request = new ClusterStatsRequest();
         Collection<DiscoveryNode> discoveryNodes = clusterService.state().getNodes().getNodes().values();
         request.setConcreteNodes(discoveryNodes.toArray(DiscoveryNode[]::new));
-        request.retainDiscoveryNodes(false);
+        request.sendDiscoveryNodes(false);
         Map<String, List<MockClusterStatsNodeRequest>> combinedSentRequest = performNodesInfoAction(request);
 
         assertNotNull(combinedSentRequest);

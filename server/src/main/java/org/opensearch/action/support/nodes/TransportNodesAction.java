@@ -240,7 +240,7 @@ public abstract class TransportNodesAction<
             }
             this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
 
-            if (request.retainDiscoveryNodes() == false) {
+            if (request.sendDiscoveryNodes() == false) {
                 // We transfer the ownership of discovery nodes to route the request to into the AsyncAction class.
                 // This reduces the payload of the request and improves the number of concrete nodes in the memory
                 this.concreteNodes = request.concreteNodes();
