@@ -10,6 +10,7 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -17,6 +18,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -33,6 +35,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.mockito.Mockito;
+
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -47,6 +51,9 @@ import static org.opensearch.gateway.remote.model.RemoteClusterBlocksTests.rando
 public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
 
     public void testClusterStateDiffManifest() {
+        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff = Mockito.mock(
+            DiffableUtils.MapDiff.class
+        );
         ClusterState initialState = ClusterState.builder(EMPTY_STATE)
             .metadata(
                 Metadata.builder()
@@ -78,11 +85,16 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            "indicesRoutingDiffPath",
+            routingTableIncrementalDiff
         );
     }
 
     public void testClusterStateDiffManifestXContent() throws IOException {
+        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff = Mockito.mock(
+            DiffableUtils.MapDiff.class
+        );
         ClusterState initialState = ClusterState.builder(EMPTY_STATE)
             .metadata(
                 Metadata.builder()
@@ -108,7 +120,9 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
             true,
             true,
             true,
-            true
+            true,
+            "indicesRoutingDiffPath",
+            routingTableIncrementalDiff
         );
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -134,7 +148,9 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         boolean updateTransientSettings,
         boolean updateDiscoveryNodes,
         boolean updateClusterBlocks,
-        boolean updateHashesOfConsistentSettings
+        boolean updateHashesOfConsistentSettings,
+        String indicesRoutingDiffPath,
+        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff
     ) {
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(initialState);
         Metadata.Builder metadataBuilder = Metadata.builder(initialState.metadata());
@@ -192,7 +208,13 @@ public class ClusterStateDiffManifestTests extends OpenSearchTestCase {
         }
         ClusterState updatedClusterState = clusterStateBuilder.metadata(metadataBuilder.build()).build();
 
-        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(updatedClusterState, initialState, null, null);
+        ClusterStateDiffManifest manifest = new ClusterStateDiffManifest(
+            updatedClusterState,
+            initialState,
+            routingTableIncrementalDiff,
+            indicesRoutingDiffPath
+        );
+        assertEquals(indicesRoutingDiffPath, manifest.getIndicesRoutingDiffPath());
         assertEquals(indicesToAdd.stream().map(im -> im.getIndex().getName()).collect(toList()), manifest.getIndicesUpdated());
         assertEquals(indicesToRemove, manifest.getIndicesDeleted());
         assertEquals(new ArrayList<>(customsToAdd.keySet()), manifest.getCustomMetadataUpdated());
