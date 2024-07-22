@@ -70,7 +70,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
         (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.fromName("cpu")),
         TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
-        (nodeDuressTrackers) -> isHeapTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.fromName("jvm")),
+        (nodeDuressTrackers) -> isHeapTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.fromName("memory")),
         TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER,
         (nodeDuressTrackers) -> true
     );
@@ -104,7 +104,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                     )
                 );
                 put(
-                    ResourceType.fromName("jvm"),
+                    ResourceType.fromName("memory"),
                     new NodeDuressTracker(
                         () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings()
                             .getHeapThreshold(),

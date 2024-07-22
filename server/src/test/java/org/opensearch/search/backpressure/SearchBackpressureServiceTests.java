@@ -99,7 +99,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(ResourceType.fromName("jvm"), heapUsageTracker);
+                put(ResourceType.fromName("memory"), heapUsageTracker);
                 put(ResourceType.fromName("cpu"), cpuUsageTracker);
             }
         };
@@ -230,7 +230,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(ResourceType.fromName("jvm"), heapUsageTracker);
+                put(ResourceType.fromName("memory"), heapUsageTracker);
                 put(ResourceType.fromName("cpu"), mockNodeDuressTracker);
             }
         };
@@ -305,7 +305,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> false, () -> 3));
+                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> false, () -> 3));
                 put(ResourceType.fromName("cpu"), mockNodeDuressTracker);
             }
         };
@@ -398,7 +398,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> false, () -> 3));
+                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> false, () -> 3));
                 put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> true, () -> 3));
             }
         };
@@ -492,7 +492,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
 
         HashMap<ResourceType, NodeDuressTracker> duressTrackers = new HashMap<>() {
             {
-                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> false, () -> 3));
+                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> false, () -> 3));
                 put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> true, () -> 3));
             }
         };
