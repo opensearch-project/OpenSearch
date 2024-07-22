@@ -58,7 +58,6 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
@@ -75,9 +74,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -627,26 +624,10 @@ public class AllocationService {
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        executeTimedRunnables(allocator.allocateAllUnassignedShards(allocation, true), () -> allocator.getPrimaryBatchAllocatorTimeout().millis(), true);
+        allocator.allocateAllUnassignedShards(allocation, true).run();
         allocator.afterPrimariesBeforeReplicas(allocation);
         // Replicas Assignment
-        executeTimedRunnables(allocator.allocateAllUnassignedShards(allocation, false), () -> allocator.getReplicaBatchAllocatorTimeout().millis(), false);
-    }
-
-    private void executeTimedRunnables(List<TimeoutAwareRunnable> runnables, Supplier<Long> maxRunTimeSupplier, boolean primary) {
-        logger.info("Executing timed runnables for primary [{}] of size [{}]", primary, runnables.size());
-        Collections.shuffle(runnables);
-        long startTime = System.nanoTime();
-        for (TimeoutAwareRunnable workQueue : runnables) {
-            if (System.nanoTime() - startTime < TimeValue.timeValueMillis(maxRunTimeSupplier.get()).nanos()) {
-                logger.info("Starting primary [{}] batch to allocate", primary);
-                workQueue.run();
-            } else {
-                logger.info("Timing out primary [{}] batch to allocate", primary);
-                workQueue.onTimeout();
-            }
-        }
-        logger.info("Time taken to execute timed runnables in this cycle:[{}ms]", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+        allocator.allocateAllUnassignedShards(allocation, false).run();
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {

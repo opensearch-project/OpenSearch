@@ -13,7 +13,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
-import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
+import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.PrimaryShardBatchAllocator;
@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator {
 
@@ -104,7 +103,7 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
     };
 
     @Override
-    public List<TimeoutAwareRunnable> allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    public BatchRunnableExecutor allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         currentNodes = allocation.nodes();
         return innerAllocateUnassignedBatch(allocation, primaryBatchShardAllocator, replicaBatchShardAllocator, primary);
     }

@@ -39,13 +39,13 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Searches for, and allocates, shards for which there is an existing on-disk copy somewhere in the cluster. The default implementation is
@@ -112,7 +112,7 @@ public interface ExistingShardsAllocator {
      *
      * Allocation service will currently run the default implementation of it implemented by {@link ShardsBatchGatewayAllocator}
      */
-    default List<TimeoutAwareRunnable> allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    default BatchRunnableExecutor allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         List<TimeoutAwareRunnable> runnables = new ArrayList<>();
         while (iterator.hasNext()) {
@@ -131,15 +131,7 @@ public interface ExistingShardsAllocator {
                 });
             }
         }
-        return runnables;
-    }
-
-    default TimeValue getPrimaryBatchAllocatorTimeout() {
-        return TimeValue.MINUS_ONE;
-    }
-
-    default TimeValue getReplicaBatchAllocatorTimeout() {
-        return TimeValue.MINUS_ONE;
+        return new BatchRunnableExecutor(runnables, () -> TimeValue.MINUS_ONE);
     }
 
     /**

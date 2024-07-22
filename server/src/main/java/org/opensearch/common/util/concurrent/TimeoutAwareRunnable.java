@@ -9,7 +9,7 @@
 package org.opensearch.common.util.concurrent;
 
 /**
- * Runnable that is aware of a timeout and can execute another {@link Runnable} when a timeout is reached
+ * Runnable that is aware of a timeout
  */
 public interface TimeoutAwareRunnable extends Runnable {
 

@@ -31,6 +31,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.common.util.set.Sets;
@@ -56,7 +57,6 @@ import java.util.Set;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -168,24 +168,6 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         this.replicaShardsBatchGatewayAllocatorTimeout = null;
     }
 
-    @Override
-    public TimeValue getPrimaryBatchAllocatorTimeout() {
-        return this.primaryShardsBatchGatewayAllocatorTimeout;
-    }
-
-    public void setPrimaryBatchAllocatorTimeout(TimeValue primaryShardsBatchGatewayAllocatorTimeout) {
-        this.primaryShardsBatchGatewayAllocatorTimeout = primaryShardsBatchGatewayAllocatorTimeout;
-    }
-
-    @Override
-    public TimeValue getReplicaBatchAllocatorTimeout() {
-        return this.primaryShardsBatchGatewayAllocatorTimeout;
-    }
-
-    public void setReplicaBatchAllocatorTimeout(TimeValue replicaShardsBatchGatewayAllocatorTimeout) {
-        this.replicaShardsBatchGatewayAllocatorTimeout = replicaShardsBatchGatewayAllocatorTimeout;
-    }
-
     // for tests
 
     @Override
@@ -245,14 +227,14 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public List<TimeoutAwareRunnable> allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
+    public BatchRunnableExecutor allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
 
         assert primaryShardBatchAllocator != null;
         assert replicaShardBatchAllocator != null;
         return innerAllocateUnassignedBatch(allocation, primaryShardBatchAllocator, replicaShardBatchAllocator, primary);
     }
 
-    protected List<TimeoutAwareRunnable> innerAllocateUnassignedBatch(
+    protected BatchRunnableExecutor innerAllocateUnassignedBatch(
         RoutingAllocation allocation,
         PrimaryShardBatchAllocator primaryBatchShardAllocator,
         ReplicaShardBatchAllocator replicaBatchShardAllocator,
@@ -261,7 +243,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         // create batches for unassigned shards
         Set<String> batchesToAssign = createAndUpdateBatches(allocation, primary);
         if (batchesToAssign.isEmpty()) {
-            return Collections.emptyList();
+            return null;
         }
         List<TimeoutAwareRunnable> runnables = new ArrayList<>();
         if (primary) {
@@ -287,6 +269,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
                         }
                     }));
+            return new BatchRunnableExecutor(runnables, () -> primaryShardsBatchGatewayAllocatorTimeout);
         } else {
             batchIdToStoreShardBatch.values()
                 .stream()
@@ -311,8 +294,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
                         }
                     }));
+            return new BatchRunnableExecutor(runnables, () -> replicaShardsBatchGatewayAllocatorTimeout);
         }
-        return runnables;
     }
 
     // visible for testing
@@ -815,5 +798,13 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     public int getNumberOfStoreShardBatches() {
         return batchIdToStoreShardBatch.size();
+    }
+
+    private void setPrimaryBatchAllocatorTimeout(TimeValue primaryShardsBatchGatewayAllocatorTimeout) {
+        this.primaryShardsBatchGatewayAllocatorTimeout = primaryShardsBatchGatewayAllocatorTimeout;
+    }
+
+    private void setReplicaBatchAllocatorTimeout(TimeValue replicaShardsBatchGatewayAllocatorTimeout) {
+        this.replicaShardsBatchGatewayAllocatorTimeout = replicaShardsBatchGatewayAllocatorTimeout;
     }
 }
