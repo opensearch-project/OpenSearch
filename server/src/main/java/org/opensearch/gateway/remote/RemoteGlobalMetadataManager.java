@@ -157,7 +157,7 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
     }
 
     @Override
-    protected ActionListener<Void> getWriteActionListener(
+    protected ActionListener<Void> getWrappedWriteListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteEntity,
         ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
@@ -169,7 +169,7 @@ public class RemoteGlobalMetadataManager extends AbstractRemoteWritableEntityMan
     }
 
     @Override
-    protected ActionListener<Object> getReadActionListener(
+    protected ActionListener<Object> getWrappedReadListener(
         String component,
         AbstractRemoteWritableBlobEntity remoteEntity,
         ActionListener<RemoteReadResult> listener
