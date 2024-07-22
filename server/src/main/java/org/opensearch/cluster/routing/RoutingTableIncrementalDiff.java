@@ -19,9 +19,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Represents a difference between {@link IndexRoutingTable} objects that can be serialized and deserialized.
+ * Represents a difference between {@link RoutingTable} objects that can be serialized and deserialized.
  */
-public class RoutingTableIncrementalDiff implements Diff<IndexRoutingTable> {
+public class RoutingTableIncrementalDiff implements Diff<RoutingTable> {
     private final Map<String, Diff<IndexRoutingTable>> diffs;
 
     /**
@@ -62,18 +62,24 @@ public class RoutingTableIncrementalDiff implements Diff<IndexRoutingTable> {
     }
 
     /**
-     * Applies the differences to the provided {@link IndexRoutingTable}.
+     * Applies the differences to the provided {@link RoutingTable}.
      *
-     * @param part the original IndexRoutingTable to which the differences will be applied.
-     * @return the updated IndexRoutingTable with the applied differences.
+     * @param part the original RoutingTable to which the differences will be applied.
+     * @return the updated RoutingTable with the applied differences.
      */
     @Override
-    public IndexRoutingTable apply(IndexRoutingTable part) {
-        // Apply diffs to the provided IndexRoutingTable
-        for (Map.Entry<String, Diff<IndexRoutingTable>> entry : diffs.entrySet()) {
-            part = entry.getValue().apply(part);
+    public RoutingTable apply(RoutingTable part) {
+        RoutingTable.Builder builder = new RoutingTable.Builder();
+        for (IndexRoutingTable indexRoutingTable : part) {
+            builder.add(indexRoutingTable); // Add existing index routing tables to builder
         }
-        return part;
+
+        // Apply the diffs
+        for (Map.Entry<String, Diff<IndexRoutingTable>> entry : diffs.entrySet()) {
+            builder.add(entry.getValue().apply(part.index(entry.getKey())));
+        }
+
+        return builder.build();
     }
 
     /**
