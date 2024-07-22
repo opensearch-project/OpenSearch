@@ -111,20 +111,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     }
 
     private static ClusterMetadataManifest.Builder manifestV3Builder(Object[] fields) {
-        return manifestV0Builder(fields).codecVersion(codecVersion(fields))
-            .coordinationMetadata(coordinationMetadata(fields))
-            .settingMetadata(settingsMetadata(fields))
-            .templatesMetadata(templatesMetadata(fields))
-            .customMetadataMap(customMetadata(fields))
-            .routingTableVersion(routingTableVersion(fields))
-            .indicesRouting(indicesRouting(fields))
-            .discoveryNodesMetadata(discoveryNodesMetadata(fields))
-            .clusterBlocksMetadata(clusterBlocksMetadata(fields))
-            .diffManifest(diffManifest(fields))
-            .metadataVersion(metadataVersion(fields))
-            .transientSettingsMetadata(transientSettingsMetadata(fields))
-            .hashesOfConsistentSettings(hashesOfConsistentSettings(fields))
-            .clusterStateCustomMetadataMap(clusterStateCustomMetadata(fields));
+        return manifestV2Builder(fields);
     }
 
     private static long term(Object[] fields) {
