@@ -13,7 +13,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -46,7 +45,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
 
     List<IndexRoutingTable> getIndicesRouting(RoutingTable routingTable);
 
-    CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    void getAsyncIndexRoutingReadAction(
         String uploadedFilename,
         Index index,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
@@ -62,7 +61,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         RoutingTable after
     );
 
-    CheckedRunnable<IOException> getIndexRoutingAsyncAction(
+    void getIndexRoutingAsyncAction(
         ClusterState clusterState,
         IndexRoutingTable indexRouting,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener,
