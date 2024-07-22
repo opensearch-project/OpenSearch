@@ -64,6 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove query categorization changes ([#14759](https://github.com/opensearch-project/OpenSearch/pull/14759))
 
 ### Fixed
+- Fix allowUnmappedFields, mapUnmappedFieldAsString settings are not applied when parsing certain types of query string query ([#13957](https://github.com/opensearch-project/OpenSearch/pull/13957))
 - Fix bug in SBP cancellation logic ([#13259](https://github.com/opensearch-project/OpenSearch/pull/13474))
 - Fix handling of Short and Byte data types in ScriptProcessor ingest pipeline ([#14379](https://github.com/opensearch-project/OpenSearch/issues/14379))
 - Switch to iterative version of WKT format parser ([#14086](https://github.com/opensearch-project/OpenSearch/pull/14086))
