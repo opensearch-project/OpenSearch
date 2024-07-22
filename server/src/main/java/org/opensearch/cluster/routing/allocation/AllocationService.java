@@ -73,6 +73,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -102,7 +103,6 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private SnapshotsInfoService snapshotsInfoService;
     private final ClusterManagerMetrics clusterManagerMetrics;
-    private final long maxRunTimeoutInMillis = 5;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -568,8 +568,14 @@ public class AllocationService {
         long rerouteStartTimeNS = System.nanoTime();
         removeDelayMarkers(allocation);
 
+        long startTime = System.nanoTime();
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
+        logger.info("Completing allocate unassigned, elapsed time: [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+        startTime = System.nanoTime();
         shardsAllocator.allocate(allocation);
+        logger.info("Shard allocator to allocate all shards, elapsed time: [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
         clusterManagerMetrics.recordLatency(
             clusterManagerMetrics.rerouteHistogram,
             (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - rerouteStartTimeNS))
@@ -620,22 +626,26 @@ public class AllocationService {
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        executeTimedRunnables(allocator.allocateAllUnassignedShards(allocation, true), () -> maxRunTimeoutInMillis);
+        executeTimedRunnables(allocator.allocateAllUnassignedShards(allocation, true), () -> allocator.getPrimaryBatchAllocatorTimeout().millis(), true);
         allocator.afterPrimariesBeforeReplicas(allocation);
         // Replicas Assignment
-        executeTimedRunnables(allocator.allocateAllUnassignedShards(allocation, false), () -> maxRunTimeoutInMillis);
+        executeTimedRunnables(allocator.allocateAllUnassignedShards(allocation, false), () -> allocator.getReplicaBatchAllocatorTimeout().millis(), false);
     }
 
-    private void executeTimedRunnables(List<Consumer<Boolean>> runnables, Supplier<Long> maxRunTimeSupplier) {
+    private void executeTimedRunnables(List<Consumer<Boolean>> runnables, Supplier<Long> maxRunTimeSupplier, boolean primary) {
+        logger.info("Executing timed runnables for primary [{}] of size [{}]", primary, runnables.size());
         Collections.shuffle(runnables);
         long startTime = System.nanoTime();
         for (Consumer<Boolean> workQueue : runnables) {
             if (System.nanoTime() - startTime < TimeValue.timeValueMillis(maxRunTimeSupplier.get()).nanos()) {
+                logger.info("Starting primary [{}] batch to allocate", primary);
                 workQueue.accept(false);
             } else {
+                logger.info("Timing out primary [{}] batch to allocate", primary);
                 workQueue.accept(true);
             }
         }
+        logger.info("Time taken to execute timed runnables in this cycle:[{}ms]", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {

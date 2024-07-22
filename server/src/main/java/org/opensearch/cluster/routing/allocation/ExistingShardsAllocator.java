@@ -38,6 +38,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 
@@ -120,6 +121,14 @@ public interface ExistingShardsAllocator {
             }
         }
         return runnables;
+    }
+
+    default TimeValue getPrimaryBatchAllocatorTimeout() {
+        return TimeValue.MINUS_ONE;
+    }
+
+    default TimeValue getReplicaBatchAllocatorTimeout() {
+        return TimeValue.MINUS_ONE;
     }
 
     /**

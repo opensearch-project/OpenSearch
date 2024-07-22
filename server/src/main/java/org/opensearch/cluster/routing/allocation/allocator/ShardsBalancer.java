@@ -42,7 +42,7 @@ public abstract class ShardsBalancer {
      * @param shardRouting the shard for which the decision has to be made
      * @return the allocation decision
      */
-    abstract AllocateUnassignedDecision decideAllocateUnassigned(ShardRouting shardRouting);
+    abstract AllocateUnassignedDecision decideAllocateUnassigned(ShardRouting shardRouting, long startTime);
 
     /**
      * Makes a decision on whether to move a started shard to another node.
