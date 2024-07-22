@@ -177,7 +177,6 @@ public abstract class TaskBatcher {
         // to give other tasks with different batching key a chance to execute.
         if (updateTask.processed.get() == false) {
             final List<BatchedTask> toExecute = new ArrayList<>();
-            final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
             // While removing task, need to remove task first from taskMap and then remove identity from identityMap.
             // Changing this order might lead to duplicate task during submission.
             LinkedHashSet<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
@@ -187,7 +186,6 @@ public abstract class TaskBatcher {
                     if (task.processed.getAndSet(true) == false) {
                         logger.trace("will process {}", task);
                         toExecute.add(task);
-                        processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task);
                     } else {
                         logger.trace("skipping {}, already processed", task);
                     }
@@ -198,6 +196,10 @@ public abstract class TaskBatcher {
                 Function<Boolean, String> taskSummaryGenerator = (longSummaryRequired) -> {
                     if (longSummaryRequired == null || !longSummaryRequired) {
                         return buildShortSummary(updateTask.batchingKey);
+                    }
+                    final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
+                    for (final BatchedTask task : toExecute) {
+                        processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task);
                     }
                     return processTasksBySource.entrySet().stream().map(entry -> {
                         String tasks = updateTask.describeTasks(entry.getValue());
