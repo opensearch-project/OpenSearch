@@ -17,7 +17,6 @@ import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.remote.RemoteWritableEntityStore;
@@ -31,7 +30,7 @@ import org.opensearch.gateway.remote.RemoteStateTransferException;
 import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
-import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTableDiff;
+import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -63,7 +62,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     private final Supplier<RepositoriesService> repositoriesService;
     private Compressor compressor;
     private RemoteWritableEntityStore<IndexRoutingTable, RemoteIndexRoutingTable> remoteIndexRoutingTableStore;
-    private RemoteWritableEntityStore<RoutingTableIncrementalDiff, RemoteIndexRoutingTableDiff> remoteIndexRoutingTableDiffStore;
+    private RemoteWritableEntityStore<RoutingTableIncrementalDiff, RemoteRoutingTableDiff> remoteRoutingTableDiffStore;
     private final ClusterSettings clusterSettings;
     private BlobStoreRepository blobStoreRepository;
     private final ThreadPool threadPool;
@@ -138,16 +137,16 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingDiffWriteAction(
+    public void getAsyncIndexRoutingDiffWriteAction(
         String clusterUUID,
         long term,
         long version,
         Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
-
-        RemoteIndexRoutingTableDiff remoteIndexRoutingTableDiff = new RemoteIndexRoutingTableDiff(
-            indexRoutingTableDiff,
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(indexRoutingTableDiff);
+        RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(
+            routingTableIncrementalDiff,
             clusterUUID,
             compressor,
             term,
@@ -155,12 +154,13 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         );
 
         ActionListener<Void> completionListener = ActionListener.wrap(
-            resp -> latchedActionListener.onResponse(remoteIndexRoutingTableDiff.getUploadedMetadata()),
+            resp -> latchedActionListener.onResponse(remoteRoutingTableDiff.getUploadedMetadata()),
             ex -> latchedActionListener.onFailure(
                 new RemoteStateTransferException("Exception in writing index routing diff to remote store", ex)
             )
         );
-        return () -> remoteIndexRoutingTableDiffStore.writeAsync(remoteIndexRoutingTableDiff, completionListener);
+
+        remoteRoutingTableDiffStore.writeAsync(remoteRoutingTableDiff, completionListener);
     }
 
     /**
@@ -205,7 +205,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingTableDiffReadAction(
+    public void getAsyncIndexRoutingTableDiffReadAction(
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<RoutingTableIncrementalDiff> latchedActionListener
@@ -215,13 +215,9 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             latchedActionListener::onFailure
         );
 
-        RemoteIndexRoutingTableDiff remoteIndexRoutingTableDiff = new RemoteIndexRoutingTableDiff(
-            uploadedFilename,
-            clusterUUID,
-            compressor
-        );
+        RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(uploadedFilename, clusterUUID, compressor);
 
-        return () -> remoteIndexRoutingTableDiffStore.readAsync(remoteIndexRoutingTableDiff, actionListener);
+        remoteRoutingTableDiffStore.readAsync(remoteRoutingTableDiff, actionListener);
     }
 
     @Override
@@ -266,7 +262,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             clusterSettings
         );
 
-        this.remoteIndexRoutingTableDiffStore = new RemoteClusterStateBlobStore<>(
+        this.remoteRoutingTableDiffStore = new RemoteClusterStateBlobStore<>(
             new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
             blobStoreRepository,
             clusterName,

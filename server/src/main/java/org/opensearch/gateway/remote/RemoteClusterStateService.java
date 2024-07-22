@@ -58,7 +58,7 @@ import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
 import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
-import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTableDiff;
+import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -691,7 +691,7 @@ public class RemoteClusterStateService implements Closeable {
             );
         });
         if (indexRoutingTableDiff != null && !indexRoutingTableDiff.isEmpty()) {
-            uploadTasks.add(RemoteIndexRoutingTableDiff.INDEX_ROUTING_DIFF_FILE);
+            uploadTasks.add(RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE);
             remoteRoutingTableService.getAsyncIndexRoutingDiffWriteAction(
                 clusterState.metadata().clusterUUID(),
                 clusterState.term(),
@@ -746,7 +746,7 @@ public class RemoteClusterStateService implements Closeable {
             if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class)
                 && uploadedMetadata.getComponent().contains(INDEX_ROUTING_METADATA_PREFIX)) {
                 response.uploadedIndicesRoutingMetadata.add((UploadedIndexMetadata) uploadedMetadata);
-            } else if (RemoteIndexRoutingTableDiff.INDEX_ROUTING_DIFF_FILE.equals(name)) {
+            } else if (RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE.equals(name)) {
                 response.uploadedIndicesRoutingDiffMetadata = (UploadedMetadataAttribute) uploadedMetadata;
             } else if (name.startsWith(CUSTOM_METADATA)) {
                 // component name for custom metadata will look like custom--<metadata-attribute>

@@ -75,10 +75,10 @@ import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_FORMAT;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTableDiff.INDEX_ROUTING_DIFF_FILE;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTableDiff.INDEX_ROUTING_DIFF_METADATA_PREFIX;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTableDiff.INDEX_ROUTING_DIFF_PATH_TOKEN;
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTableDiff.RemoteIndexRoutingTableDiffFormat;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.REMOTE_ROUTING_TABLE_DIFF_FORMAT;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_METADATA_PREFIX;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_PATH_TOKEN;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -586,9 +586,9 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         RoutingTableIncrementalDiff diff = new RoutingTableIncrementalDiff(diffs);
 
-        String uploadedFileName = String.format(Locale.ROOT, "index-routing-diff/" + indexName);
+        String uploadedFileName = String.format(Locale.ROOT, "routing-table-diff/" + indexName);
         when(blobContainer.readBlob(indexName)).thenReturn(
-            RemoteIndexRoutingTableDiffFormat.serialize(diff, uploadedFileName, compressor).streamInput()
+            REMOTE_ROUTING_TABLE_DIFF_FORMAT.serialize(diff, uploadedFileName, compressor).streamInput()
         );
 
         TestCapturingListener<RoutingTableIncrementalDiff> listener = new TestCapturingListener<>();
@@ -598,7 +598,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "cluster-uuid",
             uploadedFileName,
             new LatchedActionListener<>(listener, latch)
-        ).run();
+        );
         latch.await();
 
         assertNull(listener.getFailure());
@@ -684,7 +684,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             )
             .add("cluster-state")
             .add(currentState.metadata().clusterUUID())
-            .add(INDEX_ROUTING_DIFF_PATH_TOKEN);
+            .add(ROUTING_TABLE_DIFF_PATH_TOKEN);
 
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
@@ -701,13 +701,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             currentState.version(),
             diffs,
             new LatchedActionListener<>(listener, latch)
-        ).run();
+        );
         latch.await();
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());
         ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.getResult();
 
-        assertEquals(INDEX_ROUTING_DIFF_FILE, uploadedMetadata.getComponent());
+        assertEquals(ROUTING_TABLE_DIFF_FILE, uploadedMetadata.getComponent());
         String uploadedFileName = uploadedMetadata.getUploadedFilename();
         String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
         assertEquals(6, pathTokens.length);
@@ -715,7 +715,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         String[] fileNameTokens = pathTokens[5].split(DELIMITER);
 
         assertEquals(4, fileNameTokens.length);
-        assertEquals(INDEX_ROUTING_DIFF_METADATA_PREFIX, fileNameTokens[0]);
+        assertEquals(ROUTING_TABLE_DIFF_METADATA_PREFIX, fileNameTokens[0]);
         assertEquals(RemoteStoreUtils.invertLong(1L), fileNameTokens[1]);
         assertEquals(RemoteStoreUtils.invertLong(2L), fileNameTokens[2]);
         assertThat(RemoteStoreUtils.invertLong(fileNameTokens[3]), lessThanOrEqualTo(System.currentTimeMillis()));

@@ -39,7 +39,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTableDiff.INDEX_ROUTING_DIFF_FILE;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_METADATA_PREFIX;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_PATH_TOKEN;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -100,8 +102,10 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
 
         diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
 
-        RemoteIndexRoutingTableDiff remoteDiffForUpload = new RemoteIndexRoutingTableDiff(
-            diffs,
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
+
+        RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
+            routingTableIncrementalDiff,
             clusterUUID,
             compressor,
             STATE_TERM,
@@ -109,7 +113,7 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         );
         assertEquals(remoteDiffForUpload.clusterUUID(), clusterUUID);
 
-        RemoteIndexRoutingTableDiff remoteDiffForDownload = new RemoteIndexRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
         assertEquals(remoteDiffForDownload.clusterUUID(), clusterUUID);
     }
 
@@ -128,9 +132,10 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
 
         diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
 
-        RemoteIndexRoutingTableDiff remoteDiffForUpload = new RemoteIndexRoutingTableDiff(
-            diffs,
+        RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
+            routingTableIncrementalDiff,
             clusterUUID,
             compressor,
             STATE_TERM,
@@ -138,7 +143,7 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         );
         assertThat(remoteDiffForUpload.getFullBlobName(), nullValue());
 
-        RemoteIndexRoutingTableDiff remoteDiffForDownload = new RemoteIndexRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
         assertThat(remoteDiffForDownload.getFullBlobName(), is(TEST_BLOB_NAME));
     }
 
@@ -157,9 +162,10 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
 
         diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
 
-        RemoteIndexRoutingTableDiff remoteDiffForUpload = new RemoteIndexRoutingTableDiff(
-            diffs,
+        RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
+            routingTableIncrementalDiff,
             clusterUUID,
             compressor,
             STATE_TERM,
@@ -167,7 +173,7 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         );
         assertThat(remoteDiffForUpload.getBlobFileName(), nullValue());
 
-        RemoteIndexRoutingTableDiff remoteDiffForDownload = new RemoteIndexRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
         assertThat(remoteDiffForDownload.getBlobFileName(), is(TEST_BLOB_FILE_NAME));
     }
 
@@ -186,9 +192,10 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
 
         diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
 
-        RemoteIndexRoutingTableDiff remoteDiffForUpload = new RemoteIndexRoutingTableDiff(
-            diffs,
+        RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
+            routingTableIncrementalDiff,
             clusterUUID,
             compressor,
             STATE_TERM,
@@ -197,8 +204,8 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         assertThat(remoteDiffForUpload.getBlobFileName(), nullValue());
 
         BlobPathParameters params = remoteDiffForUpload.getBlobPathParameters();
-        assertThat(params.getPathTokens(), is(List.of("index-routing-diff")));
-        String expectedPrefix = "indexRoutingDiff--";
+        assertThat(params.getPathTokens(), is(List.of(ROUTING_TABLE_DIFF_PATH_TOKEN)));
+        String expectedPrefix = ROUTING_TABLE_DIFF_METADATA_PREFIX;
         assertThat(params.getFilePrefix(), is(expectedPrefix));
     }
 
@@ -217,9 +224,10 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
 
         diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
 
-        RemoteIndexRoutingTableDiff remoteDiffForUpload = new RemoteIndexRoutingTableDiff(
-            diffs,
+        RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
+            routingTableIncrementalDiff,
             clusterUUID,
             compressor,
             STATE_TERM,
@@ -228,9 +236,9 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
 
         String blobFileName = remoteDiffForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split("__");
-        assertEquals(nameTokens[0], "indexRoutingDiff--");
-        assertEquals(nameTokens[1], RemoteStoreUtils.invertLong(STATE_TERM));
-        assertEquals(nameTokens[2], RemoteStoreUtils.invertLong(STATE_VERSION));
+        assertEquals(ROUTING_TABLE_DIFF_METADATA_PREFIX, nameTokens[0]);
+        assertEquals(RemoteStoreUtils.invertLong(STATE_TERM), nameTokens[1]);
+        assertEquals(RemoteStoreUtils.invertLong(STATE_VERSION), nameTokens[2]);
         assertThat(RemoteStoreUtils.invertLong(nameTokens[3]), lessThanOrEqualTo(System.currentTimeMillis()));
     }
 
@@ -249,9 +257,10 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).initializeAsNew(indexMetadata).build();
 
         diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
 
-        RemoteIndexRoutingTableDiff remoteDiffForUpload = new RemoteIndexRoutingTableDiff(
-            diffs,
+        RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
+            routingTableIncrementalDiff,
             clusterUUID,
             compressor,
             STATE_TERM,
@@ -260,7 +269,7 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
 
         remoteDiffForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
         ClusterMetadataManifest.UploadedMetadata uploadedMetadataAttribute = remoteDiffForUpload.getUploadedMetadata();
-        assertEquals(INDEX_ROUTING_DIFF_FILE, uploadedMetadataAttribute.getComponent());
+        assertEquals(ROUTING_TABLE_DIFF_FILE, uploadedMetadataAttribute.getComponent());
     }
 
     public void testStreamOperations() throws IOException {
@@ -282,9 +291,10 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
 
         initialRoutingTable.getIndicesRouting().values().forEach(indexRoutingTable -> {
             diffs.put(indexName, indexRoutingTable.diff(indexRoutingTable));
+            RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(diffs);
 
-            RemoteIndexRoutingTableDiff remoteDiffForUpload = new RemoteIndexRoutingTableDiff(
-                diffs,
+            RemoteRoutingTableDiff remoteDiffForUpload = new RemoteRoutingTableDiff(
+                routingTableIncrementalDiff,
                 clusterUUID,
                 compressor,
                 STATE_TERM,
@@ -297,7 +307,7 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
                 remoteDiffForUpload.setFullBlobName(BlobPath.cleanPath());
                 assertThat(inputStream.available(), greaterThan(0));
 
-                RoutingTableIncrementalDiff routingTableIncrementalDiff = remoteDiffForUpload.deserialize(inputStream);
+                routingTableIncrementalDiff = remoteDiffForUpload.deserialize(inputStream);
                 assertEquals(remoteDiffForUpload.getDiffs().size(), routingTableIncrementalDiff.getDiffs().size());
             } catch (IOException e) {
                 throw new RuntimeException(e);

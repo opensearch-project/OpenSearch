@@ -635,7 +635,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 true,
                 clusterState.getCustoms(),
                 true,
-                emptyList()
+                emptyList(),
+                null
             )
         );
         assertTrue(exception.getMessage().startsWith("Some metadata components were not uploaded successfully"));

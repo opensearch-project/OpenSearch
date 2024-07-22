@@ -22,6 +22,7 @@ import java.util.Map;
  * Represents a difference between {@link RoutingTable} objects that can be serialized and deserialized.
  */
 public class RoutingTableIncrementalDiff implements Diff<RoutingTable> {
+
     private final Map<String, Diff<IndexRoutingTable>> diffs;
 
     /**
