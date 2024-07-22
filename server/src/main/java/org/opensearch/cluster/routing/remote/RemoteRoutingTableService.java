@@ -69,7 +69,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
 
     List<IndexRoutingTable> getIndicesRouting(RoutingTable routingTable);
 
-    CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
@@ -91,7 +91,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         RoutingTable after
     );
 
-    CheckedRunnable<IOException> getAsyncIndexRoutingWriteAction(
+    void getAsyncIndexRoutingWriteAction(
         String clusterUUID,
         long term,
         long version,

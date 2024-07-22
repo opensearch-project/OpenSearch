@@ -560,7 +560,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             "cluster-uuid",
             uploadedFileName,
             new LatchedActionListener<>(listener, latch)
-        ).run();
+        );
         latch.await();
 
         assertNull(listener.getFailure());
@@ -639,7 +639,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             clusterState.version(),
             clusterState.getRoutingTable().indicesRouting().get(indexName),
             new LatchedActionListener<>(listener, latch)
-        ).run();
+        );
         latch.await();
         assertNull(listener.getFailure());
         assertNotNull(listener.getResult());

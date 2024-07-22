@@ -46,7 +46,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingWriteAction(
+    public void getAsyncIndexRoutingWriteAction(
         String clusterUUID,
         long term,
         long version,
@@ -54,7 +54,6 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
         // noop
-        return () -> {};
     }
 
     @Override
@@ -80,13 +79,12 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    public void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
     ) {
         // noop
-        return () -> {};
     }
 
     @Override
