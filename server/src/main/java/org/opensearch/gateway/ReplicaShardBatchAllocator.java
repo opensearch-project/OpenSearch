@@ -168,7 +168,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         logger.trace("Finished shard allocation execution for unassigned replica shards: {}", shardRoutings.size());
     }
 
-    public void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+    protected void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
         Set<ShardId> shardIdsFromBatch = new HashSet<>();
         for (ShardRouting shardRouting : shardRoutings) {
             ShardId shardId = shardRouting.shardId();

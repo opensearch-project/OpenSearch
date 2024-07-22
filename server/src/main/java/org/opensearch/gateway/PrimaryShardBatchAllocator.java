@@ -122,7 +122,7 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
         logger.trace("Finished shard allocation execution for unassigned primary shards: {}", shardRoutings.size());
     }
 
-    public void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
+    protected void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
         Set<ShardRouting> batchShardRoutingSet = new HashSet<>(shardRoutings);
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {

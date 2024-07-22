@@ -44,7 +44,7 @@ public class BatchRunnableExecutor implements Runnable {
             return;
         }
         for (TimeoutAwareRunnable workQueue : timeoutAwareRunnables) {
-            if (System.nanoTime() - startTime > timeoutSupplier.get().nanos()) {
+            if (System.nanoTime() - startTime < timeoutSupplier.get().nanos()) {
                 workQueue.run();
             } else {
                 logger.debug("Executing timeout for runnable of size [{}]", timeoutAwareRunnables.size());
