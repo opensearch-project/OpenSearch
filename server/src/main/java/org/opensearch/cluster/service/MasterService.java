@@ -321,7 +321,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         final long computationStartTime = threadPool.preciseRelativeTimeInNanos();
-        final TaskOutputs taskOutputs = calculateTaskOutputs(taskInputs, previousClusterState, longSummary);
+        final TaskOutputs taskOutputs = calculateTaskOutputs(taskInputs, previousClusterState, shortSummary);
         taskOutputs.notifyFailedTasks();
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", shortSummary);

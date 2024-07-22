@@ -416,7 +416,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test2 failure",
                     MasterService.class.getCanonicalName(),
                     Level.TRACE,
-                    "failed to execute cluster state update (on version: [*], uuid: [*]) for [test2]*"
+                    "failed to execute cluster state update (on version: [*], uuid: [*]) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]*"
                 )
             );
             mockAppender.addExpectation(
