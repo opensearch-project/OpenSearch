@@ -97,6 +97,10 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Without passing the information of the levels to the constructor, we return the Node-level aggregated stats as
+     * {@link CommonStats} along with a hash-map containing Index to List of Shard Stats.
+     */
     public NodeIndicesStats(CommonStats oldStats, Map<Index, List<IndexShardStats>> statsByShard, SearchRequestStats searchRequestStats) {
         // this.stats = stats;
         this.statsByShard = statsByShard;
@@ -115,6 +119,12 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
     }
 
+    /**
+     * Passing the level information to the nodes allows us to aggregate the stats based on the level passed. This
+     * allows us to aggregate based on NodeLevel (default - if no level is passed) or Index level if `indices` level is
+     * passed and finally return the statsByShards map if `shards` level is passed. This allows us to reduce ser/de of
+     * stats and return only the information that is required while returning to the client.
+     */
     public NodeIndicesStats(
         CommonStats oldStats,
         Map<Index, List<IndexShardStats>> statsByShard,
@@ -148,7 +158,13 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
     }
 
-    public static Fields getFirstAcceptedLevel(String[] levels) {
+    /**
+     * By default, the levels passed from the transport action will be a list of strings, since NodeIndicesStats can
+     * only aggregate on one level, we pick the first accepted level else we ignore if no known level is passed.
+     * @param levels - levels sent in the request.
+     * @return Corresponding identified enum {@link Fields}
+     */
+    private static Fields getFirstAcceptedLevel(String[] levels) {
         if (levels != null) {
             Optional<Fields> level = Arrays.stream(levels)
                 .flatMap(passedLevel -> Arrays.stream(Fields.values()).filter(field -> field.getRestName().equals(passedLevel)))

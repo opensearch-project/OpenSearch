@@ -67,7 +67,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     // Used for metric CACHE_STATS, to determine which caches to report stats for
     private EnumSet<CacheType> includeCaches = EnumSet.noneOf(CacheType.class);
     private String[] levels = new String[0];
-    private boolean aggregateNodeResponsesOnLevel = false;
+    private boolean aggregateNodeIndicesStatsResponsesOnLevel = false;
 
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
@@ -102,7 +102,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             levels = in.readStringArray();
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            aggregateNodeResponsesOnLevel = in.readBoolean();
+            aggregateNodeIndicesStatsResponsesOnLevel = in.readBoolean();
         }
     }
 
@@ -129,7 +129,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             out.writeStringArrayNullable(levels);
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeBoolean(aggregateNodeResponsesOnLevel);
+            out.writeBoolean(aggregateNodeIndicesStatsResponsesOnLevel);
         }
     }
 
@@ -269,12 +269,12 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         return this.includeSegmentFileSizes;
     }
 
-    public void aggregateNodeResponsesOnLevel(boolean aggregateNodeResponsesOnLevel) {
-        this.aggregateNodeResponsesOnLevel = aggregateNodeResponsesOnLevel;
+    public void setAggregateNodeIndicesStatsResponsesOnLevel(boolean aggregateNodeIndicesStatsResponsesOnLevel) {
+        this.aggregateNodeIndicesStatsResponsesOnLevel = aggregateNodeIndicesStatsResponsesOnLevel;
     }
 
-    public boolean aggregateNodeResponsesOnLevel() {
-        return this.aggregateNodeResponsesOnLevel;
+    public boolean getAggregateNodeIndicesStatsResponsesOnLevel() {
+        return this.aggregateNodeIndicesStatsResponsesOnLevel;
     }
 
     public boolean isSet(Flag flag) {

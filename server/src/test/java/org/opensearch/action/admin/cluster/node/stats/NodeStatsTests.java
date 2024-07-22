@@ -1180,7 +1180,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
-        commonStatsFlags.aggregateNodeResponsesOnLevel(true);
+        commonStatsFlags.setAggregateNodeIndicesStatsResponsesOnLevel(true);
 
         levelParams.forEach(levelParam -> {
             ArrayList<String> level_arg = new ArrayList<>();
@@ -1236,7 +1236,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
-        commonStatsFlags.aggregateNodeResponsesOnLevel(true);
+        commonStatsFlags.setAggregateNodeIndicesStatsResponsesOnLevel(true);
 
         levelParams.forEach(levelParam -> {
             ArrayList<String> level_arg = new ArrayList<>();
@@ -1325,7 +1325,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        if (commonStatsFlags.aggregateNodeResponsesOnLevel()) {
+        if (commonStatsFlags.getAggregateNodeIndicesStatsResponsesOnLevel()) {
             return new MockNodeIndicesStats(
                 new CommonStats(commonStatsFlags),
                 statsByShard,

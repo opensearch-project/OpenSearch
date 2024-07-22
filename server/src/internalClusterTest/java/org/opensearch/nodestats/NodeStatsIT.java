@@ -381,7 +381,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         testLevels.forEach(testLevel -> {
             NodesStatsResponse response;
             CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
-            commonStatsFlags.aggregateNodeResponsesOnLevel(true);
+            commonStatsFlags.setAggregateNodeIndicesStatsResponsesOnLevel(true);
             if (!testLevel.equals(MockFields.NULL)) {
                 ArrayList<String> level_arg = new ArrayList<>();
                 level_arg.add(testLevel.getRestName());
