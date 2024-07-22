@@ -72,7 +72,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      *
      * Setting default behavior as `true` but can be explicitly changed in requests that do not require.
      */
-    private boolean sendDiscoveryNodes = true;
+    private boolean includeDiscoveryNodes = true;
     private final TimeValue DEFAULT_TIMEOUT_SECS = TimeValue.timeValueSeconds(30);
 
     private TimeValue timeout;
@@ -127,12 +127,12 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
         this.concreteNodes = concreteNodes;
     }
 
-    public void sendDiscoveryNodes(boolean value) {
-        sendDiscoveryNodes = value;
+    public void setIncludeDiscoveryNodes(boolean value) {
+        includeDiscoveryNodes = value;
     }
 
-    public boolean sendDiscoveryNodes() {
-        return sendDiscoveryNodes;
+    public boolean getIncludeDiscoveryNodes() {
+        return includeDiscoveryNodes;
     }
 
     @Override

@@ -36,7 +36,7 @@ public class TransportNodesStatsActionTests extends TransportNodesActionTests {
      */
     public void testNodesStatsActionWithRetentionOfDiscoveryNodesList() {
         NodesStatsRequest request = new NodesStatsRequest();
-        request.sendDiscoveryNodes(true);
+        request.setIncludeDiscoveryNodes(true);
         Map<String, List<MockNodeStatsRequest>> combinedSentRequest = performNodesStatsAction(request);
 
         assertNotNull(combinedSentRequest);
@@ -55,7 +55,7 @@ public class TransportNodesStatsActionTests extends TransportNodesActionTests {
      */
     public void testNodesStatsActionWithoutRetentionOfDiscoveryNodesList() {
         NodesStatsRequest request = new NodesStatsRequest();
-        request.sendDiscoveryNodes(false);
+        request.setIncludeDiscoveryNodes(false);
         Map<String, List<MockNodeStatsRequest>> combinedSentRequest = performNodesStatsAction(request);
 
         assertNotNull(combinedSentRequest);
