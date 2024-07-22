@@ -148,7 +148,7 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return typeFieldMapper.mappedFieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
+        return getFieldMapper().mappedFieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
     }
 
     @Override
