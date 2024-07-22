@@ -58,6 +58,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
@@ -624,10 +625,16 @@ public class AllocationService {
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        allocator.allocateAllUnassignedShards(allocation, true).run();
+        BatchRunnableExecutor primaryShardsBatchExecutor = allocator.allocateAllUnassignedShards(allocation, true);
+        if (primaryShardsBatchExecutor != null) {
+            primaryShardsBatchExecutor.run();
+        }
         allocator.afterPrimariesBeforeReplicas(allocation);
         // Replicas Assignment
-        allocator.allocateAllUnassignedShards(allocation, false).run();
+        BatchRunnableExecutor replicaShardsBatchExecutor = allocator.allocateAllUnassignedShards(allocation, false);
+        if (replicaShardsBatchExecutor != null) {
+            replicaShardsBatchExecutor.run();
+        }
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {
