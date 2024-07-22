@@ -1051,6 +1051,202 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         ensureGreen("test");
     }
 
+    public void testAllocationExplainReturnsNoWhenExtraReplicaShardInNonBatchMode() throws Exception {
+        // Non batch mode - This test is to validate that we don't return AWAITING_INFO in allocation explain API when the deciders are
+        // returning NO
+        internalCluster().startClusterManagerOnlyNodes(
+            1,
+            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), false).build()
+        );
+        internalCluster().startDataOnlyNodes(5);
+        createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 4).build()
+        );
+        ensureGreen("test");
+        ensureStableCluster(6);
+
+        // Stop one of the nodes to make the cluster yellow
+        // We cannot directly create an index with replica = data node count because then the whole flow will get skipped due to
+        // INDEX_CREATED
+        List<String> nodesWithReplicaShards = findNodesWithShard(false);
+        Settings replicaNodeDataPathSettings = internalCluster().dataPathSettings(nodesWithReplicaShards.get(0));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesWithReplicaShards.get(0)));
+
+        ensureStableCluster(5);
+        ensureYellow("test");
+
+        logger.info("--> calling allocation explain API");
+        // shard should have decision NO because there is no valid node for the extra replica to go to
+        assertEquals(
+            AllocationDecision.NO,
+            client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex("test")
+                .setShard(0)
+                .setPrimary(false)
+                .get()
+                .getExplanation()
+                .getShardAllocationDecision()
+                .getAllocateDecision()
+                .getAllocationDecision()
+        );
+
+        // Now creating a new index with too many replicas and trying again
+        createIndex(
+            "test2",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 5).build()
+        );
+
+        ensureYellowAndNoInitializingShards("test2");
+
+        logger.info("--> calling allocation explain API again");
+        // shard should have decision NO because there are 6 replicas and 4 data nodes
+        assertEquals(
+            AllocationDecision.NO,
+            client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex("test2")
+                .setShard(0)
+                .setPrimary(false)
+                .get()
+                .getExplanation()
+                .getShardAllocationDecision()
+                .getAllocateDecision()
+                .getAllocationDecision()
+        );
+
+        logger.info("--> restarting the stopped node");
+        internalCluster().startDataOnlyNode(
+            Settings.builder().put("node.name", nodesWithReplicaShards.get(0)).put(replicaNodeDataPathSettings).build()
+        );
+
+        ensureStableCluster(6);
+        ensureGreen("test");
+
+        logger.info("--> calling allocation explain API 3rd time");
+        // shard should still have decision NO because there are 6 replicas and 5 data nodes
+        assertEquals(
+            AllocationDecision.NO,
+            client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex("test2")
+                .setShard(0)
+                .setPrimary(false)
+                .get()
+                .getExplanation()
+                .getShardAllocationDecision()
+                .getAllocateDecision()
+                .getAllocationDecision()
+        );
+
+        internalCluster().startDataOnlyNodes(1);
+
+        ensureStableCluster(7);
+        ensureGreen("test2");
+    }
+
+    public void testAllocationExplainReturnsNoWhenExtraReplicaShardInBatchMode() throws Exception {
+        // Batch mode - This test is to validate that we don't return AWAITING_INFO in allocation explain API when the deciders are
+        // returning NO
+        internalCluster().startClusterManagerOnlyNodes(
+            1,
+            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true).build()
+        );
+        internalCluster().startDataOnlyNodes(5);
+        createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 4).build()
+        );
+        ensureGreen("test");
+        ensureStableCluster(6);
+
+        // Stop one of the nodes to make the cluster yellow
+        // We cannot directly create an index with replica = data node count because then the whole flow will get skipped due to
+        // INDEX_CREATED
+        List<String> nodesWithReplicaShards = findNodesWithShard(false);
+        Settings replicaNodeDataPathSettings = internalCluster().dataPathSettings(nodesWithReplicaShards.get(0));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesWithReplicaShards.get(0)));
+
+        ensureStableCluster(5);
+        ensureYellow("test");
+
+        logger.info("--> calling allocation explain API");
+        // shard should have decision NO because there is no valid node for the extra replica to go to
+        assertEquals(
+            AllocationDecision.NO,
+            client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex("test")
+                .setShard(0)
+                .setPrimary(false)
+                .get()
+                .getExplanation()
+                .getShardAllocationDecision()
+                .getAllocateDecision()
+                .getAllocationDecision()
+        );
+
+        // Now creating a new index with too many replicas and trying again
+        createIndex(
+            "test2",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 5).build()
+        );
+
+        ensureYellowAndNoInitializingShards("test2");
+
+        logger.info("--> calling allocation explain API again");
+        // shard should have decision NO because there are 6 replicas and 4 data nodes
+        assertEquals(
+            AllocationDecision.NO,
+            client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex("test2")
+                .setShard(0)
+                .setPrimary(false)
+                .get()
+                .getExplanation()
+                .getShardAllocationDecision()
+                .getAllocateDecision()
+                .getAllocationDecision()
+        );
+
+        logger.info("--> restarting the stopped node");
+        internalCluster().startDataOnlyNode(
+            Settings.builder().put("node.name", nodesWithReplicaShards.get(0)).put(replicaNodeDataPathSettings).build()
+        );
+
+        ensureStableCluster(6);
+        ensureGreen("test");
+
+        logger.info("--> calling allocation explain API 3rd time");
+        // shard should still have decision NO because there are 6 replicas and 5 data nodes
+        assertEquals(
+            AllocationDecision.NO,
+            client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex("test2")
+                .setShard(0)
+                .setPrimary(false)
+                .get()
+                .getExplanation()
+                .getShardAllocationDecision()
+                .getAllocateDecision()
+                .getAllocationDecision()
+        );
+
+        internalCluster().startDataOnlyNodes(1);
+
+        ensureStableCluster(7);
+        ensureGreen("test2");
+    }
+
     public void testNBatchesCreationAndAssignment() throws Exception {
         // we will reduce batch size to 5 to make sure we have enough batches to test assignment
         // Total number of primary shards = 50 (50 indices*1)
