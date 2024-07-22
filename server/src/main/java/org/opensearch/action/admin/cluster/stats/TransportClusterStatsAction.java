@@ -229,7 +229,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
      */
     public static class ClusterStatsNodeRequest extends TransportRequest {
 
-        ClusterStatsRequest request;
+        protected ClusterStatsRequest request;
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);
