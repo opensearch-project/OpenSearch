@@ -300,7 +300,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] visibleOpenIndices,
         String[] allClosedIndices,
         String[] visibleClosedIndices,
-        SortedMap<String, IndexAbstraction> indicesLookup
+        SortedMap<String, IndexAbstraction> indicesLookup,
+        Map<String, SortedMap<Long, String>> systemTemplatesLookup
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -331,23 +332,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.allClosedIndices = allClosedIndices;
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
-
-        this.systemTemplatesLookup = new HashMap<>();
-        Optional.ofNullable((ComponentTemplateMetadata) this.custom(ComponentTemplateMetadata.TYPE))
-            .map(ComponentTemplateMetadata::componentTemplates)
-            .orElseGet(Collections::emptyMap)
-            .forEach((k, v) -> {
-                if (MetadataIndexTemplateService.isSystemTemplate(v)) {
-                    SystemTemplateMetadata templateMetadata = SystemTemplateMetadata.fromComponentTemplate(k);
-                    systemTemplatesLookup.compute(templateMetadata.name(), (ik, iv) -> {
-                        if (iv == null) {
-                            iv = new TreeMap<>();
-                        }
-                        iv.put(templateMetadata.version(), k);
-                        return iv;
-                    });
-                }
-            });
+        this.systemTemplatesLookup = systemTemplatesLookup;
     }
 
     public long version() {
@@ -1213,6 +1198,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Map<String, Custom> customs;
         private final Metadata previousMetadata;
 
+        private Map<String, SortedMap<Long, String>> systemTemplatesLookup;
+
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = new HashMap<>();
@@ -1578,6 +1565,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 ? (DataStreamMetadata) this.previousMetadata.customs.get(DataStreamMetadata.TYPE)
                 : null;
 
+            buildSystemTemplatesLookup();
+
             boolean recomputeRequiredforIndicesLookups = (previousMetadata == null)
                 || (indices.equals(previousMetadata.indices) == false)
                 || (previousDataStreamMetadata != null && previousDataStreamMetadata.equals(dataStreamMetadata) == false)
@@ -1586,6 +1575,33 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return (recomputeRequiredforIndicesLookups == false)
                 ? buildMetadataWithPreviousIndicesLookups()
                 : buildMetadataWithRecomputedIndicesLookups();
+        }
+
+        private void buildSystemTemplatesLookup() {
+            if (previousMetadata != null
+                && Objects.equals(
+                    previousMetadata.customs.get(ComponentTemplateMetadata.TYPE),
+                    this.customs.get(ComponentTemplateMetadata.TYPE)
+                )) {
+                systemTemplatesLookup = Collections.unmodifiableMap(previousMetadata.systemTemplatesLookup);
+            } else {
+                systemTemplatesLookup = new HashMap<>();
+                Optional.ofNullable((ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE))
+                    .map(ComponentTemplateMetadata::componentTemplates)
+                    .orElseGet(Collections::emptyMap)
+                    .forEach((k, v) -> {
+                        if (MetadataIndexTemplateService.isSystemTemplate(v)) {
+                            SystemTemplateMetadata templateMetadata = SystemTemplateMetadata.fromComponentTemplate(k);
+                            systemTemplatesLookup.compute(templateMetadata.name(), (ik, iv) -> {
+                                if (iv == null) {
+                                    iv = new TreeMap<>();
+                                }
+                                iv.put(templateMetadata.version(), k);
+                                return iv;
+                            });
+                        }
+                    });
+            }
         }
 
         protected Metadata buildMetadataWithPreviousIndicesLookups() {
@@ -1606,7 +1622,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 Arrays.copyOf(previousMetadata.visibleOpenIndices, previousMetadata.visibleOpenIndices.length),
                 Arrays.copyOf(previousMetadata.allClosedIndices, previousMetadata.allClosedIndices.length),
                 Arrays.copyOf(previousMetadata.visibleClosedIndices, previousMetadata.visibleClosedIndices.length),
-                Collections.unmodifiableSortedMap(previousMetadata.indicesLookup)
+                Collections.unmodifiableSortedMap(previousMetadata.indicesLookup),
+                systemTemplatesLookup
             );
         }
 
@@ -1729,7 +1746,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 visibleOpenIndicesArray,
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
-                indicesLookup
+                indicesLookup,
+                systemTemplatesLookup
             );
         }
 
