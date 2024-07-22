@@ -43,7 +43,7 @@ public abstract class ResourceType {
      * @throws IllegalArgumentException If the string is not recognized
      */
     public static ResourceType fromName(String type) {
-        if (type.equalsIgnoreCase("JVM") || type.equalsIgnoreCase("memory")) {
+        if (type.equalsIgnoreCase("memory")) {
             return new Memory();
         } else if (type.equalsIgnoreCase("CPU")) {
             return new CPU();

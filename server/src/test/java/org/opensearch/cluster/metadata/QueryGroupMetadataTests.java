@@ -34,7 +34,7 @@ public class QueryGroupMetadataTests extends AbstractDiffableSerializationTestCa
                     "test",
                     "ajakgakg983r92_4242",
                     QueryGroup.ResiliencyMode.ENFORCED,
-                    Map.of(ResourceType.fromName("jvm"), 0.5),
+                    Map.of(ResourceType.fromName("memory"), 0.5),
                     updatedAt
                 )
             )

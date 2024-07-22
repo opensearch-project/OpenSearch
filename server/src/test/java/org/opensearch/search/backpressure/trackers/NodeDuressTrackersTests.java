@@ -19,7 +19,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeNotInDuress() {
         HashMap<ResourceType, NodeDuressTracker> map = new HashMap<>() {
             {
-                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> false, () -> 2));
+                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> false, () -> 2));
                 put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> false, () -> 2));
             }
         };
@@ -34,7 +34,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeInDuressWhenHeapInDuress() {
         HashMap<ResourceType, NodeDuressTracker> map = new HashMap<>() {
             {
-                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> true, () -> 3));
                 put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> false, () -> 1));
             }
         };
@@ -51,7 +51,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeInDuressWhenCPUInDuress() {
         HashMap<ResourceType, NodeDuressTracker> map = new HashMap<>() {
             {
-                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> false, () -> 1));
+                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> false, () -> 1));
                 put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> true, () -> 3));
             }
         };
@@ -68,7 +68,7 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     public void testNodeInDuressWhenCPUAndHeapInDuress() {
         HashMap<ResourceType, NodeDuressTracker> map = new HashMap<>() {
             {
-                put(ResourceType.fromName("jvm"), new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> true, () -> 3));
                 put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> false, () -> 3));
             }
         };
