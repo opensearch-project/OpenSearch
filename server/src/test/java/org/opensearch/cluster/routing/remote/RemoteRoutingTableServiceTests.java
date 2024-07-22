@@ -19,7 +19,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
@@ -31,6 +30,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.TestCapturingListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Supplier;
 
 import org.mockito.ArgumentCaptor;
@@ -347,23 +348,23 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertEquals(indexName, diff.getDeletes().get(0));
     }
 
-    public void testGetIndexRoutingAsyncAction() throws IOException {
+    public void testGetIndexRoutingAsyncAction() throws IOException, InterruptedException {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
         BlobPath expectedPath = getPath();
 
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
+        TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
         when(blobStore.blobContainer(expectedPath)).thenReturn(blobContainer);
 
         remoteRoutingTableService.start();
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getIndexRoutingAsyncAction(
+        remoteRoutingTableService.getIndexRoutingAsyncAction(
             clusterState,
             clusterState.routingTable().getIndicesRouting().get(indexName),
-            listener,
+            new LatchedActionListener<>(listener, latch),
             basePath
         );
-        assertNotNull(runnable);
-        runnable.run();
+        latch.await();
 
         String expectedFilePrefix = String.join(
             DELIMITER,
@@ -372,27 +373,32 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             RemoteStoreUtils.invertLong(clusterState.version())
         );
         verify(blobContainer, times(1)).writeBlob(startsWith(expectedFilePrefix), any(StreamInput.class), anyLong(), eq(true));
-        verify(listener, times(1)).onResponse(any(ClusterMetadataManifest.UploadedMetadata.class));
+        assertNull(listener.getFailure());
+        assertNotNull(listener.getResult());
+        assertTrue(listener.getResult() instanceof ClusterMetadataManifest.UploadedIndexMetadata);
+        ClusterMetadataManifest.UploadedIndexMetadata metadata = (ClusterMetadataManifest.UploadedIndexMetadata) listener.getResult();
+        assertEquals(indexName, metadata.getIndexName());
     }
 
-    public void testGetIndexRoutingAsyncActionFailureInBlobRepo() throws IOException {
+    public void testGetIndexRoutingAsyncActionFailureInBlobRepo() throws IOException, InterruptedException {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
         BlobPath expectedPath = getPath();
 
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
+        TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
         when(blobStore.blobContainer(expectedPath)).thenReturn(blobContainer);
-        doThrow(new IOException("testing failure")).when(blobContainer).writeBlob(anyString(), any(StreamInput.class), anyLong(), eq(true));
+        IOException exception = new IOException("testing failure");
+        doThrow(exception).when(blobContainer).writeBlob(anyString(), any(StreamInput.class), anyLong(), eq(true));
 
         remoteRoutingTableService.start();
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getIndexRoutingAsyncAction(
+        remoteRoutingTableService.getIndexRoutingAsyncAction(
             clusterState,
             clusterState.routingTable().getIndicesRouting().get(indexName),
-            listener,
+            new LatchedActionListener<>(listener, latch),
             basePath
         );
-        assertNotNull(runnable);
-        runnable.run();
+        latch.await();
         String expectedFilePrefix = String.join(
             DELIMITER,
             INDEX_ROUTING_FILE_PREFIX,
@@ -400,15 +406,19 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             RemoteStoreUtils.invertLong(clusterState.version())
         );
         verify(blobContainer, times(1)).writeBlob(startsWith(expectedFilePrefix), any(StreamInput.class), anyLong(), eq(true));
-        verify(listener, times(1)).onFailure(any(RemoteStateTransferException.class));
+        assertNotNull(listener.getFailure());
+        assertNull(listener.getResult());
+        assertTrue(listener.getFailure() instanceof RemoteStateTransferException);
+        assertEquals(exception, listener.getFailure().getCause());
     }
 
-    public void testGetIndexRoutingAsyncActionAsyncRepo() throws IOException {
+    public void testGetIndexRoutingAsyncActionAsyncRepo() throws IOException, InterruptedException {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
         BlobPath expectedPath = getPath();
 
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
+        TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
         blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         when(blobStore.blobContainer(expectedPath)).thenReturn(blobContainer);
         ArgumentCaptor<ActionListener<Void>> actionListenerArgumentCaptor = ArgumentCaptor.forClass(ActionListener.class);
@@ -424,14 +434,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             .asyncBlobUpload(writeContextArgumentCaptor.capture(), actionListenerArgumentCaptor.capture());
 
         remoteRoutingTableService.start();
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getIndexRoutingAsyncAction(
+        remoteRoutingTableService.getIndexRoutingAsyncAction(
             clusterState,
             clusterState.routingTable().getIndicesRouting().get(indexName),
-            listener,
+            new LatchedActionListener<>(listener, latch),
             basePath
         );
-        assertNotNull(runnable);
-        runnable.run();
+        latch.await();
 
         String expectedFilePrefix = String.join(
             DELIMITER,
@@ -439,35 +448,39 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             RemoteStoreUtils.invertLong(clusterState.term()),
             RemoteStoreUtils.invertLong(clusterState.version())
         );
-        assertEquals(1, actionListenerArgumentCaptor.getAllValues().size());
+        assertNull(listener.getFailure());
+        assertNotNull(listener.getResult());
         assertEquals(1, writeContextArgumentCaptor.getAllValues().size());
         assertNotNull(capturedWriteContext.get("index_routing"));
         assertEquals(capturedWriteContext.get("index_routing").getWritePriority(), WritePriority.URGENT);
         assertTrue(capturedWriteContext.get("index_routing").getFileName().startsWith(expectedFilePrefix));
     }
 
-    public void testGetIndexRoutingAsyncActionAsyncRepoFailureInRepo() throws IOException {
+    public void testGetIndexRoutingAsyncActionAsyncRepoFailureInRepo() throws IOException, InterruptedException {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
         BlobPath expectedPath = getPath();
 
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> listener = mock(LatchedActionListener.class);
+        TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
         blobContainer = mock(AsyncMultiStreamBlobContainer.class);
         when(blobStore.blobContainer(expectedPath)).thenReturn(blobContainer);
-
-        doThrow(new IOException("Testing failure")).when((AsyncMultiStreamBlobContainer) blobContainer)
+        IOException exception = new IOException("Testing failure");
+        doThrow(exception).when((AsyncMultiStreamBlobContainer) blobContainer)
             .asyncBlobUpload(any(WriteContext.class), any(ActionListener.class));
 
         remoteRoutingTableService.start();
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getIndexRoutingAsyncAction(
+        remoteRoutingTableService.getIndexRoutingAsyncAction(
             clusterState,
             clusterState.routingTable().getIndicesRouting().get(indexName),
-            listener,
+            new LatchedActionListener<>(listener, latch),
             basePath
         );
-        assertNotNull(runnable);
-        runnable.run();
-        verify(listener, times(1)).onFailure(any(RemoteStateTransferException.class));
+        latch.await();
+        assertNull(listener.getResult());
+        assertNotNull(listener.getFailure());
+        assertTrue(listener.getFailure() instanceof RemoteStateTransferException);
+        assertEquals(exception, listener.getFailure().getCause());
     }
 
     public void testGetAllUploadedIndicesRouting() {
@@ -646,7 +659,8 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
         Index index = new Index(indexName, "uuid-01");
 
-        LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
+        TestCapturingListener<IndexRoutingTable> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
@@ -656,12 +670,13 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         when(blobContainer.readBlob(indexName)).thenReturn(streamOutput.bytes().streamInput());
         remoteRoutingTableService.start();
 
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, listener);
-        assertNotNull(runnable);
-        runnable.run();
+        remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, new LatchedActionListener<>(listener, latch));
+        latch.await();
 
-        assertBusy(() -> verify(blobContainer, times(1)).readBlob(any()));
-        assertBusy(() -> verify(listener, times(1)).onResponse(any(IndexRoutingTable.class)));
+        verify(blobContainer, times(1)).readBlob(any());
+        assertNotNull(listener.getResult());
+        assertNull(listener.getFailure());
+        assertTrue(listener.getResult() instanceof IndexRoutingTable);
     }
 
     public void testGetAsyncIndexMetadataReadActionFailureForIncorrectIndex() throws Exception {
@@ -670,7 +685,8 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
         Index index = new Index("incorrect-index", "uuid-01");
 
-        LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
+        TestCapturingListener<IndexRoutingTable> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
@@ -680,12 +696,12 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         when(blobContainer.readBlob(anyString())).thenReturn(streamOutput.bytes().streamInput());
         remoteRoutingTableService.doStart();
 
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, listener);
-        assertNotNull(runnable);
-        runnable.run();
+        remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, new LatchedActionListener<>(listener, latch));
+        latch.await();
 
-        assertBusy(() -> verify(blobContainer, times(1)).readBlob(any()));
-        assertBusy(() -> verify(listener, times(1)).onFailure(any(Exception.class)));
+        verify(blobContainer, times(1)).readBlob(any());
+        assertNull(listener.getResult());
+        assertNotNull(listener.getFailure());
     }
 
     public void testGetAsyncIndexMetadataReadActionFailureInBlobRepo() throws Exception {
@@ -693,16 +709,20 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         String uploadedFileName = String.format(Locale.ROOT, "index-routing/" + indexName);
         Index index = new Index(indexName, "uuid-01");
 
-        LatchedActionListener<IndexRoutingTable> listener = mock(LatchedActionListener.class);
+        TestCapturingListener<IndexRoutingTable> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
-        doThrow(new IOException("testing failure")).when(blobContainer).readBlob(indexName);
+        IOException exception = new IOException("testing failure");
+        doThrow(exception).when(blobContainer).readBlob(indexName);
         remoteRoutingTableService.doStart();
 
-        CheckedRunnable<IOException> runnable = remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, listener);
-        assertNotNull(runnable);
-        runnable.run();
+        remoteRoutingTableService.getAsyncIndexRoutingReadAction(uploadedFileName, index, new LatchedActionListener<>(listener, latch));
+        latch.await();
 
-        assertBusy(() -> verify(listener, times(1)).onFailure(any(RemoteStateTransferException.class)));
+        assertNull(listener.getResult());
+        assertNotNull(listener.getFailure());
+        assertTrue(listener.getFailure() instanceof RemoteStateTransferException);
+        assertEquals(exception, listener.getFailure().getCause());
     }
 
     public void testGetUpdatedIndexRoutingTableMetadataWhenNoChange() {

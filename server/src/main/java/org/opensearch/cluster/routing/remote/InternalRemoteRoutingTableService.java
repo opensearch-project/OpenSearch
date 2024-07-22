@@ -17,7 +17,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
@@ -150,14 +149,14 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     }
 
     /**
-     * Create async action for writing one {@code IndexRoutingTable} to remote store
+     * Async action for writing one {@code IndexRoutingTable} to remote store
      * @param clusterState current cluster state
      * @param indexRouting indexRoutingTable to write to remote store
      * @param latchedActionListener listener for handling async action response
      * @param clusterBasePath base path for remote file
-     * @return returns runnable async action
      */
-    public CheckedRunnable<IOException> getIndexRoutingAsyncAction(
+    @Override
+    public void getIndexRoutingAsyncAction(
         ClusterState clusterState,
         IndexRoutingTable indexRouting,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener,
@@ -187,7 +186,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             )
         );
 
-        return () -> uploadIndex(indexRouting, fileName, blobContainer, completionListener);
+        uploadIndex(indexRouting, fileName, blobContainer, completionListener);
     }
 
     /**
@@ -274,7 +273,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    public void getAsyncIndexRoutingReadAction(
         String uploadedFilename,
         Index index,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
@@ -284,7 +283,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         BlobContainer blobContainer = blobStoreRepository.blobStore()
             .blobContainer(BlobPath.cleanPath().add(uploadedFilename.substring(0, idx)));
 
-        return () -> readAsync(
+        readAsync(
             blobContainer,
             blobFileName,
             index,

@@ -13,7 +13,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.core.index.Index;
@@ -42,14 +41,13 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     }
 
     @Override
-    public CheckedRunnable<IOException> getIndexRoutingAsyncAction(
+    public void getIndexRoutingAsyncAction(
         ClusterState clusterState,
         IndexRoutingTable indexRouting,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener,
         BlobPath clusterBasePath
     ) {
         // noop
-        return () -> {};
     }
 
     @Override
@@ -63,13 +61,12 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    public void getAsyncIndexRoutingReadAction(
         String uploadedFilename,
         Index index,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
     ) {
         // noop
-        return () -> {};
     }
 
     @Override
