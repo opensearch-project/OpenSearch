@@ -41,6 +41,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.DeletePitResponse;
@@ -57,11 +58,14 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.CheckedTriFunction;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -70,6 +74,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
@@ -77,6 +82,8 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -114,13 +121,17 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -1174,6 +1185,154 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
                 new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar")).suggest(new SuggestBuilder())
             )
         );
+    }
+
+    private Number randomNumber(NumberFieldMapper.NumberType type) {
+        switch (type) {
+            case BYTE:
+                return randomByte();
+            case SHORT:
+                return randomShort();
+            case INTEGER:
+                return randomInt(10000);
+            case LONG:
+                return randomLongBetween(0L, 10000L);
+            case DOUBLE:
+                return randomDoubleBetween(0, 10000, false);
+            case FLOAT:
+            case HALF_FLOAT:
+                return (float) randomDoubleBetween(0, 10000, false);
+            case UNSIGNED_LONG:
+                BigInteger ul = randomUnsignedLong();
+                while (ul.compareTo(Numbers.MIN_UNSIGNED_LONG_VALUE) == 0 || ul.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) == 0) {
+                    ul = randomUnsignedLong();
+                }
+                return ul;
+            default:
+                throw new AssertionError();
+        }
+    }
+
+    private Number incDecNumber(Number number, NumberFieldMapper.NumberType type, boolean inc) {
+        switch (type) {
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+                return number.intValue() + (inc ? 1 : -1);
+            case LONG:
+                return number.longValue() + (inc ? 1 : -1);
+            case DOUBLE:
+                return number.doubleValue() + (inc ? 1 : -1);
+            case FLOAT:
+            case HALF_FLOAT:
+                return number.floatValue() + (inc ? 1 : -1);
+            case UNSIGNED_LONG:
+                return ((BigInteger) number).add(inc ? BigInteger.valueOf(1) : BigInteger.valueOf(-1));
+            default:
+                throw new AssertionError();
+        }
+    }
+
+    private void canMatchSearchAfterNumericTestCase(NumberFieldMapper.NumberType type) throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("num1")
+            .field("type", type.typeName())
+            .endObject()
+            .startObject("num2")
+            .field("type", type.typeName())
+            .endObject()
+            .endObject()
+            .endObject();
+        IndexService indexService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        ensureGreen();
+
+        final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        final int numDocs = randomIntBetween(10, 20);
+        final Number[] nums1 = new Number[numDocs];
+        final Number[] nums2 = new Number[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            nums1[i] = randomNumber(type);
+            nums2[i] = randomNumber(type);
+            bulkRequestBuilder.add(
+                client().prepareIndex("test")
+                    .setId(String.valueOf(i))
+                    .setSource(String.format(Locale.ROOT, "{\"num1\": %s, \"num2\": %s}", nums1[i].toString(), nums2[i].toString()), MediaTypeRegistry.JSON)
+            );
+        }
+        bulkRequestBuilder.get();
+        client().admin().indices().prepareRefresh().get();
+        Arrays.sort(nums1);
+        Arrays.sort(nums2);
+
+        final IndexShard shard = indexService.getShard(0);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            shard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1f,
+            -1,
+            null,
+            null
+        );
+        assertFalse(shard.hasRefreshPending());
+
+        final CheckedTriFunction<Boolean, Boolean, Boolean, Void, Exception> outOfRangeTester = (outOfRange, missingMatch, reverse) -> {
+            Number searchAfter;
+            Object missing;
+            if (outOfRange) {
+                searchAfter = reverse ? incDecNumber(nums1[0], type, false) : incDecNumber(nums1[numDocs - 1], type, true);
+            } else {
+                searchAfter = randomFrom(nums1);
+            }
+            if (missingMatch) {
+                missing = reverse ? (randomBoolean() ? "_last" : incDecNumber(searchAfter, type, false)) : (randomBoolean() ? "_last" : incDecNumber(searchAfter, type, true));
+            } else {
+                missing = reverse ? (randomBoolean() ? "_first" : incDecNumber(searchAfter, type, true)) : (randomBoolean() ? "_first" : incDecNumber(searchAfter, type, false));
+            }
+            shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).trackTotalHits(false));
+            shardRequest.source()
+                .sort(SortBuilders.fieldSort("num1").missing(missing).order(reverse ? SortOrder.DESC : SortOrder.ASC));
+            List<Object> searchAfterFields = new ArrayList<>();
+            searchAfterFields.add(searchAfter);
+            if (randomBoolean()) {
+                shardRequest.source().sort("num2");
+                searchAfterFields.add(randomFrom(nums2));
+            }
+            shardRequest.source().searchAfter(searchAfterFields.toArray());
+            SearchService.CanMatchResponse response = service.canMatch(shardRequest);
+
+            if (type == NumberFieldMapper.NumberType.HALF_FLOAT || type == NumberFieldMapper.NumberType.UNSIGNED_LONG) {
+                assertTrue(response.canMatch());
+                return null;
+            }
+
+            if (outOfRange == false || missingMatch) {
+                assertTrue(response.canMatch());
+            } else {
+                assertFalse(response.canMatch());
+            }
+            return null;
+        };
+        for (boolean outOfRange : new boolean[] { true, false }) {
+            for (boolean missingMatch : new boolean[] { true, false }) {
+                for (boolean reverse : new boolean[] { true, false }) {
+                    outOfRangeTester.apply(outOfRange, missingMatch, reverse);
+                }
+            }
+        }
+        client().admin().indices().prepareDelete("test").get();
+        ensureGreen();
+    }
+
+    public void testNumericCanMatch() throws Exception {
+        for (var type: NumberFieldMapper.NumberType.values()) {
+            canMatchSearchAfterNumericTestCase(type);
+        }
     }
 
     public void testSetSearchThrottled() {
