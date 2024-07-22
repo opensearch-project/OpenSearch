@@ -138,6 +138,10 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             if (values[i] != null) {
                 fieldValues[i] = convertValueFromSortField(values[i], sortField, format);
             } else {
+                SortField.Type sortType = extractSortType(sortField);
+                if (sortType != SortField.Type.STRING && sortType != SortField.Type.STRING_VAL) {
+                    throw new IllegalArgumentException("search after value of type [" + sortType + "] cannot be null");
+                }
                 fieldValues[i] = null;
             }
         }

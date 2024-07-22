@@ -594,7 +594,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 return SearchService.canMatchSearchAfter(
                     searchContext.searchAfter(),
                     minMax,
-                    primarySortField,
+                    searchContext.sort(),
                     searchContext.trackTotalHitsUpTo()
                 );
             }

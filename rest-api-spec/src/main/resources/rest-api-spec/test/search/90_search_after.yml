@@ -779,3 +779,61 @@
   - match: { hits.hits.2._index: test }
   - match: { hits.hits.2._source.unsignedlong: null }
   - match: { hits.hits.2._source.id: 22 }
+
+---
+"search with null search after value":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              doc:
+                type: keyword
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          { "doc": "doc1", "name": "bob"}
+          {"index":{}}
+          { "doc": "doc2", "name": null}
+          {"index":{}}
+          { "doc": "doc3", "name": null}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          size: 2
+          track_total_hits: false
+          sort: [{ name: desc }, { doc: desc }]
+
+  - match: {hits.total: -1 }
+  - length: {hits.hits: 2 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._source.doc: doc1 }
+  - match: {hits.hits.1._index: test }
+  - match: {hits.hits.1._source.doc: doc3 }
+  - match: {hits.hits.1.sort: [null, "doc3"] }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          size: 1
+          track_total_hits: false
+          sort: [{ name: desc }, { doc: desc }]
+          search_after: [null, "doc3"]
+
+  - match: {hits.total: -1 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._source.doc: doc2 }
+  - match: {hits.hits.0.sort: [null, "doc2"] }

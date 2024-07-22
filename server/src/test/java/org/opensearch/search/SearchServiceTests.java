@@ -36,6 +36,8 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
@@ -110,9 +112,8 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
-import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -2156,111 +2157,132 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     /**
      * Test for ASC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 10L
+     * Min = 0L, Max = 9L, search_after = 10L, missing = Long.MIN_VALUE
      * Expected result is canMatch = false
      */
-    public void testCanMatchSearchAfterAscGreaterThanMax() throws IOException {
+    public void testCanMatchSearchAfterAscGreaterThanMaxAndMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
+        SortField sortField = new SortField("test", SortField.Type.LONG);
+        sortField.setMissingValue(Long.MIN_VALUE);
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
      * Test for ASC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 7L
+     * Min = 0L, Max = 9L, search_after = 10L, missing = 11L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterAscGreaterThanMaxAndLessThanMissing() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        SortField sortField = new SortField("test", SortField.Type.LONG);
+        sortField.setMissingValue(11L);
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
+    }
+
+    /**
+     * Test for ASC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 7L, missing = Long.MIN_VALUE/10L
      * Expected result is canMatch = true
      */
     public void testCanMatchSearchAfterAscLessThanMax() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 7L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG);
+        sortField.setMissingValue(randomFrom(Long.MIN_VALUE, 10L));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
      * Test for ASC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 9L
+     * Min = 0L, Max = 9L, search_after = 9L, missing = Long.MIN_VALUE/10L
      * Expected result is canMatch = true
      */
     public void testCanMatchSearchAfterAscEqualMax() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 9L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG);
+        sortField.setMissingValue(randomFrom(Long.MIN_VALUE, 10L));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
      * Test for DESC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 10L
+     * Min = 0L, Max = 9L, search_after = 10L, missing = Long.MAX_VALUE/Long.MIN_VALUE
      * Expected result is canMatch = true
      */
     public void testCanMatchSearchAfterDescGreaterThanMin() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomFrom(Long.MAX_VALUE, Long.MIN_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
      * Test for DESC order search_after query.
-     * Min = 0L, Max = 9L, search_after = -1L
+     * Min = 0L, Max = 9L, search_after = -1L, missing > search_after
      * Expected result is canMatch = false
      */
-    public void testCanMatchSearchAfterDescLessThanMin() throws IOException {
+    public void testCanMatchSearchAfterDescLessThanMinAndMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomLongBetween(0L, Long.MAX_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
      * Test for DESC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 0L
+     * Min = 0L, Max = 9L, search_after = 0L, missing > search_after
      * Expected result is canMatch = true
      */
-    public void testCanMatchSearchAfterDescEqualMin() throws IOException {
+    public void testCanMatchSearchAfterDescEqualMinAndLessThanMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 0L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomLongBetween(1L, Long.MAX_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
      * Test canMatchSearchAfter with missing value, even if min/max is out of range
      * Min = 0L, Max = 9L, search_after = -1L
-     * Expected result is canMatch = true
      */
-    public void testCanMatchSearchAfterWithMissing() throws IOException {
+    public void testCanMatchSearchAfterWithMinMaxOutOfRangeAndDifferentMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        // Should be false without missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
-        primarySort.missing("_last");
-        // Should be true with missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomLongBetween(0L, Long.MAX_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        // Should be false with missing values is larger than search_after
+        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
+        sortField.setMissingValue(Long.MIN_VALUE);
+        // Should be true with missing values is less than search_after
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED));
     }
 
     /**
      * Test for DESC order search_after query with track_total_hits=true.
-     * Min = 0L, Max = 9L, search_after = -1L
+     * Min = 0L, Max = 9L, search_after = -1L, missing > search_after
      * With above min/max and search_after, it should not match, but since
      * track_total_hits = true,
      * Expected result is canMatch = true
      */
-    public void testCanMatchSearchAfterDescLessThanMinWithTrackTotalhits() throws IOException {
+    public void testCanMatchSearchAfterDescLessThanMinAndMissingWithTrackTotalHits() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomLongBetween(0L, Long.MAX_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000));
     }
 }
