@@ -13,7 +13,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up required env vars
         run: |
           echo "PR_NUMBER=${{ github.event.issue.number }}" >> $GITHUB_ENV
@@ -117,7 +117,7 @@ jobs:
           echo "prHeadRepo=$headRepo" >> $GITHUB_ENV
           echo "prHeadRef=$headRef" >> $GITHUB_ENV
       - name: Checkout PR Repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: ${{ env.prHeadRepo }}
           ref: ${{ env.prHeadRef }}
