@@ -804,4 +804,26 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
     }
 
+    public void testDeleteStaleIndexRoutingDiffPaths() throws IOException {
+        doNothing().when(blobContainer).deleteBlobsIgnoringIfNotExists(any());
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        List<String> stalePaths = Arrays.asList("path1", "path2");
+        remoteRoutingTableService.doStart();
+        remoteRoutingTableService.deleteStaleIndexRoutingDiffPaths(stalePaths);
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
+    }
+
+    public void testDeleteStaleIndexRoutingDiffPathsThrowsIOException() throws IOException {
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        List<String> stalePaths = Arrays.asList("path1", "path2");
+        // Simulate an IOException
+        doThrow(new IOException("test exception")).when(blobContainer).deleteBlobsIgnoringIfNotExists(Mockito.anyList());
+
+        remoteRoutingTableService.doStart();
+        IOException thrown = assertThrows(IOException.class, () -> {
+            remoteRoutingTableService.deleteStaleIndexRoutingDiffPaths(stalePaths);
+        });
+        assertEquals("test exception", thrown.getMessage());
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
+    }
 }

@@ -284,4 +284,14 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             throw e;
         }
     }
+
+    public void deleteStaleIndexRoutingDiffPaths(List<String> stalePaths) throws IOException {
+        try {
+            logger.debug(() -> "Deleting stale index routing diff files from remote - " + stalePaths);
+            blobStoreRepository.blobStore().blobContainer(BlobPath.cleanPath()).deleteBlobsIgnoringIfNotExists(stalePaths);
+        } catch (IOException e) {
+            logger.error(() -> new ParameterizedMessage("Failed to delete some stale index routing diff paths from {}", stalePaths), e);
+            throw e;
+        }
+    }
 }

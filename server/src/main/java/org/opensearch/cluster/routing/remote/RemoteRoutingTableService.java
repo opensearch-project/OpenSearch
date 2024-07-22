@@ -112,4 +112,6 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
 
     public void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException;
 
+    public void deleteStaleIndexRoutingDiffPaths(List<String> stalePaths) throws IOException;
+
 }

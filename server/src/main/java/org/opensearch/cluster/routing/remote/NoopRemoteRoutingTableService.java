@@ -122,4 +122,8 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     public void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException {
         // noop
     }
+
+    public void deleteStaleIndexRoutingDiffPaths(List<String> stalePaths) throws IOException {
+        // noop
+    }
 }
