@@ -227,17 +227,6 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         return _id;
     }
 
-    /**
-     * Converts the threshold percentage for the given resource type to a long value.
-     *
-     * @param resourceType The resource type for which the threshold is to be converted
-     * @return The threshold value in long format
-     */
-    public long getThresholdInLong(ResourceType resourceType) {
-        Double thresholdInPercentage = (Double) resourceLimits.get(resourceType);
-        return resourceType.convertThresholdPercentageToLong(thresholdInPercentage);
-    }
-
     public long getUpdatedAtInMillis() {
         return updatedAtInMillis;
     }
