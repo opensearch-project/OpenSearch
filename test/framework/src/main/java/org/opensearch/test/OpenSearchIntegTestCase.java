@@ -158,6 +158,7 @@ import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.script.ScriptMetadata;
@@ -391,8 +392,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         CodecService.ZLIB
     );
 
+    private static Boolean prefixModeVerificationEnable;
+
     @BeforeClass
     public static void beforeClass() throws Exception {
+        prefixModeVerificationEnable = randomBoolean();
         testClusterRule.beforeClass();
     }
 
@@ -2664,16 +2668,21 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             segmentRepoName
         );
 
+        String prefixModeVerificationSuffix = BlobStoreRepository.PREFIX_MODE_VERIFICATION_SETTING.getKey();
+
         Settings.Builder settings = Settings.builder()
             .put("node.attr." + REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
             .put(segmentRepoTypeAttributeKey, segmentRepoType)
             .put(segmentRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
+            .put(segmentRepoSettingsAttributeKeyPrefix + prefixModeVerificationSuffix, prefixModeVerificationEnable)
             .put("node.attr." + REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, translogRepoName)
             .put(translogRepoTypeAttributeKey, translogRepoType)
             .put(translogRepoSettingsAttributeKeyPrefix + "location", translogRepoPath)
+            .put(translogRepoSettingsAttributeKeyPrefix + prefixModeVerificationSuffix, prefixModeVerificationEnable)
             .put("node.attr." + REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, segmentRepoName)
             .put(stateRepoTypeAttributeKey, segmentRepoType)
-            .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath);
+            .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
+            .put(stateRepoSettingsAttributeKeyPrefix + prefixModeVerificationSuffix, prefixModeVerificationEnable);
 
         if (withRateLimiterAttributes) {
             settings.put(segmentRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())
