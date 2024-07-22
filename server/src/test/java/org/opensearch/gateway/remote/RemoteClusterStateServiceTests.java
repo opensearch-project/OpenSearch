@@ -3448,7 +3448,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             );
     }
 
-    static DiscoveryNodes nodesWithLocalNodeClusterManager() {
+    public static DiscoveryNodes nodesWithLocalNodeClusterManager() {
         final DiscoveryNode localNode = new DiscoveryNode("cluster-manager-id", buildNewFakeTransportAddress(), Version.CURRENT);
         return DiscoveryNodes.builder().clusterManagerNodeId("cluster-manager-id").localNodeId("cluster-manager-id").add(localNode).build();
     }

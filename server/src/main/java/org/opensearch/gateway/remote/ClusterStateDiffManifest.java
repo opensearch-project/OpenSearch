@@ -117,6 +117,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
             routingTableIncrementalDiff.getUpserts().forEach((k, v) -> indicesRoutingUpdated.add(k));
             indicesRoutingDeleted.addAll(routingTableIncrementalDiff.getDeletes());
         }
+        List<String> indicies = indicesRoutingUpdated;
         hashesOfConsistentSettingsUpdated = !state.metadata()
             .hashesOfConsistentSettings()
             .equals(previousState.metadata().hashesOfConsistentSettings());
@@ -129,6 +130,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         clusterStateCustomUpdated = new ArrayList<>(clusterStateCustomDiff.getDiffs().keySet());
         clusterStateCustomUpdated.addAll(clusterStateCustomDiff.getUpserts().keySet());
         clusterStateCustomDeleted = clusterStateCustomDiff.getDeletes();
+        List<String> indicie1s = indicesRoutingUpdated;
     }
 
     public ClusterStateDiffManifest(
