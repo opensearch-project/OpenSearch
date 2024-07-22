@@ -12,7 +12,6 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -43,7 +42,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
 
     List<IndexRoutingTable> getIndicesRouting(RoutingTable routingTable);
 
-    CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
@@ -59,7 +58,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         RoutingTable after
     );
 
-    CheckedRunnable<IOException> getAsyncIndexRoutingWriteAction(
+    void getAsyncIndexRoutingWriteAction(
         String clusterUUID,
         long term,
         long version,
