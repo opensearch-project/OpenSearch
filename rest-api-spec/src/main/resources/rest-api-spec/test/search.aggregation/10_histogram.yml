@@ -763,7 +763,7 @@ setup:
                       - from: 30
                         to: 40
 
-  - match: { hits.total.value: 9 }
+  - match: { hits.total.value: 8 }
   - length: { aggregations.histo.buckets: 9 }
 
   - match: { aggregations.histo.buckets.0.key_as_string: "2020-03-01T00:00:00.000Z" }
@@ -772,11 +772,14 @@ setup:
   - match: { aggregations.histo.buckets.8.key_as_string: "2020-03-09T00:00:00.000Z" }
 
   - match: { aggregations.histo.buckets.0.doc_count: 2 }
-  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.doc_count: 1 }
   - match: { aggregations.histo.buckets.2.doc_count: 0 }
   - match: { aggregations.histo.buckets.7.doc_count: 4 }
   - match: { aggregations.histo.buckets.8.doc_count: 1 }
 
   - match: { aggregations.histo.buckets.0.my_range.buckets.0.doc_count: 1 }
-  - match: { aggregations.histo.buckets.7.my_range.buckets.2.doc_count: 2 }
-  - match: { aggregations.histo.buckets.7.my_range.buckets.1.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.7.my_range.buckets.0.doc_count: 0 }
+  - match: { aggregations.histo.buckets.7.my_range.buckets.1.doc_count: 0 }
+  - match: { aggregations.histo.buckets.7.my_range.buckets.2.doc_count: 3 }
+  - match: { aggregations.histo.buckets.7.my_range.buckets.3.doc_count: 1 }
