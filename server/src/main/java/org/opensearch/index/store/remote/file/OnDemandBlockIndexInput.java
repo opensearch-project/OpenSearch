@@ -385,7 +385,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
         private int blockSize = 1 << blockSizeShift;
         private int blockMask = blockSize - 1;
 
-        private Builder() {}
+        public Builder() {}
 
         public Builder resourceDescription(String resourceDescription) {
             this.resourceDescription = resourceDescription;
@@ -407,7 +407,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
             return this;
         }
 
-        Builder blockSizeShift(int blockSizeShift) {
+        public Builder blockSizeShift(int blockSizeShift) {
             assert blockSizeShift < 31 : "blockSizeShift must be < 31";
             this.blockSizeShift = blockSizeShift;
             this.blockSize = 1 << blockSizeShift;

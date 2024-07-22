@@ -39,12 +39,23 @@ import java.util.stream.Collectors;
 public final class RemoteSnapshotDirectory extends Directory {
 
     public static final Version SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION = LegacyESVersion.V_6_0_0;
-
     private static final String VIRTUAL_FILE_PREFIX = BlobStoreRepository.VIRTUAL_DATA_BLOB_PREFIX;
+    private static final int ON_DEMAND_DEFAULT_BLOCK_SIZE_SHIFT = 21;
 
     private final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfoMap;
     private final FSDirectory localStoreDir;
     private final TransferManager transferManager;
+
+    private int onDemandBlockSizeShift = ON_DEMAND_DEFAULT_BLOCK_SIZE_SHIFT;
+
+    public RemoteSnapshotDirectory(BlobStoreIndexShardSnapshot snapshot, FSDirectory localStoreDir, TransferManager transferManager, int onDemandBlockSizeShift) {
+        this(
+            snapshot,
+            localStoreDir,
+            transferManager
+        );
+        this.onDemandBlockSizeShift = onDemandBlockSizeShift;
+    }
 
     public RemoteSnapshotDirectory(BlobStoreIndexShardSnapshot snapshot, FSDirectory localStoreDir, TransferManager transferManager) {
         this.fileInfoMap = snapshot.indexFiles()
@@ -74,7 +85,26 @@ public final class RemoteSnapshotDirectory extends Directory {
         if (fileInfo.name().startsWith(VIRTUAL_FILE_PREFIX)) {
             return new ByteArrayIndexInput(fileInfo.physicalName(), fileInfo.metadata().hash().bytes);
         }
-        return new OnDemandBlockSnapshotIndexInput(fileInfo, localStoreDir, transferManager);
+
+        String resourceDescription = "BlockedSnapshotIndexInput(path=\""
+            + localStoreDir.getDirectory().toString()
+            + "/"
+            + fileInfo.physicalName()
+            + "\", "
+            + "offset="
+            + 0
+            + ", length= "
+            + fileInfo.length()
+            + ")";
+
+        OnDemandBlockSnapshotIndexInput.Builder blockIndexInputBuilder = new OnDemandBlockSnapshotIndexInput.Builder()
+            .resourceDescription(resourceDescription)
+            .isClone(false)
+            .offset(0L)
+            .length(fileInfo.length())
+            .blockSizeShift(this.onDemandBlockSizeShift);
+
+        return new OnDemandBlockSnapshotIndexInput(blockIndexInputBuilder, fileInfo, localStoreDir, transferManager);
     }
 
     @Override
