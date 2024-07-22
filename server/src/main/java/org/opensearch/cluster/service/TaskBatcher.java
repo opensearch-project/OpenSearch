@@ -195,7 +195,7 @@ public abstract class TaskBatcher {
             if (toExecute.isEmpty() == false) {
                 Function<Boolean, String> taskSummaryGenerator = (longSummaryRequired) -> {
                     if (longSummaryRequired == null || !longSummaryRequired) {
-                        return buildShortSummary(updateTask.batchingKey);
+                        return buildShortSummary(updateTask.batchingKey, toExecute.size());
                     }
                     final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
                     for (final BatchedTask task : toExecute) {
@@ -212,8 +212,8 @@ public abstract class TaskBatcher {
         }
     }
 
-    private String buildShortSummary(final Object batchingKey) {
-        return "Tasks batched with key: " + batchingKey.toString().split("\\$")[0];
+    private String buildShortSummary(final Object batchingKey, final int taskCount) {
+        return "Tasks batched with key: " + batchingKey.toString().split("\\$")[0] + " and count: " + taskCount;
     }
 
     /**

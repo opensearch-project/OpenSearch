@@ -391,7 +391,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test1 computation",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [1s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [1s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -399,7 +399,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test1 notification",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
 
@@ -416,7 +416,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test2 failure",
                     MasterService.class.getCanonicalName(),
                     Level.TRACE,
-                    "failed to execute cluster state update (on version: [*], uuid: [*]) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]*"
+                    "failed to execute cluster state update (on version: [*], uuid: [*]) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]*"
                 )
             );
             mockAppender.addExpectation(
@@ -424,7 +424,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test2 computation",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [2s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [2s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -432,7 +432,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test2 notification",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
 
@@ -449,7 +449,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test3 computation",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [3s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [3s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -457,7 +457,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test3 notification",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
 
@@ -548,7 +548,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test1 start",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -556,7 +556,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test1 computation",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [1s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [1s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -564,7 +564,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test1 notification",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
 
@@ -573,7 +573,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test2 start",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -581,7 +581,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test2 failure",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "failed to execute cluster state update (on version: [*], uuid: [*]) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]*"
+                    "failed to execute cluster state update (on version: [*], uuid: [*]) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]*"
                 )
             );
             mockAppender.addExpectation(
@@ -589,7 +589,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test2 computation",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [2s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [2s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -597,7 +597,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test2 notification",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [0s] to notify listeners on unchanged cluster state for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
 
@@ -606,7 +606,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test3 start",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -614,7 +614,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test3 computation",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [3s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [3s] to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -622,7 +622,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test3 notification",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
 
@@ -631,7 +631,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test4",
                     MasterService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "executing cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
 
@@ -1238,7 +1238,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test2",
                     MasterService.class.getCanonicalName(),
                     Level.WARN,
-                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -1246,7 +1246,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test3",
                     MasterService.class.getCanonicalName(),
                     Level.WARN,
-                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -1254,7 +1254,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test4",
                     MasterService.class.getCanonicalName(),
                     Level.WARN,
-                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]"
+                    "*took [*], which is over [10s], to compute cluster state update for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]"
                 )
             );
             mockAppender.addExpectation(
@@ -1432,7 +1432,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                     "test1 should log due to slow and failing publication",
                     MasterService.class.getCanonicalName(),
                     Level.WARN,
-                    "took [*] and then failed to publish updated cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests]:*"
+                    "took [*] and then failed to publish updated cluster state (version: *, uuid: *) for [Tasks batched with key: org.opensearch.cluster.service.MasterServiceTests and count: 1]:*"
                 )
             );
 
