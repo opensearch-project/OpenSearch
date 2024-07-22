@@ -55,19 +55,7 @@ public class RoutingTableIncrementalDiff implements Diff<IndexRoutingTable> {
 
         for (int i = 0; i < size; i++) {
             String key = in.readString();
-            List<IndexShardRoutingTable> shardRoutingTables = new ArrayList<>();
-
-            // Read each IndexShardRoutingTable from the stream
-            int numShards = in.readVInt();
-            for (int j = 0; j < numShards; j++) {
-                IndexShardRoutingTable shardRoutingTable = IndexShardRoutingTable.Builder.readFrom(in);
-                shardRoutingTables.add(shardRoutingTable);
-            }
-
-            // Create a diff object for the index
-            Diff<IndexRoutingTable> diff = new IndexRoutingTableIncrementalDiff(shardRoutingTables);
-
-            // Put the diff into the map with the key
+            Diff<IndexRoutingTable> diff = IndexRoutingTableIncrementalDiff.readFrom(in);
             diffs.put(key, diff);
         }
         return new RoutingTableIncrementalDiff(diffs);
