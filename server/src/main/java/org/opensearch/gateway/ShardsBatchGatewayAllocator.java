@@ -93,14 +93,14 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     public static final Setting<TimeValue> PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY,
-        TimeValue.timeValueSeconds(20),
+        TimeValue.MINUS_ONE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     public static final Setting<TimeValue> REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY,
-        TimeValue.timeValueSeconds(20),
+        TimeValue.MINUS_ONE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
