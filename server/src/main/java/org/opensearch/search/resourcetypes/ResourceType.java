@@ -59,14 +59,6 @@ public abstract class ResourceType {
      */
     public abstract String getName();
 
-    /**
-     * Converts the given threshold percentage to a long value that can be compared.
-     *
-     * @param threshold The threshold percentage to be converted
-     * @return The threshold value in long format
-     */
-    public abstract long convertThresholdPercentageToLong(Double threshold);
-
     public static void writeTo(StreamOutput out, ResourceType resourceType) throws IOException {
         out.writeString(resourceType.getName());
     }

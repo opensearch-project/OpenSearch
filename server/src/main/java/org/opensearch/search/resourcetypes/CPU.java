@@ -45,15 +45,4 @@ public class CPU extends ResourceType {
     public int hashCode() {
         return "CPU".hashCode();
     }
-
-    /**
-     * Converts the given threshold percentage to a long value that can be compared.
-     *
-     * @param threshold The threshold percentage to be converted
-     * @return The threshold value in nanoseconds
-     */
-    // TODO: Implement this method
-    public long convertThresholdPercentageToLong(Double threshold) {
-        return (long) (threshold * Runtime.getRuntime().availableProcessors());
-    }
 }

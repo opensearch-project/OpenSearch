@@ -8,7 +8,6 @@
 
 package org.opensearch.search.resourcetypes;
 
-import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.tasks.Task;
 
 /**
@@ -45,16 +44,5 @@ public class Memory extends ResourceType {
     @Override
     public int hashCode() {
         return "Memory".hashCode();
-    }
-
-    /**
-     * Converts the given threshold percentage to a long value that can be compared.
-     *
-     * @param threshold The threshold percentage to be converted
-     * @return The threshold value in bytes
-     */
-    @Override
-    public long convertThresholdPercentageToLong(Double threshold) {
-        return (long) (threshold * JvmStats.jvmStats().getMem().getHeapMax().getBytes());
     }
 }
