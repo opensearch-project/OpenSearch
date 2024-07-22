@@ -15,7 +15,6 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.remote.RemoteWritableEntityStore;
@@ -102,16 +101,16 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     }
 
     /**
-     * Create async action for writing one {@code IndexRoutingTable} to remote store
+     * Async action for writing one {@code IndexRoutingTable} to remote store
+     *
      * @param term current term
      * @param version current version
      * @param clusterUUID current cluster UUID
      * @param indexRouting indexRoutingTable to write to remote store
      * @param latchedActionListener listener for handling async action response
-     * @return returns runnable async action
      */
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingWriteAction(
+    public void getAsyncIndexRoutingWriteAction(
         String clusterUUID,
         long term,
         long version,
@@ -128,7 +127,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             )
         );
 
-        return () -> remoteIndexRoutingTableStore.writeAsync(remoteIndexRoutingTable, completionListener);
+        remoteIndexRoutingTableStore.writeAsync(remoteIndexRoutingTable, completionListener);
     }
 
     /**
@@ -156,7 +155,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    public void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
@@ -169,7 +168,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
         RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(uploadedFilename, clusterUUID, compressor);
 
-        return () -> remoteIndexRoutingTableStore.readAsync(remoteIndexRoutingTable, actionListener);
+        remoteIndexRoutingTableStore.readAsync(remoteIndexRoutingTable, actionListener);
     }
 
     @Override

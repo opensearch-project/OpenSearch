@@ -12,7 +12,6 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
@@ -39,7 +38,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingWriteAction(
+    public void getAsyncIndexRoutingWriteAction(
         String clusterUUID,
         long term,
         long version,
@@ -47,7 +46,6 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
         // noop
-        return () -> {};
     }
 
     @Override
@@ -61,13 +59,12 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    public void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
     ) {
         // noop
-        return () -> {};
     }
 
     @Override

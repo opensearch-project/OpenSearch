@@ -86,7 +86,8 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
             threadPool,
             actionFilters,
             GetAliasesRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            true
         );
         this.systemIndices = systemIndices;
     }

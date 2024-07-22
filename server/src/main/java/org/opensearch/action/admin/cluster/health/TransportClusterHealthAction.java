@@ -534,4 +534,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             pendingTaskTimeInQueue
         );
     }
+
+    @Override
+    protected boolean localExecuteSupportedByAction() {
+        return false;
+    }
 }

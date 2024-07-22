@@ -40,7 +40,8 @@
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "nyc_taxis",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-300\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"workload-snapshots-300\",\"snapshot_name\":\"nyc_taxis_1_shard\"}",
-      "CAPTURE_NODE_STAT": "true"
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
@@ -55,7 +56,8 @@
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "http_logs",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-300\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"workload-snapshots-300\",\"snapshot_name\":\"http_logs_1_shard\"}",
-      "CAPTURE_NODE_STAT": "true"
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
@@ -70,7 +72,8 @@
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "big5",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-300\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"workload-snapshots-300\",\"snapshot_name\":\"big5_1_shard\"}",
-      "CAPTURE_NODE_STAT": "true"
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
@@ -85,7 +88,8 @@
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "nyc_taxis",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"workload-snapshots\",\"snapshot_name\":\"nyc_taxis_1_shard\"}",
-      "CAPTURE_NODE_STAT": "true"
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
@@ -100,7 +104,8 @@
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "http_logs",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"workload-snapshots\",\"snapshot_name\":\"http_logs_1_shard\"}",
-      "CAPTURE_NODE_STAT": "true"
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
@@ -115,7 +120,8 @@
       "MIN_DISTRIBUTION": "true",
       "TEST_WORKLOAD": "big5",
       "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"workload-snapshots\",\"snapshot_name\":\"big5_1_shard\"}",
-      "CAPTURE_NODE_STAT": "true"
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "restore-from-snapshot"
     },
     "cluster_configuration": {
       "size": "Single-Node",
