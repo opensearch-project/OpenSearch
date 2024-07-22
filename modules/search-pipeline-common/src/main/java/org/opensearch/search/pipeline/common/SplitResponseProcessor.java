@@ -111,7 +111,7 @@ public class SplitResponseProcessor extends AbstractProcessor implements SearchR
                     throw new IllegalArgumentException("field [" + splitField + "] is null, cannot split.");
                 }
                 Object val = docField.getValue();
-                if (val == null || !String.class.isAssignableFrom(val.getClass())) {
+                if (!(val instanceof String)) {
                     throw new IllegalArgumentException("field [" + splitField + "] is not a string, cannot split");
                 }
                 Object[] strings = ((String) val).split(separator, preserveTrailing ? -1 : 0);
