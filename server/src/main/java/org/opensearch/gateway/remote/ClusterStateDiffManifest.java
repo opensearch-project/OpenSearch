@@ -166,10 +166,10 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         this.discoveryNodesUpdated = discoveryNodesUpdated;
         this.indicesRoutingUpdated = Collections.unmodifiableList(indicesRoutingUpdated);
         this.indicesRoutingDeleted = Collections.unmodifiableList(indicesRoutingDeleted);
-        this.indicesRoutingDiffPath = indicesRoutingDiffPath;
         this.hashesOfConsistentSettingsUpdated = hashesOfConsistentSettingsUpdated;
         this.clusterStateCustomUpdated = Collections.unmodifiableList(clusterStateCustomUpdated);
         this.clusterStateCustomDeleted = Collections.unmodifiableList(clusterStateCustomDeleted);
+        this.indicesRoutingDiffPath = indicesRoutingDiffPath;
     }
 
     public ClusterStateDiffManifest(StreamInput in) throws IOException {
@@ -187,10 +187,10 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         this.discoveryNodesUpdated = in.readBoolean();
         this.indicesRoutingUpdated = in.readStringList();
         this.indicesRoutingDeleted = in.readStringList();
-        this.indicesRoutingDiffPath = in.readString();
         this.hashesOfConsistentSettingsUpdated = in.readBoolean();
         this.clusterStateCustomUpdated = in.readStringList();
         this.clusterStateCustomDeleted = in.readStringList();
+        this.indicesRoutingDiffPath = in.readString();
     }
 
     @Override
@@ -512,7 +512,8 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
             && Objects.equals(indicesRoutingUpdated, that.indicesRoutingUpdated)
             && Objects.equals(indicesRoutingDeleted, that.indicesRoutingDeleted)
             && Objects.equals(clusterStateCustomUpdated, that.clusterStateCustomUpdated)
-            && Objects.equals(clusterStateCustomDeleted, that.clusterStateCustomDeleted);
+            && Objects.equals(clusterStateCustomDeleted, that.clusterStateCustomDeleted)
+            && Objects.equals(indicesRoutingDiffPath, that.indicesRoutingDiffPath);
     }
 
     @Override
@@ -561,6 +562,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         out.writeBoolean(hashesOfConsistentSettingsUpdated);
         out.writeStringCollection(clusterStateCustomUpdated);
         out.writeStringCollection(clusterStateCustomDeleted);
+        out.writeString(indicesRoutingDiffPath);
     }
 
     /**

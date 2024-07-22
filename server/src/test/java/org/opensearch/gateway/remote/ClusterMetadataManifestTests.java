@@ -193,6 +193,14 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
             .transientSettingsMetadata(new UploadedMetadataAttribute(TRANSIENT_SETTING_METADATA, "transient-settings-file"))
             .hashesOfConsistentSettings(new UploadedMetadataAttribute(HASHES_OF_CONSISTENT_SETTINGS, "hashes-of-consistent-settings-file"))
             .clusterStateCustomMetadataMap(Collections.emptyMap())
+            .diffManifest(
+                new ClusterStateDiffManifest(
+                    RemoteClusterStateServiceTests.generateClusterStateWithOneIndex().build(),
+                    ClusterState.EMPTY_STATE,
+                    null,
+                    "indicesRoutingDiffPath"
+                )
+            )
             .build();
         {  // Mutate Cluster Term
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -438,6 +446,22 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
                 manifest -> {
                     ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
                     builder.transientSettingsMetadata(randomUploadedMetadataAttribute());
+                    return builder.build();
+                }
+            );
+        }
+        {
+            // Mutate diff manifest
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                initialManifest,
+                orig -> OpenSearchTestCase.copyWriteable(
+                    orig,
+                    new NamedWriteableRegistry(Collections.emptyList()),
+                    ClusterMetadataManifest::new
+                ),
+                manifest -> {
+                    ClusterMetadataManifest.Builder builder = ClusterMetadataManifest.builder(manifest);
+                    builder.diffManifest(null);
                     return builder.build();
                 }
             );
