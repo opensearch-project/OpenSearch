@@ -8,11 +8,9 @@
 
 package org.opensearch.search.resourcetypes;
 
-import junit.framework.TestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
-import static org.junit.Assert.assertThrows;
-
-public class ResourceTypeTests extends TestCase {
+public class ResourceTypeTests extends OpenSearchTestCase {
 
     public void testFromNameMemory() {
         ResourceType result = ResourceType.fromName("memory");

@@ -10,10 +10,11 @@ package org.opensearch.search.resourcetypes;
 
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.tasks.Task;
+import org.opensearch.test.OpenSearchTestCase;
 
 import org.mockito.Mockito;
 
-public class CPUTests extends ResourceTypeTests {
+public class CPUTests extends OpenSearchTestCase {
 
     public void testGetResourceUsage() {
         Task mockTask = Mockito.mock(Task.class);
