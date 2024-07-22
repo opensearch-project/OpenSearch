@@ -28,6 +28,8 @@ import org.apache.lucene.util.IntsRef;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -36,8 +38,6 @@ import java.util.function.Predicate;
  * after {@code size} is hit
  */
 public abstract class ApproximatePointRangeQuery extends Query {
-    final int bytesPerDim;
-
     private int size;
 
     private SortOrder sortOrder;
@@ -60,35 +60,9 @@ public abstract class ApproximatePointRangeQuery extends Query {
         this.pointRangeQuery = new PointRangeQuery(field, lowerPoint, upperPoint, numDims) {
             @Override
             protected String toString(int dimension, byte[] value) {
-                final StringBuilder sb = new StringBuilder();
-                if (pointRangeQuery.getField().equals(field) == false) {
-                    sb.append(pointRangeQuery.getField());
-                    sb.append(':');
-                }
-
-                // print ourselves as "range per dimension"
-                for (int i = 0; i < pointRangeQuery.getNumDims(); i++) {
-                    if (i > 0) {
-                        sb.append(',');
-                    }
-
-                    int startOffset = bytesPerDim * i;
-
-                    sb.append('[');
-                    sb.append(
-                        toString(i, ArrayUtil.copyOfSubArray(pointRangeQuery.getLowerPoint(), startOffset, startOffset + bytesPerDim))
-                    );
-                    sb.append(" TO ");
-                    sb.append(
-                        toString(i, ArrayUtil.copyOfSubArray(pointRangeQuery.getUpperPoint(), startOffset, startOffset + bytesPerDim))
-                    );
-                    sb.append(']');
-                }
-
-                return sb.toString();
+                return super.toString(field);
             }
         };
-        this.bytesPerDim = pointRangeQuery.getLowerPoint().length / pointRangeQuery.getNumDims();
     }
 
     public int getSize() {
@@ -121,7 +95,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
         return new ConstantScoreWeight(this, boost) {
 
-            private final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(bytesPerDim);
+            private final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
 
             private boolean matches(byte[] packedValue) {
                 return relate(packedValue, packedValue) != PointValues.Relation.CELL_OUTSIDE_QUERY;
@@ -132,7 +106,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 boolean crosses = false;
 
                 for (int dim = 0; dim < pointRangeQuery.getNumDims(); dim++) {
-                    int offset = dim * bytesPerDim;
+                    int offset = dim * pointRangeQuery.getBytesPerDim();
 
                     if (comparator.compare(minPackedValue, offset, pointRangeQuery.getUpperPoint(), offset) > 0
                         || comparator.compare(maxPackedValue, offset, pointRangeQuery.getLowerPoint(), offset) < 0) {
@@ -217,14 +191,14 @@ public abstract class ApproximatePointRangeQuery extends Query {
                             + pointRangeQuery.getNumDims()
                     );
                 }
-                if (bytesPerDim != values.getBytesPerDimension()) {
+                if (pointRangeQuery.getBytesPerDim() != values.getBytesPerDimension()) {
                     throw new IllegalArgumentException(
                         "field=\""
                             + pointRangeQuery.getField()
                             + "\" was indexed with bytesPerDim="
                             + values.getBytesPerDimension()
                             + " but this query has bytesPerDim="
-                            + bytesPerDim
+                            + pointRangeQuery.getBytesPerDim()
                     );
                 }
                 return true;
@@ -361,7 +335,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
                     final byte[] fieldPackedLower = values.getMinPackedValue();
                     final byte[] fieldPackedUpper = values.getMaxPackedValue();
                     for (int i = 0; i < pointRangeQuery.getNumDims(); ++i) {
-                        int offset = i * bytesPerDim;
+                        int offset = i * pointRangeQuery.getBytesPerDim();
                         if (comparator.compare(pointRangeQuery.getLowerPoint(), offset, fieldPackedUpper, offset) > 0
                             || comparator.compare(pointRangeQuery.getUpperPoint(), offset, fieldPackedLower, offset) < 0) {
                             // If this query is a required clause of a boolean query, then returning null here
@@ -379,7 +353,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
                     final byte[] fieldPackedUpper = values.getMaxPackedValue();
                     allDocsMatch = true;
                     for (int i = 0; i < pointRangeQuery.getNumDims(); ++i) {
-                        int offset = i * bytesPerDim;
+                        int offset = i * pointRangeQuery.getBytesPerDim();
                         if (comparator.compare(pointRangeQuery.getLowerPoint(), offset, fieldPackedLower, offset) > 0
                             || comparator.compare(pointRangeQuery.getUpperPoint(), offset, fieldPackedUpper, offset) < 0) {
                             allDocsMatch = false;
@@ -558,7 +532,15 @@ public abstract class ApproximatePointRangeQuery extends Query {
 
     @Override
     public final boolean equals(Object o) {
-        return pointRangeQuery.equals(o);
+        return sameClassAs(o) && equalsTo(getClass().cast(o));
+    }
+
+    private boolean equalsTo(ApproximatePointRangeQuery other) {
+        return Objects.equals(pointRangeQuery.getField(), other.pointRangeQuery.getField())
+            && pointRangeQuery.getNumDims() == other.pointRangeQuery.getNumDims()
+            && pointRangeQuery.getBytesPerDim() == other.pointRangeQuery.getBytesPerDim()
+            && Arrays.equals(pointRangeQuery.getLowerPoint(), other.pointRangeQuery.getLowerPoint())
+            && Arrays.equals(pointRangeQuery.getUpperPoint(), other.pointRangeQuery.getUpperPoint());
     }
 
     @Override
@@ -575,12 +557,22 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 sb.append(',');
             }
 
-            int startOffset = bytesPerDim * i;
+            int startOffset = pointRangeQuery.getBytesPerDim() * i;
 
             sb.append('[');
-            sb.append(toString(i, ArrayUtil.copyOfSubArray(pointRangeQuery.getLowerPoint(), startOffset, startOffset + bytesPerDim)));
+            sb.append(
+                toString(
+                    i,
+                    ArrayUtil.copyOfSubArray(pointRangeQuery.getLowerPoint(), startOffset, startOffset + pointRangeQuery.getBytesPerDim())
+                )
+            );
             sb.append(" TO ");
-            sb.append(toString(i, ArrayUtil.copyOfSubArray(pointRangeQuery.getUpperPoint(), startOffset, startOffset + bytesPerDim)));
+            sb.append(
+                toString(
+                    i,
+                    ArrayUtil.copyOfSubArray(pointRangeQuery.getUpperPoint(), startOffset, startOffset + pointRangeQuery.getBytesPerDim())
+                )
+            );
             sb.append(']');
         }
 
