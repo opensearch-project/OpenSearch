@@ -138,7 +138,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         includeUnloadedSegments = false;
         includeAllShardIndexingPressureTrackers = false;
         includeOnlyTopIndexingPressureMetrics = false;
-        includeCaches = EnumSet.noneOf(CacheType.class);
+        includeCaches = EnumSet.allOf(CacheType.class);
         levels = new String[0];
         return this;
     }

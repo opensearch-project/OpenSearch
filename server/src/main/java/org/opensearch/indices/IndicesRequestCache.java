@@ -75,13 +75,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -153,7 +153,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     private final TimeValue expire;
     private final ICache<Key, BytesReference> cache;
     private final ClusterService clusterService;
-    private final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
+    // pkg-private for testing
+    final Function<ShardId, Optional<CacheEntity>> cacheEntityLookup;
     // pkg-private for testing
     final IndicesRequestCacheCleanupManager cacheCleanupManager;
 
@@ -506,7 +507,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
      * */
     class IndicesRequestCacheCleanupManager implements Closeable {
         private final Set<CleanupKey> keysToClean;
-        private final ConcurrentMap<ShardId, HashMap<String, Integer>> cleanupKeyToCountMap;
+        private final ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> cleanupKeyToCountMap;
         private final AtomicInteger staleKeysCount;
         private volatile double stalenessThreshold;
         private final IndicesRequestCacheCleaner cacheCleaner;
@@ -514,7 +515,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         IndicesRequestCacheCleanupManager(ThreadPool threadpool, TimeValue cleanInterval, double stalenessThreshold) {
             this.stalenessThreshold = stalenessThreshold;
             this.keysToClean = ConcurrentCollections.newConcurrentSet();
-            this.cleanupKeyToCountMap = ConcurrentCollections.newConcurrentMap();
+            this.cleanupKeyToCountMap = new ConcurrentHashMap<>();
             this.staleKeysCount = new AtomicInteger(0);
             this.cacheCleaner = new IndicesRequestCacheCleaner(this, threadpool, cleanInterval);
             threadpool.schedule(cacheCleaner, cleanInterval, ThreadPool.Names.SAME);
@@ -567,7 +568,12 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
 
             // If the key doesn't exist, it's added with a value of 1.
             // If the key exists, its value is incremented by 1.
-            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> new HashMap<>()).merge(cleanupKey.readerCacheKeyId, 1, Integer::sum);
+            addToCleanupKeyToCountMap(shardId, cleanupKey.readerCacheKeyId);
+        }
+
+        // pkg-private for testing
+        void addToCleanupKeyToCountMap(ShardId shardId, String readerCacheKeyId) {
+            cleanupKeyToCountMap.computeIfAbsent(shardId, k -> new ConcurrentHashMap<>()).merge(readerCacheKeyId, 1, Integer::sum);
         }
 
         /**
@@ -715,23 +721,28 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             }
             // Contains CleanupKey objects with open shard but invalidated readerCacheKeyId.
             final Set<CleanupKey> cleanupKeysFromOutdatedReaders = new HashSet<>();
-            // Contains CleanupKey objects of a closed shard.
+            // Contains CleanupKey objects for a full cache cleanup.
+            final Set<Tuple<ShardId, Integer>> cleanupKeysFromFullClean = new HashSet<>();
+            // Contains CleanupKey objects for a closed shard.
             final Set<Tuple<ShardId, Integer>> cleanupKeysFromClosedShards = new HashSet<>();
 
             for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
                 CleanupKey cleanupKey = iterator.next();
                 iterator.remove();
-                if (cleanupKey.readerCacheKeyId == null || !cleanupKey.entity.isOpen()) {
-                    // null indicates full cleanup, as does a closed shard
-                    IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
+                final IndexShard indexShard = (IndexShard) cleanupKey.entity.getCacheIdentity();
+                if (cleanupKey.readerCacheKeyId == null) {
+                    // null indicates full cleanup
                     // Add both shardId and indexShardHashCode to uniquely identify an indexShard.
+                    cleanupKeysFromFullClean.add(new Tuple<>(indexShard.shardId(), indexShard.hashCode()));
+                } else if (!cleanupKey.entity.isOpen()) {
+                    // The shard is closed
                     cleanupKeysFromClosedShards.add(new Tuple<>(indexShard.shardId(), indexShard.hashCode()));
                 } else {
                     cleanupKeysFromOutdatedReaders.add(cleanupKey);
                 }
             }
 
-            if (cleanupKeysFromOutdatedReaders.isEmpty() && cleanupKeysFromClosedShards.isEmpty()) {
+            if (cleanupKeysFromOutdatedReaders.isEmpty() && cleanupKeysFromFullClean.isEmpty() && cleanupKeysFromClosedShards.isEmpty()) {
                 return;
             }
 
@@ -740,15 +751,15 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             for (Iterator<ICacheKey<Key>> iterator = cache.keys().iterator(); iterator.hasNext();) {
                 ICacheKey<Key> key = iterator.next();
                 Key delegatingKey = key.key;
-                if (cleanupKeysFromClosedShards.contains(new Tuple<>(delegatingKey.shardId, delegatingKey.indexShardHashCode))) {
-                    // Since the shard is closed, the cache should drop stats for this shard.
-                    dimensionListsToDrop.add(key.dimensions);
+                Tuple<ShardId, Integer> shardIdInfo = new Tuple<>(delegatingKey.shardId, delegatingKey.indexShardHashCode);
+                if (cleanupKeysFromFullClean.contains(shardIdInfo) || cleanupKeysFromClosedShards.contains(shardIdInfo)) {
                     iterator.remove();
                 } else {
                     CacheEntity cacheEntity = cacheEntityLookup.apply(delegatingKey.shardId).orElse(null);
                     if (cacheEntity == null) {
                         // If cache entity is null, it means that index or shard got deleted/closed meanwhile.
                         // So we will delete this key.
+                        dimensionListsToDrop.add(key.dimensions);
                         iterator.remove();
                     } else {
                         CleanupKey cleanupKey = new CleanupKey(cacheEntity, delegatingKey.readerCacheKeyId);
@@ -756,6 +767,12 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                             iterator.remove();
                         }
                     }
+                }
+
+                if (cleanupKeysFromClosedShards.contains(shardIdInfo)) {
+                    // Since the shard is closed, the cache should drop stats for this shard.
+                    // This should not happen on a full cache cleanup.
+                    dimensionListsToDrop.add(key.dimensions);
                 }
             }
             for (List<String> closedDimensions : dimensionListsToDrop) {
@@ -814,7 +831,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         }
 
         // for testing
-        ConcurrentMap<ShardId, HashMap<String, Integer>> getCleanupKeyToCountMap() {
+        ConcurrentHashMap<ShardId, ConcurrentHashMap<String, Integer>> getCleanupKeyToCountMap() {
             return cleanupKeyToCountMap;
         }
 

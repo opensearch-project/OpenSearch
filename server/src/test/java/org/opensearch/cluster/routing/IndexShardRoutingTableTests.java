@@ -69,6 +69,12 @@ public class IndexShardRoutingTableTests extends OpenSearchTestCase {
         assertNotEquals(table1, null);
         assertNotEquals(table1, s);
         assertNotEquals(table1, table3);
+
+        ShardRouting primary = TestShardRouting.newShardRouting(shardId, "node-1", true, ShardRoutingState.STARTED);
+        ShardRouting replica = TestShardRouting.newShardRouting(shardId, "node-2", false, ShardRoutingState.STARTED);
+        IndexShardRoutingTable table4 = new IndexShardRoutingTable(shardId, Arrays.asList(primary, replica));
+        IndexShardRoutingTable table5 = new IndexShardRoutingTable(shardId, Arrays.asList(replica, primary));
+        assertEquals(table4, table5);
     }
 
     public void testShardsMatchingPredicate() {

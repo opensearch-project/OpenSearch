@@ -18,6 +18,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeases;
@@ -663,6 +664,43 @@ public class RemoteDualReplicationIT extends MigrationBaseTestCase {
                 assertTrue(remoteSegmentStats.getUploadBytesSucceeded() > 0);
             }
         });
+    }
+
+    /*
+    Performs the same experiment as testRemotePrimaryDocRepReplica.
+
+    This ensures that the primary shard for the index has moved over to remote
+    enabled node whereas the replica copy is still left behind on the docrep nodes
+
+    At this stage, segrep lag computation shouldn't consider the docrep shard copy while calculating bytes lag
+     */
+    public void testZeroSegrepLagForShardsWithMixedReplicationGroup() throws Exception {
+        testRemotePrimaryDocRepReplica();
+        String remoteNodeName = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareNodesStats()
+            .get()
+            .getNodes()
+            .stream()
+            .filter(nodeStats -> nodeStats.getNode().isRemoteStoreNode())
+            .findFirst()
+            .get()
+            .getNode()
+            .getName();
+        ReplicationStats replicationStats = internalCluster().client()
+            .admin()
+            .cluster()
+            .prepareNodesStats(remoteNodeName)
+            .get()
+            .getNodes()
+            .get(0)
+            .getIndices()
+            .getSegments()
+            .getReplicationStats();
+        assertEquals(0, replicationStats.getMaxBytesBehind());
+        assertEquals(0, replicationStats.getTotalBytesBehind());
+        assertEquals(0, replicationStats.getMaxReplicationLag());
     }
 
     private void assertReplicaAndPrimaryConsistency(String indexName, int firstBatch, int secondBatch) throws Exception {

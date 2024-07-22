@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The list of paths where a blob can reside.  The contents of the paths are dependent upon the implementation of {@link BlobContainer}.
@@ -108,6 +109,19 @@ public class BlobPath implements Iterable<String> {
         } else {
             return new BlobPath(new ArrayList<>(paths.subList(0, paths.size() - 1)));
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BlobPath that = (BlobPath) o;
+        return Objects.equals(paths, that.paths);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(paths);
     }
 
     @Override

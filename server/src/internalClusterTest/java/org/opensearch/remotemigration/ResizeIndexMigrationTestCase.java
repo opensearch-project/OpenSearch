@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -26,6 +27,11 @@ public class ResizeIndexMigrationTestCase extends MigrationBaseTestCase {
     private final static String REMOTE_STORE_DIRECTION = "remote_store";
     private final static String DOC_REP_DIRECTION = "docrep";
     private final static String MIXED_MODE = "mixed";
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
+    }
 
     /*
     * This test will verify the resize request failure, when cluster mode is mixed

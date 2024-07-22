@@ -28,16 +28,19 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -72,6 +75,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
     private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = org.opensearch.Version.CURRENT
         .minimumIndexCompatibilityVersion().luceneVersion;
     private final ShardId shardId = new ShardId("test", "_na_", 0);
+    private static Set<ShardId> shardsInBatch;
     private final DiscoveryNode node1 = newNode("node1");
     private final DiscoveryNode node2 = newNode("node2");
     private final DiscoveryNode node3 = newNode("node3");
@@ -81,6 +85,14 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
     @Before
     public void buildTestAllocator() {
         this.testBatchAllocator = new TestBatchAllocator();
+    }
+
+    public static void setUpShards(int numberOfShards) {
+        shardsInBatch = new HashSet<>();
+        for (int shardNumber = 0; shardNumber < numberOfShards; shardNumber++) {
+            ShardId shardId = new ShardId("test", "_na_", shardNumber);
+            shardsInBatch.add(shardId);
+        }
     }
 
     private void allocateAllUnassignedBatch(final RoutingAllocation allocation) {
@@ -115,8 +127,6 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         );
         testBatchAllocator.clean();
         allocateAllUnassignedBatch(allocation);
-        assertThat(testBatchAllocator.getFetchDataCalledAndClean(), equalTo(false));
-        assertThat(testBatchAllocator.getShardEligibleFetchDataCountAndClean(), equalTo(0));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
     }
@@ -634,6 +644,79 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED), empty());
     }
 
+    public void testDoNotCancelForInactivePrimaryNode() {
+        RoutingAllocation allocation = oneInactivePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), null);
+        testBatchAllocator.addData(
+            node1,
+            null,
+            "MATCH",
+            null,
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        ).addData(node2, randomSyncId(), null, new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+
+        testBatchAllocator.processExistingRecoveries(
+            allocation,
+            Collections.singletonList(new ArrayList<>(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING)))
+        );
+
+        assertThat(allocation.routingNodesChanged(), equalTo(false));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED), empty());
+    }
+
+    public void testAllocateUnassignedBatchThrottlingAllocationDeciderIsHonoured() throws InterruptedException {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AllocationDeciders allocationDeciders = randomAllocationDeciders(
+            Settings.builder()
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 1)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build(),
+            clusterSettings,
+            random()
+        );
+        setUpShards(2);
+        final RoutingAllocation routingAllocation = twoPrimaryAndOneUnAssignedReplica(allocationDeciders);
+        for (ShardId shardIdFromBatch : shardsInBatch) {
+            testBatchAllocator.addShardData(
+                node1,
+                shardIdFromBatch,
+                "MATCH",
+                null,
+                new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+            )
+                .addShardData(
+                    node2,
+                    shardIdFromBatch,
+                    "NO_MATCH",
+                    null,
+                    new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+                )
+                .addShardData(
+                    node3,
+                    shardIdFromBatch,
+                    "MATCH",
+                    null,
+                    new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+                );
+        }
+        allocateAllUnassignedBatch(routingAllocation);
+        // Verify the throttling decider was throttled, incoming recoveries on a node should be
+        // lesser than or equal to allowed concurrent recoveries
+        assertEquals(0, routingAllocation.routingNodes().getIncomingRecoveries(node2.getId()));
+        assertEquals(1, routingAllocation.routingNodes().getIncomingRecoveries(node3.getId()));
+        List<ShardRouting> initializingShards = routingAllocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
+        assertEquals(1, initializingShards.size());
+        List<ShardRouting> ignoredShardRoutings = routingAllocation.routingNodes().unassigned().ignored();
+        assertEquals(1, ignoredShardRoutings.size());
+        // Allocation status for ignored replicas shards is not updated after running the deciders they just get marked as ignored.
+        assertEquals(UnassignedInfo.AllocationStatus.NO_ATTEMPT, ignoredShardRoutings.get(0).unassignedInfo().getLastAllocationStatus());
+        AllocateUnassignedDecision allocateUnassignedDecision = testBatchAllocator.makeAllocationDecision(
+            ignoredShardRoutings.get(0),
+            routingAllocation,
+            logger
+        );
+        assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, allocateUnassignedDecision.getAllocationStatus());
+    }
+
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders) {
         return onePrimaryOnNode1And1Replica(deciders, Settings.EMPTY, UnassignedInfo.Reason.CLUSTER_RECOVERED);
     }
@@ -677,6 +760,77 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
                     )
             )
             .build();
+        ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        return new RoutingAllocation(
+            deciders,
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+    }
+
+    private RoutingAllocation twoPrimaryAndOneUnAssignedReplica(AllocationDeciders deciders) throws InterruptedException {
+        Map<ShardId, ShardRouting> shardIdShardRoutingMap = new HashMap<>();
+        Index index = shardId.getIndex();
+
+        // Created started ShardRouting for each primary shards
+        for (ShardId shardIdFromBatch : shardsInBatch) {
+            shardIdShardRoutingMap.put(
+                shardIdFromBatch,
+                TestShardRouting.newShardRouting(shardIdFromBatch, node1.getId(), true, ShardRoutingState.STARTED)
+            );
+        }
+
+        // Create Index Metadata
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(settings(Version.CURRENT).put(Settings.EMPTY))
+            .numberOfShards(2)
+            .numberOfReplicas(1);
+        for (ShardId shardIdFromBatch : shardsInBatch) {
+            indexMetadata.putInSyncAllocationIds(
+                shardIdFromBatch.id(),
+                Sets.newHashSet(shardIdShardRoutingMap.get(shardIdFromBatch).allocationId().getId())
+            );
+        }
+        Metadata metadata = Metadata.builder().put(indexMetadata).build();
+
+        // Create Index Routing table
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        for (ShardId shardIdFromBatch : shardsInBatch) {
+            IndexShardRoutingTable.Builder indexShardRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardIdFromBatch);
+            // Add a primary shard in started state
+            indexShardRoutingTableBuilder.addShard(shardIdShardRoutingMap.get(shardIdFromBatch));
+            // Add replicas of primary shard in un-assigned state.
+            for (int i = 0; i < 1; i++) {
+                indexShardRoutingTableBuilder.addShard(
+                    ShardRouting.newUnassigned(
+                        shardIdFromBatch,
+                        false,
+                        RecoverySource.PeerRecoverySource.INSTANCE,
+                        new UnassignedInfo(
+                            UnassignedInfo.Reason.CLUSTER_RECOVERED,
+                            null,
+                            null,
+                            0,
+                            System.nanoTime(),
+                            System.currentTimeMillis(),
+                            false,
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                            Collections.emptySet()
+                        )
+                    )
+                );
+            }
+            indexRoutingTableBuilder.addIndexShard(indexShardRoutingTableBuilder.build());
+        }
+
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder.build()).build();
         ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(routingTable)
@@ -737,6 +891,41 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         );
     }
 
+    private RoutingAllocation oneInactivePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders, UnassignedInfo unassignedInfo) {
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.INITIALIZING);
+        RoutingTable routingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(shardId.getIndex())
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard)
+                            .addShard(
+                                TestShardRouting.newShardRouting(
+                                    shardId,
+                                    node2.getId(),
+                                    null,
+                                    false,
+                                    ShardRoutingState.INITIALIZING,
+                                    unassignedInfo
+                                )
+                            )
+                            .build()
+                    )
+            )
+            .build();
+        ClusterState state = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2))
+            .build();
+        return new RoutingAllocation(
+            deciders,
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+    }
+
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {
         return onePrimaryOnNode1And1ReplicaRecovering(deciders, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
     }
@@ -755,7 +944,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
     }
 
     class TestBatchAllocator extends ReplicaShardBatchAllocator {
-        private Map<DiscoveryNode, TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata> data = null;
+        private Map<DiscoveryNode, TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch> data = null;
         private AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
         private AtomicInteger eligibleShardFetchDataCount = new AtomicInteger(0);
 
@@ -800,6 +989,55 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             }
             data.put(
                 node,
+                new TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch(
+                    node,
+                    Map.of(
+                        shardId,
+                        new TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata(
+                            new TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata(
+                                shardId,
+                                new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt()),
+                                peerRecoveryRetentionLeases
+                            ),
+                            storeFileFetchException
+                        )
+                    )
+                )
+            );
+            return this;
+        }
+
+        public TestBatchAllocator addShardData(
+            DiscoveryNode node,
+            ShardId shardId,
+            String syncId,
+            @Nullable Exception storeFileFetchException,
+            StoreFileMetadata... files
+        ) {
+            return addShardData(node, Collections.emptyList(), shardId, syncId, storeFileFetchException, files);
+        }
+
+        public TestBatchAllocator addShardData(
+            DiscoveryNode node,
+            List<RetentionLease> peerRecoveryRetentionLeases,
+            ShardId shardId,
+            String syncId,
+            @Nullable Exception storeFileFetchException,
+            StoreFileMetadata... files
+        ) {
+            if (data == null) {
+                data = new HashMap<>();
+            }
+            Map<String, StoreFileMetadata> filesAsMap = new HashMap<>();
+            for (StoreFileMetadata file : files) {
+                filesAsMap.put(file.name(), file);
+            }
+            Map<String, String> commitData = new HashMap<>();
+            if (syncId != null) {
+                commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+            }
+
+            TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata nodeStoreFilesMetadata =
                 new TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata(
                     new TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata(
                         shardId,
@@ -807,8 +1045,19 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
                         peerRecoveryRetentionLeases
                     ),
                     storeFileFetchException
-                )
+                );
+            Map<ShardId, TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata> shardIdNodeStoreFilesMetadataHashMap =
+                new HashMap<>();
+            if (data.containsKey(node)) {
+                NodeStoreFilesMetadataBatch nodeStoreFilesMetadataBatch = data.get(node);
+                shardIdNodeStoreFilesMetadataHashMap.putAll(nodeStoreFilesMetadataBatch.getNodeStoreFilesMetadataBatch());
+            }
+            shardIdNodeStoreFilesMetadataHashMap.put(shardId, nodeStoreFilesMetadata);
+            data.put(
+                node,
+                new TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch(node, shardIdNodeStoreFilesMetadataHashMap)
             );
+
             return this;
         }
 
@@ -820,25 +1069,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         ) {
             fetchDataCalled.set(true);
             eligibleShardFetchDataCount.set(eligibleShards.size());
-            Map<DiscoveryNode, NodeStoreFilesMetadataBatch> tData = null;
-            if (data != null) {
-                tData = new HashMap<>();
-                for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata> entry : data.entrySet()) {
-                    Map<ShardId, TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadata> shardData = Map.of(
-                        shardId,
-                        entry.getValue()
-                    );
-                    tData.put(
-                        entry.getKey(),
-                        new TransportNodesListShardStoreMetadataBatch.NodeStoreFilesMetadataBatch(entry.getKey(), shardData)
-                    );
-                }
-            }
-            return new AsyncShardFetch.FetchResult<>(tData, new HashMap<>() {
-                {
-                    put(shardId, Collections.emptySet());
-                }
-            });
+            return new AsyncShardFetch.FetchResult<>(data, Collections.<ShardId, Set<String>>emptyMap());
         }
 
         @Override

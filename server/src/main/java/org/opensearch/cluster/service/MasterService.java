@@ -71,6 +71,7 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -139,6 +140,10 @@ public class MasterService extends AbstractLifecycleComponent {
     private final ClusterManagerThrottlingStats throttlingStats;
     private final ClusterStateStats stateStats;
     private final ClusterManagerMetrics clusterManagerMetrics;
+
+    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
+    }
 
     public MasterService(
         Settings settings,

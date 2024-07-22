@@ -60,7 +60,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
                 ctx,
                 new SearchRequestContext(
                     new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                    new SearchRequest()
+                    new SearchRequest(),
+                    () -> null
                 )
             );
             assertEquals(0, testRequestStats.getPhaseCurrent(searchPhaseName));
@@ -120,7 +121,8 @@ public class SearchRequestStatsTests extends OpenSearchTestCase {
                         ctx,
                         new SearchRequestContext(
                             new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                            new SearchRequest()
+                            new SearchRequest(),
+                            () -> null
                         )
                     );
                     countDownLatch.countDown();
