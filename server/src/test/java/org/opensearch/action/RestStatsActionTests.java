@@ -19,7 +19,6 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.Collections;
 
 public class RestStatsActionTests extends OpenSearchTestCase {
@@ -31,18 +30,30 @@ public class RestStatsActionTests extends OpenSearchTestCase {
         terminate(threadPool);
     }
 
-    public void testClusterStatsActionPrepareRequestNoError() throws IOException {
+    public void testClusterStatsActionPrepareRequestNoError() {
         RestClusterStatsAction action = new RestClusterStatsAction();
-        action.prepareRequest(new FakeRestRequest(), client);
+        try {
+            action.prepareRequest(new FakeRestRequest(), client);
+        } catch (Throwable t) {
+            fail(t.getMessage());
+        }
     }
 
-    public void testNodesStatsActionPrepareRequestNoError() throws IOException {
+    public void testNodesStatsActionPrepareRequestNoError() {
         RestNodesStatsAction action = new RestNodesStatsAction();
-        action.prepareRequest(new FakeRestRequest(), client);
+        try {
+            action.prepareRequest(new FakeRestRequest(), client);
+        } catch (Throwable t) {
+            fail(t.getMessage());
+        }
     }
 
-    public void testNodesInfoActionPrepareRequestNoError() throws IOException {
+    public void testNodesInfoActionPrepareRequestNoError() {
         RestNodesInfoAction action = new RestNodesInfoAction(new SettingsFilter(Collections.singleton("foo.filtered")));
-        action.prepareRequest(new FakeRestRequest(), client);
+        try {
+            action.prepareRequest(new FakeRestRequest(), client);
+        } catch (Throwable t) {
+            fail(t.getMessage());
+        }
     }
 }
