@@ -176,8 +176,8 @@ teardown:
 ---
 "Test bulk upsert honors default_pipeline and final_pipeline when the auto-created index matches with the index template":
   - skip:
-      version: " - 2.99.99"
-      reason: "fixed in 3.0.0"
+      version: " - 2.15.99"
+      reason: "fixed in 2.16.0"
   - do:
       indices.put_index_template:
         name: test_for_bulk_upsert_index_template
