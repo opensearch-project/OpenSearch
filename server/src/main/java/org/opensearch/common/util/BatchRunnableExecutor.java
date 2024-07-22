@@ -51,8 +51,10 @@ public class BatchRunnableExecutor implements Runnable {
                 workQueue.onTimeout();
             }
         }
-        logger.debug("Time taken to execute timed runnables in this cycle:[{}ms]",
-            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+        logger.debug(
+            "Time taken to execute timed runnables in this cycle:[{}ms]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime)
+        );
     }
 
 }

@@ -297,7 +297,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
-        long startTime = System.nanoTime();
         ShardsBalancer localShardsBalancer = new LocalShardsBalancer(
             logger,
             allocation,

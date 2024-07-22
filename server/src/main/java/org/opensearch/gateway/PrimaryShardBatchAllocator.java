@@ -129,7 +129,15 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
             ShardRouting unassignedShard = iterator.next();
             AllocateUnassignedDecision allocationDecision;
             if (unassignedShard.primary() && batchShardRoutingSet.contains(unassignedShard)) {
-                allocationDecision = new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L);
+                allocationDecision = new AllocateUnassignedDecision(
+                    UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED,
+                    null,
+                    null,
+                    null,
+                    false,
+                    0L,
+                    0L
+                );
                 executeDecision(unassignedShard, allocationDecision, allocation, iterator);
             }
         }

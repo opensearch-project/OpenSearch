@@ -708,7 +708,10 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation);
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
-        assertEquals(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.routingNodes().unassigned().ignored().get(0).unassignedInfo().getLastAllocationStatus());
+        assertEquals(
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            allocation.routingNodes().unassigned().ignored().get(0).unassignedInfo().getLastAllocationStatus()
+        );
     }
 
     public void testAllocateUnassignedBatchOnTimeoutWithAlreadyRecoveringReplicaShard() {

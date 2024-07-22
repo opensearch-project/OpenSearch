@@ -40,7 +40,15 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.test.IndexSettingsModule;
 import org.junit.Before;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.routing.UnassignedInfo.Reason.CLUSTER_RECOVERED;
@@ -282,7 +290,12 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         setUpShards(1);
         final RoutingAllocation routingAllocation = routingAllocationWithOnePrimary(allocationDeciders, CLUSTER_RECOVERED, "allocId-0");
 
-        ShardRouting shardRouting = routingAllocation.routingTable().getIndicesRouting().get("test").shard(shardId.id()).replicaShards().get(0);
+        ShardRouting shardRouting = routingAllocation.routingTable()
+            .getIndicesRouting()
+            .get("test")
+            .shard(shardId.id())
+            .replicaShards()
+            .get(0);
         List<ShardRouting> shardRoutings = Arrays.asList(shardRouting);
         batchAllocator.allocateUnassignedBatchOnTimeout(shardRoutings, routingAllocation);
 

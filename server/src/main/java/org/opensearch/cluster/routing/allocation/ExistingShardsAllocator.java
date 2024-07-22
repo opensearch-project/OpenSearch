@@ -121,7 +121,7 @@ public interface ExistingShardsAllocator {
                 runnables.add(new TimeoutAwareRunnable() {
                     @Override
                     public void onTimeout() {
-                        //do nothing
+                        // do nothing
                     }
 
                     @Override

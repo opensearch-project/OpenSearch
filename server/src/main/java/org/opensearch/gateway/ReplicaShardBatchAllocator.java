@@ -179,7 +179,15 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
             ShardRouting unassignedShard = iterator.next();
             AllocateUnassignedDecision allocationDecision;
             if (!unassignedShard.primary() && shardIdsFromBatch.contains(unassignedShard.shardId())) {
-                allocationDecision = new AllocateUnassignedDecision(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, null, null, null, false, 0L, 0L);
+                allocationDecision = new AllocateUnassignedDecision(
+                    UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED,
+                    null,
+                    null,
+                    null,
+                    false,
+                    0L,
+                    0L
+                );
                 executeDecision(unassignedShard, allocationDecision, allocation, iterator);
             }
         }
