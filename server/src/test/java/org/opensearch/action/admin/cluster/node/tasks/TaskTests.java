@@ -239,7 +239,7 @@ public class TaskTests extends OpenSearchTestCase {
         }
     }
 
-    public void testAddQueryGroupHeadersTo() {
+    public void testAddQueryGroupHeaders() {
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
         try {
             Task task = new Task(
@@ -253,11 +253,33 @@ public class TaskTests extends OpenSearchTestCase {
 
             threadPool.getThreadContext().putHeader("queryGroupId", "afakgkagj09532059");
 
-            task.addQueryGroupHeadersTo(threadPool.getThreadContext());
+            task.addQueryGroupHeaders(threadPool.getThreadContext());
 
             String queryGroupId = task.getHeader("queryGroupId");
 
             assertEquals("afakgkagj09532059", queryGroupId);
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testAddQueryGroupHeadersWhenHeaderIsNotPresentInThreadContext() {
+        ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        try {
+            Task task = new Task(
+                randomLong(),
+                "transport",
+                SearchAction.NAME,
+                "description",
+                new TaskId(randomLong() + ":" + randomLong()),
+                Collections.emptyMap()
+            );
+
+            task.addQueryGroupHeaders(threadPool.getThreadContext());
+
+            String queryGroupId = task.getHeader("queryGroupId");
+
+            assertEquals("DEFAULT_QUERY_GROUP_ID", queryGroupId);
         } finally {
             threadPool.shutdown();
         }

@@ -278,7 +278,6 @@ public class Task {
         return parentTask;
     }
 
-
     /**
      * Build a status for this task or null if this task doesn't have status.
      * Since most tasks don't have status this defaults to returning null. While
@@ -525,12 +524,21 @@ public class Task {
         return headers.get(header);
     }
 
-    public void addQueryGroupHeadersTo(final ThreadContext threadContext) {
+    /**
+     * This method adds the queryGroupHeader in the task headers, We need this method since the query group is not determined at the task creation time
+     * hence it is not possible to copy this header from request headers. This header is required to group the tasks into queryGroups to account for the QueryGroup level resource footprint
+     * @param threadContext
+     */
+    public void addQueryGroupHeaders(final ThreadContext threadContext) {
         // For now this header will be coming from HTTP headers but in second phase this header
 
         // We will use this constant from QueryGroup Service once the framework changes are done
         final String QUERY_GROUP_ID_HEADER = "queryGroupId";
-        final String requestQueryGroupId = threadContext.getHeader(QUERY_GROUP_ID_HEADER);
+        String requestQueryGroupId = threadContext.getHeader(QUERY_GROUP_ID_HEADER);
+
+        if (requestQueryGroupId == null) {
+            requestQueryGroupId = "DEFAULT_QUERY_GROUP_ID"; // TODO: move this constant either to QueryGroupService or Tracking equivalent
+        }
 
         final Map<String, String> newHeaders = new HashMap<>(headers);
 

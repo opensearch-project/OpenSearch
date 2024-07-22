@@ -464,7 +464,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
-            task.addQueryGroupHeadersTo(threadPool.getThreadContext());
+            task.addQueryGroupHeaders(threadPool.getThreadContext());
 
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
