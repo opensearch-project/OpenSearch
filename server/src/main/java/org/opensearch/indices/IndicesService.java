@@ -692,7 +692,9 @@ public class IndicesService extends AbstractLifecycleComponent
                     break;
             }
         }
-
+        if (flags.getAggregateNodeIndicesStatsResponsesOnLevel()) {
+            return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats, flags.getLevels());
+        }
         return new NodeIndicesStats(commonStats, statsByShard(this, flags), searchRequestStats);
     }
 

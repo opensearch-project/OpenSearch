@@ -32,13 +32,19 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.cluster.coordination.PendingClusterStateStats;
 import org.opensearch.cluster.coordination.PersistedStateStats;
 import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.cluster.service.ClusterStateStats;
@@ -52,10 +58,16 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.gateway.remote.RemotePersistenceStats;
 import org.opensearch.http.HttpStats;
@@ -63,6 +75,10 @@ import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationRejectionStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.shard.IndexingStats;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.ingest.IngestStats;
@@ -88,11 +104,13 @@ import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -1064,5 +1082,258 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
     private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
         return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
+    }
+
+    public static class MockNodeIndicesStats extends NodeIndicesStats {
+
+        public MockNodeIndicesStats(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public MockNodeIndicesStats(
+            CommonStats oldStats,
+            Map<Index, List<IndexShardStats>> statsByShard,
+            SearchRequestStats searchRequestStats
+        ) {
+            super(oldStats, statsByShard, searchRequestStats);
+        }
+
+        public MockNodeIndicesStats(
+            CommonStats oldStats,
+            Map<Index, List<IndexShardStats>> statsByShard,
+            SearchRequestStats searchRequestStats,
+            String[] levels
+        ) {
+            super(oldStats, statsByShard, searchRequestStats, levels);
+        }
+
+        public CommonStats getStats() {
+            return this.stats;
+        }
+
+        public Map<Index, CommonStats> getStatsByIndex() {
+            return this.statsByIndex;
+        }
+
+        public Map<Index, List<IndexShardStats>> getStatsByShard() {
+            return this.statsByShard;
+        }
+    }
+
+    public void testNodeIndicesStatsSerializationWithOldESVersionNodesWithoutAggregations() throws IOException {
+        long numDocs = randomLongBetween(0, 10000);
+        long numDeletedDocs = randomLongBetween(0, 100);
+        CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+
+        commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
+        commonStats.store = new StoreStats(100, 0L);
+        commonStats.indexing = new IndexingStats();
+
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+        commonStatsFlags.clear();
+        commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
+
+        Index newIndex = new Index("index", "_na_");
+
+        MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags);
+
+        // To test out scenario when the incoming node stats response is from a node with an older ES Version.
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_2_13_0);
+            mockNodeIndicesStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_2_13_0);
+                MockNodeIndicesStats newNodeIndicesStats = new MockNodeIndicesStats(in);
+
+                List<IndexShardStats> incomingIndexStats = newNodeIndicesStats.getStatsByShard().get(newIndex);
+                incomingIndexStats.forEach(indexShardStats -> {
+                    ShardStats shardStats = Arrays.stream(indexShardStats.getShards()).findFirst().get();
+                    DocsStats incomingDocStats = shardStats.getStats().docs;
+
+                    DocsStats hostDocStats = new DocsStats(numDocs, numDeletedDocs, 0);
+                    assertEquals(incomingDocStats.getCount(), hostDocStats.getCount());
+                    assertEquals(incomingDocStats.getTotalSizeInBytes(), hostDocStats.getTotalSizeInBytes());
+                    assertEquals(incomingDocStats.getAverageSizeInBytes(), hostDocStats.getAverageSizeInBytes());
+                    assertEquals(incomingDocStats.getDeleted(), hostDocStats.getDeleted());
+                });
+            }
+        }
+    }
+
+    public void testNodeIndicesStatsSerialization() throws IOException {
+        long numDocs = randomLongBetween(0, 10000);
+        long numDeletedDocs = randomLongBetween(0, 100);
+        List<NodeIndicesStats.Fields> levelParams = new ArrayList<>();
+        levelParams.add(NodeIndicesStats.Fields.INDICES);
+        levelParams.add(NodeIndicesStats.Fields.SHARDS);
+        levelParams.add(NodeIndicesStats.Fields.NODE);
+        CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+
+        commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
+        commonStats.store = new StoreStats(100, 0L);
+        commonStats.indexing = new IndexingStats();
+
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+        commonStatsFlags.clear();
+        commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
+        commonStatsFlags.setAggregateNodeIndicesStatsResponsesOnLevel(true);
+
+        levelParams.forEach(levelParam -> {
+            ArrayList<String> level_arg = new ArrayList<>();
+            level_arg.add(levelParam.getRestName());
+
+            commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
+
+            Index newIndex = new Index("index", "_na_");
+
+            MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags);
+
+            // To test out scenario when the incoming node stats response is from a node with an older ES Version.
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                mockNodeIndicesStats.writeTo(out);
+                try (StreamInput in = out.bytes().streamInput()) {
+                    MockNodeIndicesStats newNodeIndicesStats = new MockNodeIndicesStats(in);
+                    switch (levelParam) {
+                        case NODE:
+                            assertNull(newNodeIndicesStats.getStatsByIndex());
+                            assertNull(newNodeIndicesStats.getStatsByShard());
+                            break;
+                        case INDICES:
+                            assertNull(newNodeIndicesStats.getStatsByShard());
+                            assertNotNull(newNodeIndicesStats.getStatsByIndex());
+                            break;
+                        case SHARDS:
+                            assertNull(newNodeIndicesStats.getStatsByIndex());
+                            assertNotNull(newNodeIndicesStats.getStatsByShard());
+                            break;
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    public void testNodeIndicesStatsToXContent() {
+        long numDocs = randomLongBetween(0, 10000);
+        long numDeletedDocs = randomLongBetween(0, 100);
+        List<NodeIndicesStats.Fields> levelParams = new ArrayList<>();
+        levelParams.add(NodeIndicesStats.Fields.INDICES);
+        levelParams.add(NodeIndicesStats.Fields.SHARDS);
+        levelParams.add(NodeIndicesStats.Fields.NODE);
+        CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+
+        commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
+        commonStats.store = new StoreStats(100, 0L);
+        commonStats.indexing = new IndexingStats();
+
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+        commonStatsFlags.clear();
+        commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
+        commonStatsFlags.setAggregateNodeIndicesStatsResponsesOnLevel(true);
+
+        levelParams.forEach(levelParam -> {
+            ArrayList<String> level_arg = new ArrayList<>();
+            level_arg.add(levelParam.getRestName());
+
+            commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
+
+            Index newIndex = new Index("index", "_na_");
+
+            MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags);
+
+            XContentBuilder builder = null;
+            try {
+                builder = XContentFactory.jsonBuilder();
+                builder.startObject();
+                builder = mockNodeIndicesStats.toXContent(
+                    builder,
+                    new ToXContent.MapParams(Collections.singletonMap("level", levelParam.getRestName()))
+                );
+                builder.endObject();
+
+                Map<String, Object> xContentMap = xContentBuilderToMap(builder);
+                LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
+
+                switch (levelParam) {
+                    case NODE:
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
+                        break;
+                    case INDICES:
+                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
+                        break;
+                    case SHARDS:
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
+                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
+                        break;
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        });
+    }
+
+    private Map<String, Object> xContentBuilderToMap(XContentBuilder xContentBuilder) {
+        return XContentHelper.convertToMap(BytesReference.bytes(xContentBuilder), true, xContentBuilder.contentType()).v2();
+    }
+
+    public MockNodeIndicesStats generateMockNodeIndicesStats(CommonStats commonStats, Index index, CommonStatsFlags commonStatsFlags) {
+        DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
+        List<IndexShardStats> indexShardStatsList = new ArrayList<>();
+        Index statsIndex = null;
+        for (int i = 0; i < 2; i++) {
+            ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                index.getName(),
+                i,
+                localNode.getId(),
+                randomBoolean(),
+                shardRoutingState
+            );
+
+            if (statsIndex == null) {
+                statsIndex = shardRouting.shardId().getIndex();
+            }
+
+            Path path = createTempDir().resolve("indices")
+                .resolve(shardRouting.shardId().getIndex().getUUID())
+                .resolve(String.valueOf(shardRouting.shardId().id()));
+
+            ShardStats shardStats = new ShardStats(
+                shardRouting,
+                new ShardPath(false, path, path, shardRouting.shardId()),
+                commonStats,
+                null,
+                null,
+                null
+            );
+            IndexShardStats indexShardStats = new IndexShardStats(shardRouting.shardId(), new ShardStats[] { shardStats });
+            indexShardStatsList.add(indexShardStats);
+        }
+
+        statsByShard.put(statsIndex, indexShardStatsList);
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        if (commonStatsFlags.getAggregateNodeIndicesStatsResponsesOnLevel()) {
+            return new MockNodeIndicesStats(
+                new CommonStats(commonStatsFlags),
+                statsByShard,
+                new SearchRequestStats(clusterSettings),
+                commonStatsFlags.getLevels()
+            );
+        } else {
+            return new MockNodeIndicesStats(new CommonStats(commonStatsFlags), statsByShard, new SearchRequestStats(clusterSettings));
+        }
     }
 }
