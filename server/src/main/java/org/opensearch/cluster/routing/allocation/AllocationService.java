@@ -58,6 +58,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
@@ -632,17 +633,17 @@ public class AllocationService {
         executeTimedRunnables(allocator.allocateAllUnassignedShards(allocation, false), () -> allocator.getReplicaBatchAllocatorTimeout().millis(), false);
     }
 
-    private void executeTimedRunnables(List<Consumer<Boolean>> runnables, Supplier<Long> maxRunTimeSupplier, boolean primary) {
+    private void executeTimedRunnables(List<TimeoutAwareRunnable> runnables, Supplier<Long> maxRunTimeSupplier, boolean primary) {
         logger.info("Executing timed runnables for primary [{}] of size [{}]", primary, runnables.size());
         Collections.shuffle(runnables);
         long startTime = System.nanoTime();
-        for (Consumer<Boolean> workQueue : runnables) {
+        for (TimeoutAwareRunnable workQueue : runnables) {
             if (System.nanoTime() - startTime < TimeValue.timeValueMillis(maxRunTimeSupplier.get()).nanos()) {
                 logger.info("Starting primary [{}] batch to allocate", primary);
-                workQueue.accept(false);
+                workQueue.run();
             } else {
                 logger.info("Timing out primary [{}] batch to allocate", primary);
-                workQueue.accept(true);
+                workQueue.onTimeout();
             }
         }
         logger.info("Time taken to execute timed runnables in this cycle:[{}ms]", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));

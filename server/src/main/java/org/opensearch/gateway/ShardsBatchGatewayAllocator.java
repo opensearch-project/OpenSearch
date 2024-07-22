@@ -32,6 +32,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
@@ -244,14 +245,14 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public List<Consumer<Boolean>> allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
+    public List<TimeoutAwareRunnable> allocateAllUnassignedShards(final RoutingAllocation allocation, boolean primary) {
 
         assert primaryShardBatchAllocator != null;
         assert replicaShardBatchAllocator != null;
         return innerAllocateUnassignedBatch(allocation, primaryShardBatchAllocator, replicaShardBatchAllocator, primary);
     }
 
-    protected List<Consumer<Boolean>> innerAllocateUnassignedBatch(
+    protected List<TimeoutAwareRunnable> innerAllocateUnassignedBatch(
         RoutingAllocation allocation,
         PrimaryShardBatchAllocator primaryBatchShardAllocator,
         ReplicaShardBatchAllocator replicaBatchShardAllocator,
@@ -262,45 +263,54 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         if (batchesToAssign.isEmpty()) {
             return Collections.emptyList();
         }
-        List<Consumer<Boolean>> runnables = new ArrayList<>();
+        List<TimeoutAwareRunnable> runnables = new ArrayList<>();
         if (primary) {
             batchIdToStartedShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
                 .forEach(
-                    shardsBatch -> runnables.add((timedOut) -> {
-                        if(timedOut) {
+                    shardsBatch -> runnables.add(new TimeoutAwareRunnable() {
+                        @Override
+                        public void onTimeout() {
                             long startTime = System.nanoTime();
                             primaryBatchShardAllocator.allocateUnassignedBatchOnTimeout(shardsBatch.getBatchedShardRoutings(), allocation);
                             logger.info("Time taken to execute allocateUnassignedBatchOnTimeout for unassigned primary batch with id [{}], size : [{}] in this cycle:[{}ms]",
                                 shardsBatch.batchId, shardsBatch.getBatchedShardRoutings().size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
-                        } else {
+                        }
+
+                        @Override
+                        public void run() {
                             long startTime = System.nanoTime();
                             primaryBatchShardAllocator.allocateUnassignedBatch(shardsBatch.getBatchedShardRoutings(), allocation);
                             logger.info("Time taken to allocate unassigned primary batch with id [{}], size : [{}] in this cycle:[{}ms]",
                                 shardsBatch.batchId, shardsBatch.getBatchedShardRoutings().size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+
                         }
-                    })
-                );
+                    }));
         } else {
             batchIdToStoreShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
                 .forEach(
-                    batch -> runnables.add((timedOut) -> {
-                        if(timedOut) {
+                    batch -> runnables.add(new TimeoutAwareRunnable() {
+                        @Override
+                        public void onTimeout() {
                             long startTime = System.nanoTime();
                             replicaBatchShardAllocator.allocateUnassignedBatchOnTimeout(batch.getBatchedShardRoutings(), allocation);
                             logger.info("Time taken to execute allocateUnassignedBatchOnTimeout for unassigned replica batch with id [{}], size : [{}] in this cycle:[{}ms]",
                                 batch.batchId, batch.getBatchedShardRoutings().size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
-                        } else {
+
+                        }
+
+                        @Override
+                        public void run() {
                             long startTime = System.nanoTime();
                             replicaBatchShardAllocator.allocateUnassignedBatch(batch.getBatchedShardRoutings(), allocation);
                             logger.info("Time taken to allocate unassigned replica batch with id [{}], size : [{}] in this cycle:[{}ms]",
                                 batch.batchId, batch.getBatchedShardRoutings().size(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+
                         }
-                    })
-                );
+                    }));
         }
         return runnables;
     }

@@ -39,6 +39,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 
@@ -111,13 +112,23 @@ public interface ExistingShardsAllocator {
      *
      * Allocation service will currently run the default implementation of it implemented by {@link ShardsBatchGatewayAllocator}
      */
-    default List<Consumer<Boolean>> allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    default List<TimeoutAwareRunnable> allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
-        List<Consumer<Boolean>> runnables = new ArrayList<>();
+        List<TimeoutAwareRunnable> runnables = new ArrayList<>();
         while (iterator.hasNext()) {
             ShardRouting shardRouting = iterator.next();
             if (shardRouting.primary() == primary) {
-                runnables.add((t) -> allocateUnassigned(shardRouting, allocation, iterator));
+                runnables.add(new TimeoutAwareRunnable() {
+                    @Override
+                    public void onTimeout() {
+                        //do nothing
+                    }
+
+                    @Override
+                    public void run() {
+                        allocateUnassigned(shardRouting, allocation, iterator);
+                    }
+                });
             }
         }
         return runnables;
