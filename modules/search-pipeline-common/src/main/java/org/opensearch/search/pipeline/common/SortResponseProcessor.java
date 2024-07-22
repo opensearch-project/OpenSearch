@@ -174,10 +174,10 @@ public class SortResponseProcessor extends AbstractProcessor implements SearchRe
 
     @SuppressWarnings("unchecked")
     private Comparable<Object> downcastToComparable(Object obj) {
-        if (obj == null) {
-            throw new IllegalArgumentException("field [" + sortField + "] contains a null value.]");
-        } else if (Comparable.class.isAssignableFrom(obj.getClass())) {
+        if (obj instanceof Comparable) {
             return (Comparable<Object>) obj;
+        } else if (obj == null) {
+            throw new IllegalArgumentException("field [" + sortField + "] contains a null value.]");
         } else {
             throw new IllegalArgumentException("field [" + sortField + "] of type [" + obj.getClass().getName() + "] is not comparable.]");
         }
