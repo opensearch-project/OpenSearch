@@ -29,7 +29,6 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
@@ -62,7 +61,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
     private final boolean preferPrimaryBalance;
     private final boolean preferPrimaryRebalance;
-    private final TimeValue allocateUnassignedTimeout;
     private final BalancedShardsAllocator.WeightFunction weight;
 
     private final float threshold;
@@ -80,8 +78,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         BalancedShardsAllocator.WeightFunction weight,
         float threshold,
         boolean preferPrimaryBalance,
-        boolean preferPrimaryRebalance,
-        TimeValue allocateUnassignedTimeout
+        boolean preferPrimaryRebalance
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -98,7 +95,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.preferPrimaryBalance = preferPrimaryBalance;
         this.preferPrimaryRebalance = preferPrimaryRebalance;
         this.shardMovementStrategy = shardMovementStrategy;
-        this.allocateUnassignedTimeout = allocateUnassignedTimeout;
     }
 
     /**
@@ -747,7 +743,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     void allocateUnassigned() {
-        long startTime = System.nanoTime();
         RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
         assert !nodes.isEmpty();
         if (logger.isTraceEnabled()) {
@@ -803,7 +798,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         do {
             for (int i = 0; i < primaryLength; i++) {
                 ShardRouting shard = primary[i];
-                final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard, startTime);
+                final AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard);
                 final String assignedNodeId = allocationDecision.getTargetNode() != null
                     ? allocationDecision.getTargetNode().getId()
                     : null;
@@ -876,8 +871,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
             secondaryLength = 0;
         } while (primaryLength > 0);
         // clear everything we have either added it or moved to ignoreUnassigned
-        logger.debug("Time taken in allocate unassigned [{}]",
-            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
     }
 
     /**
@@ -887,15 +880,10 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * is of type {@link Decision.Type#NO}, then the assigned node will be null.
      */
     @Override
-    AllocateUnassignedDecision decideAllocateUnassigned(final ShardRouting shard, long startTime) {
+    AllocateUnassignedDecision decideAllocateUnassigned(final ShardRouting shard) {
         if (shard.assignedToNode()) {
             // we only make decisions for unassigned shards here
             return AllocateUnassignedDecision.NOT_TAKEN;
-        }
-
-        if (System.nanoTime() - startTime > allocateUnassignedTimeout.nanos()) {
-            logger.info("Timed out while running Local shard balancer allocate unassigned - outer loop");
-            return AllocateUnassignedDecision.throttle(null);
         }
 
         final boolean explain = allocation.debugDecision();

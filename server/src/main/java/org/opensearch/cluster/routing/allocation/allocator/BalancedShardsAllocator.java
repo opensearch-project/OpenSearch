@@ -54,7 +54,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -163,13 +162,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
-    public static final Setting<TimeValue> ALLOCATE_UNASSIGNED_TIMEOUT_SETTING = Setting.timeSetting(
-        "cluster.routing.allocation.allocate_unassigned_timeout",
-        TimeValue.MINUS_ONE,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     private volatile boolean movePrimaryFirst;
     private volatile ShardMovementStrategy shardMovementStrategy;
 
@@ -180,7 +172,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile float shardBalanceFactor;
     private volatile WeightFunction weightFunction;
     private volatile float threshold;
-    private volatile TimeValue allocateUnassignedTimeout;
 
     public BalancedShardsAllocator(Settings settings) {
         this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
@@ -196,7 +187,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
         setPreferPrimaryShardRebalance(PREFER_PRIMARY_SHARD_REBALANCE.get(settings));
         setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
-        setAllocateUnassignedTimeout(ALLOCATE_UNASSIGNED_TIMEOUT_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVEMENT_STRATEGY_SETTING, this::setShardMovementStrategy);
@@ -205,7 +195,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_SHARD_REBALANCE_BUFFER, this::updatePreferPrimaryShardBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_REBALANCE, this::setPreferPrimaryShardRebalance);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
-        clusterSettings.addSettingsUpdateConsumer(ALLOCATE_UNASSIGNED_TIMEOUT_SETTING, this::setAllocateUnassignedTimeout);
     }
 
     /**
@@ -280,10 +269,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.threshold = threshold;
     }
 
-    private void setAllocateUnassignedTimeout(TimeValue allocateUnassignedTimeout) {
-        this.allocateUnassignedTimeout = allocateUnassignedTimeout;
-    }
-
     @Override
     public void allocate(RoutingAllocation allocation) {
         if (allocation.routingNodes().size() == 0) {
@@ -297,8 +282,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             weightFunction,
             threshold,
             preferPrimaryShardBalance,
-            preferPrimaryShardRebalance,
-            allocateUnassignedTimeout
+            preferPrimaryShardRebalance
         );
         localShardsBalancer.allocateUnassigned();
         localShardsBalancer.moveShards();
@@ -321,13 +305,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             weightFunction,
             threshold,
             preferPrimaryShardBalance,
-            preferPrimaryShardRebalance,
-            allocateUnassignedTimeout
+            preferPrimaryShardRebalance
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         if (shard.unassigned()) {
-            allocateUnassignedDecision = localShardsBalancer.decideAllocateUnassigned(shard, startTime);
+            allocateUnassignedDecision = localShardsBalancer.decideAllocateUnassigned(shard);
         } else {
             moveDecision = localShardsBalancer.decideMove(shard);
             if (moveDecision.isDecisionTaken() && moveDecision.canRemain()) {
@@ -576,7 +559,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float threshold,
             boolean preferPrimaryBalance
         ) {
-            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, TimeValue.MINUS_ONE);
+            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false);
         }
     }
 
