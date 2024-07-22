@@ -82,7 +82,7 @@ final class TreeTraversal {
 
         switch (r) {
             case CELL_INSIDE_QUERY:
-                pointTree.visitDocIDs(visitor);
+                pointTree.visitDocValues(visitor);
                 debug.visitInner();
                 break;
             case CELL_CROSSES_QUERY:
