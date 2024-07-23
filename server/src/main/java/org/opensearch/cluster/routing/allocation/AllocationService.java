@@ -568,18 +568,8 @@ public class AllocationService {
         long rerouteStartTimeNS = System.nanoTime();
         removeDelayMarkers(allocation);
 
-        long startTime = System.nanoTime();
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
-        logger.debug(
-            "Completing allocateExistingUnassignedShards, elapsed time: [{}]",
-            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime)
-        );
-        startTime = System.nanoTime();
         shardsAllocator.allocate(allocation);
-        logger.debug(
-            "Completing shardsAllocator allocate, elapsed time: [{}]",
-            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime)
-        );
         clusterManagerMetrics.recordLatency(
             clusterManagerMetrics.rerouteHistogram,
             (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - rerouteStartTimeNS))
