@@ -42,9 +42,9 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.node.Node;
@@ -84,7 +84,7 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
         );
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
-        this.contextSwitcher = new InternalContextSwitcher(threadPool);
+        this.contextSwitcher = new SystemContextSwitcher(threadPool);
     }
 
     @Override
@@ -136,9 +136,7 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
                     final Runnable task = pendingTasks.remove(taskIndex);
                     taskInProgress = true;
                     scheduledNextTask = false;
-                    final ThreadContext threadContext = threadPool.getThreadContext();
                     try (ThreadContext.StoredContext ignored = contextSwitcher.switchContext()) {
-                        threadContext.markAsSystemContext();
                         task.run();
                     }
                     if (waitForPublish == false) {

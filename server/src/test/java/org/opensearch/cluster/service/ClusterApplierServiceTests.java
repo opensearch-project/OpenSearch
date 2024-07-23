@@ -52,7 +52,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
@@ -102,7 +102,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
     @BeforeClass
     public static void createThreadPool() {
         threadPool = new TestThreadPool(ClusterApplierServiceTests.class.getName());
-        contextSwitcher = new InternalContextSwitcher(threadPool);
+        contextSwitcher = new SystemContextSwitcher(threadPool);
         metricsRegistry = mock(MetricsRegistry.class);
         applierslatencyHistogram = mock(Histogram.class);
         listenerslatencyHistogram = mock(Histogram.class);

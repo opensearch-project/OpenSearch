@@ -563,16 +563,12 @@ public class ThreadContextTests extends OpenSearchTestCase {
         // create a abstract runnable, add headers and transient objects and verify in the methods
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             threadContext.putHeader("foo", "bar");
-            boolean systemContext = randomBoolean();
-            if (systemContext) {
-                threadContext.markAsSystemContext();
-            }
             threadContext.putTransient("foo", "bar_transient");
             withContext = threadContext.preserveContext(new AbstractRunnable() {
 
                 @Override
                 public void onAfter() {
-                    assertEquals(systemContext, threadContext.isSystemContext());
+                    assertTrue(threadContext.isSystemContext());
                     assertEquals("bar", threadContext.getHeader("foo"));
                     assertEquals("bar_transient", threadContext.getTransient("foo"));
                     assertNotNull(threadContext.getTransient("failure"));
@@ -583,7 +579,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertEquals(systemContext, threadContext.isSystemContext());
+                    assertTrue(threadContext.isSystemContext());
                     assertEquals("exception from doRun", e.getMessage());
                     assertEquals("bar", threadContext.getHeader("foo"));
                     assertEquals("bar_transient", threadContext.getTransient("foo"));
@@ -593,7 +589,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
-                    assertEquals(systemContext, threadContext.isSystemContext());
+                    assertTrue(threadContext.isSystemContext());
                     assertEquals("bar", threadContext.getHeader("foo"));
                     assertEquals("bar_transient", threadContext.getTransient("foo"));
                     assertFalse(threadContext.isDefaultContext());
@@ -735,8 +731,6 @@ public class ThreadContextTests extends OpenSearchTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         assertFalse(threadContext.isSystemContext());
         try (ThreadContext.StoredContext context = threadContext.stashContext()) {
-            assertFalse(threadContext.isSystemContext());
-            threadContext.markAsSystemContext();
             assertTrue(threadContext.isSystemContext());
         }
         assertFalse(threadContext.isSystemContext());
@@ -761,7 +755,6 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
         assertEquals("bar", threadContext.getHeader("foo"));
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("test_transient_propagation_key"));
             assertEquals("1", threadContext.getHeader("default"));
@@ -793,7 +786,6 @@ public class ThreadContextTests extends OpenSearchTestCase {
         threadContext.writeTo(out);
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
-            threadContext.markAsSystemContext();
             threadContext.writeTo(outFromSystemContext);
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("test_transient_propagation_key"));

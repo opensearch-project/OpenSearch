@@ -50,7 +50,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -117,7 +117,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         maxListeners = randomIntBetween(1, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
-        contextSwitcher = new InternalContextSwitcher(threadPool);
+        contextSwitcher = new SystemContextSwitcher(threadPool);
         refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(() -> maxListeners, () -> engine.refresh("too-many-listeners"), logger, threadPool, refreshMetric);
 

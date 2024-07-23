@@ -46,7 +46,7 @@ import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.transport.PortsRange;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
@@ -133,7 +133,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
-        this.contextSwitcher = new InternalContextSwitcher(threadPool);
+        this.contextSwitcher = new SystemContextSwitcher(threadPool);
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);

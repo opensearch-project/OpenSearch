@@ -59,9 +59,9 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
@@ -142,7 +142,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     ) {
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
-        this.contextSwitcher = new InternalContextSwitcher(threadPool);
+        this.contextSwitcher = new SystemContextSwitcher(threadPool);
         this.state = new AtomicReference<>();
         this.nodeName = nodeName;
 
@@ -400,7 +400,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
         try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
-            threadContext.markAsSystemContext();
             final UpdateTask updateTask = new UpdateTask(
                 config.priority(),
                 source,

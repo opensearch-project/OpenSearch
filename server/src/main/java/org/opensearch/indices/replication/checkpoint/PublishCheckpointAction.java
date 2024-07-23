@@ -24,7 +24,7 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -87,7 +87,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             ThreadPool.Names.REFRESH
         );
         this.replicationService = targetService;
-        this.contextSwitcher = new InternalContextSwitcher(threadPool);
+        this.contextSwitcher = new SystemContextSwitcher(threadPool);
     }
 
     @Override
@@ -114,10 +114,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     final void publish(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
         String primaryAllocationId = indexShard.routingEntry().allocationId().getId();
         long primaryTerm = indexShard.getPendingPrimaryTerm();
-        final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
-            // we have to execute under the system context so that if security is enabled the sync is authorized
-            threadContext.markAsSystemContext();
             PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
             final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "segrep_publish_checkpoint", request);
             final ReplicationTimer timer = new ReplicationTimer();

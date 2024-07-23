@@ -8,10 +8,12 @@
 
 package org.opensearch.telemetry.tracing;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.opensearch.telemetry.Telemetry;
@@ -41,6 +43,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestCase {
     private Tracer tracer;
     private ThreadPool threadPool;
@@ -69,7 +72,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
 
         threadPool = new TestThreadPool(getTestName());
         threadContext = threadPool.getThreadContext();
-        contextSwitcher = new InternalContextSwitcher(threadPool);
+        contextSwitcher = new SystemContextSwitcher(threadPool);
         threadContextStorage = new ThreadContextBasedTracerContextStorage(threadContext, tracingTelemetry);
 
         tracer = new TracerFactory(telemetrySettings, Optional.of(new Telemetry() {
@@ -268,8 +271,6 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
             try (StoredContext ignored = contextSwitcher.switchContext()) {
                 assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
                 assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(span));
-                threadContext.markAsSystemContext();
-                assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
             }
         }
 

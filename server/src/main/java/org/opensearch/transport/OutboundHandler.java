@@ -41,7 +41,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.NotifyOnceListener;
@@ -66,7 +66,7 @@ public final class OutboundHandler {
     public OutboundHandler(StatsTracker statsTracker, ThreadPool threadPool) {
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
-        this.contextSwitcher = new InternalContextSwitcher(threadPool);
+        this.contextSwitcher = new SystemContextSwitcher(threadPool);
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {

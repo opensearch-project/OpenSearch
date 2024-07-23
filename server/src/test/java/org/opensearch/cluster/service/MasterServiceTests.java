@@ -61,7 +61,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.metrics.Histogram;
@@ -124,7 +124,7 @@ public class MasterServiceTests extends OpenSearchTestCase {
                 return timeDiffInMillis * TimeValue.NSEC_PER_MSEC;
             }
         };
-        contextSwitcher = new InternalContextSwitcher(threadPool);
+        contextSwitcher = new SystemContextSwitcher(threadPool);
     }
 
     @AfterClass

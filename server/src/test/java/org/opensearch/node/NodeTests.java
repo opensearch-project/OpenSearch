@@ -44,6 +44,7 @@ import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
@@ -478,7 +479,8 @@ public class NodeTests extends OpenSearchTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            MetricsRegistry metricsRegistry
+            MetricsRegistry metricsRegistry,
+            ContextSwitcher contextSwitcher
         ) {
             return List.of(new MockTelemetryAwareComponent(tracer, metricsRegistry));
         }

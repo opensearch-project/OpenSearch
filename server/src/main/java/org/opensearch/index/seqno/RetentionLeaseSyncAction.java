@@ -49,7 +49,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -87,7 +87,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
     public static final String ACTION_NAME = "indices:admin/seq_no/retention_lease_sync";
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
-    private final InternalContextSwitcher contextSwitcher;
+    private final SystemContextSwitcher contextSwitcher;
 
     protected Logger getLogger() {
         return LOGGER;
@@ -123,7 +123,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             systemIndices,
             tracer
         );
-        this.contextSwitcher = new InternalContextSwitcher(threadPool);
+        this.contextSwitcher = new SystemContextSwitcher(threadPool);
     }
 
     @Override
@@ -138,10 +138,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         RetentionLeases retentionLeases,
         ActionListener<ReplicationResponse> listener
     ) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
-            // we have to execute under the system context so that if security is enabled the sync is authorized
-            threadContext.markAsSystemContext();
             final Request request = new Request(shardId, retentionLeases);
             final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_sync", request);
             transportService.sendChildRequest(

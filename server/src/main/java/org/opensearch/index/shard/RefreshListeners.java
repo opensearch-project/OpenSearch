@@ -38,8 +38,8 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.RunOnce;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.threadpool.ThreadPool;
@@ -110,7 +110,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         this.forceRefresh = forceRefresh;
         this.logger = logger;
         this.threadPool = threadPool;
-        this.contextSwitcher = new InternalContextSwitcher(threadPool);
+        this.contextSwitcher = new SystemContextSwitcher(threadPool);
         this.refreshMetric = refreshMetric;
     }
 

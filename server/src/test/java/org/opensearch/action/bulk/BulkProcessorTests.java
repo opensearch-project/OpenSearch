@@ -38,7 +38,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -76,7 +76,7 @@ public class BulkProcessorTests extends OpenSearchTestCase {
     @Before
     public void startThreadPool() {
         threadPool = new TestThreadPool("BulkProcessorTests");
-        contextSwitcher = new InternalContextSwitcher(threadPool);
+        contextSwitcher = new SystemContextSwitcher(threadPool);
     }
 
     @After

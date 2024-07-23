@@ -47,7 +47,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
@@ -213,7 +213,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.nodePredicate = nodePredicate;
         this.configuredSeedNodes = configuredSeedNodes;
         this.seedNodes = seedNodes;
-        this.contextSwitcher = new InternalContextSwitcher(transportService.getThreadPool());
+        this.contextSwitcher = new SystemContextSwitcher(transportService.getThreadPool());
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
@@ -351,9 +351,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                         new SniffClusterStateResponseHandler(connection, listener, seedNodes)
                     );
                 try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
-                    // we stash any context here since this is an internal execution and should not leak any
-                    // existing context information.
-                    threadContext.markAsSystemContext();
                     transportService.sendRequest(
                         connection,
                         ClusterStateAction.NAME,

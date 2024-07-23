@@ -20,10 +20,10 @@ import java.util.Map;
  * @opensearch.internal
  */
 @InternalApi
-public class InternalContextSwitcher implements ContextSwitcher {
+public class SystemContextSwitcher implements ContextSwitcher {
     private final ThreadPool threadPool;
 
-    public InternalContextSwitcher(ThreadPool threadPool) {
+    public SystemContextSwitcher(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
 

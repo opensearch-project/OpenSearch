@@ -40,7 +40,7 @@ import org.opensearch.Version;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
@@ -102,7 +102,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
         TransportKeepAlive keepAlive
     ) {
         this.threadPool = threadPool;
-        this.contextSwitcher = new InternalContextSwitcher(threadPool);
+        this.contextSwitcher = new SystemContextSwitcher(threadPool);
         this.outboundHandler = new NativeOutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays, outboundHandler);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handshaker = handshaker;

@@ -36,7 +36,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.InternalContextSwitcher;
+import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -61,7 +61,7 @@ public final class OriginSettingClient extends FilterClient {
     public OriginSettingClient(Client in, String origin) {
         super(in);
         this.origin = origin;
-        this.contextSwitcher = new InternalContextSwitcher(in().threadPool());
+        this.contextSwitcher = new SystemContextSwitcher(in().threadPool());
     }
 
     @Override
