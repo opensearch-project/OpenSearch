@@ -67,7 +67,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     // Used for metric CACHE_STATS, to determine which caches to report stats for
     private EnumSet<CacheType> includeCaches = EnumSet.noneOf(CacheType.class);
     private String[] levels = new String[0];
-    private boolean aggregateNodeIndicesStatsResponsesOnLevel = false;
+    private boolean includeIndicesStatsByLevel = false;
 
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
@@ -102,7 +102,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             levels = in.readStringArray();
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            aggregateNodeIndicesStatsResponsesOnLevel = in.readBoolean();
+            includeIndicesStatsByLevel = in.readBoolean();
         }
     }
 
@@ -129,7 +129,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             out.writeStringArrayNullable(levels);
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeBoolean(aggregateNodeIndicesStatsResponsesOnLevel);
+            out.writeBoolean(includeIndicesStatsByLevel);
         }
     }
 
@@ -269,12 +269,12 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         return this.includeSegmentFileSizes;
     }
 
-    public void setAggregateNodeIndicesStatsResponsesOnLevel(boolean aggregateNodeIndicesStatsResponsesOnLevel) {
-        this.aggregateNodeIndicesStatsResponsesOnLevel = aggregateNodeIndicesStatsResponsesOnLevel;
+    public void setIncludeIndicesStatsByLevel(boolean includeIndicesStatsByLevel) {
+        this.includeIndicesStatsByLevel = includeIndicesStatsByLevel;
     }
 
-    public boolean getAggregateNodeIndicesStatsResponsesOnLevel() {
-        return this.aggregateNodeIndicesStatsResponsesOnLevel;
+    public boolean getIncludeIndicesStatsByLevel() {
+        return this.includeIndicesStatsByLevel;
     }
 
     public boolean isSet(Flag flag) {

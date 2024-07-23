@@ -266,9 +266,9 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
     public void testNodeIndicesStatsWithoutAggregationOnNodes() {
         List<String> testLevels = new ArrayList<>();
         testLevels.add("null");
-        testLevels.add(NodeIndicesStats.Fields.NODE.getRestName());
-        testLevels.add(NodeIndicesStats.Fields.INDICES.getRestName());
-        testLevels.add(NodeIndicesStats.Fields.SHARDS.getRestName());
+        testLevels.add(NodeIndicesStats.StatsLevel.NODE.getRestName());
+        testLevels.add(NodeIndicesStats.StatsLevel.INDICES.getRestName());
+        testLevels.add(NodeIndicesStats.StatsLevel.SHARDS.getRestName());
         testLevels.add("unknown");
 
         internalCluster().startNode();
@@ -307,9 +307,9 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                     builder.endObject();
 
                     Map<String, Object> xContentMap = xContentBuilderToMap(builder);
-                    LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
-                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES));
-                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS));
+                    LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
+                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES));
+                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS));
 
                     // With param containing level as 'indices', the indices stats are returned
                     builder = XContentFactory.jsonBuilder();
@@ -317,16 +317,16 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                     builder = nodeStats.getIndices()
                         .toXContent(
                             builder,
-                            new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.INDICES.getRestName()))
+                            new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.StatsLevel.INDICES.getRestName()))
                         );
                     builder.endObject();
 
                     xContentMap = xContentBuilderToMap(builder);
-                    indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
-                    assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
-                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
+                    indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
+                    assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES.getRestName()));
+                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS.getRestName()));
 
-                    LinkedHashMap indexLevelStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
+                    LinkedHashMap indexLevelStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
                     assertTrue(indexLevelStats.containsKey(indexName));
 
                     // With param containing level as 'shards', the shard stats are returned
@@ -335,16 +335,16 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                     builder = nodeStats.getIndices()
                         .toXContent(
                             builder,
-                            new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.SHARDS.getRestName()))
+                            new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.StatsLevel.SHARDS.getRestName()))
                         );
                     builder.endObject();
 
                     xContentMap = xContentBuilderToMap(builder);
-                    indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
-                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
-                    assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
+                    indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
+                    assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES.getRestName()));
+                    assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS.getRestName()));
 
-                    LinkedHashMap shardLevelStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS.getRestName());
+                    LinkedHashMap shardLevelStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.StatsLevel.SHARDS.getRestName());
                     assertTrue(shardLevelStats.containsKey(indexName));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -358,13 +358,13 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
      * individual data nodes instead and pre-compute information as required.
      */
     public void testNodeIndicesStatsWithAggregationOnNodes() {
-        List<MockFields> testLevels = new ArrayList<>();
+        List<MockStatsLevel> testLevels = new ArrayList<>();
 
-        testLevels.add(MockFields.NULL);
-        testLevels.add(MockFields.NODE);
-        testLevels.add(MockFields.INDICES);
-        testLevels.add(MockFields.SHARDS);
-        testLevels.add(MockFields.UNKNOWN);
+        testLevels.add(MockStatsLevel.NULL);
+        testLevels.add(MockStatsLevel.NODE);
+        testLevels.add(MockStatsLevel.INDICES);
+        testLevels.add(MockStatsLevel.SHARDS);
+        testLevels.add(MockStatsLevel.UNKNOWN);
 
         internalCluster().startNode();
         ensureGreen();
@@ -381,8 +381,8 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         testLevels.forEach(testLevel -> {
             NodesStatsResponse response;
             CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
-            commonStatsFlags.setAggregateNodeIndicesStatsResponsesOnLevel(true);
-            if (!testLevel.equals(MockFields.NULL)) {
+            commonStatsFlags.setIncludeIndicesStatsByLevel(true);
+            if (!testLevel.equals(MockStatsLevel.NULL)) {
                 ArrayList<String> level_arg = new ArrayList<>();
                 level_arg.add(testLevel.getRestName());
 
@@ -398,14 +398,14 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                     builder = nodeStats.getIndices()
                         .toXContent(
                             builder,
-                            new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.SHARDS.getRestName()))
+                            new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.StatsLevel.SHARDS.getRestName()))
                         );
                     builder.endObject();
 
                     Map<String, Object> xContentMap = xContentBuilderToMap(builder);
-                    LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
-                    LinkedHashMap indicesStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
-                    LinkedHashMap shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS.getRestName());
+                    LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
+                    LinkedHashMap indicesStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
+                    LinkedHashMap shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.StatsLevel.SHARDS.getRestName());
                     switch (testLevel) {
                         case SHARDS:
                             assertFalse(shardStats.isEmpty());
@@ -426,14 +426,14 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                     builder = nodeStats.getIndices()
                         .toXContent(
                             builder,
-                            new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.Fields.INDICES.getRestName()))
+                            new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.StatsLevel.INDICES.getRestName()))
                         );
                     builder.endObject();
 
                     xContentMap = xContentBuilderToMap(builder);
-                    indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
-                    indicesStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
-                    shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.Fields.SHARDS.getRestName());
+                    indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
+                    indicesStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
+                    shardStats = (LinkedHashMap) indicesStatsMap.get(NodeIndicesStats.StatsLevel.SHARDS.getRestName());
                     switch (testLevel) {
                         case SHARDS:
                         case INDICES:
@@ -488,16 +488,16 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         expectedDocStatusStats.inc(ExceptionsHelper.status(e));
     }
 
-    private enum MockFields {
-        INDICES(NodeIndicesStats.Fields.INDICES.getRestName()),
-        SHARDS(NodeIndicesStats.Fields.SHARDS.getRestName()),
-        NODE(NodeIndicesStats.Fields.NODE.getRestName()),
+    private enum MockStatsLevel {
+        INDICES(NodeIndicesStats.StatsLevel.INDICES.getRestName()),
+        SHARDS(NodeIndicesStats.StatsLevel.SHARDS.getRestName()),
+        NODE(NodeIndicesStats.StatsLevel.NODE.getRestName()),
         NULL("null"),
         UNKNOWN("unknown");
 
         private final String restName;
 
-        MockFields(String restName) {
+        MockStatsLevel(String restName) {
             this.restName = restName;
         }
 

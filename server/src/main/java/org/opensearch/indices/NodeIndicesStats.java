@@ -145,7 +145,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             this.stats.search.setSearchRequestStats(searchRequestStats);
         }
 
-        Fields level = getFirstAcceptedLevel(levels);
+        StatsLevel level = getAcceptedLevel(levels);
         if (level != null) {
             switch (level) {
                 case INDICES:
@@ -162,12 +162,12 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      * By default, the levels passed from the transport action will be a list of strings, since NodeIndicesStats can
      * only aggregate on one level, we pick the first accepted level else we ignore if no known level is passed.
      * @param levels - levels sent in the request.
-     * @return Corresponding identified enum {@link Fields}
+     * @return Corresponding identified enum {@link StatsLevel}
      */
-    private static Fields getFirstAcceptedLevel(String[] levels) {
-        if (levels != null) {
-            Optional<Fields> level = Arrays.stream(levels)
-                .flatMap(passedLevel -> Arrays.stream(Fields.values()).filter(field -> field.getRestName().equals(passedLevel)))
+    private static StatsLevel getAcceptedLevel(String[] levels) {
+        if (levels != null && levels.length > 0) {
+            Optional<StatsLevel> level = Arrays.stream(StatsLevel.values())
+                .filter(field -> field.getRestName().equals(levels[0]))
                 .findFirst();
             return level.orElse(null);
         }
@@ -318,19 +318,19 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final String level = params.param("level", Fields.NODE.getRestName());
-        final boolean isLevelValid = Fields.NODE.getRestName().equalsIgnoreCase(level)
-            || Fields.INDICES.getRestName().equalsIgnoreCase(level)
-            || Fields.SHARDS.getRestName().equalsIgnoreCase(level);
+        final String level = params.param("level", StatsLevel.NODE.getRestName());
+        final boolean isLevelValid = StatsLevel.NODE.getRestName().equalsIgnoreCase(level)
+            || StatsLevel.INDICES.getRestName().equalsIgnoreCase(level)
+            || StatsLevel.SHARDS.getRestName().equalsIgnoreCase(level);
         if (!isLevelValid) {
             throw new IllegalArgumentException(
                 "level parameter must be one of ["
-                    + Fields.INDICES.getRestName()
+                    + StatsLevel.INDICES.getRestName()
                     + "] or "
                     + "["
-                    + Fields.NODE.getRestName()
+                    + StatsLevel.NODE.getRestName()
                     + "] or ["
-                    + Fields.SHARDS.getRestName()
+                    + StatsLevel.SHARDS.getRestName()
                     + "] but was ["
                     + level
                     + "]"
@@ -338,14 +338,14 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         // "node" level
-        builder.startObject(Fields.INDICES.getRestName());
+        builder.startObject(StatsLevel.INDICES.getRestName());
         stats.toXContent(builder, params);
 
-        if (Fields.INDICES.getRestName().equals(level)) {
+        if (StatsLevel.INDICES.getRestName().equals(level)) {
             if (statsByIndex == null && statsByShard != null) {
                 statsByIndex = createStatsByIndex(statsByShard);
             }
-            builder.startObject(Fields.INDICES.getRestName());
+            builder.startObject(StatsLevel.INDICES.getRestName());
             if (statsByIndex != null) {
                 for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
                     builder.startObject(entry.getKey().getName());
@@ -354,8 +354,8 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
                 }
             }
             builder.endObject();
-        } else if (Fields.SHARDS.getRestName().equals(level)) {
-            builder.startObject(Fields.SHARDS.getRestName());
+        } else if (StatsLevel.SHARDS.getRestName().equals(level)) {
+            builder.startObject(StatsLevel.SHARDS.getRestName());
             if (statsByShard != null) {
                 for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
                     builder.startArray(entry.getKey().getName());
@@ -407,14 +407,14 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      * @opensearch.internal
      */
     @PublicApi(since = "2.0.0")
-    public enum Fields {
+    public enum StatsLevel {
         INDICES("indices"),
         SHARDS("shards"),
         NODE("node");
 
         private final String restName;
 
-        Fields(String restName) {
+        StatsLevel(String restName) {
             this.restName = restName;
         }
 
@@ -423,7 +423,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         public static List<String> acceptedValues() {
-            return Arrays.stream(Fields.values()).map(Fields::getRestName).collect(Collectors.toList());
+            return Arrays.stream(StatsLevel.values()).map(StatsLevel::getRestName).collect(Collectors.toList());
         }
     }
 }

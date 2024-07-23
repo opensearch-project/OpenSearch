@@ -73,6 +73,10 @@ import org.opensearch.gateway.remote.RemotePersistenceStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationRejectionStats;
+import org.opensearch.index.cache.query.QueryCacheStats;
+import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.fielddata.FieldDataStats;
+import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
 import org.opensearch.index.shard.DocsStats;
@@ -98,6 +102,7 @@ import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
+import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPoolStats;
@@ -1128,6 +1133,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
         commonStats.store = new StoreStats(100, 0L);
         commonStats.indexing = new IndexingStats();
+        DocsStats hostDocStats = new DocsStats(numDocs, numDeletedDocs, 0);
 
         CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
         commonStatsFlags.clear();
@@ -1152,7 +1158,6 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     ShardStats shardStats = Arrays.stream(indexShardStats.getShards()).findFirst().get();
                     DocsStats incomingDocStats = shardStats.getStats().docs;
 
-                    DocsStats hostDocStats = new DocsStats(numDocs, numDeletedDocs, 0);
                     assertEquals(incomingDocStats.getCount(), hostDocStats.getCount());
                     assertEquals(incomingDocStats.getTotalSizeInBytes(), hostDocStats.getTotalSizeInBytes());
                     assertEquals(incomingDocStats.getAverageSizeInBytes(), hostDocStats.getAverageSizeInBytes());
@@ -1165,10 +1170,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
     public void testNodeIndicesStatsSerialization() throws IOException {
         long numDocs = randomLongBetween(0, 10000);
         long numDeletedDocs = randomLongBetween(0, 100);
-        List<NodeIndicesStats.Fields> levelParams = new ArrayList<>();
-        levelParams.add(NodeIndicesStats.Fields.INDICES);
-        levelParams.add(NodeIndicesStats.Fields.SHARDS);
-        levelParams.add(NodeIndicesStats.Fields.NODE);
+        List<NodeIndicesStats.StatsLevel> levelParams = new ArrayList<>();
+        levelParams.add(NodeIndicesStats.StatsLevel.INDICES);
+        levelParams.add(NodeIndicesStats.StatsLevel.SHARDS);
+        levelParams.add(NodeIndicesStats.StatsLevel.NODE);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
         commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
@@ -1180,7 +1185,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
-        commonStatsFlags.setAggregateNodeIndicesStatsResponsesOnLevel(true);
+        commonStatsFlags.setIncludeIndicesStatsByLevel(true);
 
         levelParams.forEach(levelParam -> {
             ArrayList<String> level_arg = new ArrayList<>();
@@ -1221,10 +1226,10 @@ public class NodeStatsTests extends OpenSearchTestCase {
     public void testNodeIndicesStatsToXContent() {
         long numDocs = randomLongBetween(0, 10000);
         long numDeletedDocs = randomLongBetween(0, 100);
-        List<NodeIndicesStats.Fields> levelParams = new ArrayList<>();
-        levelParams.add(NodeIndicesStats.Fields.INDICES);
-        levelParams.add(NodeIndicesStats.Fields.SHARDS);
-        levelParams.add(NodeIndicesStats.Fields.NODE);
+        List<NodeIndicesStats.StatsLevel> levelParams = new ArrayList<>();
+        levelParams.add(NodeIndicesStats.StatsLevel.INDICES);
+        levelParams.add(NodeIndicesStats.StatsLevel.SHARDS);
+        levelParams.add(NodeIndicesStats.StatsLevel.NODE);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
 
         commonStats.docs = new DocsStats(numDocs, numDeletedDocs, 0);
@@ -1236,7 +1241,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
         commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
-        commonStatsFlags.setAggregateNodeIndicesStatsResponsesOnLevel(true);
+        commonStatsFlags.setIncludeIndicesStatsByLevel(true);
 
         levelParams.forEach(levelParam -> {
             ArrayList<String> level_arg = new ArrayList<>();
@@ -1259,20 +1264,20 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 builder.endObject();
 
                 Map<String, Object> xContentMap = xContentBuilderToMap(builder);
-                LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.Fields.INDICES.getRestName());
+                LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
 
                 switch (levelParam) {
                     case NODE:
-                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
-                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS.getRestName()));
                         break;
                     case INDICES:
-                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
-                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
+                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS.getRestName()));
                         break;
                     case SHARDS:
-                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.Fields.INDICES.getRestName()));
-                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.Fields.SHARDS.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES.getRestName()));
+                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS.getRestName()));
                         break;
                 }
             } catch (IOException e) {
@@ -1280,6 +1285,137 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
 
         });
+    }
+
+    public void testNodeIndicesStatsWithAndWithoutAggregations() throws IOException {
+
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags(
+            CommonStatsFlags.Flag.Docs,
+            CommonStatsFlags.Flag.Store,
+            CommonStatsFlags.Flag.Indexing,
+            CommonStatsFlags.Flag.Completion,
+            CommonStatsFlags.Flag.Flush,
+            CommonStatsFlags.Flag.FieldData,
+            CommonStatsFlags.Flag.QueryCache,
+            CommonStatsFlags.Flag.Segments
+        );
+
+        int numberOfIndexes = randomIntBetween(1, 3);
+        List<Index> indexList = new ArrayList<>();
+        for (int i = 0; i < numberOfIndexes; i++) {
+            Index index = new Index("test-index-" + i, "_na_");
+            indexList.add(index);
+        }
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        HashMap<Index, List<IndexShardStats>> statsByShards = createRandomShardByStats(indexList);
+
+        final MockNodeIndicesStats nonAggregatedNodeIndicesStats = new MockNodeIndicesStats(
+            new CommonStats(commonStatsFlags),
+            statsByShards,
+            new SearchRequestStats(clusterSettings)
+        );
+
+        commonStatsFlags.setIncludeIndicesStatsByLevel(true);
+
+        NodeIndicesStats.StatsLevel.acceptedValues().forEach(level -> {
+            List<String> levelList = new ArrayList<>();
+            levelList.add(level);
+
+            MockNodeIndicesStats aggregatedNodeIndicesStats = new MockNodeIndicesStats(
+                new CommonStats(commonStatsFlags),
+                statsByShards,
+                new SearchRequestStats(clusterSettings),
+                levelList.toArray(new String[0])
+            );
+
+            XContentBuilder nonAggregatedBuilder = null;
+            XContentBuilder aggregatedBuilder = null;
+            try {
+                nonAggregatedBuilder = XContentFactory.jsonBuilder();
+                nonAggregatedBuilder.startObject();
+                nonAggregatedBuilder = nonAggregatedNodeIndicesStats.toXContent(
+                    nonAggregatedBuilder,
+                    new ToXContent.MapParams(Collections.singletonMap("level", level))
+                );
+                nonAggregatedBuilder.endObject();
+                Map<String, Object> nonAggregatedContentMap = xContentBuilderToMap(nonAggregatedBuilder);
+
+                aggregatedBuilder = XContentFactory.jsonBuilder();
+                aggregatedBuilder.startObject();
+                aggregatedBuilder = aggregatedNodeIndicesStats.toXContent(
+                    aggregatedBuilder,
+                    new ToXContent.MapParams(Collections.singletonMap("level", level))
+                );
+                aggregatedBuilder.endObject();
+                Map<String, Object> aggregatedContentMap = xContentBuilderToMap(aggregatedBuilder);
+
+                assertEquals(aggregatedContentMap, nonAggregatedContentMap);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private CommonStats createRandomCommonStats() {
+        CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+        commonStats.docs = new DocsStats(randomLongBetween(0, 10000), randomLongBetween(0, 100), randomLongBetween(0, 1000));
+        commonStats.store = new StoreStats(randomLongBetween(0, 100), randomLongBetween(0, 1000));
+        commonStats.indexing = new IndexingStats();
+        commonStats.completion = new CompletionStats();
+        commonStats.flush = new FlushStats(randomLongBetween(0, 100), randomLongBetween(0, 100), randomLongBetween(0, 100));
+        commonStats.fieldData = new FieldDataStats(randomLongBetween(0, 100), randomLongBetween(0, 100), null);
+        commonStats.queryCache = new QueryCacheStats(
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100),
+            randomLongBetween(0, 100)
+        );
+        commonStats.segments = new SegmentsStats();
+
+        return commonStats;
+    }
+
+    private HashMap<Index, List<IndexShardStats>> createRandomShardByStats(List<Index> indexes) {
+        DiscoveryNode localNode = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
+        HashMap<Index, List<IndexShardStats>> statsByShards = new HashMap<>();
+        indexes.forEach(index -> {
+            List<IndexShardStats> indexShardStatsList = new ArrayList<>();
+
+            int numberOfShards = randomIntBetween(1, 4);
+            for (int i = 0; i < numberOfShards; i++) {
+                ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
+
+                ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                    index.getName(),
+                    i,
+                    localNode.getId(),
+                    randomBoolean(),
+                    shardRoutingState
+                );
+
+                Path path = createTempDir().resolve("indices")
+                    .resolve(shardRouting.shardId().getIndex().getUUID())
+                    .resolve(String.valueOf(shardRouting.shardId().id()));
+
+                ShardStats shardStats = new ShardStats(
+                    shardRouting,
+                    new ShardPath(false, path, path, shardRouting.shardId()),
+                    createRandomCommonStats(),
+                    null,
+                    null,
+                    null
+                );
+                List<ShardStats> shardStatsList = new ArrayList<>();
+                shardStatsList.add(shardStats);
+                IndexShardStats indexShardStats = new IndexShardStats(shardRouting.shardId(), shardStatsList.toArray(new ShardStats[0]));
+                indexShardStatsList.add(indexShardStats);
+            }
+            statsByShards.put(index, indexShardStatsList);
+        });
+
+        return statsByShards;
     }
 
     private Map<String, Object> xContentBuilderToMap(XContentBuilder xContentBuilder) {
@@ -1325,7 +1461,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        if (commonStatsFlags.getAggregateNodeIndicesStatsResponsesOnLevel()) {
+        if (commonStatsFlags.getIncludeIndicesStatsByLevel()) {
             return new MockNodeIndicesStats(
                 new CommonStats(commonStatsFlags),
                 statsByShard,
