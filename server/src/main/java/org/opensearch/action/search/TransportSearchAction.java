@@ -174,7 +174,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchPipelineService searchPipelineService;
     private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
     private final Tracer tracer;
-    private final SearchTaskRequestOperationsListener searchTaskRequestOperationsListener;
 
     private final MetricsRegistry metricsRegistry;
 
@@ -216,7 +215,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
         this.tracer = tracer;
         this.taskResourceTrackingService = taskResourceTrackingService;
-        this.searchTaskRequestOperationsListener = new SearchTaskRequestOperationsListener(taskResourceTrackingService);
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -435,8 +433,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             requestOperationsListeners = searchRequestOperationsCompositeListenerFactory.buildCompositeListener(
                 originalSearchRequest,
                 logger,
-                TraceableSearchRequestOperationsListener.create(tracer, requestSpan),
-                searchTaskRequestOperationsListener
+                TraceableSearchRequestOperationsListener.create(tracer, requestSpan)
             );
             SearchRequestContext searchRequestContext = new SearchRequestContext(
                 requestOperationsListeners,

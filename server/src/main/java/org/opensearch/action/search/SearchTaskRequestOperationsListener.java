@@ -16,10 +16,10 @@ import org.opensearch.tasks.TaskResourceTrackingService;
  * upon request completion.
  *
  */
-final class SearchTaskRequestOperationsListener extends SearchRequestOperationsListener {
+public final class SearchTaskRequestOperationsListener extends SearchRequestOperationsListener {
     private final TaskResourceTrackingService taskResourceTrackingService;
 
-    SearchTaskRequestOperationsListener(TaskResourceTrackingService taskResourceTrackingService) {
+    public SearchTaskRequestOperationsListener(TaskResourceTrackingService taskResourceTrackingService) {
         this.taskResourceTrackingService = taskResourceTrackingService;
     }
 
