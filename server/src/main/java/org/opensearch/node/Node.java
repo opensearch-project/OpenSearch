@@ -67,6 +67,8 @@ import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -667,10 +669,19 @@ public class Node implements Closeable {
             resourcesToClose.add(clusterService);
             final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
             if (consistentSettings.isEmpty() == false) {
-                clusterService.addLocalNodeMasterListener(
+                clusterService.addLocalNodeClusterManagerListener(
                     new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
                 );
             }
+
+            SystemTemplatesService systemTemplatesService = new SystemTemplatesService(
+                pluginsService.filterPlugins(SystemTemplatesPlugin.class),
+                threadPool,
+                clusterService.getClusterSettings(),
+                settings
+            );
+            systemTemplatesService.verifyRepositories();
+            clusterService.addLocalNodeClusterManagerListener(systemTemplatesService);
 
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
@@ -697,7 +708,10 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(SystemIndexPlugin.class)
                     .stream()
                     .collect(
-                        Collectors.toMap(plugin -> plugin.getClass().getSimpleName(), plugin -> plugin.getSystemIndexDescriptors(settings))
+                        Collectors.toMap(
+                            plugin -> plugin.getClass().getCanonicalName(),
+                            plugin -> plugin.getSystemIndexDescriptors(settings)
+                        )
                     )
             );
             final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);

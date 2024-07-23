@@ -14,8 +14,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix race condition while parsing derived fields from search definition ([14445](https://github.com/opensearch-project/OpenSearch/pull/14445))
 - Add `strict_allow_templates` dynamic mapping option ([#14555](https://github.com/opensearch-project/OpenSearch/pull/14555))
 - Add allowlist setting for ingest-common and search-pipeline-common processors ([#14439](https://github.com/opensearch-project/OpenSearch/issues/14439))
+- [Workload Management] add queryGroupId header propagator across requests and nodes ([#14614](https://github.com/opensearch-project/OpenSearch/pull/14614))
 - Create SystemIndexRegistry with helper method matchesSystemIndex ([#14415](https://github.com/opensearch-project/OpenSearch/pull/14415))
 - Print reason why parent task was cancelled ([#14604](https://github.com/opensearch-project/OpenSearch/issues/14604))
+- Add matchesPluginSystemIndexPattern to SystemIndexRegistry ([#14750](https://github.com/opensearch-project/OpenSearch/pull/14750))
+- Add Plugin interface for loading application based configuration templates (([#14659](https://github.com/opensearch-project/OpenSearch/issues/14659)))
+- Refactor remote-routing-table service inline with remote state interfaces([#14668](https://github.com/opensearch-project/OpenSearch/pull/14668))
+- Add SortResponseProcessor to Search Pipelines (([#14785](https://github.com/opensearch-project/OpenSearch/issues/14785)))
+- Add prefix mode verification setting for repository verification (([#14790](https://github.com/opensearch-project/OpenSearch/pull/14790)))
+- Add SplitResponseProcessor to Search Pipelines (([#14800](https://github.com/opensearch-project/OpenSearch/issues/14800)))
+- Optimize TransportNodesAction to not send DiscoveryNodes for NodeStats, NodesInfo and ClusterStats call ([14749](https://github.com/opensearch-project/OpenSearch/pull/14749))
+- Refactor remote-routing-table service inline with remote state interfaces([#14668](https://github.com/opensearch-project/OpenSearch/pull/14668))
+- Reduce logging in DEBUG for MasterService:run ([#14795](https://github.com/opensearch-project/OpenSearch/pull/14795))
+- Enabling term version check on local state for all ClusterManager Read Transport Actions ([#14273](https://github.com/opensearch-project/OpenSearch/pull/14273))
+- Add rest, transport layer changes for hot to warm tiering - dedicated setup (([#13980](https://github.com/opensearch-project/OpenSearch/pull/13980))
 - Optimize Cluster Stats Indices to precomute node level stats ([#14426](https://github.com/opensearch-project/OpenSearch/pull/14426))
 
 ### Dependencies
@@ -27,12 +39,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `commons-net:commons-net` from 3.10.0 to 3.11.1 ([#14396](https://github.com/opensearch-project/OpenSearch/pull/14396))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 9.37.3 to 9.40 ([#14398](https://github.com/opensearch-project/OpenSearch/pull/14398))
 - Bump `org.apache.commons:commons-configuration2` from 2.10.1 to 2.11.0 ([#14399](https://github.com/opensearch-project/OpenSearch/pull/14399))
-- Bump `com.gradle.develocity` from 3.17.4 to 3.17.5 ([#14397](https://github.com/opensearch-project/OpenSearch/pull/14397))
+- Bump `com.gradle.develocity` from 3.17.4 to 3.17.6 ([#14397](https://github.com/opensearch-project/OpenSearch/pull/14397), [#14856](https://github.com/opensearch-project/OpenSearch/pull/14856))
 - Bump `opentelemetry` from 1.36.0 to 1.40.0 ([#14457](https://github.com/opensearch-project/OpenSearch/pull/14457), [#14674](https://github.com/opensearch-project/OpenSearch/pull/14674))
 - Bump `opentelemetry-semconv` from 1.25.0-alpha to 1.26.0-alpha ([#14674](https://github.com/opensearch-project/OpenSearch/pull/14674))
 - Bump `azure-identity` from 1.11.4 to 1.13.0, Bump `msal4j` from 1.14.3 to 1.15.1, Bump `msal4j-persistence-extension` from 1.2.0 to 1.3.0 ([#14506](https://github.com/opensearch-project/OpenSearch/pull/14673))
 - Bump `com.azure:azure-storage-common` from 12.21.2 to 12.25.1 ([#14517](https://github.com/opensearch-project/OpenSearch/pull/14517))
-- Bump `com.microsoft.azure:msal4j` from 1.15.1 to 1.16.0 ([#14610](https://github.com/opensearch-project/OpenSearch/pull/14610))
+- Bump `com.microsoft.azure:msal4j` from 1.15.1 to 1.16.1 ([#14610](https://github.com/opensearch-project/OpenSearch/pull/14610), [#14857](https://github.com/opensearch-project/OpenSearch/pull/14857))
 - Bump `com.github.spullara.mustache.java:compiler` from 0.9.13 to 0.9.14 ([#14672](https://github.com/opensearch-project/OpenSearch/pull/14672))
 - Bump `net.minidev:accessors-smart` from 2.5.0 to 2.5.1 ([#14673](https://github.com/opensearch-project/OpenSearch/pull/14673))
 - Bump `jackson` from 2.17.1 to 2.17.2 ([#14687](https://github.com/opensearch-project/OpenSearch/pull/14687))
@@ -48,10 +60,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow system index warning in OpenSearchRestTestCase.refreshAllIndices ([#14635](https://github.com/opensearch-project/OpenSearch/pull/14635))
 
 ### Deprecated
+- Deprecate batch_size parameter on bulk API ([#14725](https://github.com/opensearch-project/OpenSearch/pull/14725))
 
 ### Removed
+- Remove query categorization changes ([#14759](https://github.com/opensearch-project/OpenSearch/pull/14759))
 
 ### Fixed
+- Fix allowUnmappedFields, mapUnmappedFieldAsString settings are not applied when parsing certain types of query string query ([#13957](https://github.com/opensearch-project/OpenSearch/pull/13957))
 - Fix bug in SBP cancellation logic ([#13259](https://github.com/opensearch-project/OpenSearch/pull/13474))
 - Fix handling of Short and Byte data types in ScriptProcessor ingest pipeline ([#14379](https://github.com/opensearch-project/OpenSearch/issues/14379))
 - Switch to iterative version of WKT format parser ([#14086](https://github.com/opensearch-project/OpenSearch/pull/14086))
@@ -69,6 +84,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Refactoring FilterPath.parse by using an iterative approach ([#14200](https://github.com/opensearch-project/OpenSearch/pull/14200))
 - Refactoring Grok.validatePatternBank by using an iterative approach ([#14206](https://github.com/opensearch-project/OpenSearch/pull/14206))
 - Update help output for _cat ([#14722](https://github.com/opensearch-project/OpenSearch/pull/14722))
+- Fix bulk upsert ignores the default_pipeline and final_pipeline when auto-created index matches the index template ([#12891](https://github.com/opensearch-project/OpenSearch/pull/12891))
+- Fix NPE in ReplicaShardAllocator ([#14385](https://github.com/opensearch-project/OpenSearch/pull/14385))
+- Use circuit breaker in InternalHistogram when adding empty buckets ([#14754](https://github.com/opensearch-project/OpenSearch/pull/14754))
+- Fix searchable snapshot failure with scripted fields ([#14411](https://github.com/opensearch-project/OpenSearch/pull/14411))
 
 ### Security
 
