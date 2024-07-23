@@ -33,6 +33,7 @@
 package org.opensearch.cluster;
 
 import org.opensearch.Version;
+import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -69,6 +70,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     final Map<ShardRouting, String> routingToDataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
     final Map<String, FileCacheStats> nodeFileCacheStats;
+    private long avgTotalBytes;
+    private long avgFreeByte;
 
     protected ClusterInfo() {
         this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
@@ -98,6 +101,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         this.routingToDataPath = routingToDataPath;
         this.reservedSpace = reservedSpace;
         this.nodeFileCacheStats = nodeFileCacheStats;
+        calculateAvgFreeAndTotalBytes(mostAvailableSpaceUsage);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -122,6 +126,39 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         } else {
             this.nodeFileCacheStats = Map.of();
         }
+
+        calculateAvgFreeAndTotalBytes(mostAvailableSpaceUsage);
+    }
+
+    /**
+     * Returns a {@link DiskUsage} for the {@link RoutingNode} using the
+     * average usage of other nodes in the disk usage map.
+     * @param usages Map of nodeId to DiskUsage for all known nodes
+     */
+    private void calculateAvgFreeAndTotalBytes(final Map<String, DiskUsage> usages) {
+        if (usages == null || usages.isEmpty()) {
+            this.avgTotalBytes = 0;
+            this.avgFreeByte = 0;
+            return;
+        }
+
+        long totalBytes = 0;
+        long freeBytes = 0;
+        for (DiskUsage du : usages.values()) {
+            totalBytes += du.getTotalBytes();
+            freeBytes += du.getFreeBytes();
+        }
+
+        this.avgTotalBytes = totalBytes / usages.size();
+        this.avgFreeByte = freeBytes / usages.size();
+    }
+
+    public long getAvgFreeByte() {
+        return avgFreeByte;
+    }
+
+    public long getAvgTotalBytes() {
+        return avgTotalBytes;
     }
 
     @Override
