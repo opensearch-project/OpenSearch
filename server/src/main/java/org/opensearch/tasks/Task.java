@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
  * Current task information
@@ -529,20 +530,20 @@ public class Task {
      * hence it is not possible to copy this header from request headers. This header is required to group the tasks into queryGroups to account for the QueryGroup level resource footprint
      * @param threadContext current thread context
      */
-    public void addQueryGroupHeaders(final ThreadContext threadContext) {
+    public void addHeader(final String headerName, final ThreadContext threadContext, final Supplier<String> defaultValueSupplier) {
         // For now this header will be coming from HTTP headers but in second phase this header
 
         // We will use this constant from QueryGroup Service once the framework changes are done
-        final String QUERY_GROUP_ID_HEADER = "queryGroupId";
-        String requestQueryGroupId = threadContext.getHeader(QUERY_GROUP_ID_HEADER);
 
-        if (requestQueryGroupId == null) {
-            requestQueryGroupId = "DEFAULT_QUERY_GROUP_ID"; // TODO: move this constant either to QueryGroupService or Tracking equivalent
+        String headerValue = threadContext.getHeader(headerName);
+
+        if (headerValue == null) {
+            headerValue = defaultValueSupplier.get();
         }
 
         final Map<String, String> newHeaders = new HashMap<>(headers);
 
-        newHeaders.put(QUERY_GROUP_ID_HEADER, requestQueryGroupId);
+        newHeaders.put(headerName, headerValue);
 
         this.headers = newHeaders;
     }

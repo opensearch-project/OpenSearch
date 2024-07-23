@@ -43,6 +43,7 @@ import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.QueryGroupConstants;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -253,9 +254,9 @@ public class TaskTests extends OpenSearchTestCase {
 
             threadPool.getThreadContext().putHeader("queryGroupId", "afakgkagj09532059");
 
-            task.addQueryGroupHeaders(threadPool.getThreadContext());
+            task.addHeader(QueryGroupConstants.QUERY_GROUP_ID_HEADER, threadPool.getThreadContext(), () -> "default_val");
 
-            String queryGroupId = task.getHeader("queryGroupId");
+            String queryGroupId = task.getHeader(QueryGroupConstants.QUERY_GROUP_ID_HEADER);
 
             assertEquals("afakgkagj09532059", queryGroupId);
         } finally {
@@ -275,11 +276,11 @@ public class TaskTests extends OpenSearchTestCase {
                 Collections.emptyMap()
             );
 
-            task.addQueryGroupHeaders(threadPool.getThreadContext());
+            task.addHeader(QueryGroupConstants.QUERY_GROUP_ID_HEADER, threadPool.getThreadContext(), () -> "default_val");
 
             String queryGroupId = task.getHeader("queryGroupId");
 
-            assertEquals("DEFAULT_QUERY_GROUP_ID", queryGroupId);
+            assertEquals("default_val", queryGroupId);
         } finally {
             threadPool.shutdown();
         }
