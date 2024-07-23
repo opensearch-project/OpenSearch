@@ -61,6 +61,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
@@ -134,7 +135,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile TimeValue slowTaskLoggingThreshold;
 
     protected final ThreadPool threadPool;
-    protected final InternalContextSwitcher contextSwitcher;
+    protected final ContextSwitcher contextSwitcher;
 
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;

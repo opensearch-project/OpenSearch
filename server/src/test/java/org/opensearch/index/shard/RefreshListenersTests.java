@@ -49,6 +49,7 @@ import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
@@ -106,7 +107,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
     private Engine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
-    private InternalContextSwitcher contextSwitcher;
+    private ContextSwitcher contextSwitcher;
     private Store store;
     private MeanMetric refreshMetric;
 

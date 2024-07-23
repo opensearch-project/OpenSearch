@@ -11,6 +11,8 @@ package org.opensearch.common.util.concurrent;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Map;
+
 /**
  * InternalContextSwitcher is an internal class used to switch into a fresh
  * internal system context
@@ -18,14 +20,19 @@ import org.opensearch.threadpool.ThreadPool;
  * @opensearch.internal
  */
 @InternalApi
-public class InternalContextSwitcher {
+public class InternalContextSwitcher implements ContextSwitcher {
     private final ThreadPool threadPool;
 
     public InternalContextSwitcher(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
 
+    @Override
     public ThreadContext.StoredContext switchContext() {
         return threadPool.getThreadContext().stashContext();
+    }
+
+    public ThreadContext.StoredContext stashAndMergeHeaders(Map<String, String> headers) {
+        return threadPool.getThreadContext().stashAndMergeHeaders(headers);
     }
 }

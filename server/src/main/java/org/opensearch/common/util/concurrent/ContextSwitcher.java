@@ -9,27 +9,13 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.threadpool.ThreadPool;
 
 /**
- * ContextSwitcher that is passed to plugins in order to switch to a fresh context
- * from any existing context
+ * ContextSwitcher interface
  *
  * @opensearch.api
  */
 @PublicApi(since = "2.17.0")
-public class ContextSwitcher {
-
-    private final ThreadPool threadPool;
-    private final Plugin plugin;
-
-    public ContextSwitcher(ThreadPool threadPool, Plugin plugin) {
-        this.threadPool = threadPool;
-        this.plugin = plugin;
-    }
-
-    public ThreadContext.StoredContext switchContext() {
-        return threadPool.getThreadContext().stashContext(plugin.getClass());
-    }
+public interface ContextSwitcher {
+    ThreadContext.StoredContext switchContext();
 }

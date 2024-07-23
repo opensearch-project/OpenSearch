@@ -40,6 +40,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.transport.NetworkExceptionHelper;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
@@ -60,7 +61,7 @@ public final class OutboundHandler {
 
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
-    private final InternalContextSwitcher contextSwitcher;
+    private final ContextSwitcher contextSwitcher;
 
     public OutboundHandler(StatsTracker statsTracker, ThreadPool threadPool) {
         this.statsTracker = statsTracker;

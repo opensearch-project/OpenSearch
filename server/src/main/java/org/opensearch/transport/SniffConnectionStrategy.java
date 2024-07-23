@@ -46,6 +46,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
@@ -150,7 +151,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private final String proxyAddress;
-    private final InternalContextSwitcher contextSwitcher;
+    private final ContextSwitcher contextSwitcher;
 
     SniffConnectionStrategy(
         String clusterAlias,

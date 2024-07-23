@@ -23,6 +23,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
@@ -59,7 +60,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     protected static Logger logger = LogManager.getLogger(PublishCheckpointAction.class);
 
     private final SegmentReplicationTargetService replicationService;
-    private final InternalContextSwitcher contextSwitcher;
+    private final ContextSwitcher contextSwitcher;
 
     @Inject
     public PublishCheckpointAction(

@@ -45,6 +45,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.transport.PortsRange;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
@@ -100,7 +101,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final NetworkService networkService;
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
-    protected final InternalContextSwitcher contextSwitcher;
+    protected final ContextSwitcher contextSwitcher;
     protected final Dispatcher dispatcher;
     protected final CorsHandler corsHandler;
     private final NamedXContentRegistry xContentRegistry;

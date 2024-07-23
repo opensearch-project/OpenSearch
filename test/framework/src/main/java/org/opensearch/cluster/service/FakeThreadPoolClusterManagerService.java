@@ -41,6 +41,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
@@ -64,7 +65,7 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
     private final String name;
     private final List<Runnable> pendingTasks = new ArrayList<>();
     private final Consumer<Runnable> onTaskAvailableToRun;
-    private final InternalContextSwitcher contextSwitcher;
+    private final ContextSwitcher contextSwitcher;
     private boolean scheduledNextTask = false;
     private boolean taskInProgress = false;
     private boolean waitForPublish = false;

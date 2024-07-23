@@ -213,7 +213,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
-        ContextSwitcher contextSwitcher
+        final ContextSwitcher contextSwitcher
     ) {
         int urgentEventLoopThreads = urgentPoolCount(clusterService.getSettings());
         int priorityEventLoopThreads = priorityPoolCount(clusterService.getSettings());

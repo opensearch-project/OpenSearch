@@ -37,6 +37,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.metrics.MeanMetric;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -66,7 +67,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private final Runnable forceRefresh;
     private final Logger logger;
     private final ThreadPool threadPool;
-    private final InternalContextSwitcher contextSwitcher;
+    private final ContextSwitcher contextSwitcher;
     private final MeanMetric refreshMetric;
 
     /**

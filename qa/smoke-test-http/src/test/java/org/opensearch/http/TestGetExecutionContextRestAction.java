@@ -9,13 +9,13 @@
 package org.opensearch.http;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;

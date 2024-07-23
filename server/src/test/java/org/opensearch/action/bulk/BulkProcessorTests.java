@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
@@ -69,7 +70,7 @@ import java.util.function.BiConsumer;
 public class BulkProcessorTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
-    private InternalContextSwitcher contextSwitcher;
+    private ContextSwitcher contextSwitcher;
     private final Logger logger = LogManager.getLogger(BulkProcessorTests.class);
 
     @Before

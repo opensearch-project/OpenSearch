@@ -375,7 +375,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            ContextSwitcher contextSwitcher
+            final ContextSwitcher contextSwitcher
         ) {
             return Collections.emptyList();
         }

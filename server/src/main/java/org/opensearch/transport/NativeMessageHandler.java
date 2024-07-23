@@ -39,6 +39,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
@@ -75,7 +76,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
     private static final Logger logger = LogManager.getLogger(NativeMessageHandler.class);
 
     private final ThreadPool threadPool;
-    private final InternalContextSwitcher contextSwitcher;
+    private final ContextSwitcher contextSwitcher;
     private final NativeOutboundHandler outboundHandler;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportHandshaker handshaker;

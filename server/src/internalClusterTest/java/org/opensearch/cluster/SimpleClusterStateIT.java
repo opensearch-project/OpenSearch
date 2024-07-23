@@ -471,7 +471,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            ContextSwitcher contextSwitcher
+            final ContextSwitcher contextSwitcher
         ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();

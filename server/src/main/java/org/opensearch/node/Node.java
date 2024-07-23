@@ -115,6 +115,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
+import org.opensearch.common.util.concurrent.PluginContextSwitcher;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -932,7 +933,7 @@ public class Node implements Closeable {
             final ViewService viewService = new ViewService(clusterService, client, null);
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> {
-                ContextSwitcher contextSwitcher = new ContextSwitcher(threadPool, p);
+                ContextSwitcher contextSwitcher = new PluginContextSwitcher(threadPool, p);
                 return p.createComponents(
                     client,
                     clusterService,
@@ -952,7 +953,7 @@ public class Node implements Closeable {
             Collection<Object> telemetryAwarePluginComponents = pluginsService.filterPlugins(TelemetryAwarePlugin.class)
                 .stream()
                 .flatMap(p -> {
-                    ContextSwitcher contextSwitcher = new ContextSwitcher(threadPool, (Plugin) p);
+                    ContextSwitcher contextSwitcher = new PluginContextSwitcher(threadPool, (Plugin) p);
                     return p.createComponents(
                         client,
                         clusterService,

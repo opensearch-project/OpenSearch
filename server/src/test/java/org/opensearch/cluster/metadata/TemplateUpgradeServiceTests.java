@@ -46,6 +46,7 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
@@ -91,7 +92,7 @@ public class TemplateUpgradeServiceTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
-    private InternalContextSwitcher contextSwitcher;
+    private ContextSwitcher contextSwitcher;
 
     @Before
     public void setUpTest() throws Exception {

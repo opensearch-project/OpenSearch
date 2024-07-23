@@ -60,6 +60,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BaseFuture;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.Node;
@@ -112,7 +113,7 @@ import static org.mockito.Mockito.when;
 public class MasterServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
-    private static InternalContextSwitcher contextSwitcher;
+    private static ContextSwitcher contextSwitcher;
     private static long timeDiffInMillis;
 
     @BeforeClass

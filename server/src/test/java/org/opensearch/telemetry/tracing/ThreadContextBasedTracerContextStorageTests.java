@@ -10,6 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -43,7 +44,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestCase {
     private Tracer tracer;
     private ThreadPool threadPool;
-    private InternalContextSwitcher contextSwitcher;
+    private ContextSwitcher contextSwitcher;
     private ThreadContext threadContext;
     private TracerContextStorage<String, Span> threadContextStorage;
     private ExecutorService executorService;

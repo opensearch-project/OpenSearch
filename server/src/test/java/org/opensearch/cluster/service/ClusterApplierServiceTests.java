@@ -51,6 +51,7 @@ import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.metrics.Histogram;
@@ -92,7 +93,7 @@ import static org.mockito.Mockito.when;
 public class ClusterApplierServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
-    private static InternalContextSwitcher contextSwitcher;
+    private static ContextSwitcher contextSwitcher;
     private TimedClusterApplierService clusterApplierService;
     private static MetricsRegistry metricsRegistry;
     private static Histogram applierslatencyHistogram;

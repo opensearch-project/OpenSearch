@@ -47,6 +47,7 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
@@ -85,7 +86,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     public static final String ACTION_NAME = "indices:admin/seq_no/retention_lease_background_sync";
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
-    private final InternalContextSwitcher contextSwitcher;
+    private final ContextSwitcher contextSwitcher;
 
     protected Logger getLogger() {
         return LOGGER;

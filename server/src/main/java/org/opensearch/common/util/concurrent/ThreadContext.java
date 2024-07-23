@@ -182,7 +182,7 @@ public final class ThreadContext implements Writeable {
      * Removes the current context and resets a default context. Retains information about plugin stashing the context.
      * The removed context can be restored by closing the returned {@link StoredContext}.
      */
-    public StoredContext stashContext(Class<?> pluginClass) {
+    StoredContext stashContext(Class<?> pluginClass) {
         final ThreadContextStruct context = threadLocal.get();
         /*
           X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
@@ -246,7 +246,7 @@ public final class ThreadContext implements Writeable {
      * but the tasks API will perform a get on their behalf using this method
      * if it can't find the task in memory.
      */
-    public StoredContext stashWithOrigin(String origin) {
+    StoredContext stashWithOrigin(String origin) {
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
@@ -257,7 +257,7 @@ public final class ThreadContext implements Writeable {
      * The removed context can be restored when closing the returned {@link StoredContext}. The merge strategy is that headers
      * that are already existing are preserved unless they are defaults.
      */
-    public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
+    StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);

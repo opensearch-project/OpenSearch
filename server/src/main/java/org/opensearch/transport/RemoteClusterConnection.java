@@ -39,6 +39,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.InternalContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
@@ -72,7 +73,7 @@ final class RemoteClusterConnection implements Closeable {
     private final RemoteConnectionStrategy connectionStrategy;
     private final String clusterAlias;
     private final ThreadPool threadPool;
-    private final InternalContextSwitcher contextSwitcher;
+    private final ContextSwitcher contextSwitcher;
     private volatile boolean skipUnavailable;
     private final TimeValue initialConnectionTimeout;
 
