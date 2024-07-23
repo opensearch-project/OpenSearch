@@ -61,17 +61,14 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
-import org.opensearch.transport.TransportException;
 
 import java.io.IOException;
-import java.rmi.UnexpectedException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Global information on indices stats running on a specific node.
@@ -171,7 +168,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             Optional<StatsLevel> level = Arrays.stream(StatsLevel.values())
                 .filter(field -> field.getRestName().equals(levels[0]))
                 .findFirst();
-            return level.orElse(null);
+            return level.orElseThrow(() -> new IllegalArgumentException("Level provided is not supported by NodeIndicesStats"));
         }
         return null;
     }
@@ -344,7 +341,9 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         stats.toXContent(builder, params);
 
         if (StatsLevel.INDICES.getRestName().equals(level)) {
-            assert statsByIndex!=null || statsByShard!=null: "Expected shard stats or index stats in response for generating [" + StatsLevel.INDICES + "] field";
+            assert statsByIndex != null || statsByShard != null : "Expected shard stats or index stats in response for generating ["
+                + StatsLevel.INDICES
+                + "] field";
             if (statsByIndex == null) {
                 statsByIndex = createStatsByIndex(statsByShard);
             }
@@ -360,7 +359,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             builder.endObject();
         } else if (StatsLevel.SHARDS.getRestName().equals(level)) {
             builder.startObject(StatsLevel.SHARDS.getRestName());
-            assert statsByShard != null: "Expected shard stats in response for generating [" + StatsLevel.SHARDS + "] field";
+            assert statsByShard != null : "Expected shard stats in response for generating [" + StatsLevel.SHARDS + "] field";
             for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
                 builder.startArray(entry.getKey().getName());
                 for (IndexShardStats indexShardStats : entry.getValue()) {

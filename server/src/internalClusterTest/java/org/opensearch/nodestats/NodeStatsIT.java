@@ -399,7 +399,6 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         testLevels.add(MockStatsLevel.NODE);
         testLevels.add(MockStatsLevel.INDICES);
         testLevels.add(MockStatsLevel.SHARDS);
-        testLevels.add(MockStatsLevel.UNKNOWN);
 
         internalCluster().startNode();
         ensureGreen();
@@ -431,7 +430,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
 
                 builder.startObject();
 
-                if (!testLevel.equals(MockStatsLevel.SHARDS)){
+                if (!testLevel.equals(MockStatsLevel.SHARDS)) {
                     final XContentBuilder failedBuilder = builder;
                     assertThrows(
                         "Expected shard stats in response for generating [SHARDS] field",
@@ -439,7 +438,9 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                         () -> nodeStats.getIndices()
                             .toXContent(
                                 failedBuilder,
-                                new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.StatsLevel.SHARDS.getRestName()))
+                                new ToXContent.MapParams(
+                                    Collections.singletonMap("level", NodeIndicesStats.StatsLevel.SHARDS.getRestName())
+                                )
                             )
                     );
                 } else {
@@ -470,7 +471,9 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
                         () -> nodeStats.getIndices()
                             .toXContent(
                                 failedBuilder,
-                                new ToXContent.MapParams(Collections.singletonMap("level", NodeIndicesStats.StatsLevel.INDICES.getRestName()))
+                                new ToXContent.MapParams(
+                                    Collections.singletonMap("level", NodeIndicesStats.StatsLevel.INDICES.getRestName())
+                                )
                             )
                     );
                 } else {
@@ -497,6 +500,42 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+        });
+    }
+
+    public void testNodeIndicesStatsUnknownLevelThrowsException() {
+        List<MockStatsLevel> testLevels = new ArrayList<>();
+
+        testLevels.add(MockStatsLevel.UNKNOWN);
+        internalCluster().startNode();
+        ensureGreen();
+        String indexName = "test1";
+        assertAcked(
+            prepareCreate(
+                indexName,
+                clusterService().state().getNodes().getSize(),
+                Settings.builder().put("number_of_shards", 2).put("number_of_replicas", clusterService().state().getNodes().getSize() - 1)
+            )
+        );
+        ensureGreen();
+
+        testLevels.forEach(testLevel -> {
+            NodesStatsResponse response;
+            CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+            commonStatsFlags.setIncludeIndicesStatsByLevel(true);
+            if (!testLevel.equals(MockStatsLevel.NULL)) {
+                ArrayList<String> level_arg = new ArrayList<>();
+                level_arg.add(testLevel.getRestName());
+
+                commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
+            }
+            response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
+
+            assertTrue(response.hasFailures());
+            assertEquals(
+                "Level provided is not supported by NodeIndicesStats",
+                response.failures().get(0).getCause().getCause().getMessage()
+            );
         });
     }
 
