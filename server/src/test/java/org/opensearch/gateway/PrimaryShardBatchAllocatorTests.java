@@ -265,7 +265,7 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         ShardRouting shardRouting = routingAllocation.routingTable().getIndicesRouting().get("test").shard(shardId.id()).primaryShard();
 
         List<ShardRouting> shardRoutings = Arrays.asList(shardRouting);
-        batchAllocator.allocateUnassignedBatchOnTimeout(shardRoutings, routingAllocation);
+        batchAllocator.allocateUnassignedBatchOnTimeout(shardRoutings, routingAllocation, true);
 
         List<ShardRouting> ignoredShards = routingAllocation.routingNodes().unassigned().ignored();
         assertEquals(1, ignoredShards.size());
@@ -278,7 +278,7 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         setUpShards(1);
         final RoutingAllocation routingAllocation = routingAllocationWithOnePrimary(allocationDeciders, CLUSTER_RECOVERED, "allocId-0");
         List<ShardRouting> shardRoutings = new ArrayList<>();
-        batchAllocator.allocateUnassignedBatchOnTimeout(shardRoutings, routingAllocation);
+        batchAllocator.allocateUnassignedBatchOnTimeout(shardRoutings, routingAllocation, true);
 
         List<ShardRouting> ignoredShards = routingAllocation.routingNodes().unassigned().ignored();
         assertEquals(0, ignoredShards.size());
@@ -297,7 +297,7 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             .replicaShards()
             .get(0);
         List<ShardRouting> shardRoutings = Arrays.asList(shardRouting);
-        batchAllocator.allocateUnassignedBatchOnTimeout(shardRoutings, routingAllocation);
+        batchAllocator.allocateUnassignedBatchOnTimeout(shardRoutings, routingAllocation, true);
 
         List<ShardRouting> ignoredShards = routingAllocation.routingNodes().unassigned().ignored();
         assertEquals(0, ignoredShards.size());

@@ -250,7 +250,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     @Override
                     public void onTimeout() {
                         long startTime = System.nanoTime();
-                        primaryBatchShardAllocator.allocateUnassignedBatchOnTimeout(shardsBatch.getBatchedShardRoutings(), allocation);
+                        primaryBatchShardAllocator.allocateUnassignedBatchOnTimeout(shardsBatch.getBatchedShardRoutings(), allocation, true);
                         logger.info(
                             "Time taken to execute allocateUnassignedBatchOnTimeout for unassigned primary batch with id [{}], size : [{}] in this cycle:[{}ms]",
                             shardsBatch.batchId,
@@ -281,7 +281,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     @Override
                     public void onTimeout() {
                         long startTime = System.nanoTime();
-                        replicaBatchShardAllocator.allocateUnassignedBatchOnTimeout(batch.getBatchedShardRoutings(), allocation);
+                        replicaBatchShardAllocator.allocateUnassignedBatchOnTimeout(batch.getBatchedShardRoutings(), allocation, false);
                         logger.info(
                             "Time taken to execute allocateUnassignedBatchOnTimeout for unassigned replica batch with id [{}], size : [{}] in this cycle:[{}ms]",
                             batch.batchId,

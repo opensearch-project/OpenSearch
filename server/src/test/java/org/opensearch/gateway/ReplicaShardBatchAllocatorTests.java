@@ -705,7 +705,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         while (iterator.hasNext()) {
             shards.add(iterator.next());
         }
-        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation);
+        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
         assertEquals(
@@ -721,7 +721,7 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         while (iterator.hasNext()) {
             shards.add(iterator.next());
         }
-        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation);
+        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(0));
     }
 
