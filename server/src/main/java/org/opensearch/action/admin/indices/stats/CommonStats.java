@@ -122,9 +122,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public RecoveryStats recoveryStats;
 
-    @Nullable
-    public AggregatedIndexStats aggregatedIndexStats;
-
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -548,6 +545,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Node level statistics used for ClusterStatsIndices for _cluster/stats call.
+     */
     @PublicApi(since = "2.0.0")
     public static class AggregatedIndexStats implements Writeable {
         public int indices = 0;
