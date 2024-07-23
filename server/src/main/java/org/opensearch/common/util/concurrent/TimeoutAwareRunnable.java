@@ -10,6 +10,8 @@ package org.opensearch.common.util.concurrent;
 
 /**
  * Runnable that is aware of a timeout
+ *
+ * @opensearch.internal
  */
 public interface TimeoutAwareRunnable extends Runnable {
 

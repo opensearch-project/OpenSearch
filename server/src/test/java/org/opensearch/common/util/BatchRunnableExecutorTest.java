@@ -8,7 +8,6 @@
 
 package org.opensearch.common.util;
 
-import org.mockito.ArgumentCaptor;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.test.OpenSearchTestCase;
@@ -18,7 +17,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.mockito.Mockito.*;
+import org.mockito.ArgumentCaptor;
+
+import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class BatchRunnableExecutorTest extends OpenSearchTestCase {
     private Supplier<TimeValue> timeoutSupplier;

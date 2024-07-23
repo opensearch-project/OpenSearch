@@ -21,6 +21,8 @@ import java.util.function.Supplier;
 
 /**
  * The executor that executes a batch of {@link TimeoutAwareRunnable} and triggers a timeout based on {@link TimeValue} timeout
+ *
+ * @opensearch.internal
  */
 public class BatchRunnableExecutor implements Runnable {
 
