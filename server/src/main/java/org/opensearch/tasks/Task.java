@@ -526,8 +526,7 @@ public class Task {
     }
 
     /**
-     * This method adds the queryGroupHeader in the task headers, We need this method since the query group is not determined at the task creation time
-     * hence it is not possible to copy this header from request headers. This header is required to group the tasks into queryGroups to account for the QueryGroup level resource footprint
+     * This method adds a new header, <b>Only use this method if the header can not be passed from request headers</b>
      * @param threadContext current thread context
      */
     public void addHeader(final String headerName, final ThreadContext threadContext, final Supplier<String> defaultValueSupplier) {
