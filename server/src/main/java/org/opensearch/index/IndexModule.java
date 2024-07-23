@@ -48,6 +48,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
@@ -171,6 +172,14 @@ public final class IndexModule {
         Function.identity(),
         Property.IndexScope,
         Property.NodeScope
+    );
+
+    public static final Setting<String> INDEX_TIERING_STATE = new Setting<>(
+        "index.tiering.state",
+        TieringState.HOT.name(),
+        Function.identity(),
+        Property.IndexScope,
+        Property.PrivateIndex
     );
 
     /** Which lucene file extensions to load with the mmap directory when using hybridfs store. This settings is ignored if {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} is set.
@@ -656,6 +665,17 @@ public final class IndexModule {
         } else {
             return Type.NIOFS;
         }
+    }
+
+    /**
+     * Represents the tiering state of the index.
+     */
+    @ExperimentalApi
+    public enum TieringState {
+        HOT,
+        HOT_TO_WARM,
+        WARM,
+        WARM_TO_HOT;
     }
 
     public IndexService newIndexService(
