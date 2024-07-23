@@ -24,10 +24,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.action.GetQueryGroupResponse;
 import org.opensearch.search.ResourceType;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
 
 /**
@@ -190,6 +193,39 @@ public class QueryGroupPersistenceService {
             }
         }
         return map;
+    }
+
+    /**
+     * Get the QueryGroup with the specified name from cluster state
+     * @param name - the QueryGroup name we are getting
+     * @param listener - ActionListener for GetQueryGroupResponse
+     */
+    public void getFromClusterStateMetadata(String name, ActionListener<GetQueryGroupResponse> listener) {
+        ClusterState currentState = clusterService.state();
+        List<QueryGroup> resultGroups = getQueryGroupsFromClusterState(name, currentState);
+        if (resultGroups.isEmpty() && name != null && !name.isEmpty()) {
+            logger.warn("No QueryGroup exists with the provided name: {}", name);
+            Exception e = new RuntimeException("No QueryGroup exists with the provided name: " + name);
+            listener.onFailure(e);
+            return;
+        }
+        GetQueryGroupResponse response = new GetQueryGroupResponse(resultGroups, RestStatus.OK);
+        listener.onResponse(response);
+    }
+
+    List<QueryGroup> getQueryGroupsFromClusterState(String name, ClusterState currentState) {
+        Map<String, QueryGroup> currentGroups = currentState.getMetadata().queryGroups();
+        if (name == null || name.isEmpty()) {
+            return new ArrayList<>(currentGroups.values());
+        }
+        List<QueryGroup> resultGroups = new ArrayList<>();
+        for (QueryGroup group : currentGroups.values()) {
+            if (group.getName().equals(name)) {
+                resultGroups.add(group);
+                break;
+            }
+        }
+        return resultGroups;
     }
 
     /**

@@ -15,21 +15,20 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupOne;
-import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupTwo;
 import static org.mockito.Mockito.mock;
 
 public class GetQueryGroupResponseTests extends OpenSearchTestCase {
 
     public void testSerializationSingleQueryGroup() throws IOException {
         List<QueryGroup> list = new ArrayList<>();
-        list.add(queryGroupOne);
+        list.add(QueryGroupTestUtils.queryGroupOne);
         GetQueryGroupResponse response = new GetQueryGroupResponse(list, RestStatus.OK);
         assertEquals(response.getQueryGroups(), list);
 
@@ -39,7 +38,7 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
 
         GetQueryGroupResponse otherResponse = new GetQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
-        QueryGroupTestUtils.compareQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
+        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
     }
 
     public void testSerializationMultipleQueryGroup() throws IOException {
@@ -53,7 +52,7 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
         GetQueryGroupResponse otherResponse = new GetQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(2, otherResponse.getQueryGroups().size());
-        QueryGroupTestUtils.compareQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
+        QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
     }
 
     public void testSerializationNull() throws IOException {
@@ -72,7 +71,7 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
 
     public void testToXContentGetSingleQueryGroup() throws IOException {
         List<QueryGroup> queryGroupList = new ArrayList<>();
-        queryGroupList.add(queryGroupOne);
+        queryGroupList.add(QueryGroupTestUtils.queryGroupOne);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         GetQueryGroupResponse response = new GetQueryGroupResponse(queryGroupList, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
@@ -94,8 +93,8 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
 
     public void testToXContentGetMultipleQueryGroup() throws IOException {
         List<QueryGroup> queryGroupList = new ArrayList<>();
-        queryGroupList.add(queryGroupOne);
-        queryGroupList.add(queryGroupTwo);
+        queryGroupList.add(QueryGroupTestUtils.queryGroupOne);
+        queryGroupList.add(QueryGroupTestUtils.queryGroupTwo);
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         GetQueryGroupResponse response = new GetQueryGroupResponse(queryGroupList, RestStatus.OK);
         String actual = response.toXContent(builder, mock(ToXContent.Params.class)).toString();
