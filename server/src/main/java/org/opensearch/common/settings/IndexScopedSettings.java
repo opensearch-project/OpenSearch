@@ -263,7 +263,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      */
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
         FeatureFlags.TIERED_REMOTE_INDEX,
-        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING)
+        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

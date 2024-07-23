@@ -216,6 +216,9 @@ import org.opensearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.put.TransportPutComponentTemplateAction;
 import org.opensearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.opensearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
+import org.opensearch.action.admin.indices.tiering.HotToWarmTieringAction;
+import org.opensearch.action.admin.indices.tiering.RestWarmTieringAction;
+import org.opensearch.action.admin.indices.tiering.TransportHotToWarmTieringAction;
 import org.opensearch.action.admin.indices.upgrade.get.TransportUpgradeStatusAction;
 import org.opensearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.opensearch.action.admin.indices.upgrade.post.TransportUpgradeAction;
@@ -627,6 +630,9 @@ public class ActionModule extends AbstractModule {
         actions.register(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
+        if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)) {
+            actions.register(HotToWarmTieringAction.INSTANCE, TransportHotToWarmTieringAction.class);
+        }
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
 
         actions.register(ClusterAddWeightedRoutingAction.INSTANCE, TransportAddWeightedRoutingAction.class);
@@ -943,6 +949,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodeAttrsAction());
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
+        if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)) {
+            registerHandler.accept(new RestWarmTieringAction());
+        }
         registerHandler.accept(new RestTemplatesAction());
 
         // Point in time API
