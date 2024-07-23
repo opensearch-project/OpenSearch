@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm;
+package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -15,6 +15,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

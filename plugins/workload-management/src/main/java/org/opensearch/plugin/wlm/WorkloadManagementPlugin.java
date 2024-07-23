@@ -17,6 +17,8 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.plugin.wlm.action.CreateQueryGroupAction;
+import org.opensearch.plugin.wlm.action.TransportCreateQueryGroupAction;
 import org.opensearch.plugin.wlm.rest.RestCreateQueryGroupAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;

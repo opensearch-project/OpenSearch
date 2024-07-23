@@ -22,7 +22,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.plugin.wlm.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.search.ResourceType;
 
 import java.util.Map;
