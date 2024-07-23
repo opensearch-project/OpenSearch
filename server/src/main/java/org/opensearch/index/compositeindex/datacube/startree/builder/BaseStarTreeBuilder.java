@@ -25,7 +25,6 @@ import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.ValueAggregator;
-import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -288,7 +287,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             for (int i = 0; i < numMetrics; i++) {
                 try {
                     ValueAggregator metricValueAggregator = metricAggregatorInfos.get(i).getValueAggregators();
-                    StarTreeNumericType starTreeNumericType = metricAggregatorInfos.get(i).getAggregatedValueType();
                     if (isMerge) {
                         metrics[i] = metricValueAggregator.getInitialAggregatedValue(segmentDocument.metrics[i]);
                     } else {
@@ -305,7 +303,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             for (int i = 0; i < numMetrics; i++) {
                 try {
                     ValueAggregator metricValueAggregator = metricAggregatorInfos.get(i).getValueAggregators();
-                    StarTreeNumericType starTreeNumericType = metricAggregatorInfos.get(i).getAggregatedValueType();
                     if (isMerge) {
                         aggregatedSegmentDocument.metrics[i] = metricValueAggregator.mergeAggregatedValues(
                             segmentDocument.metrics[i],
@@ -513,11 +510,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         // Create doc values indices in disk
         // Serialize and save in disk
         // Write star tree metadata for off heap implementation
-
-    }
-
-    TreeNode getRootNode() {
-        return rootNode;
     }
 
     /**

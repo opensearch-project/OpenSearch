@@ -101,16 +101,17 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      */
     @Override
     Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValuesSubs) throws IOException {
-        return sortAndAggregateStarTreeDocuments(reduceStarTreeDocumentsInSubs(starTreeValuesSubs), true);
+        return sortAndAggregateStarTreeDocuments(getSegmentsStarTreeDocuments(starTreeValuesSubs), true);
     }
 
     /**
      * Returns an array of all the starTreeDocuments from all the segments
+     * We only take the non-star documents from all the segments.
      *
      * @param starTreeValuesSubs StarTreeValues from multiple segments
      * @return array of star tree documents
      */
-    StarTreeDocument[] reduceStarTreeDocumentsInSubs(List<StarTreeValues> starTreeValuesSubs) throws IOException {
+    StarTreeDocument[] getSegmentsStarTreeDocuments(List<StarTreeValues> starTreeValuesSubs) throws IOException {
         List<StarTreeDocument> starTreeDocuments = new ArrayList<>();
         for (StarTreeValues starTreeValues : starTreeValuesSubs) {
             List<Dimension> dimensionsSplitOrder = starTreeValues.getStarTreeField().getDimensionsOrder();

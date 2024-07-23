@@ -159,6 +159,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
      */
     private void mergeStarTreeFields(MergeState mergeState) throws IOException {
         Map<String, List<StarTreeValues>> starTreeSubsPerField = new HashMap<>();
+        StarTreeField starTreeField = null;
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
             CompositeIndexReader reader = null;
             if (mergeState.docValuesProducers[i] == null) {
@@ -172,7 +173,6 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
 
             List<CompositeIndexFieldInfo> compositeFieldInfo = reader.getCompositeIndexFields();
             for (CompositeIndexFieldInfo fieldInfo : compositeFieldInfo) {
-                StarTreeField starTreeField = null;
                 if (fieldInfo.getType().equals(CompositeMappedFieldType.CompositeFieldType.STAR_TREE)) {
                     CompositeIndexValues compositeIndexValues = reader.getCompositeIndexValues(fieldInfo);
                     if (compositeIndexValues instanceof StarTreeValues) {
