@@ -56,7 +56,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -271,6 +270,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     public void onTimeout() {
                         replicaBatchShardAllocator.allocateUnassignedBatchOnTimeout(batch.getBatchedShardRoutings(), allocation, false);
                     }
+
                     @Override
                     public void run() {
                         replicaBatchShardAllocator.allocateUnassignedBatch(batch.getBatchedShardRoutings(), allocation);
