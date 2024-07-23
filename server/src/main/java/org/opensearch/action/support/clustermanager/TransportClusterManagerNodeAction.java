@@ -267,24 +267,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                 final DiscoveryNodes nodes = clusterState.nodes();
                 if (nodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
                     // check for block, if blocked, retry, else, execute locally
-                    final ClusterBlockException blockException = checkBlock(request, clusterState);
-                    if (blockException != null) {
-                        if (!blockException.retryable()) {
-                            listener.onFailure(blockException);
-                        } else {
-                            logger.debug("can't execute due to a cluster block, retrying", blockException);
-                            retry(clusterState, blockException, newState -> {
-                                try {
-                                    ClusterBlockException newException = checkBlock(request, newState);
-                                    return (newException == null || !newException.retryable());
-                                } catch (Exception e) {
-                                    // accept state as block will be rechecked by doStart() and listener.onFailure() then called
-                                    logger.trace("exception occurred during cluster block checking, accepting state", e);
-                                    return true;
-                                }
-                            });
-                        }
-                    } else {
+                    if (!checkForBlock(request, clusterState)) {
                         threadPool.executor(executor)
                             .execute(
                                 ActionRunnable.wrap(
@@ -422,12 +405,43 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
             };
         }
 
+        private boolean checkForBlock(Request request, ClusterState localClusterState) {
+            final ClusterBlockException blockException = checkBlock(request, localClusterState);
+            if (blockException != null) {
+                if (!blockException.retryable()) {
+                    listener.onFailure(blockException);
+                } else {
+                    logger.debug("can't execute due to a cluster block, retrying", blockException);
+                    retry(localClusterState, blockException, newState -> {
+                        try {
+                            ClusterBlockException newException = checkBlock(request, newState);
+                            return (newException == null || !newException.retryable());
+                        } catch (Exception e) {
+                            // accept state as block will be rechecked by doStart() and listener.onFailure() then called
+                            logger.trace("exception occurred during cluster block checking, accepting state", e);
+                            return true;
+                        }
+                    });
+                }
+                return true;
+            } else {
+                return false;
+            }
+        }
+
         private void executeOnLocalNode(ClusterState localClusterState) {
-            Runnable runTask = ActionRunnable.wrap(
-                getDelegateForLocalExecute(localClusterState),
-                l -> clusterManagerOperation(task, request, localClusterState, l)
-            );
-            threadPool.executor(executor).execute(runTask);
+            try {
+                // check for block, if blocked, retry, else, execute locally
+                if (!checkForBlock(request, localClusterState)) {
+                    Runnable runTask = ActionRunnable.wrap(
+                        getDelegateForLocalExecute(localClusterState),
+                        l -> clusterManagerOperation(task, request, localClusterState, l)
+                    );
+                    threadPool.executor(executor).execute(runTask);
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         private void executeOnClusterManager(DiscoveryNode clusterManagerNode, ClusterState clusterState) {
