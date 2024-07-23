@@ -27,7 +27,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class BatchRunnableExecutorTest extends OpenSearchTestCase {
+public class BatchRunnableExecutorTests extends OpenSearchTestCase {
     private Supplier<TimeValue> timeoutSupplier;
     private TimeoutAwareRunnable runnable1;
     private TimeoutAwareRunnable runnable2;
