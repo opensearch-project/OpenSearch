@@ -107,6 +107,16 @@ public class FeatureFlags {
     public static final String STAR_TREE_INDEX = "opensearch.experimental.feature.composite_index.star_tree.enabled";
     public static final Setting<Boolean> STAR_TREE_INDEX_SETTING = Setting.boolSetting(STAR_TREE_INDEX, false, Property.NodeScope);
 
+    /**
+     * Gates the functionality of application based configuration templates.
+     */
+    public static final String APPLICATION_BASED_CONFIGURATION_TEMPLATES = "opensearch.experimental.feature.application_templates.enabled";
+    public static final Setting<Boolean> APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING = Setting.boolSetting(
+        APPLICATION_BASED_CONFIGURATION_TEMPLATES,
+        false,
+        Property.NodeScope
+    );
+
     private static final List<Setting<Boolean>> ALL_FEATURE_FLAG_SETTINGS = List.of(
         REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING,
         EXTENSIONS_SETTING,
@@ -116,8 +126,10 @@ public class FeatureFlags {
         TIERED_REMOTE_INDEX_SETTING,
         PLUGGABLE_CACHE_SETTING,
         REMOTE_PUBLICATION_EXPERIMENTAL_SETTING,
-        STAR_TREE_INDEX_SETTING
+        STAR_TREE_INDEX_SETTING,
+        APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING
     );
+
     /**
      * Should store the settings from opensearch.yml.
      */

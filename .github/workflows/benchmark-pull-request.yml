@@ -1,0 +1,163 @@
+name: Run performance benchmark on pull request
+on:
+  issue_comment:
+    types: [created]
+jobs:
+  run-performance-benchmark-on-pull-request:
+    if: ${{ (github.event.issue.pull_request) && (contains(github.event.comment.body, '"run-benchmark-test"')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Set up required env vars
+        run: |
+          echo "PR_NUMBER=${{ github.event.issue.number }}" >> $GITHUB_ENV
+          echo "REPOSITORY=${{ github.event.repository.full_name }}" >> $GITHUB_ENV
+          OPENSEARCH_VERSION=$(awk -F '=' '/^opensearch[[:space:]]*=/ {gsub(/[[:space:]]/, "", $2); print $2}' buildSrc/version.properties)
+          echo "OPENSEARCH_VERSION=$OPENSEARCH_VERSION" >> $GITHUB_ENV
+          major_version=$(echo $OPENSEARCH_VERSION | cut -d'.' -f1)
+          echo "OPENSEARCH_MAJOR_VERSION=$major_version" >> $GITHUB_ENV
+          echo "USER_TAGS=pull_request_number:${{ github.event.issue.number }},repository:OpenSearch" >> $GITHUB_ENV
+      - name: Check comment format
+        id: check_comment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = context.payload.comment.body;
+            let commentJson;
+            try {
+              commentJson = JSON.parse(comment);
+            } catch (error) {
+              core.setOutput('invalid', 'true');
+              return;
+            }
+            if (!commentJson.hasOwnProperty('run-benchmark-test')) {
+              core.setOutput('invalid', 'true');
+              return;
+            }
+            const configId = commentJson['run-benchmark-test'];
+            let benchmarkConfigs;
+            try {
+              benchmarkConfigs = JSON.parse(fs.readFileSync('.github/benchmark-configs.json', 'utf8'));
+            } catch (error) {
+              core.setFailed('Failed to read benchmark-configs.json');
+              return;
+            }
+            const openSearchMajorVersion = process.env.OPENSEARCH_MAJOR_VERSION;
+            console.log('MAJOR_VERSION', openSearchMajorVersion)
+            if (!benchmarkConfigs.hasOwnProperty(configId) ||
+              !benchmarkConfigs[configId].supported_major_versions.includes(openSearchMajorVersion)) {
+              core.setOutput('invalid', 'true');
+              return;
+            }
+            const clusterBenchmarkConfigs = benchmarkConfigs[configId]['cluster-benchmark-configs'];
+            for (const [key, value] of Object.entries(clusterBenchmarkConfigs)) {
+              core.exportVariable(key, value);
+            }
+      - name: Post invalid format comment
+        if: steps.check_comment.outputs.invalid == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Invalid comment format or config id. Please refer to https://github.com/opensearch-project/OpenSearch/blob/main/PERFORMANCE_BENCHMARKS.md on how to run benchmarks on pull requests.'
+            })
+      - name: Fail workflow for invalid comment
+        if: steps.check_comment.outputs.invalid == 'true'
+        run: |
+          echo "Invalid comment format detected. Failing the workflow."
+          exit 1
+      - id: get_approvers
+        run: |
+          echo "approvers=$(cat .github/CODEOWNERS | grep '^\*'  | tr -d '* ' | sed 's/@/,/g' | sed 's/,//1')" >> $GITHUB_OUTPUT
+      - uses: trstringer/manual-approval@v1
+        if: (!contains(steps.get_approvers.outputs.approvers, github.event.comment.user.login))
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: ${{ steps.get_approvers.outputs.approvers }}
+          minimum-approvals: 1
+          issue-title: 'Request to approve/deny benchmark run for PR #${{ env.PR_NUMBER }}'
+          issue-body: "Please approve or deny the benchmark run for PR #${{ env.PR_NUMBER }}"
+          exclude-workflow-initiator-as-approver: false
+      - name: Get PR Details
+        id: get_pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const prNumber = issue.number;
+            console.log(`Pull Request Number: ${prNumber}`);
+
+            const { data: pull_request } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            return {
+              "headRepoFullName": pull_request.head.repo.full_name,
+              "headRef": pull_request.head.ref
+            };
+      - name: Set pr details env vars
+        run: |
+          echo '${{ steps.get_pr.outputs.result }}' | jq -r '.headRepoFullName'
+          echo '${{ steps.get_pr.outputs.result }}' | jq -r '.headRef'
+          headRepo=$(echo '${{ steps.get_pr.outputs.result }}' | jq -r '.headRepoFullName')
+          headRef=$(echo '${{ steps.get_pr.outputs.result }}' | jq -r '.headRef')
+          echo "prHeadRepo=$headRepo" >> $GITHUB_ENV
+          echo "prHeadRef=$headRef" >> $GITHUB_ENV
+      - name: Checkout PR Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.prHeadRepo }}
+          ref: ${{ env.prHeadRef }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: 21
+      - name: Build and Assemble OpenSearch from PR
+        run: |
+          ./gradlew :distribution:archives:linux-tar:assemble -Dbuild.snapshot=false
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.UPLOAD_ARCHIVE_ARTIFACT_ROLE }}
+          role-session-name: publish-to-s3
+          aws-region: us-west-2
+      - name: Push to S3
+        run: |
+          aws s3 cp distribution/archives/linux-tar/build/distributions/opensearch-min-$OPENSEARCH_VERSION-linux-x64.tar.gz s3://${{ secrets.ARCHIVE_ARTIFACT_BUCKET_NAME }}/PR-$PR_NUMBER/
+          echo "DISTRIBUTION_URL=${{ secrets.ARTIFACT_BUCKET_CLOUDFRONT_URL }}/PR-$PR_NUMBER/opensearch-min-$OPENSEARCH_VERSION-linux-x64.tar.gz" >> $GITHUB_ENV
+      - name: Checkout opensearch-build repo
+        uses: actions/checkout@v4
+        with:
+          repository: opensearch-project/opensearch-build
+          ref: main
+          path: opensearch-build
+      - name: Trigger jenkins workflow to run gradle check
+        run: |
+          cat $GITHUB_ENV
+          bash opensearch-build/scripts/benchmark/benchmark-pull-request.sh ${{ secrets.JENKINS_PR_BENCHMARK_GENERIC_WEBHOOK_TOKEN }}
+      - name: Update PR with Job Url
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const workflowUrl = process.env.WORKFLOW_URL;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `The Jenkins job url is ${workflowUrl} . Final results will be published once the job is completed.`
+            })

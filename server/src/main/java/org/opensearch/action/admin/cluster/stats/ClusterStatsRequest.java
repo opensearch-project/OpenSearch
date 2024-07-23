@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
+import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -49,7 +50,12 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            useAggregatedNodeLevelResponses = in.readOptionalBoolean();
+        }
     }
+
+    private Boolean useAggregatedNodeLevelResponses = false;
 
     /**
      * Get stats from nodes based on the nodes ids specified. If none are passed, stats
@@ -59,9 +65,20 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
         super(nodesIds);
     }
 
+    public boolean useAggregatedNodeLevelResponses() {
+        return useAggregatedNodeLevelResponses;
+    }
+
+    public void useAggregatedNodeLevelResponses(boolean useAggregatedNodeLevelResponses) {
+        this.useAggregatedNodeLevelResponses = useAggregatedNodeLevelResponses;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalBoolean(useAggregatedNodeLevelResponses);
+        }
     }
 
 }

@@ -46,6 +46,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.node.NodeService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
@@ -76,11 +78,12 @@ import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends OpenSearchTestCase {
 
-    private static ThreadPool THREAD_POOL;
-
-    private ClusterService clusterService;
-    private CapturingTransport transport;
-    private TransportService transportService;
+    protected static ThreadPool THREAD_POOL;
+    protected ClusterService clusterService;
+    protected CapturingTransport transport;
+    protected TransportService transportService;
+    protected NodeService nodeService;
+    protected IndicesService indicesService;
 
     public void testRequestIsSentToEachNode() throws Exception {
         TransportNodesAction action = getTestTransportNodesAction();

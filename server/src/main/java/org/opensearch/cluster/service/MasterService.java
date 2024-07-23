@@ -86,6 +86,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -225,10 +226,10 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
+        protected void run(Object batchingKey, List<? extends BatchedTask> tasks, Function<Boolean, String> taskSummaryGenerator) {
             ClusterStateTaskExecutor<Object> taskExecutor = (ClusterStateTaskExecutor<Object>) batchingKey;
             List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
-            runTasks(new TaskInputs(taskExecutor, updateTasks, tasksSummary));
+            runTasks(new TaskInputs(taskExecutor, updateTasks, taskSummaryGenerator));
         }
 
         class UpdateTask extends BatchedTask {
@@ -301,26 +302,33 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private void runTasks(TaskInputs taskInputs) {
-        final String summary = taskInputs.summary;
+        final String longSummary = logger.isTraceEnabled() ? taskInputs.taskSummaryGenerator.apply(true) : "";
+        final String shortSummary = taskInputs.taskSummaryGenerator.apply(false);
+
         if (!lifecycle.started()) {
-            logger.debug("processing [{}]: ignoring, cluster-manager service not started", summary);
+            logger.debug("processing [{}]: ignoring, cluster-manager service not started", shortSummary);
             return;
         }
 
-        logger.debug("executing cluster state update for [{}]", summary);
+        if (logger.isTraceEnabled()) {
+            logger.trace("executing cluster state update for [{}]", longSummary);
+        } else {
+            logger.debug("executing cluster state update for [{}]", shortSummary);
+        }
+
         final ClusterState previousClusterState = state();
 
         if (!previousClusterState.nodes().isLocalNodeElectedClusterManager() && taskInputs.runOnlyWhenClusterManager()) {
-            logger.debug("failing [{}]: local node is no longer cluster-manager", summary);
+            logger.debug("failing [{}]: local node is no longer cluster-manager", shortSummary);
             taskInputs.onNoLongerClusterManager();
             return;
         }
 
         final long computationStartTime = threadPool.preciseRelativeTimeInNanos();
-        final TaskOutputs taskOutputs = calculateTaskOutputs(taskInputs, previousClusterState);
+        final TaskOutputs taskOutputs = calculateTaskOutputs(taskInputs, previousClusterState, shortSummary);
         taskOutputs.notifyFailedTasks();
         final TimeValue computationTime = getTimeSince(computationStartTime);
-        logExecutionTime(computationTime, "compute cluster state update", summary);
+        logExecutionTime(computationTime, "compute cluster state update", shortSummary);
 
         clusterManagerMetrics.recordLatency(
             clusterManagerMetrics.clusterStateComputeHistogram,
@@ -332,17 +340,17 @@ public class MasterService extends AbstractLifecycleComponent {
             final long notificationStartTime = threadPool.preciseRelativeTimeInNanos();
             taskOutputs.notifySuccessfulTasksOnUnchangedClusterState();
             final TimeValue executionTime = getTimeSince(notificationStartTime);
-            logExecutionTime(executionTime, "notify listeners on unchanged cluster state", summary);
+            logExecutionTime(executionTime, "notify listeners on unchanged cluster state", shortSummary);
         } else {
             final ClusterState newClusterState = taskOutputs.newClusterState;
             if (logger.isTraceEnabled()) {
-                logger.trace("cluster state updated, source [{}]\n{}", summary, newClusterState);
+                logger.trace("cluster state updated, source [{}]\n{}", longSummary, newClusterState);
             } else {
-                logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), summary);
+                logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), shortSummary);
             }
             final long publicationStartTime = threadPool.preciseRelativeTimeInNanos();
             try {
-                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(summary, newClusterState, previousClusterState);
+                ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(shortSummary, newClusterState, previousClusterState);
                 // new cluster state, notify all listeners
                 final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
                 if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
@@ -350,7 +358,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     if (nodesDeltaSummary.length() > 0) {
                         logger.info(
                             "{}, term: {}, version: {}, delta: {}",
-                            summary,
+                            shortSummary,
                             newClusterState.term(),
                             newClusterState.version(),
                             nodesDeltaSummary
@@ -361,7 +369,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
                 publish(clusterChangedEvent, taskOutputs, publicationStartTime);
             } catch (Exception e) {
-                handleException(summary, publicationStartTime, newClusterState, e);
+                handleException(shortSummary, publicationStartTime, newClusterState, e);
             }
         }
     }
@@ -456,8 +464,8 @@ public class MasterService extends AbstractLifecycleComponent {
         // TODO: do we want to call updateTask.onFailure here?
     }
 
-    private TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState) {
-        ClusterTasksResult<Object> clusterTasksResult = executeTasks(taskInputs, previousClusterState);
+    private TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState, String taskSummary) {
+        ClusterTasksResult<Object> clusterTasksResult = executeTasks(taskInputs, previousClusterState, taskSummary);
         ClusterState newClusterState = patchVersions(previousClusterState, clusterTasksResult);
         return new TaskOutputs(
             taskInputs,
@@ -901,7 +909,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private ClusterTasksResult<Object> executeTasks(TaskInputs taskInputs, ClusterState previousClusterState) {
+    private ClusterTasksResult<Object> executeTasks(TaskInputs taskInputs, ClusterState previousClusterState, String taskSummary) {
         ClusterTasksResult<Object> clusterTasksResult;
         try {
             List<Object> inputs = taskInputs.updateTasks.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
@@ -917,7 +925,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     "failed to execute cluster state update (on version: [{}], uuid: [{}]) for [{}]\n{}{}{}",
                     previousClusterState.version(),
                     previousClusterState.stateUUID(),
-                    taskInputs.summary,
+                    taskSummary,
                     previousClusterState.nodes(),
                     previousClusterState.routingTable(),
                     previousClusterState.getRoutingNodes()
@@ -959,14 +967,19 @@ public class MasterService extends AbstractLifecycleComponent {
      * Represents a set of tasks to be processed together with their executor
      */
     private class TaskInputs {
-        final String summary;
+
         final List<Batcher.UpdateTask> updateTasks;
         final ClusterStateTaskExecutor<Object> executor;
+        final Function<Boolean, String> taskSummaryGenerator;
 
-        TaskInputs(ClusterStateTaskExecutor<Object> executor, List<Batcher.UpdateTask> updateTasks, String summary) {
-            this.summary = summary;
+        TaskInputs(
+            ClusterStateTaskExecutor<Object> executor,
+            List<Batcher.UpdateTask> updateTasks,
+            final Function<Boolean, String> taskSummaryGenerator
+        ) {
             this.executor = executor;
             this.updateTasks = updateTasks;
+            this.taskSummaryGenerator = taskSummaryGenerator;
         }
 
         boolean runOnlyWhenClusterManager() {
