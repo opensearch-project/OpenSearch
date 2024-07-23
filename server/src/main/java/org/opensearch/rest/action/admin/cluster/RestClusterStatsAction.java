@@ -67,6 +67,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.timeout(request.param("timeout"));
         clusterStatsRequest.setIncludeDiscoveryNodes(false);
+        clusterStatsRequest.useAggregatedNodeLevelResponses(true);
         return channel -> client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
     }
 
