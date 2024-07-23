@@ -41,7 +41,7 @@ public class BatchRunnableExecutor implements Runnable {
     public void run() {
         logger.debug("Starting execution of runnable of size [{}]", timeoutAwareRunnables.size());
         long startTime = System.nanoTime();
-        if (CollectionUtils.isEmpty(timeoutAwareRunnables)) {
+        if (timeoutAwareRunnables.isEmpty()) {
             return;
         }
         Randomness.shuffle(timeoutAwareRunnables);

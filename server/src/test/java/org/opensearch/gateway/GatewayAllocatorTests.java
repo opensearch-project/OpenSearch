@@ -32,6 +32,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
@@ -46,6 +47,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.store.Store.verify;
+
 public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
 
     private final Logger logger = LogManager.getLogger(GatewayAllocatorTests.class);
@@ -59,6 +62,13 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
     public void setUp() throws Exception {
         super.setUp();
         testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator();
+    }
+
+    public void testExecutorNotNull() {
+        createIndexAndUpdateClusterState(1, 3, 1);
+        createBatchesAndAssert(1);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        assertNotNull(executor);
     }
 
     public void testSingleBatchCreation() {
