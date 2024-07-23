@@ -133,7 +133,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Returns a {@link DiskUsage} for the {@link RoutingNode} using the
      * average usage of other nodes in the disk usage map.
-     * @param usages Map of nodeId to DiskUsage for all known nodes
+     * @param usages Map of nodeId to DiskUsage for all known nodes.
      */
     private void calculateAvgFreeAndTotalBytes(final Map<String, DiskUsage> usages) {
         if (usages == null || usages.isEmpty()) {
