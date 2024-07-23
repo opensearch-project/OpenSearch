@@ -33,6 +33,20 @@ public class FileCacheSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The size in bytes of blocks downloaded from the remote store into local file cache to service requests.
+     * Note that almost always the full block is downloaded, regardless of how much data from the block is actually
+     * required for an operation.
+     */
+    public static final Setting<Integer> FILE_CACHE_LOCAL_BLOCK_SHIFT_SETTING = Setting.intSetting(
+        "cluster.filecache.block_shift",
+        23,
+        10,
+        30,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile double remoteDataRatio;
 
     public FileCacheSettings(Settings settings, ClusterSettings clusterSettings) {
