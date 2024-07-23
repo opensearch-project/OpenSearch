@@ -34,9 +34,6 @@ package org.opensearch.action.admin.cluster.stats;
 
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.cache.query.QueryCacheStats;
@@ -83,19 +80,23 @@ public class ClusterStatsIndices implements ToXContentFragment {
         for (ClusterStatsNodeResponse r : nodeResponses) {
             // Aggregated response from the node
             if (r.getAggregatedNodeLevelStats() != null) {
-                r.getAggregatedNodeLevelStats().indexStatsMap.forEach(
-                    (index, indexCountStats) -> countsPerIndex.merge(index, indexCountStats, (v1, v2) -> {
-                        v1.addStatsFrom(v2);
-                        return v1;
-                    })
-                );
 
-                docs.add(r.getAggregatedNodeLevelStats().docs);
-                store.add(r.getAggregatedNodeLevelStats().store);
-                fieldData.add(r.getAggregatedNodeLevelStats().fieldData);
-                queryCache.add(r.getAggregatedNodeLevelStats().queryCache);
-                completion.add(r.getAggregatedNodeLevelStats().completion);
-                segments.add(r.getAggregatedNodeLevelStats().segments);
+                for (Map.Entry<String, CommonStats.AggregatedIndexStats> entry : r.getAggregatedNodeLevelStats().indexStatsMap.entrySet()) {
+                    ShardStats indexShardStats = countsPerIndex.get(entry.getKey());
+                    if (indexShardStats == null) {
+                        indexShardStats = new ShardStats(entry.getValue());
+                        countsPerIndex.put(entry.getKey(), indexShardStats);
+                    } else {
+                        indexShardStats.addStatsFrom(entry.getValue());
+                    }
+                }
+
+                docs.add(r.getAggregatedNodeLevelStats().commonStats.docs);
+                store.add(r.getAggregatedNodeLevelStats().commonStats.store);
+                fieldData.add(r.getAggregatedNodeLevelStats().commonStats.fieldData);
+                queryCache.add(r.getAggregatedNodeLevelStats().commonStats.queryCache);
+                completion.add(r.getAggregatedNodeLevelStats().commonStats.completion);
+                segments.add(r.getAggregatedNodeLevelStats().commonStats.segments);
             } else {
                 // Default response from the node
                 for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
@@ -206,11 +207,10 @@ public class ClusterStatsIndices implements ToXContentFragment {
      * @opensearch.api
      */
     @PublicApi(since = "1.0.0")
-    public static class ShardStats implements ToXContentFragment, Writeable {
-
-        int indices = 0;
-        int total = 0;
-        int primaries = 0;
+    public static class ShardStats implements ToXContentFragment {
+        int indices;
+        int total;
+        int primaries;
 
         // min/max
         int minIndexShards = -1;
@@ -223,10 +223,10 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         public ShardStats() {}
 
-        public ShardStats(StreamInput in) throws IOException {
-            indices = in.readVInt();
-            total = in.readVInt();
-            primaries = in.readVInt();
+        public ShardStats(CommonStats.AggregatedIndexStats aggregatedIndexStats) {
+            this.indices = aggregatedIndexStats.indices;
+            this.total = aggregatedIndexStats.total;
+            this.primaries = aggregatedIndexStats.primaries;
         }
 
         /**
@@ -356,17 +356,10 @@ public class ClusterStatsIndices implements ToXContentFragment {
             }
         }
 
-        public void addStatsFrom(ShardStats incomingStats) {
-            this.total += incomingStats.getTotal();
-            this.indices += incomingStats.getIndices();
-            this.primaries += incomingStats.getPrimaries();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(indices);
-            out.writeVInt(total);
-            out.writeVInt(primaries);
+        public void addStatsFrom(CommonStats.AggregatedIndexStats incomingStats) {
+            this.total += incomingStats.total;
+            this.indices += incomingStats.indices;
+            this.primaries += incomingStats.primaries;
         }
 
         /**

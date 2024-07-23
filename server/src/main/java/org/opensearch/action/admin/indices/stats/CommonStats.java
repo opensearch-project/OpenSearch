@@ -122,6 +122,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public RecoveryStats recoveryStats;
 
+    @Nullable
+    public AggregatedIndexStats aggregatedIndexStats;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -543,5 +546,27 @@ public class CommonStats implements Writeable, ToXContentFragment {
             toXContent.toXContent(builder, params);
         }
         return builder;
+    }
+
+    @PublicApi(since = "2.0.0")
+    public static class AggregatedIndexStats implements Writeable {
+        public int indices = 0;
+        public int total = 0;
+        public int primaries = 0;
+
+        public AggregatedIndexStats(StreamInput in) throws IOException {
+            indices = in.readVInt();
+            total = in.readVInt();
+            primaries = in.readVInt();
+        }
+
+        public AggregatedIndexStats() {}
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(indices);
+            out.writeVInt(total);
+            out.writeVInt(primaries);
+        }
     }
 }

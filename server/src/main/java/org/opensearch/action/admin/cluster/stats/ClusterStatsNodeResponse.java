@@ -35,6 +35,7 @@ package org.opensearch.action.admin.cluster.stats;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
@@ -42,8 +43,16 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.index.cache.query.QueryCacheStats;
+import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.fielddata.FieldDataStats;
+import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.store.StoreStats;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Transport action for obtaining cluster stats from node level
@@ -155,6 +164,63 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
             }
         } else {
             out.writeArray(shardsStats);
+        }
+    }
+
+    /**
+     * Node level statistics used for ClusterStatsIndices for _cluster/stats call.
+     */
+    public class AggregatedNodeLevelStats extends BaseNodeResponse {
+
+        CommonStats commonStats;
+        Map<String, CommonStats.AggregatedIndexStats> indexStatsMap;
+
+        protected AggregatedNodeLevelStats(StreamInput in) throws IOException {
+            super(in);
+            commonStats = in.readOptionalWriteable(CommonStats::new);
+            indexStatsMap = in.readMap(StreamInput::readString, CommonStats.AggregatedIndexStats::new);
+        }
+
+        protected AggregatedNodeLevelStats(DiscoveryNode node, ShardStats[] indexShardsStats) {
+            super(node);
+            this.commonStats = new CommonStats();
+            this.commonStats.docs = new DocsStats();
+            this.commonStats.store = new StoreStats();
+            this.commonStats.fieldData = new FieldDataStats();
+            this.commonStats.queryCache = new QueryCacheStats();
+            this.commonStats.completion = new CompletionStats();
+            this.commonStats.segments = new SegmentsStats();
+            this.indexStatsMap = new HashMap<>();
+
+            // Index Level Stats
+            for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : indexShardsStats) {
+                CommonStats.AggregatedIndexStats indexShardStats = this.indexStatsMap.get(shardStats.getShardRouting().getIndexName());
+                if (indexShardStats == null) {
+                    indexShardStats = new CommonStats.AggregatedIndexStats();
+                    this.indexStatsMap.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
+                }
+
+                indexShardStats.total++;
+
+                CommonStats shardCommonStats = shardStats.getStats();
+
+                if (shardStats.getShardRouting().primary()) {
+                    indexShardStats.primaries++;
+                    this.commonStats.docs.add(shardCommonStats.docs);
+                }
+                this.commonStats.store.add(shardCommonStats.store);
+                this.commonStats.fieldData.add(shardCommonStats.fieldData);
+                this.commonStats.queryCache.add(shardCommonStats.queryCache);
+                this.commonStats.completion.add(shardCommonStats.completion);
+                this.commonStats.segments.add(shardCommonStats.segments);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalWriteable(commonStats);
+            out.writeMap(indexStatsMap, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
         }
     }
 }
