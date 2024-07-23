@@ -402,7 +402,8 @@ final class StoreRecovery {
                 RemoteSegmentStoreDirectory sourceRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,
-                    shardId
+                    shardId,
+                    shallowCopyShardMetadata.getRemoteStorePathStrategy()
                 );
                 sourceRemoteDirectory.initializeToSpecificCommit(
                     primaryTerm,
@@ -649,6 +650,14 @@ final class StoreRecovery {
                 indexShard.recoveryState().getIndex().setFileDetailsComplete();
             }
             indexShard.openEngineAndRecoverFromTranslog();
+            if (indexShard.shouldSeedRemoteStore()) {
+                indexShard.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    logger.info("Attempting to seed Remote Store via local recovery for {}", indexShard.shardId());
+                    indexShard.refresh("remote store migration");
+                });
+                indexShard.waitForRemoteStoreSync();
+                logger.info("Remote Store is now seeded via local recovery for {}", indexShard.shardId());
+            }
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");

@@ -23,9 +23,8 @@ import org.opensearch.search.query.QueryPhase.DefaultQueryPhaseSearcher;
 
 import java.io.IOException;
 import java.util.LinkedList;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-
-import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
 /**
  * The implementation of the {@link QueryPhaseSearcher} which attempts to use concurrent
@@ -46,10 +45,19 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         ContextIndexSearcher searcher,
         Query query,
         LinkedList<QueryCollectorContext> collectors,
+        QueryCollectorContext queryCollectorContext,
         boolean hasFilterCollector,
         boolean hasTimeout
     ) throws IOException {
-        return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
+        return searchWithCollectorManager(
+            searchContext,
+            searcher,
+            query,
+            collectors,
+            queryCollectorContext,
+            hasFilterCollector,
+            hasTimeout
+        );
     }
 
     private static boolean searchWithCollectorManager(
@@ -57,13 +65,12 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         ContextIndexSearcher searcher,
         Query query,
         LinkedList<QueryCollectorContext> collectorContexts,
+        QueryCollectorContext queryCollectorContext,
         boolean hasFilterCollector,
         boolean timeoutSet
     ) throws IOException {
-        // create the top docs collector last when the other collectors are known
-        final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
-        // add the top docs collector, the first collector context in the chain
-        collectorContexts.addFirst(topDocsFactory);
+        // add the passed collector, the first collector context in the chain
+        collectorContexts.addFirst(Objects.requireNonNull(queryCollectorContext));
 
         final QuerySearchResult queryResult = searchContext.queryResult();
         final CollectorManager<?, ReduceableSearchResult> collectorManager;
@@ -95,7 +102,10 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
             queryResult.terminatedEarly(false);
         }
 
-        return topDocsFactory.shouldRescore();
+        if (queryCollectorContext instanceof RescoringQueryCollectorContext) {
+            return ((RescoringQueryCollectorContext) queryCollectorContext).shouldRescore();
+        }
+        return false;
     }
 
     @Override

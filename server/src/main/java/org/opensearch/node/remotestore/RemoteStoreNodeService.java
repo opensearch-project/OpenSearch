@@ -42,31 +42,21 @@ public class RemoteStoreNodeService {
     private final Supplier<RepositoriesService> repositoriesService;
     private final ThreadPool threadPool;
     public static final Setting<CompatibilityMode> REMOTE_STORE_COMPATIBILITY_MODE_SETTING = new Setting<>(
-        "remote_store.compatibility_mode",
+        "cluster.remote_store.compatibility_mode",
         CompatibilityMode.STRICT.name(),
         CompatibilityMode::parseString,
-        value -> {
-            if (value == CompatibilityMode.MIXED
-                && FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING) == false) {
-                throw new IllegalArgumentException(
-                    " mixed mode is under an experimental feature and can be activated only by enabling "
-                        + REMOTE_STORE_MIGRATION_EXPERIMENTAL
-                        + " feature flag in the JVM options "
-                );
-            }
-        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public static final Setting<Direction> MIGRATION_DIRECTION_SETTING = new Setting<>(
-        "migration.direction",
+        "cluster.migration.direction",
         Direction.NONE.name(),
         Direction::parseString,
         value -> {
-            if (value != Direction.NONE && FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING) == false) {
+            if (value == Direction.DOCREP && FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING) == false) {
                 throw new IllegalArgumentException(
-                    " migration.direction is under an experimental feature and can be activated only by enabling "
+                    " remote store to docrep migration.direction is under an experimental feature and can be activated only by enabling "
                         + REMOTE_STORE_MIGRATION_EXPERIMENTAL
                         + " feature flag in the JVM options "
                 );
@@ -227,7 +217,14 @@ public class RemoteStoreNodeService {
     }
 
     /**
-     * To check if the cluster is undergoing remote store migration
+     * Returns <code>true</code> iff current cluster settings have:
+     * <br>
+     * - <code>remote_store.compatibility_mode</code> set to <code>mixed</code>
+     * <br>
+     * - <code>migration.direction</code> set to <code>remote_store</code>
+     * <br>
+     * <code>false</code> otherwise
+     *
      * @param clusterSettings cluster level settings
      * @return
      * <code>true</code> For <code>REMOTE_STORE</code> migration direction and <code>MIXED</code> compatibility mode,

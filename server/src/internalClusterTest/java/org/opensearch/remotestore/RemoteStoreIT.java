@@ -23,12 +23,14 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.Translog.Durability;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -36,7 +38,6 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.remotestore.multipart.mocks.MockFsRepositoryPlugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -46,7 +47,6 @@ import org.hamcrest.MatcherAssert;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -54,11 +54,18 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.TRANSLOG;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.DATA;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.METADATA;
+import static org.opensearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING;
+import static org.opensearch.test.OpenSearchTestCase.getShardLevelBlobPath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -73,7 +80,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, MockFsRepositoryPlugin.class);
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class)).collect(Collectors.toList());
     }
 
     @Override
@@ -183,13 +190,9 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
-
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
+        ;
         IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
         int lastNMetadataFilesToKeep = indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles();
         // Delete is async.
@@ -213,12 +216,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, false, INDEX_NAME);
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
         MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1, numberOfIterations, numberOfIterations + 1)));
@@ -232,12 +231,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(5, 15);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
         MatcherAssert.assertThat(actualFileCount, is(oneOf(4)));
@@ -251,12 +246,9 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(12, 18);
         indexData(numberOfIterations, true, INDEX_NAME);
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path indexPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/metadata");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, METADATA).buildAsString();
+        Path indexPath = Path.of(segmentRepoPath + "/" + shardPath);
+        ;
         int actualFileCount = getFileCount(indexPath);
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
         MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations + 1)));
@@ -590,12 +582,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         flushAndRefresh(INDEX_NAME);
 
         // 3. Delete data from remote segment store
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(INDEX_NAME)
-            .get()
-            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
-        Path segmentDataPath = Path.of(String.valueOf(segmentRepoPath), indexUUID, "/0/segments/data");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", SEGMENTS, DATA).buildAsString();
+        Path segmentDataPath = Path.of(segmentRepoPath + "/" + shardPath);
 
         try (Stream<Path> files = Files.list(segmentDataPath)) {
             files.forEach(p -> {
@@ -808,25 +796,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
     // Test local only translog files which are not uploaded to remote store (no metadata present in remote)
     // Without the cleanup change in RemoteFsTranslog.createEmptyTranslog, this test fails with NPE.
     public void testLocalOnlyTranslogCleanupOnNodeRestart() throws Exception {
-        clusterSettingsSuppliedByTest = true;
-
-        // Overriding settings to use AsyncMultiStreamBlobContainer
-        Settings settings = Settings.builder()
-            .put(super.nodeSettings(1))
-            .put(
-                remoteStoreClusterSettings(
-                    REPOSITORY_NAME,
-                    segmentRepoPath,
-                    MockFsRepositoryPlugin.TYPE,
-                    REPOSITORY_2_NAME,
-                    translogRepoPath,
-                    MockFsRepositoryPlugin.TYPE
-                )
-            )
-            .build();
-
-        internalCluster().startClusterManagerOnlyNode(settings);
-        String dataNode = internalCluster().startDataOnlyNode(settings);
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
 
         // 1. Create index with 0 replica
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
@@ -850,7 +821,8 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
             .get()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
 
-        Path translogMetaDataPath = Path.of(String.valueOf(translogRepoPath), indexUUID, "/0/translog/metadata");
+        String shardPath = getShardLevelBlobPath(client(), INDEX_NAME, BlobPath.cleanPath(), "0", TRANSLOG, METADATA).buildAsString();
+        Path translogMetaDataPath = Path.of(translogRepoPath + "/" + shardPath);
 
         try (Stream<Path> files = Files.list(translogMetaDataPath)) {
             files.forEach(p -> {
@@ -870,5 +842,70 @@ public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
         indexBulk(INDEX_NAME, 15);
         refresh(INDEX_NAME);
         assertHitCount(client(dataNode).prepareSearch(INDEX_NAME).setSize(0).get(), searchableDocs + 15);
+    }
+
+    public void testFlushOnTooManyRemoteTranslogFiles() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        String datanode = internalCluster().startDataOnlyNodes(1).get(0);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0, 10000L, -1));
+        ensureGreen(INDEX_NAME);
+
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(
+            Settings.builder()
+                .put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "100")
+                .put(CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "0ms")
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        IndexShard indexShard = getIndexShard(datanode, INDEX_NAME);
+        Path translogLocation = getTranslog(indexShard).location();
+        assertFalse(indexShard.shouldPeriodicallyFlush());
+
+        try (Stream<Path> files = Files.list(translogLocation)) {
+            long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+            assertEquals(totalFiles, 1L);
+        }
+
+        // indexing 100 documents (100 bulk requests), no flush will be triggered yet
+        for (int i = 0; i < 100; i++) {
+            indexBulk(INDEX_NAME, 1);
+        }
+
+        try (Stream<Path> files = Files.list(translogLocation)) {
+            long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+            assertEquals(totalFiles, 101L);
+        }
+        // Will flush and trim the translog readers
+        indexBulk(INDEX_NAME, 1);
+
+        assertBusy(() -> {
+            try (Stream<Path> files = Files.list(translogLocation)) {
+                long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+                assertEquals(totalFiles, 1L);
+            }
+        }, 30, TimeUnit.SECONDS);
+
+        // Disabling max translog readers
+        assertAcked(
+            internalCluster().client()
+                .admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_MAX_TRANSLOG_READERS.getKey(), "-1"))
+                .get()
+        );
+
+        // Indexing 500 more docs
+        for (int i = 0; i < 500; i++) {
+            indexBulk(INDEX_NAME, 1);
+        }
+
+        // No flush is triggered since max_translog_readers is set to -1
+        // Total tlog files would be incremented by 500
+        try (Stream<Path> files = Files.list(translogLocation)) {
+            long totalFiles = files.filter(f -> f.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX)).count();
+            assertEquals(totalFiles, 501L);
+        }
     }
 }

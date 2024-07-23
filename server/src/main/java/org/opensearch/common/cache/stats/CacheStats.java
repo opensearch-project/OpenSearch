@@ -20,9 +20,9 @@ public class CacheStats {
     CounterMetric misses;
     CounterMetric evictions;
     CounterMetric sizeInBytes;
-    CounterMetric entries;
+    CounterMetric items;
 
-    public CacheStats(long hits, long misses, long evictions, long sizeInBytes, long entries) {
+    public CacheStats(long hits, long misses, long evictions, long sizeInBytes, long items) {
         this.hits = new CounterMetric();
         this.hits.inc(hits);
         this.misses = new CounterMetric();
@@ -31,8 +31,8 @@ public class CacheStats {
         this.evictions.inc(evictions);
         this.sizeInBytes = new CounterMetric();
         this.sizeInBytes.inc(sizeInBytes);
-        this.entries = new CounterMetric();
-        this.entries.inc(entries);
+        this.items = new CounterMetric();
+        this.items.inc(items);
     }
 
     public CacheStats() {
@@ -44,33 +44,33 @@ public class CacheStats {
         this.misses.inc(otherMisses);
         this.evictions.inc(otherEvictions);
         this.sizeInBytes.inc(otherSizeInBytes);
-        this.entries.inc(otherEntries);
+        this.items.inc(otherEntries);
     }
 
     public void add(CacheStats other) {
         if (other == null) {
             return;
         }
-        internalAdd(other.getHits(), other.getMisses(), other.getEvictions(), other.getSizeInBytes(), other.getEntries());
+        internalAdd(other.getHits(), other.getMisses(), other.getEvictions(), other.getSizeInBytes(), other.getItems());
     }
 
     public void add(ImmutableCacheStats snapshot) {
         if (snapshot == null) {
             return;
         }
-        internalAdd(snapshot.getHits(), snapshot.getMisses(), snapshot.getEvictions(), snapshot.getSizeInBytes(), snapshot.getEntries());
+        internalAdd(snapshot.getHits(), snapshot.getMisses(), snapshot.getEvictions(), snapshot.getSizeInBytes(), snapshot.getItems());
     }
 
     public void subtract(ImmutableCacheStats other) {
         if (other == null) {
             return;
         }
-        internalAdd(-other.getHits(), -other.getMisses(), -other.getEvictions(), -other.getSizeInBytes(), -other.getEntries());
+        internalAdd(-other.getHits(), -other.getMisses(), -other.getEvictions(), -other.getSizeInBytes(), -other.getItems());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
+        return Objects.hash(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), items.count());
     }
 
     public void incrementHits() {
@@ -93,12 +93,12 @@ public class CacheStats {
         sizeInBytes.dec(amount);
     }
 
-    public void incrementEntries() {
-        entries.inc();
+    public void incrementItems() {
+        items.inc();
     }
 
-    public void decrementEntries() {
-        entries.dec();
+    public void decrementItems() {
+        items.dec();
     }
 
     public long getHits() {
@@ -117,16 +117,16 @@ public class CacheStats {
         return sizeInBytes.count();
     }
 
-    public long getEntries() {
-        return entries.count();
+    public long getItems() {
+        return items.count();
     }
 
     public void resetSizeAndEntries() {
         sizeInBytes = new CounterMetric();
-        entries = new CounterMetric();
+        items = new CounterMetric();
     }
 
     public ImmutableCacheStats immutableSnapshot() {
-        return new ImmutableCacheStats(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), entries.count());
+        return new ImmutableCacheStats(hits.count(), misses.count(), evictions.count(), sizeInBytes.count(), items.count());
     }
 }

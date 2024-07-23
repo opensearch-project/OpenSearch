@@ -136,7 +136,7 @@ public class ClusterBlockTests extends OpenSearchTestCase {
         assertThat(builder.build().getIndexBlockWithId("index", randomValueOtherThan(blockId, OpenSearchTestCase::randomInt)), nullValue());
     }
 
-    private ClusterBlock randomClusterBlock() {
+    public static ClusterBlock randomClusterBlock() {
         final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
         final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
         return new ClusterBlock(

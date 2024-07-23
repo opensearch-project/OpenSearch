@@ -8,20 +8,28 @@
 
 package org.opensearch.plugin.insights.core.service;
 
+import org.opensearch.client.Client;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.plugin.insights.core.exporter.QueryInsightsExporterFactory;
 import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.rules.model.SearchQueryRecord;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
+
+import static org.opensearch.plugin.insights.settings.QueryInsightsSettings.getExporterSettings;
 
 /**
  * Service responsible for gathering, analyzing, storing and exporting
@@ -57,20 +65,36 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
     protected volatile Scheduler.Cancellable scheduledFuture;
 
     /**
+     * Query Insights exporter factory
+     */
+    final QueryInsightsExporterFactory queryInsightsExporterFactory;
+
+    /**
      * Constructor of the QueryInsightsService
      *
-     * @param threadPool     The OpenSearch thread pool to run async tasks
+     * @param clusterSettings OpenSearch cluster level settings
+     * @param threadPool The OpenSearch thread pool to run async tasks
+     * @param client OS client
      */
     @Inject
-    public QueryInsightsService(final ThreadPool threadPool) {
+    public QueryInsightsService(final ClusterSettings clusterSettings, final ThreadPool threadPool, final Client client) {
         enableCollect = new HashMap<>();
         queryRecordsQueue = new LinkedBlockingQueue<>(QueryInsightsSettings.QUERY_RECORD_QUEUE_CAPACITY);
+        this.threadPool = threadPool;
+        this.queryInsightsExporterFactory = new QueryInsightsExporterFactory(client);
+        // initialize top n queries services and configurations consumers
         topQueriesServices = new HashMap<>();
         for (MetricType metricType : MetricType.allMetricTypes()) {
             enableCollect.put(metricType, false);
-            topQueriesServices.put(metricType, new TopQueriesService(metricType));
+            topQueriesServices.put(metricType, new TopQueriesService(metricType, threadPool, queryInsightsExporterFactory));
         }
-        this.threadPool = threadPool;
+        for (MetricType type : MetricType.allMetricTypes()) {
+            clusterSettings.addSettingsUpdateConsumer(
+                getExporterSettings(type),
+                (settings -> setExporter(type, settings)),
+                (settings -> validateExporterConfig(type, settings))
+            );
+        }
     }
 
     /**
@@ -157,6 +181,78 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
         return false;
     }
 
+    /**
+     * Validate the window size config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param windowSize {@link TimeValue}
+     */
+    public void validateWindowSize(final MetricType type, final TimeValue windowSize) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).validateWindowSize(windowSize);
+        }
+    }
+
+    /**
+     * Set window size for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param windowSize {@link TimeValue}
+     */
+    public void setWindowSize(final MetricType type, final TimeValue windowSize) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).setWindowSize(windowSize);
+        }
+    }
+
+    /**
+     * Validate the top n size config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param topNSize top n size
+     */
+    public void validateTopNSize(final MetricType type, final int topNSize) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).validateTopNSize(topNSize);
+        }
+    }
+
+    /**
+     * Set the top n size config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param topNSize top n size
+     */
+    public void setTopNSize(final MetricType type, final int topNSize) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).setTopNSize(topNSize);
+        }
+    }
+
+    /**
+     * Set the exporter config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param settings exporter settings
+     */
+    public void setExporter(final MetricType type, final Settings settings) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).setExporter(settings);
+        }
+    }
+
+    /**
+     * Validate the exporter config for a metricType
+     *
+     * @param type {@link MetricType}
+     * @param settings exporter settings
+     */
+    public void validateExporterConfig(final MetricType type, final Settings settings) {
+        if (topQueriesServices.containsKey(type)) {
+            topQueriesServices.get(type).validateExporterConfig(settings);
+        }
+    }
+
     @Override
     protected void doStart() {
         if (isEnabled()) {
@@ -176,5 +272,12 @@ public class QueryInsightsService extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() {}
+    protected void doClose() throws IOException {
+        // close all top n queries service
+        for (TopQueriesService topQueriesService : topQueriesServices.values()) {
+            topQueriesService.close();
+        }
+        // close any unclosed resources
+        queryInsightsExporterFactory.closeAllExporters();
+    }
 }

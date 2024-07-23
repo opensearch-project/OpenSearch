@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
+import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.ByteBufferStreamInput;
@@ -51,6 +52,7 @@ import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.channels.TraceableTcpTransportChannel;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.nativeprotocol.NativeOutboundHandler;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -71,7 +73,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
     private static final Logger logger = LogManager.getLogger(NativeMessageHandler.class);
 
     private final ThreadPool threadPool;
-    private final OutboundHandler outboundHandler;
+    private final NativeOutboundHandler outboundHandler;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
@@ -81,7 +83,12 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
     private final Tracer tracer;
 
     NativeMessageHandler(
+        String nodeName,
+        Version version,
+        String[] features,
+        StatsTracker statsTracker,
         ThreadPool threadPool,
+        BigArrays bigArrays,
         OutboundHandler outboundHandler,
         NamedWriteableRegistry namedWriteableRegistry,
         TransportHandshaker handshaker,
@@ -91,7 +98,7 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
         TransportKeepAlive keepAlive
     ) {
         this.threadPool = threadPool;
-        this.outboundHandler = outboundHandler;
+        this.outboundHandler = new NativeOutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays, outboundHandler);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handshaker = handshaker;
         this.requestHandlers = requestHandlers;
@@ -489,6 +496,11 @@ public class NativeMessageHandler implements ProtocolMessageHandler {
         public void onFailure(Exception e) {
             sendErrorResponse(reg.getAction(), transportChannel, e);
         }
+    }
+
+    @Override
+    public void setMessageListener(TransportMessageListener listener) {
+        outboundHandler.setMessageListener(listener);
     }
 
 }

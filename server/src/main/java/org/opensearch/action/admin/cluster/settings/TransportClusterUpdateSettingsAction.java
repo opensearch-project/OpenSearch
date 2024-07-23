@@ -63,9 +63,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Locale;
-import java.util.Set;
-import java.util.stream.Collectors;
+
+import static org.opensearch.index.remote.RemoteStoreUtils.checkAndFinalizeRemoteStoreMigration;
 
 /**
  * Transport action for updating cluster settings
@@ -258,13 +257,14 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    validateCompatibilityModeSettingRequest(request, state);
-                    final ClusterState clusterState = updater.updateSettings(
+                    boolean isCompatibilityModeChanging = validateCompatibilityModeSettingRequest(request, state);
+                    ClusterState clusterState = updater.updateSettings(
                         currentState,
                         clusterSettings.upgradeSettings(request.transientSettings()),
                         clusterSettings.upgradeSettings(request.persistentSettings()),
                         logger
                     );
+                    clusterState = checkAndFinalizeRemoteStoreMigration(isCompatibilityModeChanging, request, clusterState, logger);
                     changed = clusterState != currentState;
                     return clusterState;
                 }
@@ -274,18 +274,23 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
     /**
      * Runs various checks associated with changing cluster compatibility mode
+     *
      * @param request cluster settings update request, for settings to be updated and new values
      * @param clusterState current state of cluster, for information on nodes
+     * @return true if the incoming cluster settings update request is switching compatibility modes
      */
-    public void validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState clusterState) {
+    public boolean validateCompatibilityModeSettingRequest(ClusterUpdateSettingsRequest request, ClusterState clusterState) {
         Settings settings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
         if (RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.exists(settings)) {
-            String value = settings.get(RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey()).toLowerCase(Locale.ROOT);
             validateAllNodesOfSameVersion(clusterState.nodes());
-            if (value.equals(RemoteStoreNodeService.CompatibilityMode.STRICT.mode)) {
+            if (RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(
+                settings
+            ) == RemoteStoreNodeService.CompatibilityMode.STRICT) {
                 validateAllNodesOfSameType(clusterState.nodes());
             }
+            return true;
         }
+        return false;
     }
 
     /**
@@ -305,16 +310,18 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
      * @param discoveryNodes current discovery nodes in the cluster
      */
     private void validateAllNodesOfSameType(DiscoveryNodes discoveryNodes) {
-        Set<Boolean> nodeTypes = discoveryNodes.getNodes()
+        boolean allNodesDocrepEnabled = discoveryNodes.getNodes()
             .values()
             .stream()
-            .map(DiscoveryNode::isRemoteStoreNode)
-            .collect(Collectors.toSet());
-        if (nodeTypes.size() != 1) {
+            .allMatch(discoveryNode -> discoveryNode.isRemoteStoreNode() == false);
+        boolean allNodesRemoteStoreEnabled = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .allMatch(discoveryNode -> discoveryNode.isRemoteStoreNode());
+        if (allNodesDocrepEnabled == false && allNodesRemoteStoreEnabled == false) {
             throw new SettingsException(
                 "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes"
             );
         }
     }
-
 }

@@ -29,8 +29,7 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
     private static final String BATCH_ID = "b1";
     private final DiscoveryNode node1 = newNode("node1");
     private final DiscoveryNode node2 = newNode("node2");
-    // Needs to be enabled once ShardsBatchGatewayAllocator is pushed
-    // private final Map<ShardId, ShardsBatchGatewayAllocator.ShardEntry> batchInfo = new HashMap<>();
+    private final Map<ShardId, ShardsBatchGatewayAllocator.ShardEntry> batchInfo = new HashMap<>();
     private AsyncShardBatchFetch.ShardBatchCache<NodeGatewayStartedShardsBatch, GatewayStartedShard> shardCache;
     private List<ShardId> shardsInBatch = new ArrayList<>();
     private static final int NUMBER_OF_SHARDS_DEFAULT = 10;
@@ -162,7 +161,7 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
             null
         );
 
-        // assertEquals(5, batchInfo.size());
+        assertEquals(10, batchInfo.size());
         assertEquals(2, fetchData.size());
         assertEquals(10, fetchData.get(node1).getNodeGatewayStartedShardsBatch().size());
         assertTrue(fetchData.get(node2).getNodeGatewayStartedShardsBatch().isEmpty());
@@ -210,10 +209,10 @@ public class ShardBatchCacheTests extends OpenSearchAllocationTestCase {
         for (ShardId shardId : shardsInBatch) {
             ShardAttributes attr = new ShardAttributes("");
             shardAttributesMap.put(shardId, attr);
-            // batchInfo.put(
-            // shardId,
-            // new ShardsBatchGatewayAllocator.ShardEntry(attr, randomShardRouting(shardId.getIndexName(), shardId.id()))
-            // );
+            batchInfo.put(
+                shardId,
+                new ShardsBatchGatewayAllocator.ShardEntry(attr, randomShardRouting(shardId.getIndexName(), shardId.id()))
+            );
         }
     }
 

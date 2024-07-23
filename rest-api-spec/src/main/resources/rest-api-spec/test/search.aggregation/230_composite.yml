@@ -1069,3 +1069,68 @@ setup:
   - match: { aggregations.test.buckets.1.doc_count: 2 }
   - match: { aggregations.test.buckets.2.key.kw: null }
   - match: { aggregations.test.buckets.2.doc_count: 2 }
+
+---
+"composite aggregation date_histogram profile shows filter rewrite info":
+  - skip:
+      version: " - 2.14.99"
+      reason:  debug info for filter rewrite added in 3.0.0 (to be backported to 2.14.0)
+
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+            refresh_interval: -1
+          mappings:
+            properties:
+              date:
+                type: date
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"date": "2016-01-01"}'
+          - '{"index": {}}'
+          - '{"date": "2016-01-02"}'
+          - '{"index": {}}'
+          - '{"date": "2016-02-01"}'
+          - '{"index": {}}'
+          - '{"date": "2016-03-01"}'
+
+  - do:
+      indices.forcemerge:
+        index: test_2
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: test_2
+        body:
+          size: 0
+          profile: true
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
+                        "format": "strict_date"
+                      }
+                    }
+                  }
+                ]
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.test.buckets: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.optimized_segments: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }

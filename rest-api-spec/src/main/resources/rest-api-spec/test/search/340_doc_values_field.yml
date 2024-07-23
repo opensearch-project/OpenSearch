@@ -51,6 +51,18 @@ setup:
                 type: ip
                 index: true
                 doc_values: true
+              boolean:
+                  type: boolean
+                  index: true
+                  doc_values: true
+              date:
+                type: date
+                index: true
+                doc_values: true
+              date_nanos:
+                type: date_nanos
+                index: true
+                doc_values: true
 
   - do:
       bulk:
@@ -58,11 +70,11 @@ setup:
         refresh: true
         body:
           - '{"index": {"_index": "test-iodvq", "_id": "1" }}'
-          - '{ "some_keyword": "ingesting some random keyword data", "byte": 120, "double": 100.0, "float": "800.0", "half_float": "400.0", "integer": 1290, "long": 13456, "short": 150, "unsigned_long": 10223372036854775800, "ip_field": "192.168.0.1" }'
+          - '{ "some_keyword": "ingesting some random keyword data", "byte": 120, "double": 100.0, "float": "800.0", "half_float": "400.0", "integer": 1290, "long": 13456, "short": 150, "unsigned_long": 10223372036854775800, "ip_field": "192.168.0.1", "boolean": true, "date_nanos": "2018-10-29T12:12:12.123456789Z", "date": "2018-10-29T12:12:12.987Z" }'
           - '{ "index": { "_index": "test-iodvq", "_id": "2" }}'
-          - '{ "some_keyword": "400", "byte": 121, "double": 101.0, "float": "801.0", "half_float": "401.0", "integer": 1291, "long": 13457, "short": 151, "unsigned_long": 10223372036854775801, "ip_field": "192.168.0.2" }'
+          - '{ "some_keyword": "400", "byte": 121, "double": 101.0, "float": "801.0", "half_float": "401.0", "integer": 1291, "long": 13457, "short": 151, "unsigned_long": 10223372036854775801, "ip_field": "192.168.0.2", "boolean": true, "date_nanos": "2020-10-29T12:12:12.987654321Z", "date": "2020-10-29T12:12:12.987Z" }'
           - '{ "index": { "_index": "test-iodvq", "_id": "3" } }'
-          - '{ "some_keyword": "5", "byte": 122, "double": 102.0, "float": "802.0", "half_float": "402.0", "integer": 1292, "long": 13458, "short": 152, "unsigned_long": 10223372036854775802, "ip_field": "192.168.0.3" }'
+          - '{ "some_keyword": "5", "byte": 122, "double": 102.0, "float": "802.0", "half_float": "402.0", "integer": 1292, "long": 13458, "short": 152, "unsigned_long": 10223372036854775802, "ip_field": "192.168.0.3", "boolean": false, "date_nanos": "2024-10-29T12:12:12.987654321Z", "date": "2024-10-29T12:12:12.987Z" }'
 
   - do:
       search:
@@ -194,6 +206,17 @@ setup:
         index: test-iodvq
         body:
           query:
+            term:
+              boolean: true
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
             terms:
               half_float: [ 400.0, 401.0 ]
 
@@ -286,6 +309,17 @@ setup:
               ip_field: ["192.168.0.1", "192.168.0.2"]
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            terms:
+              boolean: [true, false]
+
+  - match: { hits.total: 3 }
 
   - do:
       search:
@@ -420,6 +454,92 @@ setup:
 
   - match: { hits.total: 2 }
 
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              date_nanos: {
+                gte: "2018-10-29T12:12:12.123456789Z"
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              date: {
+                gte: "2018-10-29T12:12:12.987Z",
+                lte: "2020-10-29T12:12:12.987Z"
+              },
+            }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              boolean: {
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true,
+                gte: false
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: false,
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 0 }
 ---
 "search on fields with only index enabled":
   - do:
@@ -468,6 +588,18 @@ setup:
                 type: ip
                 index: true
                 doc_values: false
+              boolean:
+                type: boolean
+                index: true
+                doc_values: false
+              date_nanos:
+                type: date_nanos
+                index: true
+                doc_values: false
+              date:
+                type: date
+                index: true
+                doc_values: false
 
   - do:
       bulk:
@@ -475,11 +607,11 @@ setup:
         refresh: true
         body:
           - '{"index": {"_index": "test-index", "_id": "1" }}'
-          - '{ "some_keyword": "ingesting some random keyword data", "byte": 120, "double": 100.0, "float": "800.0", "half_float": "400.0", "integer": 1290, "long": 13456, "short": 150, "unsigned_long": 10223372036854775800, "ip_field": "192.168.0.1" }'
+          - '{ "some_keyword": "ingesting some random keyword data", "byte": 120, "double": 100.0, "float": "800.0", "half_float": "400.0", "integer": 1290, "long": 13456, "short": 150, "unsigned_long": 10223372036854775800, "ip_field": "192.168.0.1", "boolean": true, "date_nanos": "2018-10-29T12:12:12.123456789Z", "date": "2018-10-29T12:12:12.987Z" }'
           - '{ "index": { "_index": "test-index", "_id": "2" }}'
-          - '{ "some_keyword": "400", "byte": 121, "double": 101.0, "float": "801.0", "half_float": "401.0", "integer": 1291, "long": 13457, "short": 151, "unsigned_long": 10223372036854775801, "ip_field": "192.168.0.2" }'
+          - '{ "some_keyword": "400", "byte": 121, "double": 101.0, "float": "801.0", "half_float": "401.0", "integer": 1291, "long": 13457, "short": 151, "unsigned_long": 10223372036854775801, "ip_field": "192.168.0.2", "boolean": true, "date_nanos": "2020-10-29T12:12:12.123456789Z", "date": "2020-10-29T12:12:12.987Z" }'
           - '{ "index": { "_index": "test-index", "_id": "3" } }'
-          - '{ "some_keyword": "5", "byte": 122, "double": 102.0, "float": "802.0", "half_float": "402.0", "integer": 1292, "long": 13458, "short": 152, "unsigned_long": 10223372036854775802, "ip_field": "192.168.0.3" }'
+          - '{ "some_keyword": "5", "byte": 122, "double": 102.0, "float": "802.0", "half_float": "402.0", "integer": 1292, "long": 13458, "short": 152, "unsigned_long": 10223372036854775802, "ip_field": "192.168.0.3", "boolean": false, "date_nanos": "2024-10-29T12:12:12.123456789Z", "date": "2024-10-29T12:12:12.987Z" }'
 
   - do:
       search:
@@ -611,6 +743,18 @@ setup:
         index: test-index
         body:
           query:
+            term:
+              boolean: true
+
+  - match: { hits.total: 2 }
+
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
             terms:
               half_float: [ 400.0, 401.0 ]
 
@@ -703,6 +847,17 @@ setup:
               ip_field: ["192.168.0.1", "192.168.0.2"]
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            terms:
+              boolean: [true, false]
+
+  - match: { hits.total: 3 }
 
   - do:
       search:
@@ -836,6 +991,93 @@ setup:
                 lte: "192.168.0.2"
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              date_nanos: {
+                gte: "2018-10-29T12:12:12.123456789Z"
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              date: {
+                gte: "2018-10-29T12:12:12.987Z",
+                lte: "2020-10-29T12:12:12.987Z"
+              },
+            }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              boolean: {
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true,
+                gte: false
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: false,
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 0 }
 ---
 "search on fields with only doc_values enabled":
   - skip:
@@ -888,6 +1130,18 @@ setup:
                 type: ip
                 index: false
                 doc_values: true
+              boolean:
+                type: boolean
+                index: false
+                doc_values: true
+              date_nanos:
+                type: date_nanos
+                index: false
+                doc_values: true
+              date:
+                type: date
+                index: false
+                doc_values: true
 
   - do:
       bulk:
@@ -895,11 +1149,11 @@ setup:
         refresh: true
         body:
           - '{"index": {"_index": "test-doc-values", "_id": "1" }}'
-          - '{ "some_keyword": "ingesting some random keyword data", "byte": 120, "double": 100.0, "float": "800.0", "half_float": "400.0", "integer": 1290, "long": 13456, "short": 150, "unsigned_long": 10223372036854775800, "ip_field": "192.168.0.1" }'
+          - '{ "some_keyword": "ingesting some random keyword data", "byte": 120, "double": 100.0, "float": "800.0", "half_float": "400.0", "integer": 1290, "long": 13456, "short": 150, "unsigned_long": 10223372036854775800, "ip_field": "192.168.0.1", "boolean": true, "date_nanos": "2018-10-29T12:12:12.123456789Z", "date": "2018-10-29T12:12:12.987Z" }'
           - '{ "index": { "_index": "test-doc-values", "_id": "2" }}'
-          - '{ "some_keyword": "400", "byte": 121, "double": 101.0, "float": "801.0", "half_float": "401.0", "integer": 1291, "long": 13457, "short": 151, "unsigned_long": 10223372036854775801, "ip_field": "192.168.0.2" }'
+          - '{ "some_keyword": "400", "byte": 121, "double": 101.0, "float": "801.0", "half_float": "401.0", "integer": 1291, "long": 13457, "short": 151, "unsigned_long": 10223372036854775801, "ip_field": "192.168.0.2", "boolean": true, "date_nanos": "2020-10-29T12:12:12.123456789Z", "date": "2020-10-29T12:12:12.987Z" }'
           - '{ "index": { "_index": "test-doc-values", "_id": "3" } }'
-          - '{ "some_keyword": "5", "byte": 122, "double": 102.0, "float": "802.0", "half_float": "402.0", "integer": 1292, "long": 13458, "short": 152, "unsigned_long": 10223372036854775802, "ip_field": "192.168.0.3" }'
+          - '{ "some_keyword": "5", "byte": 122, "double": 102.0, "float": "802.0", "half_float": "402.0", "integer": 1292, "long": 13458, "short": 152, "unsigned_long": 10223372036854775802, "ip_field": "192.168.0.3", "boolean": false, "date_nanos": "2024-10-29T12:12:12.123456789Z", "date": "2024-10-29T12:12:12.987Z" }'
 
   - do:
       search:
@@ -1030,6 +1284,17 @@ setup:
         index: test-doc-values
         body:
           query:
+            term:
+              boolean: false
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
             terms:
               half_float: [ 400.0, 401.0 ]
 
@@ -1111,6 +1376,17 @@ setup:
               unsigned_long: [ 10223372036854775800, 10223372036854775801 ]
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            terms:
+              boolean: [true, false]
+
+  - match: { hits.total: 3 }
 
   - do:
       search:
@@ -1244,3 +1520,90 @@ setup:
                 lte: "192.168.0.2"
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              date_nanos: {
+                gte: "2018-10-29T12:12:12.123456789Z"
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              date: {
+                gte: "2018-10-29T12:12:12.987Z",
+                lte: "2020-10-29T12:12:12.987Z"
+              },
+            }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              boolean: {
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: true,
+                gte: false
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              boolean: {
+                lte: false,
+                gte: true
+              },
+            }
+
+  - match: { hits.total: 0 }

@@ -192,10 +192,6 @@ public class FetchContext {
         return searchContext.includeNamedQueriesScore();
     }
 
-    public boolean hasInnerHits() {
-        return searchContext.hasInnerHits();
-    }
-
     /**
      * Configuration for returning inner hits
      */
@@ -215,10 +211,6 @@ public class FetchContext {
      */
     public FetchFieldsContext fetchFieldsContext() {
         return searchContext.fetchFieldsContext();
-    }
-
-    public boolean hasScriptFields() {
-        return searchContext.hasScriptFields();
     }
 
     /**

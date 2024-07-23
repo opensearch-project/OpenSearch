@@ -10,7 +10,7 @@
  */
 
 plugins {
-  id "com.gradle.enterprise" version "3.17.2"
+  id "com.gradle.develocity" version "3.17.6"
 }
 
 ext.disableBuildCache = hasProperty('DISABLE_BUILD_CACHE') || System.getenv().containsKey('DISABLE_BUILD_CACHE')
@@ -18,7 +18,6 @@ ext.disableBuildCache = hasProperty('DISABLE_BUILD_CACHE') || System.getenv().co
 buildCache {
   local {
     enabled = !disableBuildCache
-    removeUnusedEntriesAfterDays = 14
   }
 }
 

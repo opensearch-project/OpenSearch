@@ -760,3 +760,138 @@ setup:
   - match: { aggregations.histo.buckets.2.key_as_string: "2022-03-25T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.2.m_terms.buckets.0.key: [ "a", "127.0.0.1" ] }
   - match: { aggregations.histo.buckets.2.m_terms.buckets.1.key: [ "b", "127.0.0.1" ] }
+
+---
+"multi_terms bucket and multiple orders test":
+  - skip:
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1, "double": 1234.5, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 2, "double": 5678.9, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1, "double": 123.4, "boolean": false}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 2, "double": 456.7, "boolean": false}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 3, "double": 1234.5, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 4, "double": 5678.9, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 3, "double": 234.5, "boolean": false}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 4, "double": 456.7, "boolean": false}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: boolean
+                order:
+                  - max_int: desc
+                  - min_double: asc
+              aggs:
+                max_int:
+                  max:
+                    field: integer
+                min_double:
+                  min:
+                    field: double
+
+  - length: { aggregations.m_terms.buckets: 4 }
+  - match: { aggregations.m_terms.buckets.0.key: ["b", false] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "b|false" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.0.max_int.value: 4.0 }
+  - match: { aggregations.m_terms.buckets.0.min_double.value: 234.5 }
+  - match: { aggregations.m_terms.buckets.1.key: ["b", true] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "b|true" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.max_int.value: 4.0 }
+  - match: { aggregations.m_terms.buckets.1.min_double.value: 1234.5 }
+  - match: { aggregations.m_terms.buckets.2.key: [ "a", false ] }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "a|false" }
+  - match: { aggregations.m_terms.buckets.2.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.2.max_int.value: 2.0 }
+  - match: { aggregations.m_terms.buckets.2.min_double.value: 123.4 }
+  - match: { aggregations.m_terms.buckets.3.key: [ "a", true ] }
+  - match: { aggregations.m_terms.buckets.3.key_as_string: "a|true" }
+  - match: { aggregations.m_terms.buckets.3.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.3.max_int.value: 2.0 }
+  - match: { aggregations.m_terms.buckets.3.min_double.value: 1234.5 }
+
+---
+"multi_terms bucket and multiple orders with size test":
+  - skip:
+      version: "- 2.0.99"
+      reason:  multi_terms aggregation is introduced in 2.1.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1, "double": 1234.5, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 2, "double": 5678.9, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 1, "double": 123.4, "boolean": false}'
+          - '{"index": {}}'
+          - '{"str": "a", "integer": 2, "double": 456.7, "boolean": false}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 3, "double": 1234.5, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 4, "double": 5678.9, "boolean": true}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 3, "double": 234.5, "boolean": false}'
+          - '{"index": {}}'
+          - '{"str": "b", "integer": 4, "double": 456.7, "boolean": false}'
+
+  - do:
+      search:
+        index: test_1
+        size: 0
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: str
+                  - field: boolean
+                order:
+                  - max_int: desc
+                  - min_double: asc
+                size: 2
+              aggs:
+                max_int:
+                  max:
+                    field: integer
+                min_double:
+                  min:
+                    field: double
+
+  - length: { aggregations.m_terms.buckets: 2 }
+  - match: { aggregations.m_terms.buckets.0.key: ["b", false] }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "b|false" }
+  - match: { aggregations.m_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.0.max_int.value: 4.0 }
+  - match: { aggregations.m_terms.buckets.0.min_double.value: 234.5 }
+  - match: { aggregations.m_terms.buckets.1.key: ["b", true] }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "b|true" }
+  - match: { aggregations.m_terms.buckets.1.doc_count: 2 }
+  - match: { aggregations.m_terms.buckets.1.max_int.value: 4.0 }
+  - match: { aggregations.m_terms.buckets.1.min_double.value: 1234.5 }

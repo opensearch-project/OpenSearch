@@ -1022,6 +1022,37 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Adds a derived field with the given name with provided type, script and other parameters
+     * @param name name of the derived field
+     * @param type type of the derived field
+     * @param script script associated with derived field
+     * @param properties map of field name and type of field for nested fields within object derived field
+     * @param prefilterField source text field which is indexed to filter documents for better performance
+     * @param format date format
+     * @param ignoreMalformed ignores malformed fields instead of failing search request
+     */
+    public SearchSourceBuilder derivedField(
+        String name,
+        String type,
+        Script script,
+        Map<String, Object> properties,
+        String prefilterField,
+        String format,
+        Boolean ignoreMalformed
+    ) {
+        if (derivedFields == null) {
+            derivedFields = new ArrayList<>();
+        }
+        DerivedField derivedField = new DerivedField(name, type, script);
+        derivedField.setProperties(properties);
+        derivedField.setPrefilterField(prefilterField);
+        derivedField.setFormat(format);
+        derivedField.setIgnoreMalformed(ignoreMalformed);
+        derivedFields.add(derivedField);
+        return this;
+    }
+
+    /**
      * Sets the boost a specific index or alias will receive when the query is executed
      * against it.
      *

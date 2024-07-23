@@ -69,6 +69,7 @@ import org.opensearch.common.TriFunction;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
@@ -126,7 +127,6 @@ import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 import org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.opensearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.metrics.MetricsAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -305,6 +305,20 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return createAggregator(aggregationBuilder, searchContext);
     }
 
+    protected <A extends Aggregator> A createAggregatorWithCustomizableSearchContext(
+        Query query,
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher indexSearcher,
+        IndexSettings indexSettings,
+        MultiBucketConsumer bucketConsumer,
+        Consumer<SearchContext> customizeSearchContext,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
+        customizeSearchContext.accept(searchContext);
+        return createAggregator(aggregationBuilder, searchContext);
+    }
+
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, SearchContext searchContext)
         throws IOException {
         @SuppressWarnings("unchecked")
@@ -410,6 +424,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         );
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
+        when(searchContext.maxAggRewriteFilters()).thenReturn(10_000);
         registerFieldTypes(searchContext, mapperService, fieldNameToType);
         doAnswer(invocation -> {
             /* Store the release-ables so we can release them at the end of the test case. This is important because aggregations don't
@@ -519,6 +534,17 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         return searchAndReduce(createIndexSettings(), searcher, query, builder, maxBucket, fieldTypes);
     }
 
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        int maxBucket,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, false, fieldTypes);
+    }
+
     /**
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
@@ -533,11 +559,15 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         Query query,
         AggregationBuilder builder,
         int maxBucket,
+        boolean hasNested,
         MappedFieldType... fieldTypes
     ) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
+        if (hasNested) {
+            query = Queries.filtered(query, Queries.newNonNestedFilter());
+        }
         Query rewritten = searcher.rewrite(query);
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
             maxBucket,
@@ -1123,7 +1153,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         private final AtomicInteger collectCounter;
         public final Aggregator delegate;
 
-        public CountingAggregator(AtomicInteger collectCounter, TermsAggregator delegate) {
+        public CountingAggregator(AtomicInteger collectCounter, Aggregator delegate) {
             this.collectCounter = collectCounter;
             this.delegate = delegate;
         }

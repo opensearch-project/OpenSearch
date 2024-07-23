@@ -132,6 +132,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.cluster.SnapshotsInProgress.completed;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
@@ -653,11 +654,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         indicesForSnapshot.add(indexId.getName());
                     }
                 }
-                final List<String> matchingIndices = SnapshotUtils.filterIndices(
-                    indicesForSnapshot,
-                    request.indices(),
-                    request.indicesOptions()
-                );
+                final List<String> matchingIndices = filterIndices(indicesForSnapshot, request.indices(), request.indicesOptions());
                 if (matchingIndices.isEmpty()) {
                     throw new SnapshotException(
                         new Snapshot(repositoryName, sourceSnapshotId),

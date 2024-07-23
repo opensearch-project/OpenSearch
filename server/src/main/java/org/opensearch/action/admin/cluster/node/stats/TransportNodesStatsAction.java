@@ -128,7 +128,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             NodesStatsRequest.Metric.RESOURCE_USAGE_STATS.containedIn(metrics),
             NodesStatsRequest.Metric.SEGMENT_REPLICATION_BACKPRESSURE.containedIn(metrics),
             NodesStatsRequest.Metric.REPOSITORIES.containedIn(metrics),
-            NodesStatsRequest.Metric.ADMISSION_CONTROL.containedIn(metrics)
+            NodesStatsRequest.Metric.ADMISSION_CONTROL.containedIn(metrics),
+            NodesStatsRequest.Metric.CACHE_STATS.containedIn(metrics)
         );
     }
 
@@ -139,7 +140,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
      */
     public static class NodeStatsRequest extends BaseNodeRequest {
 
-        NodesStatsRequest request;
+        protected NodesStatsRequest request;
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);

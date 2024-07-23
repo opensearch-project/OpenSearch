@@ -157,6 +157,9 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Returns a string representation of the builder (only applicable for text based xcontent).
+     * Note: explicitly or implicitly (from debugger) calling toString() could cause XContentBuilder
+     * to close which is a side effect done by @see BytesReference#bytes().
+     * Trying to write more contents after toString() will cause NPE. Use it with caution.
      */
     @Override
     public String toString() {

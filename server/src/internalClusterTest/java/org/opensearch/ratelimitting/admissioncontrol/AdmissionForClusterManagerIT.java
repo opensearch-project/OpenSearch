@@ -12,7 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionResponse;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
@@ -20,6 +24,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.node.IoUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
@@ -29,9 +34,13 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.admin.indices.RestGetAliasesAction;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,6 +71,10 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
         .put(CLUSTER_ADMIN_CPU_USAGE_LIMIT.getKey(), 50)
         .build();
 
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(MockTransportService.TestPlugin.class);
+    }
+
     @Before
     public void init() {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(
@@ -79,6 +92,25 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
 
         // Enable admission control
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(ENFORCE_ADMISSION_CONTROL).execute().actionGet();
+        MockTransportService primaryService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            clusterManagerNode
+        );
+
+        // Force always fetch from ClusterManager
+        ClusterService clusterService = internalCluster().clusterService();
+        GetTermVersionResponse oosTerm = new GetTermVersionResponse(
+            new ClusterStateTermVersion(
+                clusterService.state().getClusterName(),
+                clusterService.state().metadata().clusterUUID(),
+                clusterService.state().term() - 1,
+                clusterService.state().version() - 1
+            )
+        );
+        primaryService.addRequestHandlingBehavior(
+            GetTermVersionAction.NAME,
+            (handler, request, channel, task) -> channel.sendResponse(oosTerm)
+        );
     }
 
     public void testAdmissionControlEnforced() throws Exception {
@@ -86,8 +118,8 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
 
         // Write API on ClusterManager
         assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("{\"alias1\" : {}}"));
-
         // Read API on ClusterManager
+
         GetAliasesRequest aliasesRequest = new GetAliasesRequest();
         aliasesRequest.aliases("alias1");
         try {
@@ -170,8 +202,8 @@ public class AdmissionForClusterManagerIT extends OpenSearchIntegTestCase {
 
             @Override
             public void sendResponse(RestResponse response) {
-                waitForResponse.countDown();
                 aliasResponse.set(response);
+                waitForResponse.countDown();
             }
         };
 

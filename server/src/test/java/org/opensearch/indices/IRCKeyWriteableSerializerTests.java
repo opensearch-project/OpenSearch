@@ -30,7 +30,7 @@ public class IRCKeyWriteableSerializerTests extends OpenSearchSingleNodeTestCase
         Random rand = Randomness.get();
         for (int valueLength : valueLengths) {
             for (int i = 0; i < NUM_KEYS; i++) {
-                IndicesRequestCache.Key key = getRandomIRCKey(valueLength, rand, indexShard.shardId());
+                IndicesRequestCache.Key key = getRandomIRCKey(valueLength, rand, indexShard.shardId(), System.identityHashCode(indexShard));
                 byte[] serialized = ser.serialize(key);
                 assertTrue(ser.equals(key, serialized));
                 IndicesRequestCache.Key deserialized = ser.deserialize(serialized);
@@ -39,12 +39,13 @@ public class IRCKeyWriteableSerializerTests extends OpenSearchSingleNodeTestCase
         }
     }
 
-    private IndicesRequestCache.Key getRandomIRCKey(int valueLength, Random random, ShardId shard) {
+    private IndicesRequestCache.Key getRandomIRCKey(int valueLength, Random random, ShardId shard, int indexShardHashCode) {
         byte[] value = new byte[valueLength];
         for (int i = 0; i < valueLength; i++) {
             value[i] = (byte) (random.nextInt(126 - 32) + 32);
         }
         BytesReference keyValue = new BytesArray(value);
-        return new IndicesRequestCache.Key(shard, keyValue, UUID.randomUUID().toString()); // same UUID source as used in real key
+        return new IndicesRequestCache.Key(shard, keyValue, UUID.randomUUID().toString(), indexShardHashCode); // same UUID
+        // source as used in real key
     }
 }

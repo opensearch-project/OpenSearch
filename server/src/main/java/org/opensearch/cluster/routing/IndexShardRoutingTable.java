@@ -738,9 +738,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
         if (!shardId.equals(that.shardId)) return false;
-        if (!shards.equals(that.shards)) return false;
-
-        return true;
+        return shards.size() == that.shards.size() && shards.containsAll(that.shards) && that.shards.containsAll(shards);
     }
 
     @Override
@@ -898,6 +896,22 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         List<ShardRouting> shards = new ArrayList<>();
         for (ShardRouting shardEntry : this) {
             if (shardEntry.state() == state) {
+                shards.add(shardEntry);
+            }
+        }
+        return shards;
+    }
+
+    /**
+     * Returns a {@link List} of shards that match the provided {@link Predicate}
+     *
+     * @param predicate {@link Predicate} to apply
+     * @return a {@link List} of shards that match one of the given {@link Predicate}
+     */
+    public List<ShardRouting> shardsMatchingPredicate(Predicate<ShardRouting> predicate) {
+        List<ShardRouting> shards = new ArrayList<>();
+        for (ShardRouting shardEntry : this) {
+            if (predicate.test(shardEntry)) {
                 shards.add(shardEntry);
             }
         }

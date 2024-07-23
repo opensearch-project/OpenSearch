@@ -52,6 +52,7 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -116,6 +117,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             String index = in.readString();
             if (in.getVersion().before(Version.V_2_0_0)) {
                 int typesSize = in.readVInt();
+                // if the requested field doesn't exist, type size in the received response from 1.x node is 0
+                if (typesSize == 0) {
+                    indexMapBuilder.put(index, Collections.emptyMap());
+                    continue;
+                }
                 if (typesSize != 1) {
                     throw new IllegalStateException("Expected single type but received [" + typesSize + "]");
                 }

@@ -55,6 +55,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.io.IOUtils;
@@ -91,8 +92,10 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -132,6 +135,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdater.indexHasRemoteStoreSettings;
 
 /**
  * The main OpenSearch index service
@@ -187,6 +191,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier;
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
+    private final FileCache fileCache;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -222,7 +227,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
         RecoverySettings recoverySettings,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        FileCache fileCache
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -300,7 +306,83 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.translogFactorySupplier = translogFactorySupplier;
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
+        this.fileCache = fileCache;
         updateFsyncTaskIfNecessary();
+    }
+
+    public IndexService(
+        IndexSettings indexSettings,
+        IndexCreationContext indexCreationContext,
+        NodeEnvironment nodeEnv,
+        NamedXContentRegistry xContentRegistry,
+        SimilarityService similarityService,
+        ShardStoreDeleter shardStoreDeleter,
+        IndexAnalyzers indexAnalyzers,
+        EngineFactory engineFactory,
+        EngineConfigFactory engineConfigFactory,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        QueryCache queryCache,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        IndexEventListener eventListener,
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        List<SearchOperationListener> searchOperationListeners,
+        List<IndexingOperationListener> indexingOperationListeners,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        BooleanSupplier allowExpensiveQueries,
+        IndexNameExpressionResolver expressionResolver,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings
+    ) {
+        this(
+            indexSettings,
+            indexCreationContext,
+            nodeEnv,
+            xContentRegistry,
+            similarityService,
+            shardStoreDeleter,
+            indexAnalyzers,
+            engineFactory,
+            engineConfigFactory,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            queryCache,
+            directoryFactory,
+            remoteDirectoryFactory,
+            eventListener,
+            wrapperFactory,
+            mapperRegistry,
+            indicesFieldDataCache,
+            searchOperationListeners,
+            indexingOperationListeners,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            allowExpensiveQueries,
+            expressionResolver,
+            valuesSourceRegistry,
+            recoveryStateFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            recoverySettings,
+            remoteStoreSettings,
+            null
+        );
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
@@ -494,29 +576,51 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             };
             Store remoteStore = null;
+            Directory remoteDirectory = null;
             boolean seedRemote = false;
             if (targetNode.isRemoteStoreNode()) {
-                final Directory remoteDirectory;
                 if (this.indexSettings.isRemoteStoreEnabled()) {
                     remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 } else {
-                    if (sourceNode != null && sourceNode.isRemoteStoreNode() == false) {
+                    if (sourceNode == null || sourceNode.isRemoteStoreNode() == false) {
                         if (routing.primary() == false) {
                             throw new IllegalStateException("Can't migrate a remote shard to replica before primary " + routing.shardId());
                         }
                         logger.info("DocRep shard {} is migrating to remote", shardId);
                         seedRemote = true;
                     }
+
                     remoteDirectory = ((RemoteSegmentStoreDirectoryFactory) remoteDirectoryFactory).newDirectory(
                         RemoteStoreNodeAttribute.getRemoteStoreSegmentRepo(this.indexSettings.getNodeSettings()),
                         this.indexSettings.getUUID(),
-                        shardId
+                        shardId,
+                        this.indexSettings.getRemoteStorePathStrategy()
                     );
                 }
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
+            } else {
+                // Disallow shards with remote store based settings to be created on non-remote store enabled nodes
+                // Even though we have `RemoteStoreMigrationAllocationDecider` in place to prevent something like this from happening at the
+                // allocation level,
+                // keeping this defensive check in place
+                // TODO: Remove this once remote to docrep migration is supported
+                if (indexHasRemoteStoreSettings(indexSettings)) {
+                    throw new IllegalStateException(
+                        "[{" + routing.shardId() + "}] Cannot initialize shards with remote store index settings on non-remote store nodes"
+                    );
+                }
             }
 
-            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            Directory directory = null;
+            if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING) &&
+            // TODO : Need to remove this check after support for hot indices is added in Composite Directory
+                this.indexSettings.isStoreLocalityPartial()) {
+                Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);
+                directory = new CompositeDirectory(localDirectory, remoteDirectory, fileCache);
+            } else {
+                directory = directoryFactory.newDirectory(this.indexSettings, path);
+            }
+
             store = new Store(
                 shardId,
                 this.indexSettings,

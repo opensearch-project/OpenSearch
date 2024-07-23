@@ -71,6 +71,7 @@ import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.nativeprotocol.NativeOutboundHandler;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -150,6 +151,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final TransportKeepAlive keepAlive;
     private final OutboundHandler outboundHandler;
     private final InboundHandler inboundHandler;
+    private final NativeOutboundHandler handshakerHandler;
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final RequestHandlers requestHandlers = new RequestHandlers();
 
@@ -188,11 +190,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays);
+        this.outboundHandler = new OutboundHandler(statsTracker, threadPool);
+        this.handshakerHandler = new NativeOutboundHandler(
+            nodeName,
+            version,
+            features,
+            statsTracker,
+            threadPool,
+            bigArrays,
+            outboundHandler
+        );
         this.handshaker = new TransportHandshaker(
             version,
             threadPool,
-            (node, channel, requestId, v) -> outboundHandler.sendRequest(
+            (node, channel, requestId, v) -> handshakerHandler.sendRequest(
                 node,
                 channel,
                 requestId,
@@ -206,7 +217,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         );
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(
+            nodeName,
+            version,
+            features,
+            statsTracker,
             threadPool,
+            bigArrays,
             outboundHandler,
             namedWriteableRegistry,
             handshaker,
@@ -238,7 +254,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public synchronized void setMessageListener(TransportMessageListener listener) {
-        outboundHandler.setMessageListener(listener);
+        handshakerHandler.setMessageListener(listener);
         inboundHandler.setMessageListener(listener);
     }
 
@@ -319,7 +335,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+            handshakerHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
         }
     }
 

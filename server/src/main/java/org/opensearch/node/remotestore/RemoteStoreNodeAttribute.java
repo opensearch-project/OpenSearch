@@ -13,11 +13,13 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -26,6 +28,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 
 /**
  * This is an abstraction for validating and storing information specific to remote backed storage nodes.
@@ -45,7 +49,14 @@ public class RemoteStoreNodeAttribute {
         + "."
         + CryptoMetadata.SETTINGS_KEY;
     public static final String REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX = "remote_store.repository.%s.settings.";
+    public static final String REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY = "remote_store.routing_table.repository";
+
     private final RepositoriesMetadata repositoriesMetadata;
+
+    public static List<String> SUPPORTED_DATA_REPO_NAME_ATTRIBUTES = List.of(
+        REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+        REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY
+    );
 
     /**
      * Creates a new {@link RemoteStoreNodeAttribute}
@@ -151,6 +162,10 @@ public class RemoteStoreNodeAttribute {
         } else if (node.getAttributes().containsKey(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
             repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY));
         }
+        if (node.getAttributes().containsKey(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)) {
+            repositoryNames.add(validateAttributeNonNull(node, REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY));
+        }
+
         return repositoryNames;
     }
 
@@ -181,8 +196,41 @@ public class RemoteStoreNodeAttribute {
             && isRemoteClusterStateAttributePresent(settings);
     }
 
+    private static boolean isRemoteRoutingTableAttributePresent(Settings settings) {
+        return settings.getByPrefix(Node.NODE_ATTRIBUTES.getKey() + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY)
+            .isEmpty() == false;
+    }
+
+    public static boolean isRemoteRoutingTableEnabled(Settings settings) {
+        return FeatureFlags.isEnabled(REMOTE_PUBLICATION_EXPERIMENTAL) && isRemoteRoutingTableAttributePresent(settings);
+    }
+
     public RepositoriesMetadata getRepositoriesMetadata() {
         return this.repositoriesMetadata;
+    }
+
+    /**
+     * Return {@link Map} of all the supported data repo names listed on {@link RemoteStoreNodeAttribute#SUPPORTED_DATA_REPO_NAME_ATTRIBUTES}
+     *
+     * @param node Node to fetch attributes from
+     * @return {@link Map} of all remote store data repo attribute keys and their values
+     */
+    public static Map<String, String> getDataRepoNames(DiscoveryNode node) {
+        assert remoteDataAttributesPresent(node.getAttributes());
+        Map<String, String> dataRepoNames = new HashMap<>();
+        for (String supportedRepoAttribute : SUPPORTED_DATA_REPO_NAME_ATTRIBUTES) {
+            dataRepoNames.put(supportedRepoAttribute, node.getAttributes().get(supportedRepoAttribute));
+        }
+        return dataRepoNames;
+    }
+
+    private static boolean remoteDataAttributesPresent(Map<String, String> nodeAttrs) {
+        for (String supportedRepoAttributes : SUPPORTED_DATA_REPO_NAME_ATTRIBUTES) {
+            if (nodeAttrs.get(supportedRepoAttributes) == null || nodeAttrs.get(supportedRepoAttributes).isEmpty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -199,6 +247,21 @@ public class RemoteStoreNodeAttribute {
                 : Objects.hash(repositoryMetadata.name(), repositoryMetadata.type(), repositoryMetadata.settings()));
         }
         return hashCode;
+    }
+
+    /**
+     * Checks if 2 instances are equal, with option to skip check for a list of repos.
+     * *
+     * @param o other instance
+     * @param reposToSkip list of repos to skip check for equality
+     * @return {@code true} iff both instances are equal, not including the repositories in both instances if they are part of reposToSkip.
+     */
+    public boolean equalsWithRepoSkip(Object o, List<String> reposToSkip) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RemoteStoreNodeAttribute that = (RemoteStoreNodeAttribute) o;
+        return this.getRepositoriesMetadata().equalsIgnoreGenerationsWithRepoSkip(that.getRepositoriesMetadata(), reposToSkip);
     }
 
     @Override

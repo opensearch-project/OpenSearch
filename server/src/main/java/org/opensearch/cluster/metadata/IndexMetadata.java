@@ -65,6 +65,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -635,6 +636,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
+    public static final String REMOTE_STORE_CUSTOM_KEY = "remote_store";
+    public static final String TRANSLOG_METADATA_KEY = "translog_metadata";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -683,6 +686,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ActiveShardCount waitForActiveShards;
     private final Map<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
+    private final boolean isRemoteSnapshot;
 
     private IndexMetadata(
         final Index index,
@@ -743,6 +747,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = Collections.unmodifiableMap(rolloverInfos);
         this.isSystem = isSystem;
+        this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -1224,6 +1229,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isSystem() {
         return isSystem;
+    }
+
+    public boolean isRemoteSnapshot() {
+        return isRemoteSnapshot;
     }
 
     public static Builder builder(String index) {

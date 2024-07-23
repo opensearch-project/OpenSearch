@@ -14,8 +14,7 @@ jobs:
     - uses: gradle/gradle-build-action@v3
       with:
         cache-disabled: true
-        # The 2.14.0 is already reporting breaking changes (see please https://github.com/opensearch-project/OpenSearch/issues/13308) 
-        arguments: japicmp -Djapicmp.compare.version=2.14.0-SNAPSHOT
+        arguments: japicmp
         gradle-version: 8.7
         build-root-directory: server
     - if: failure()

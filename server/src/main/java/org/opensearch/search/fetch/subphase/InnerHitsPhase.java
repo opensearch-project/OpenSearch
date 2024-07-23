@@ -64,7 +64,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext searchContext) {
-        if (searchContext.hasInnerHits() == false) {
+        if (searchContext.innerHits() == null) {
             return null;
         }
         Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();

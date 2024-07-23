@@ -33,7 +33,7 @@ public class CpuUsageTrackerTests extends OpenSearchTestCase {
     );
 
     public void testSearchTaskEligibleForCancellation() {
-        Task task = createMockTaskWithResourceStats(SearchTask.class, 100000000, 200);
+        Task task = createMockTaskWithResourceStats(SearchTask.class, 100000000, 200, randomNonNegativeLong());
         CpuUsageTracker tracker = new CpuUsageTracker(mockSettings.getSearchTaskSettings()::getCpuTimeNanosThreshold);
 
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
@@ -43,7 +43,7 @@ public class CpuUsageTrackerTests extends OpenSearchTestCase {
     }
 
     public void testSearchShardTaskEligibleForCancellation() {
-        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 200000000, 200);
+        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 200000000, 200, randomNonNegativeLong());
         CpuUsageTracker tracker = new CpuUsageTracker(mockSettings.getSearchShardTaskSettings()::getCpuTimeNanosThreshold);
 
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
@@ -53,7 +53,7 @@ public class CpuUsageTrackerTests extends OpenSearchTestCase {
     }
 
     public void testNotEligibleForCancellation() {
-        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 5000000, 200);
+        Task task = createMockTaskWithResourceStats(SearchShardTask.class, 5000000, 200, randomNonNegativeLong());
         CpuUsageTracker tracker = new CpuUsageTracker(mockSettings.getSearchShardTaskSettings()::getCpuTimeNanosThreshold);
 
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);

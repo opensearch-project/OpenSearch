@@ -25,6 +25,7 @@ import org.opensearch.common.cache.store.config.CacheConfig;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.bytes.CompositeBytesReference;
@@ -34,6 +35,8 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -47,10 +50,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Phaser;
 import java.util.function.ToLongBiFunction;
 
+import org.ehcache.PersistentCacheManager;
+
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
+import static org.opensearch.cache.store.disk.EhcacheDiskCache.MINIMUM_MAX_SIZE_IN_BYTES;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 @ThreadLeakFilters(filters = { EhcacheThreadLeakFilter.class })
 public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
@@ -93,7 +103,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 String value = ehcacheTest.get(getICacheKey(entry.getKey()));
                 assertEquals(entry.getValue(), value);
             }
-            assertEquals(randomKeys, ehcacheTest.stats().getTotalEntries());
+            assertEquals(randomKeys, ehcacheTest.stats().getTotalItems());
             assertEquals(randomKeys, ehcacheTest.stats().getTotalHits());
             assertEquals(expectedSize, ehcacheTest.stats().getTotalSizeInBytes());
             assertEquals(randomKeys, ehcacheTest.count());
@@ -217,7 +227,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 assertEquals(entry.getValue(), value);
             }
             assertEquals(randomKeys, ehcacheTest.count());
-            assertEquals(randomKeys, ehcacheTest.stats().getTotalEntries());
+            assertEquals(randomKeys, ehcacheTest.stats().getTotalItems());
             ehcacheTest.close();
         }
     }
@@ -416,7 +426,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             assertEquals(1, numberOfTimesValueLoaded);
             assertEquals(0, ((EhcacheDiskCache) ehcacheTest).getCompletableFutureMap().size());
             assertEquals(1, ehcacheTest.stats().getTotalMisses());
-            assertEquals(1, ehcacheTest.stats().getTotalEntries());
+            assertEquals(1, ehcacheTest.stats().getTotalItems());
             assertEquals(numberOfRequest - 1, ehcacheTest.stats().getTotalHits());
             assertEquals(1, ehcacheTest.count());
             ehcacheTest.close();
@@ -829,7 +839,8 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             ICacheKey<String> keyToDrop = keysAdded.get(0);
 
-            ImmutableCacheStats snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyToDrop.dimensions);
+            String[] levels = dimensionNames.toArray(new String[0]);
+            ImmutableCacheStats snapshot = ehCacheDiskCachingTier.stats(levels).getStatsForDimensionValues(keyToDrop.dimensions);
             assertNotNull(snapshot);
 
             keyToDrop.setDropStatsForDimensions(true);
@@ -837,7 +848,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
 
             // Now assert the stats are gone for any key that has this combination of dimensions, but still there otherwise
             for (ICacheKey<String> keyAdded : keysAdded) {
-                snapshot = ehCacheDiskCachingTier.stats().getStatsForDimensionValues(keyAdded.dimensions);
+                snapshot = ehCacheDiskCachingTier.stats(levels).getStatsForDimensionValues(keyAdded.dimensions);
                 if (keyAdded.dimensions.equals(keyToDrop.dimensions)) {
                     assertNull(snapshot);
                 } else {
@@ -846,6 +857,321 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
             }
 
             ehCacheDiskCachingTier.close();
+        }
+    }
+
+    public void testStatsTrackingDisabled() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(env.nodePaths()[0].indicesPath.toString() + "/request_cache")
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            for (int i = 0; i < randomKeys; i++) {
+                ICacheKey<String> iCacheKey = getICacheKey(UUID.randomUUID().toString());
+                ehcacheTest.put(iCacheKey, UUID.randomUUID().toString());
+                assertEquals(0, ehcacheTest.count()); // Expect count of 0 if NoopCacheStatsHolder is used
+                assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
+            }
+            ehcacheTest.close();
+        }
+    }
+
+    public void testDiskCacheFilesAreClearedUpDuringCloseAndInitialization() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            String path = env.nodePaths()[0].path.toString() + "/request_cache";
+            // Create a dummy file to simulate a scenario where the data is already in the disk cache storage path
+            // beforehand.
+            Files.createDirectory(Path.of(path));
+            Path dummyFilePath = Files.createFile(Path.of(path + "/testing.txt"));
+            assertTrue(Files.exists(dummyFilePath));
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                .setStoragePath(path)
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setDiskCacheAlias("test1")
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setThreadPoolAlias("")
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            for (int i = 0; i < randomKeys; i++) {
+                ICacheKey<String> iCacheKey = getICacheKey(UUID.randomUUID().toString());
+                ehcacheTest.put(iCacheKey, UUID.randomUUID().toString());
+                assertEquals(0, ehcacheTest.count()); // Expect count of 0 if NoopCacheStatsHolder is used
+                assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
+            }
+            // Verify that older data was wiped out after initialization
+            assertFalse(Files.exists(dummyFilePath));
+
+            // Verify that there is data present under desired path by explicitly verifying the folder name by prefix
+            // (used from disk cache alias)
+            assertTrue(Files.exists(Path.of(path)));
+            boolean folderExists = Files.walk(Path.of(path))
+                .filter(Files::isDirectory)
+                .anyMatch(path1 -> path1.getFileName().toString().startsWith("test1"));
+            assertTrue(folderExists);
+            ehcacheTest.close();
+            assertFalse(Files.exists(Path.of(path))); // Verify everything is cleared up now after close()
+        }
+    }
+
+    public void testDiskCacheCloseCalledTwiceAndVerifyDiskDataIsCleanedUp() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            String path = env.nodePaths()[0].path.toString() + "/request_cache";
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias(null)
+                .setStoragePath(path)
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setDiskCacheAlias("test1")
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            for (int i = 0; i < randomKeys; i++) {
+                ICacheKey<String> iCacheKey = getICacheKey(UUID.randomUUID().toString());
+                ehcacheTest.put(iCacheKey, UUID.randomUUID().toString());
+                assertEquals(0, ehcacheTest.count()); // Expect count storagePath 0 if NoopCacheStatsHolder is used
+                assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
+            }
+            ehcacheTest.close();
+            assertFalse(Files.exists(Path.of(path))); // Verify everything is cleared up now after close()
+            // Call it again. This will throw an exception.
+            ehcacheTest.close();
+        }
+    }
+
+    public void testDiskCacheCloseAfterCleaningUpFilesManually() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            String path = env.nodePaths()[0].path.toString() + "/request_cache";
+            ICache<String, String> ehcacheTest = new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias(null)
+                .setStoragePath(path)
+                .setIsEventListenerModeSync(true)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setDiskCacheAlias("test1")
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false)
+                .build();
+            int randomKeys = randomIntBetween(10, 100);
+            for (int i = 0; i < randomKeys; i++) {
+                ICacheKey<String> iCacheKey = getICacheKey(UUID.randomUUID().toString());
+                ehcacheTest.put(iCacheKey, UUID.randomUUID().toString());
+                assertEquals(0, ehcacheTest.count()); // Expect count storagePath 0 if NoopCacheStatsHolder is used
+                assertEquals(new ImmutableCacheStats(0, 0, 0, 0, 0), ehcacheTest.stats().getTotalStats());
+            }
+            IOUtils.rm(Path.of(path));
+            ehcacheTest.close();
+        }
+    }
+
+    public void testEhcacheDiskCacheWithoutStoragePathDefined() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                    .setIsEventListenerModeSync(true)
+                    .setKeyType(String.class)
+                    .setValueType(String.class)
+                    .setKeySerializer(new StringSerializer())
+                    .setDiskCacheAlias("test1")
+                    .setValueSerializer(new StringSerializer())
+                    .setDimensionNames(List.of(dimensionName))
+                    .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .setSettings(settings)
+                    .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                    .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                    .setRemovalListener(removalListener)
+                    .setWeigher(weigher)
+                    .setStatsTrackingEnabled(false)
+                    .build()
+            );
+        }
+    }
+
+    public void testEhcacheDiskCacheWithoutStoragePathNull() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                    .setStoragePath(null)
+                    .setIsEventListenerModeSync(true)
+                    .setKeyType(String.class)
+                    .setValueType(String.class)
+                    .setKeySerializer(new StringSerializer())
+                    .setDiskCacheAlias("test1")
+                    .setValueSerializer(new StringSerializer())
+                    .setDimensionNames(List.of(dimensionName))
+                    .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .setSettings(settings)
+                    .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                    .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                    .setRemovalListener(removalListener)
+                    .setWeigher(weigher)
+                    .setStatsTrackingEnabled(false)
+                    .build()
+            );
+        }
+    }
+
+    public void testEhcacheWithStorageSizeLowerThanMinimumExpected() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                    .setIsEventListenerModeSync(true)
+                    .setKeyType(String.class)
+                    .setValueType(String.class)
+                    .setKeySerializer(new StringSerializer())
+                    .setDiskCacheAlias("test1")
+                    .setValueSerializer(new StringSerializer())
+                    .setDimensionNames(List.of(dimensionName))
+                    .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .setSettings(settings)
+                    .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                    .setMaximumWeightInBytes(MINIMUM_MAX_SIZE_IN_BYTES)
+                    .setRemovalListener(removalListener)
+                    .setWeigher(weigher)
+                    .setStatsTrackingEnabled(false)
+                    .build()
+            );
+        }
+    }
+
+    public void testEhcacheWithStorageSizeZero() throws Exception {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias("ehcacheTest")
+                    .setIsEventListenerModeSync(true)
+                    .setKeyType(String.class)
+                    .setValueType(String.class)
+                    .setKeySerializer(new StringSerializer())
+                    .setDiskCacheAlias("test1")
+                    .setValueSerializer(new StringSerializer())
+                    .setDimensionNames(List.of(dimensionName))
+                    .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                    .setSettings(settings)
+                    .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                    .setMaximumWeightInBytes(0)
+                    .setRemovalListener(removalListener)
+                    .setWeigher(weigher)
+                    .setStatsTrackingEnabled(false)
+                    .build()
+            );
+        }
+    }
+
+    public void testEhcacheCloseWithDestroyCacheMethodThrowingException() throws Exception {
+        EhcacheDiskCache<String, String> ehcacheDiskCache = new MockEhcahceDiskCache(createDummyBuilder(null));
+        PersistentCacheManager cacheManager = ehcacheDiskCache.getCacheManager();
+        doNothing().when(cacheManager).removeCache(anyString());
+        doNothing().when(cacheManager).close();
+        doThrow(new RuntimeException("test")).when(cacheManager).destroyCache(anyString());
+        ehcacheDiskCache.close();
+    }
+
+    static class MockEhcahceDiskCache extends EhcacheDiskCache<String, String> {
+
+        public MockEhcahceDiskCache(Builder<String, String> builder) {
+            super(builder);
+        }
+
+        @Override
+        PersistentCacheManager buildCacheManager() {
+            PersistentCacheManager cacheManager = mock(PersistentCacheManager.class);
+            return cacheManager;
+        }
+    }
+
+    private EhcacheDiskCache.Builder<String, String> createDummyBuilder(String storagePath) throws IOException {
+        Settings settings = Settings.builder().build();
+        MockRemovalListener<String, String> removalListener = new MockRemovalListener<>();
+        ToLongBiFunction<ICacheKey<String>, String> weigher = getWeigher();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            if (storagePath == null || storagePath.isBlank()) {
+                storagePath = env.nodePaths()[0].path.toString() + "/request_cache";
+            }
+            return (EhcacheDiskCache.Builder<String, String>) new EhcacheDiskCache.Builder<String, String>().setThreadPoolAlias(
+                "ehcacheTest"
+            )
+                .setIsEventListenerModeSync(true)
+                .setStoragePath(storagePath)
+                .setKeyType(String.class)
+                .setValueType(String.class)
+                .setKeySerializer(new StringSerializer())
+                .setDiskCacheAlias("test1")
+                .setValueSerializer(new StringSerializer())
+                .setDimensionNames(List.of(dimensionName))
+                .setCacheType(CacheType.INDICES_REQUEST_CACHE)
+                .setSettings(settings)
+                .setExpireAfterAccess(TimeValue.MAX_VALUE)
+                .setMaximumWeightInBytes(CACHE_SIZE_IN_BYTES)
+                .setRemovalListener(removalListener)
+                .setWeigher(weigher)
+                .setStatsTrackingEnabled(false);
         }
     }
 

@@ -32,7 +32,6 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -41,7 +40,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -70,6 +68,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
+    private int totalShardCount = 0;
 
     public LocalShardsBalancer(
         Logger logger,
@@ -127,8 +126,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     public float avgShardsPerNode() {
-        float totalShards = nodes.values().stream().map(BalancedShardsAllocator.ModelNode::numShards).reduce(0, Integer::sum);
-        return totalShards / nodes.size();
+        return totalShardCount / nodes.size();
     }
 
     /**
@@ -600,6 +598,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 final BalancedShardsAllocator.ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
                 final BalancedShardsAllocator.ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
                 sourceNode.removeShard(shardRouting);
+                --totalShardCount;
                 Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
                     shardRouting,
                     targetNode.getNodeId(),
@@ -607,6 +606,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     allocation.changes()
                 );
                 targetNode.addShard(relocatingShards.v2());
+                ++totalShardCount;
                 if (logger.isTraceEnabled()) {
                     logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
                 }
@@ -726,6 +726,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 /* we skip relocating shards here since we expect an initializing shard with the same id coming in */
                 if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)) && shard.state() != RELOCATING) {
                     node.addShard(shard);
+                    ++totalShardCount;
                     if (logger.isTraceEnabled()) {
                         logger.trace("Assigned shard [{}] to node [{}]", shard, node.getNodeId());
                     }
@@ -779,15 +780,16 @@ public class LocalShardsBalancer extends ShardsBalancer {
          * if we allocate for instance (0, R, IDX1) we move the second replica to the secondary array and proceed with
          * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ignoreUnassigned.
          */
-        ShardRouting[] unassignedShards = unassigned.drain();
-        List<ShardRouting> allUnassignedShards = Arrays.stream(unassignedShards).collect(Collectors.toList());
-        List<ShardRouting> localUnassignedShards = allUnassignedShards.stream()
-            .filter(shard -> RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)))
-            .collect(Collectors.toList());
-        allUnassignedShards.removeAll(localUnassignedShards);
-        allUnassignedShards.forEach(shard -> routingNodes.unassigned().add(shard));
-        unassignedShards = localUnassignedShards.toArray(new ShardRouting[0]);
-        ShardRouting[] primary = unassignedShards;
+        List<ShardRouting> primaryList = new ArrayList<>();
+        for (ShardRouting shard : unassigned.drain()) {
+            if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation))) {
+                primaryList.add(shard);
+            } else {
+                routingNodes.unassigned().add(shard);
+            }
+        }
+
+        ShardRouting[] primary = primaryList.toArray(new ShardRouting[0]);
         ShardRouting[] secondary = new ShardRouting[primary.length];
         int secondaryLength = 0;
         int primaryLength = primary.length;
@@ -816,6 +818,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     );
                     shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
                     minNode.addShard(shard);
+                    ++totalShardCount;
                     if (!shard.primary()) {
                         // copy over the same replica shards to the secondary array so they will get allocated
                         // in a subsequent iteration, allowing replicas of other shards to be allocated first
@@ -845,6 +848,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                             allocation.routingTable()
                         );
                         minNode.addShard(shard.initialize(minNode.getNodeId(), null, shardSize));
+                        ++totalShardCount;
                     } else {
                         if (logger.isTraceEnabled()) {
                             logger.trace("No Node found to assign shard [{}]", shard);
@@ -1012,18 +1016,21 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 }
                 final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
                 maxNode.removeShard(shard);
+                --totalShardCount;
                 long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
                 if (decision.type() == Decision.Type.YES) {
                     /* only allocate on the cluster if we are not throttled */
                     logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
+                    ++totalShardCount;
                     return true;
                 } else {
                     /* allocate on the model even if throttled */
                     logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     assert decision.type() == Decision.Type.THROTTLE;
                     minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
+                    ++totalShardCount;
                     return false;
                 }
             }

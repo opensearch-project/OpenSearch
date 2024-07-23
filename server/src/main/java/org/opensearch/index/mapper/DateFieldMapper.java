@@ -353,7 +353,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
      *
      * @opensearch.internal
      */
-    public static final class DateFieldType extends MappedFieldType {
+    public static final class DateFieldType extends MappedFieldType implements NumericPointEncoder {
         protected final DateFormatter dateTimeFormatter;
         protected final DateMathParser dateMathParser;
         protected final Resolution resolution;
@@ -462,22 +462,30 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             @Nullable DateMathParser forcedDateParser,
             QueryShardContext context
         ) {
-            failIfNotIndexed();
+            failIfNotIndexedAndNoDocValues();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
-                Query query = LongPoint.newRangeQuery(name(), l, u);
-                if (hasDocValues()) {
+                if (isSearchable() && hasDocValues()) {
+                    Query query = LongPoint.newRangeQuery(name(), l, u);
                     Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
 
                     if (context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                     }
+                    return query;
                 }
-                return query;
+                if (hasDocValues()) {
+                    Query query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    if (context.indexSortedOnField(name())) {
+                        query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                    }
+                    return query;
+                }
+                return LongPoint.newRangeQuery(name(), l, u);
             });
         }
 
@@ -547,7 +555,15 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public byte[] encodePoint(Number value) {
+            byte[] point = new byte[Long.BYTES];
+            LongPoint.encodeDimension(value.longValue(), point, 0);
+            return point;
+        }
+
+        @Override
         public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             return resolution.distanceFeatureQuery(name(), boost, originLong, pivotTime);
@@ -564,6 +580,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
+            // if we have only doc_values enabled we do not look at the BKD so we return an INTERSECTS by default
+            if (isSearchable() == false && hasDocValues()) {
+                return Relation.INTERSECTS;
+            }
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }

@@ -63,14 +63,17 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
+import org.opensearch.client.Client;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -120,7 +123,8 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -183,6 +187,7 @@ import reactor.core.scheduler.Schedulers;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
+import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -1273,7 +1278,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static Settings.Builder remoteIndexSettings(Version version) {
         Settings.Builder builder = Settings.builder()
-            .put(FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
+            .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
         return builder;
@@ -1796,5 +1801,40 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         } catch (UnknownHostException e) {
             throw new AssertionError();
         }
+    }
+
+    public static BlobPath getShardLevelBlobPath(
+        Client client,
+        String remoteStoreIndex,
+        BlobPath basePath,
+        String shardId,
+        RemoteStoreEnums.DataCategory dataCategory,
+        RemoteStoreEnums.DataType dataType
+    ) {
+        String indexUUID = client.admin()
+            .indices()
+            .prepareGetSettings(remoteStoreIndex)
+            .get()
+            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
+        ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
+        Map<String, String> remoteCustomData = state.metadata()
+            .index(remoteStoreIndex)
+            .getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        RemoteStoreEnums.PathType type = Objects.isNull(remoteCustomData)
+            ? RemoteStoreEnums.PathType.FIXED
+            : RemoteStoreEnums.PathType.valueOf(remoteCustomData.get(RemoteStoreEnums.PathType.NAME));
+        RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = Objects.nonNull(remoteCustomData)
+            ? remoteCustomData.containsKey(RemoteStoreEnums.PathHashAlgorithm.NAME)
+                ? RemoteStoreEnums.PathHashAlgorithm.valueOf(remoteCustomData.get(RemoteStoreEnums.PathHashAlgorithm.NAME))
+                : null
+            : null;
+        RemoteStorePathStrategy.PathInput pathInput = RemoteStorePathStrategy.PathInput.builder()
+            .basePath(basePath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .build();
+        return type.path(pathInput, hashAlgorithm);
     }
 }

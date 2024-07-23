@@ -37,7 +37,6 @@ import software.amazon.awssdk.utils.internal.Base16;
 
 import org.apache.http.HttpStatus;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
 import org.opensearch.common.SuppressForbidden;
@@ -68,6 +67,8 @@ import org.opensearch.repositories.blobstore.ZeroInputStream;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
+import org.opensearch.repositories.s3.async.TransferSemaphoresHolder;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -80,12 +81,16 @@ import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -113,7 +118,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private S3AsyncService asyncService;
     private ExecutorService futureCompletionService;
     private ExecutorService streamReaderService;
+    private ExecutorService remoteTransferRetry;
+    private ExecutorService transferQueueConsumerService;
+    private ScheduledExecutorService scheduler;
     private AsyncTransferEventLoopGroup transferNIOGroup;
+    private SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
+    private SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
 
     @Before
     public void setUp() throws Exception {
@@ -124,7 +134,26 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         futureCompletionService = Executors.newSingleThreadExecutor();
         streamReaderService = Executors.newSingleThreadExecutor();
         transferNIOGroup = new AsyncTransferEventLoopGroup(1);
-
+        remoteTransferRetry = Executors.newFixedThreadPool(20);
+        transferQueueConsumerService = Executors.newFixedThreadPool(2);
+        scheduler = new ScheduledThreadPoolExecutor(1);
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
+        normalPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+            new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
+            transferQueueConsumerService,
+            2,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.NORMAL
+        );
+        lowPrioritySizeBasedBlockingQ = new SizeBasedBlockingQ(
+            new ByteSizeValue(Runtime.getRuntime().availableProcessors() * 5L, ByteSizeUnit.GB),
+            transferQueueConsumerService,
+            2,
+            genericStatsMetricPublisher,
+            SizeBasedBlockingQ.QueueEventType.LOW
+        );
+        normalPrioritySizeBasedBlockingQ.start();
+        lowPrioritySizeBasedBlockingQ.start();
         // needed by S3AsyncService
         SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         super.setUp();
@@ -136,6 +165,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         streamReaderService.shutdown();
         futureCompletionService.shutdown();
+        remoteTransferRetry.shutdown();
+        transferQueueConsumerService.shutdown();
+        scheduler.shutdown();
+        normalPrioritySizeBasedBlockingQ.close();
+        lowPrioritySizeBasedBlockingQ.close();
         IOUtils.close(transferNIOGroup);
 
         if (previousOpenSearchPathConf != null) {
@@ -204,7 +238,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             streamReaderService,
             transferNIOGroup
         );
-
+        GenericStatsMetricPublisher genericStatsMetricPublisher = new GenericStatsMetricPublisher(10000L, 10, 10000L, 10);
         return new S3BlobContainer(
             BlobPath.cleanPath(),
             new S3BlobStore(
@@ -222,11 +256,21 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
                     asyncExecutorContainer.getStreamReader(),
                     asyncExecutorContainer.getStreamReader(),
-                    asyncExecutorContainer.getStreamReader()
+                    asyncExecutorContainer.getStreamReader(),
+                    new TransferSemaphoresHolder(
+                        3,
+                        Math.max(Runtime.getRuntime().availableProcessors() * 5, 10),
+                        5,
+                        TimeUnit.MINUTES,
+                        genericStatsMetricPublisher
+                    )
                 ),
                 asyncExecutorContainer,
                 asyncExecutorContainer,
-                asyncExecutorContainer
+                asyncExecutorContainer,
+                normalPrioritySizeBasedBlockingQ,
+                lowPrioritySizeBasedBlockingQ,
+                genericStatsMetricPublisher
             )
         ) {
             @Override
@@ -241,7 +285,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         };
     }
 
-    public void testWriteBlobWithRetries() throws Exception {
+    public void writeBlobWithRetriesHelper(Map<String, String> metadata) throws Exception {
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);
 
@@ -281,9 +325,24 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
         try (InputStream stream = new ByteArrayInputStream(bytes)) {
-            blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
+            if (metadata != null) {
+                blobContainer.writeBlobWithMetadata("write_blob_max_retries", stream, bytes.length, false, metadata);
+            } else {
+                blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
+            }
         }
         assertThat(countDown.isCountedDown(), is(true));
+    }
+
+    public void testWriteBlobWithMetadataWithRetries() throws Exception {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+        writeBlobWithRetriesHelper(metadata);
+    }
+
+    public void testWriteBlobWithRetries() throws Exception {
+        writeBlobWithRetriesHelper(null);
     }
 
     public void testWriteBlobByStreamsWithRetries() throws Exception {
@@ -332,22 +391,24 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             exceptionRef.set(ex);
             countDownLatch.countDown();
         });
-        blobContainer.asyncBlobUpload(new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
-            @Override
-            public StreamContext supplyStreamContext(long partSize) {
-                return new StreamContext(new CheckedTriFunction<Integer, Long, Long, InputStreamContainer, IOException>() {
-                    @Override
-                    public InputStreamContainer apply(Integer partNo, Long size, Long position) throws IOException {
-                        InputStream inputStream = new OffsetRangeIndexInputStream(new ByteArrayIndexInput("desc", bytes), size, position);
-                        openInputStreams.add(inputStream);
-                        return new InputStreamContainer(inputStream, size, position);
-                    }
-                }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
-            }
-        }, bytes.length, false, WritePriority.NORMAL, Assert::assertTrue, false, null), completionListener);
 
+        StreamContextSupplier streamContextSupplier = partSize -> new StreamContext((partNo, size, position) -> {
+            InputStream inputStream = new OffsetRangeIndexInputStream(new ByteArrayIndexInput("desc", bytes), size, position);
+            openInputStreams.add(inputStream);
+            return new InputStreamContainer(inputStream, size, position);
+        }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
+
+        WriteContext writeContext = new WriteContext.Builder().fileName("write_blob_by_streams_max_retries")
+            .streamContextSupplier(streamContextSupplier)
+            .fileSize(bytes.length)
+            .failIfAlreadyExists(false)
+            .writePriority(WritePriority.NORMAL)
+            .uploadFinalizer(Assert::assertTrue)
+            .doRemoteDataIntegrityCheck(false)
+            .build();
+
+        blobContainer.asyncBlobUpload(writeContext, completionListener);
         assertTrue(countDownLatch.await(5000, TimeUnit.SECONDS));
-
         assertThat(countDown.isCountedDown(), is(true));
 
         openInputStreams.forEach(inputStream -> {
@@ -367,7 +428,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         return (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
     }
 
-    public void testWriteBlobWithReadTimeouts() {
+    public void writeBlobWithReadTimeoutsHelper(Map<String, String> metadata) {
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
         final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null);
@@ -385,7 +446,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         Exception exception = expectThrows(IOException.class, () -> {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-                blobContainer.writeBlob("write_blob_timeout", stream, bytes.length, false);
+                if (metadata != null) {
+                    blobContainer.writeBlobWithMetadata("write_blob_timeout", stream, bytes.length, false, metadata);
+                } else {
+                    blobContainer.writeBlob("write_blob_timeout", stream, bytes.length, false);
+                }
             }
         });
         assertThat(
@@ -400,7 +465,18 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(exception.getCause().getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
     }
 
-    public void testWriteLargeBlob() throws Exception {
+    public void testWriteBlobWithMetadataWithReadTimeouts() throws Exception {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+        writeBlobWithReadTimeoutsHelper(metadata);
+    }
+
+    public void testWriteBlobWithReadTimeouts() throws Exception {
+        writeBlobWithReadTimeoutsHelper(null);
+    }
+
+    public void WriteLargeBlobHelper(Map<String, String> metadata) throws Exception {
         final boolean useTimeout = rarely();
         final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
         final ByteSizeValue bufferSize = new ByteSizeValue(5, ByteSizeUnit.MB);
@@ -486,11 +562,26 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        blobContainer.writeBlob("write_large_blob", new ZeroInputStream(blobSize), blobSize, false);
+        if (metadata != null) {
+            blobContainer.writeBlobWithMetadata("write_large_blob", new ZeroInputStream(blobSize), blobSize, false, metadata);
+        } else {
+            blobContainer.writeBlob("write_large_blob", new ZeroInputStream(blobSize), blobSize, false);
+        }
 
         assertThat(countDownInitiate.isCountedDown(), is(true));
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
+    }
+
+    public void testWriteLargeBlobWithMetadata() throws Exception {
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+        WriteLargeBlobHelper(metadata);
+    }
+
+    public void testWriteLargeBlob() throws Exception {
+        WriteLargeBlobHelper(null);
     }
 
     /**

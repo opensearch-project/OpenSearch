@@ -172,6 +172,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             false,
+            false,
             false
         );
         List<ShardStats> shardsStats = new ArrayList<>();
@@ -228,7 +229,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
      */
     public static class ClusterStatsNodeRequest extends BaseNodeRequest {
 
-        ClusterStatsRequest request;
+        protected ClusterStatsRequest request;
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);

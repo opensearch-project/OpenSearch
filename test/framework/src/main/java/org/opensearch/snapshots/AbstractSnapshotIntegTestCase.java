@@ -101,6 +101,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -560,19 +562,16 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
     }
 
     protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName) throws IOException {
-        String indexUUID = client().admin()
-            .indices()
-            .prepareGetSettings(remoteStoreIndex)
-            .get()
-            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
-        return getLockFilesInRemoteStore(remoteStoreIndex, remoteStoreRepositoryName, indexUUID);
-    }
-
-    protected String[] getLockFilesInRemoteStore(String remoteStoreIndex, String remoteStoreRepositoryName, String indexUUID)
-        throws IOException {
         final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
         final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(remoteStoreRepositoryName);
-        BlobPath shardLevelBlobPath = remoteStoreRepository.basePath().add(indexUUID).add("0").add("segments").add("lock_files");
+        BlobPath shardLevelBlobPath = getShardLevelBlobPath(
+            client(),
+            remoteStoreIndex,
+            remoteStoreRepository.basePath(),
+            "0",
+            SEGMENTS,
+            LOCK_FILES
+        );
         BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
         try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
             return lockDirectory.listAll();

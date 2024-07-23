@@ -81,7 +81,7 @@ public class VectorGeoPointShapeQueryProcessor {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType == false
             && !(fieldType instanceof DerivedFieldType
-                && (((DerivedFieldType) fieldType).getTypeMappedFieldType() instanceof GeoPointFieldMapper.GeoPointFieldType))) {
+                && (((DerivedFieldType) fieldType).getFieldMapper().fieldType() instanceof GeoPointFieldMapper.GeoPointFieldType))) {
             throw new QueryShardException(
                 context,
                 "Expected "

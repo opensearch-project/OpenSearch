@@ -47,7 +47,6 @@ import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -85,7 +84,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithRemoteStoreSettings;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
@@ -716,9 +715,6 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     }
 
     public void testDontAllowSwitchingToStrictCompatibilityModeForMixedCluster() {
-        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-
         // request to change cluster compatibility mode to STRICT
         Settings currentCompatibilityModeSettings = Settings.builder()
             .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
@@ -791,7 +787,9 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .add(nonRemoteNode2)
             .localNodeId(nonRemoteNode2.getId())
             .build();
-        ClusterState sameTypeClusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).build();
+
+        metadata = createIndexMetadataWithRemoteStoreSettings("test-index");
+        ClusterState sameTypeClusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).metadata(metadata).build();
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
 
         // cluster with only non-remote nodes
@@ -801,14 +799,11 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .add(remoteNode2)
             .localNodeId(remoteNode2.getId())
             .build();
-        sameTypeClusterState = ClusterState.builder(sameTypeClusterState).nodes(discoveryNodes).build();
+        sameTypeClusterState = ClusterState.builder(sameTypeClusterState).nodes(discoveryNodes).metadata(metadata).build();
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
     }
 
     public void testDontAllowSwitchingCompatibilityModeForClusterWithMultipleVersions() {
-        Settings nodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
-        FeatureFlags.initializeFeatureFlags(nodeSettings);
-
         // request to change cluster compatibility mode
         boolean toStrictMode = randomBoolean();
         Settings currentCompatibilityModeSettings = Settings.builder()
@@ -897,7 +892,10 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
             .localNodeId(discoveryNode2.getId())
             .build();
 
-        ClusterState sameVersionClusterState = ClusterState.builder(differentVersionClusterState).nodes(discoveryNodes).build();
+        ClusterState sameVersionClusterState = ClusterState.builder(differentVersionClusterState)
+            .nodes(discoveryNodes)
+            .metadata(createIndexMetadataWithRemoteStoreSettings("test"))
+            .build();
         transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameVersionClusterState);
     }
 

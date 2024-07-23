@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
-import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.AllocationDecision;
@@ -46,9 +45,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * An abstract class that implements basic functionality for allocating
@@ -81,38 +78,7 @@ public abstract class BaseGatewayShardAllocator {
         executeDecision(shardRouting, allocateUnassignedDecision, allocation, unassignedAllocationHandler);
     }
 
-    /**
-     * Allocate Batch of unassigned shard  to nodes where valid copies of the shard already exists
-     * @param shardRoutings the shards to allocate
-     * @param allocation the allocation state container object
-     */
-    public void allocateUnassignedBatch(List<ShardRouting> shardRoutings, RoutingAllocation allocation) {
-        // make Allocation Decisions for all shards
-        HashMap<ShardRouting, AllocateUnassignedDecision> decisionMap = makeAllocationDecision(shardRoutings, allocation, logger);
-        assert shardRoutings.size() == decisionMap.size() : "make allocation decision didn't return allocation decision for "
-            + "some shards";
-        // get all unassigned shards iterator
-        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
-
-        while (iterator.hasNext()) {
-            ShardRouting shard = iterator.next();
-            try {
-                if (decisionMap.isEmpty() == false) {
-                    if (decisionMap.containsKey(shard)) {
-                        executeDecision(shard, decisionMap.remove(shard), allocation, iterator);
-                    }
-                } else {
-                    // no need to keep iterating the unassigned shards, if we don't have anything in decision map
-                    break;
-                }
-            } catch (Exception e) {
-                logger.error("Failed to execute decision for shard {} while initializing {}", shard, e);
-                throw e;
-            }
-        }
-    }
-
-    private void executeDecision(
+    protected void executeDecision(
         ShardRouting shardRouting,
         AllocateUnassignedDecision allocateUnassignedDecision,
         RoutingAllocation allocation,
@@ -162,21 +128,6 @@ public abstract class BaseGatewayShardAllocator {
         RoutingAllocation allocation,
         Logger logger
     );
-
-    public HashMap<ShardRouting, AllocateUnassignedDecision> makeAllocationDecision(
-        List<ShardRouting> unassignedShardBatch,
-        RoutingAllocation allocation,
-        Logger logger
-    ) {
-
-        return (HashMap<ShardRouting, AllocateUnassignedDecision>) unassignedShardBatch.stream()
-            .collect(
-                Collectors.toMap(
-                    unassignedShard -> unassignedShard,
-                    unassignedShard -> makeAllocationDecision(unassignedShard, allocation, logger)
-                )
-            );
-    }
 
     /**
      * Builds decisions for all nodes in the cluster, so that the explain API can provide information on
