@@ -188,7 +188,6 @@ public class ValuesSourceConfig {
         // If we are aggregating on derived field set the agg script.
         if (fieldType instanceof DerivedFieldType) {
             aggregationScript = ((DerivedFieldType) fieldType).getAggregationScript(context);
-            fieldContext = null;
         }
 
         config = new ValuesSourceConfig(
@@ -344,7 +343,7 @@ public class ValuesSourceConfig {
         if (this.unmapped) {
             vs = valueSourceType().getEmpty();
         } else {
-            if (fieldContext() == null) {
+            if (fieldContext() == null || fieldType() instanceof DerivedFieldType) {
                 // Script case
                 vs = valueSourceType().getScript(script(), scriptValueType());
             } else {
