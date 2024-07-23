@@ -128,7 +128,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         CommonStats oldStats,
         Map<Index, List<IndexShardStats>> statsByShard,
         SearchRequestStats searchRequestStats,
-        String[] levels
+        StatsLevel level
     ) {
         // make a total common stats from old ones and current ones
         this.stats = oldStats;
@@ -144,7 +144,6 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             this.stats.search.setSearchRequestStats(searchRequestStats);
         }
 
-        StatsLevel level = getAcceptedLevel(levels);
         if (level != null) {
             switch (level) {
                 case INDICES:
@@ -163,7 +162,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
      * @param levels - levels sent in the request.
      * @return Corresponding identified enum {@link StatsLevel}
      */
-    private static StatsLevel getAcceptedLevel(String[] levels) {
+    public static StatsLevel getAcceptedLevel(String[] levels) {
         if (levels != null && levels.length > 0) {
             Optional<StatsLevel> level = Arrays.stream(StatsLevel.values())
                 .filter(field -> field.getRestName().equals(levels[0]))
@@ -349,12 +348,10 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             }
 
             builder.startObject(StatsLevel.INDICES.getRestName());
-            if (statsByIndex != null) {
-                for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
-                    builder.startObject(entry.getKey().getName());
-                    entry.getValue().toXContent(builder, params);
-                    builder.endObject();
-                }
+            for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
+                builder.startObject(entry.getKey().getName());
+                entry.getValue().toXContent(builder, params);
+                builder.endObject();
             }
             builder.endObject();
         } else if (StatsLevel.SHARDS.getRestName().equals(level)) {

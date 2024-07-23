@@ -1107,9 +1107,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
             CommonStats oldStats,
             Map<Index, List<IndexShardStats>> statsByShard,
             SearchRequestStats searchRequestStats,
-            String[] levels
+            StatsLevel level
         ) {
-            super(oldStats, statsByShard, searchRequestStats, levels);
+            super(oldStats, statsByShard, searchRequestStats, level);
         }
 
         public CommonStats getStats() {
@@ -1143,7 +1143,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         Index newIndex = new Index("index", "_na_");
 
-        MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags);
+        MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags, null);
 
         // To test out scenario when the incoming node stats response is from a node with an older ES Version.
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -1187,22 +1187,17 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
         commonStatsFlags.setIncludeIndicesStatsByLevel(true);
 
-        levelParams.forEach(levelParam -> {
-            ArrayList<String> level_arg = new ArrayList<>();
-            level_arg.add(levelParam.getRestName());
-
-            commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
-
+        levelParams.forEach(level -> {
             Index newIndex = new Index("index", "_na_");
 
-            MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags);
+            MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags, level);
 
             // To test out scenario when the incoming node stats response is from a node with an older ES Version.
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 mockNodeIndicesStats.writeTo(out);
                 try (StreamInput in = out.bytes().streamInput()) {
                     MockNodeIndicesStats newNodeIndicesStats = new MockNodeIndicesStats(in);
-                    switch (levelParam) {
+                    switch (level) {
                         case NODE:
                             assertNull(newNodeIndicesStats.getStatsByIndex());
                             assertNull(newNodeIndicesStats.getStatsByShard());
@@ -1243,15 +1238,11 @@ public class NodeStatsTests extends OpenSearchTestCase {
         commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
         commonStatsFlags.setIncludeIndicesStatsByLevel(true);
 
-        levelParams.forEach(levelParam -> {
-            ArrayList<String> level_arg = new ArrayList<>();
-            level_arg.add(levelParam.getRestName());
-
-            commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
+        levelParams.forEach(level -> {
 
             Index newIndex = new Index("index", "_na_");
 
-            MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags);
+            MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags, level);
 
             XContentBuilder builder = null;
             try {
@@ -1259,14 +1250,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 builder.startObject();
                 builder = mockNodeIndicesStats.toXContent(
                     builder,
-                    new ToXContent.MapParams(Collections.singletonMap("level", levelParam.getRestName()))
+                    new ToXContent.MapParams(Collections.singletonMap("level", level.getRestName()))
                 );
                 builder.endObject();
 
                 Map<String, Object> xContentMap = xContentBuilderToMap(builder);
                 LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
 
-                switch (levelParam) {
+                switch (level) {
                     case NODE:
                         assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES.getRestName()));
                         assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS.getRestName()));
@@ -1318,16 +1309,12 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         commonStatsFlags.setIncludeIndicesStatsByLevel(true);
 
-        Arrays.stream(NodeIndicesStats.StatsLevel.values()).forEach(enumLevel -> {
-            String level = enumLevel.getRestName();
-            List<String> levelList = new ArrayList<>();
-            levelList.add(level);
-
+        Arrays.stream(NodeIndicesStats.StatsLevel.values()).forEach(level -> {
             MockNodeIndicesStats aggregatedNodeIndicesStats = new MockNodeIndicesStats(
                 new CommonStats(commonStatsFlags),
                 statsByShards,
                 new SearchRequestStats(clusterSettings),
-                levelList.toArray(new String[0])
+                level
             );
 
             XContentBuilder nonAggregatedBuilder = null;
@@ -1337,7 +1324,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 nonAggregatedBuilder.startObject();
                 nonAggregatedBuilder = nonAggregatedNodeIndicesStats.toXContent(
                     nonAggregatedBuilder,
-                    new ToXContent.MapParams(Collections.singletonMap("level", level))
+                    new ToXContent.MapParams(Collections.singletonMap("level", level.getRestName()))
                 );
                 nonAggregatedBuilder.endObject();
                 Map<String, Object> nonAggregatedContentMap = xContentBuilderToMap(nonAggregatedBuilder);
@@ -1346,7 +1333,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 aggregatedBuilder.startObject();
                 aggregatedBuilder = aggregatedNodeIndicesStats.toXContent(
                     aggregatedBuilder,
-                    new ToXContent.MapParams(Collections.singletonMap("level", level))
+                    new ToXContent.MapParams(Collections.singletonMap("level", level.getRestName()))
                 );
                 aggregatedBuilder.endObject();
                 Map<String, Object> aggregatedContentMap = xContentBuilderToMap(aggregatedBuilder);
@@ -1423,7 +1410,12 @@ public class NodeStatsTests extends OpenSearchTestCase {
         return XContentHelper.convertToMap(BytesReference.bytes(xContentBuilder), true, xContentBuilder.contentType()).v2();
     }
 
-    public MockNodeIndicesStats generateMockNodeIndicesStats(CommonStats commonStats, Index index, CommonStatsFlags commonStatsFlags) {
+    public MockNodeIndicesStats generateMockNodeIndicesStats(
+        CommonStats commonStats,
+        Index index,
+        CommonStatsFlags commonStatsFlags,
+        NodeIndicesStats.StatsLevel level
+    ) {
         DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
         List<IndexShardStats> indexShardStatsList = new ArrayList<>();
@@ -1467,7 +1459,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 new CommonStats(commonStatsFlags),
                 statsByShard,
                 new SearchRequestStats(clusterSettings),
-                commonStatsFlags.getLevels()
+                level
             );
         } else {
             return new MockNodeIndicesStats(new CommonStats(commonStatsFlags), statsByShard, new SearchRequestStats(clusterSettings));

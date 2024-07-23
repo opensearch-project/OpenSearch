@@ -504,9 +504,7 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
     }
 
     public void testNodeIndicesStatsUnknownLevelThrowsException() {
-        List<MockStatsLevel> testLevels = new ArrayList<>();
-
-        testLevels.add(MockStatsLevel.UNKNOWN);
+        MockStatsLevel testLevel = MockStatsLevel.UNKNOWN;
         internalCluster().startNode();
         ensureGreen();
         String indexName = "test1";
@@ -519,24 +517,17 @@ public class NodeStatsIT extends OpenSearchIntegTestCase {
         );
         ensureGreen();
 
-        testLevels.forEach(testLevel -> {
-            NodesStatsResponse response;
-            CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
-            commonStatsFlags.setIncludeIndicesStatsByLevel(true);
-            if (!testLevel.equals(MockStatsLevel.NULL)) {
-                ArrayList<String> level_arg = new ArrayList<>();
-                level_arg.add(testLevel.getRestName());
+        NodesStatsResponse response;
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+        commonStatsFlags.setIncludeIndicesStatsByLevel(true);
+        ArrayList<String> level_arg = new ArrayList<>();
+        level_arg.add(testLevel.getRestName());
 
-                commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
-            }
-            response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
+        commonStatsFlags.setLevels(level_arg.toArray(new String[0]));
+        response = client().admin().cluster().prepareNodesStats().setIndices(commonStatsFlags).get();
 
-            assertTrue(response.hasFailures());
-            assertEquals(
-                "Level provided is not supported by NodeIndicesStats",
-                response.failures().get(0).getCause().getCause().getMessage()
-            );
-        });
+        assertTrue(response.hasFailures());
+        assertEquals("Level provided is not supported by NodeIndicesStats", response.failures().get(0).getCause().getCause().getMessage());
     }
 
     private Map<String, Object> xContentBuilderToMap(XContentBuilder xContentBuilder) {
