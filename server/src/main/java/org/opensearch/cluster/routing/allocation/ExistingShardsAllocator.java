@@ -121,7 +121,7 @@ public interface ExistingShardsAllocator {
                 runnables.add(new TimeoutAwareRunnable() {
                     @Override
                     public void onTimeout() {
-                        // do nothing
+                        throw new UnsupportedOperationException("Timeout not supported for non batched allocator");
                     }
 
                     @Override

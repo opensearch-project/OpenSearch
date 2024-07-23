@@ -255,7 +255,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                             allocation,
                             true
                         );
-                        logger.info(
+                        logger.debug(
                             "Time taken to execute allocateUnassignedBatchOnTimeout for unassigned primary batch with id [{}], size : [{}] in this cycle:[{}ms]",
                             shardsBatch.batchId,
                             shardsBatch.getBatchedShardRoutings().size(),
@@ -267,7 +267,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     public void run() {
                         long startTime = System.nanoTime();
                         primaryBatchShardAllocator.allocateUnassignedBatch(shardsBatch.getBatchedShardRoutings(), allocation);
-                        logger.info(
+                        logger.debug(
                             "Time taken to allocate unassigned primary batch with id [{}], size : [{}] in this cycle:[{}ms]",
                             shardsBatch.batchId,
                             shardsBatch.getBatchedShardRoutings().size(),
@@ -286,7 +286,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     public void onTimeout() {
                         long startTime = System.nanoTime();
                         replicaBatchShardAllocator.allocateUnassignedBatchOnTimeout(batch.getBatchedShardRoutings(), allocation, false);
-                        logger.info(
+                        logger.debug(
                             "Time taken to execute allocateUnassignedBatchOnTimeout for unassigned replica batch with id [{}], size : [{}] in this cycle:[{}ms]",
                             batch.batchId,
                             batch.getBatchedShardRoutings().size(),
@@ -299,7 +299,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                     public void run() {
                         long startTime = System.nanoTime();
                         replicaBatchShardAllocator.allocateUnassignedBatch(batch.getBatchedShardRoutings(), allocation);
-                        logger.info(
+                        logger.debug(
                             "Time taken to allocate unassigned replica batch with id [{}], size : [{}] in this cycle:[{}ms]",
                             batch.batchId,
                             batch.getBatchedShardRoutings().size(),
