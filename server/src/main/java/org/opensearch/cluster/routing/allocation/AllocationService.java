@@ -58,7 +58,6 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;

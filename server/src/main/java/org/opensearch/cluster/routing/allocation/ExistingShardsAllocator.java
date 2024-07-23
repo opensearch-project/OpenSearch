@@ -38,9 +38,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.BatchRunnableExecutor;
-import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 

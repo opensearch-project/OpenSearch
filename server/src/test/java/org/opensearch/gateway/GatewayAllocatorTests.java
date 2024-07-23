@@ -47,8 +47,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.opensearch.index.store.Store.verify;
-
 public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
 
     private final Logger logger = LogManager.getLogger(GatewayAllocatorTests.class);

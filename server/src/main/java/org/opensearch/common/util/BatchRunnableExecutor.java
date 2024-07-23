@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
-import org.opensearch.core.common.util.CollectionUtils;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
