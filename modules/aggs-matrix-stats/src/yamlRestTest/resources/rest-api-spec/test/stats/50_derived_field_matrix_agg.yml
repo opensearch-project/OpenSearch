@@ -1,0 +1,99 @@
+---
+setup:
+- skip:
+    version: " - 2.14.99"
+    reason: "derived_field feature was added in 2.15"
+
+- do:
+    indices.create:
+      index: test
+      body:
+        mappings:
+          properties:
+            long:
+              type: long
+            float:
+              type: float
+            json_field:
+              type: text
+          derived:
+            derived_long:
+              type: long
+              script: "emit(params._source[\"long\"])"
+            derived_float:
+              type: float
+              script: "emit(params._source[\"float\"])"
+            derived_object:
+              type: object
+              properties:
+                keyword: keyword
+              script: "emit(params._source[\"json_field\"])"
+              prefilter_field: "json_field"
+
+- do:
+    index:
+      index: test
+      id: 1
+      body: { "long": 1.9, "float": 3.1, "json_field": "{\"long\":1,\"float\":1.0}" }
+- do:
+    index:
+      index: test
+      id: 1
+      body: { "long": 1.9, "float": 3.1, "json_field": "{\"long\":1,\"float\":1.0}" }
+- do:
+    index:
+      index: test
+      id: 2
+      body: { "long": 2, "float": 2.0, "json_field": "{\"long\":2,\"float\":1.0}" }
+- do:
+    index:
+      index: test
+      id: 3
+      body: { "long": -3, "float": -3.0, "json_field": "{\"long\":1,\"float\":1.0}" }
+- do:
+    index:
+      index: test
+      id: 4
+      body: { "long": 4, "float": 4.0, "json_field": "{\"long\":1,\"float\":1.0}" }
+- do:
+    index:
+      index: test
+      id: 5
+      body: { "long": 5, "float": 5.0, "json_field": "{\"long\":1,\"float\":1.0}" }
+- do:
+    indices.refresh:
+      index: [test]
+---
+"Test matrix stats aggregation on derived_object.long and float":
+- do:
+    search:
+      index: test
+      body:
+        size: 0
+        aggs:
+          matrix_stats:
+            matrix_stats:
+              fields: [ derived_object.long, derived_object.float ]
+- match: { hits.total.value: 5 }
+- length: { aggregations.matrix_stats.fields: 2 }
+- match: { aggregations.matrix_stats.fields.0.name: "derived_object.long" }
+- match: { aggregations.matrix_stats.fields.0.count: 5 }
+- match: { aggregations.matrix_stats.fields.1.name: "derived_object.float" }
+- match: { aggregations.matrix_stats.fields.1.count: 5 }
+---
+"Test matrix stats aggregation on derived_long and float":
+- do:
+    search:
+      index: test
+      body:
+        size: 0
+        aggs:
+          matrix_stats:
+            matrix_stats:
+              fields: [ derived_long, derived_float ]
+- match: { hits.total.value: 5 }
+- length: { aggregations.matrix_stats.fields: 2 }
+- match: { aggregations.matrix_stats.fields.0.name: "derived_float" }
+- match: { aggregations.matrix_stats.fields.0.count: 5 }
+- match: { aggregations.matrix_stats.fields.1.name: "derived_long" }
+- match: { aggregations.matrix_stats.fields.1.count: 5 }
