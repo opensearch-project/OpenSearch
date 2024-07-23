@@ -45,12 +45,12 @@ public class BatchRunnableExecutor implements Runnable {
             return;
         }
         Randomness.shuffle(timeoutAwareRunnables);
-        for (TimeoutAwareRunnable workQueue : timeoutAwareRunnables) {
+        for (TimeoutAwareRunnable runnable : timeoutAwareRunnables) {
             if (timeoutSupplier.get().nanos() < 0 || System.nanoTime() - startTime < timeoutSupplier.get().nanos()) {
-                workQueue.run();
+                runnable.run();
             } else {
                 logger.debug("Executing timeout for runnable of size [{}]", timeoutAwareRunnables.size());
-                workQueue.onTimeout();
+                runnable.onTimeout();
             }
         }
         logger.debug(

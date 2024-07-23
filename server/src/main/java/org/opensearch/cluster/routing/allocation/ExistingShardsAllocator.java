@@ -112,26 +112,16 @@ public interface ExistingShardsAllocator {
      *
      * Allocation service will currently run the default implementation of it implemented by {@link ShardsBatchGatewayAllocator}
      */
-    default BatchRunnableExecutor allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
+    default Runnable allocateAllUnassignedShards(RoutingAllocation allocation, boolean primary) {
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
-        List<TimeoutAwareRunnable> runnables = new ArrayList<>();
+        List<Runnable> runnables = new ArrayList<>();
         while (iterator.hasNext()) {
             ShardRouting shardRouting = iterator.next();
             if (shardRouting.primary() == primary) {
-                runnables.add(new TimeoutAwareRunnable() {
-                    @Override
-                    public void onTimeout() {
-                        throw new UnsupportedOperationException("Timeout not supported for non batched allocator");
-                    }
-
-                    @Override
-                    public void run() {
-                        allocateUnassigned(shardRouting, allocation, iterator);
-                    }
-                });
+                runnables.add(() -> allocateUnassigned(shardRouting, allocation, iterator));
             }
         }
-        return new BatchRunnableExecutor(runnables, () -> TimeValue.MINUS_ONE);
+        return () -> runnables.forEach(Runnable::run);
     }
 
     /**

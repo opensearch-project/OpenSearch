@@ -44,7 +44,7 @@ public class BatchRunnableExecutorTests extends OpenSearchTestCase {
 
     public void testRunWithoutTimeout() {
         setupRunnables();
-        when(timeoutSupplier.get()).thenReturn(TimeValue.timeValueSeconds(1));
+        timeoutSupplier = () -> TimeValue.timeValueSeconds(1);
         BatchRunnableExecutor executor = new BatchRunnableExecutor(runnableList, timeoutSupplier);
         executor.run();
         verify(runnable1, times(1)).run();
@@ -57,7 +57,7 @@ public class BatchRunnableExecutorTests extends OpenSearchTestCase {
 
     public void testRunWithTimeout() {
         setupRunnables();
-        when(timeoutSupplier.get()).thenReturn(TimeValue.timeValueNanos(1));
+        timeoutSupplier = () -> TimeValue.timeValueNanos(1);
         BatchRunnableExecutor executor = new BatchRunnableExecutor(runnableList, timeoutSupplier);
         executor.run();
         verify(runnable1, times(1)).onTimeout();
@@ -70,14 +70,13 @@ public class BatchRunnableExecutorTests extends OpenSearchTestCase {
 
     public void testRunWithPartialTimeout() {
         setupRunnables();
-        when(timeoutSupplier.get()).thenReturn(TimeValue.timeValueMillis(50));
+        timeoutSupplier = () -> TimeValue.timeValueMillis(50);
         BatchRunnableExecutor executor = new BatchRunnableExecutor(runnableList, timeoutSupplier);
         doAnswer(invocation -> {
             Thread.sleep(100);
             return null;
         }).when(runnable1).run();
         executor.run();
-        ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(runnable1, atMost(1)).run();
         verify(runnable2, atMost(1)).run();
         verify(runnable3, atMost(1)).run();

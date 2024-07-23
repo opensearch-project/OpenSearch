@@ -619,10 +619,10 @@ public class AllocationService {
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, true)).ifPresent(BatchRunnableExecutor::run);
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, true)).ifPresent(Runnable::run);
         allocator.afterPrimariesBeforeReplicas(allocation);
         // Replicas Assignment
-        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, false)).ifPresent(BatchRunnableExecutor::run);
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, false)).ifPresent(Runnable::run);
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {
