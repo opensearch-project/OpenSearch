@@ -505,6 +505,23 @@ setup:
 - match: { aggregations.top_keywords.buckets.0.key: "bar" }
 - match: { aggregations.top_keywords.buckets.0.doc_count: 1 }
 - length: { aggregations.top_keywords.buckets.0.top_hits.hits.hits: 1 }
+---
+"Test matrix stats aggregation on derived_long and float":
+- do:
+    search:
+      index: test
+      body:
+        size: 0
+        aggs:
+          matrix_stats:
+            matrix_stats:
+              fields: [ derived_long, derived_float ]
+- match: { hits.total.value: 5 }
+- length: { aggregations.matrix_stats.fields: 2 }
+- match: { aggregations.matrix_stats.fields.0.name: "derived_float" }
+- match: { aggregations.matrix_stats.fields.0.count: 5 }
+- match: { aggregations.matrix_stats.fields.1.name: "derived_long" }
+- match: { aggregations.matrix_stats.fields.1.count: 5 }
 
 ---
 "Test median absolute deviation aggregation on derived_long":
@@ -803,6 +820,24 @@ setup:
 - match: { aggregations.top_keywords.buckets.0.key: "bar" }
 - match: { aggregations.top_keywords.buckets.0.doc_count: 1 }
 - length: { aggregations.top_keywords.buckets.0.top_hits.hits.hits: 1 }
+
+---
+"Test matrix stats aggregation on derived_object.long and float":
+- do:
+    search:
+      index: test
+      body:
+        size: 0
+        aggs:
+          matrix_stats:
+            matrix_stats:
+              fields: [ derived_object.long, derived_object.float ]
+- match: { hits.total.value: 5 }
+- length: { aggregations.matrix_stats.fields: 2 }
+- match: { aggregations.matrix_stats.fields.0.name: "derived_object.long" }
+- match: { aggregations.matrix_stats.fields.0.count: 5 }
+- match: { aggregations.matrix_stats.fields.1.name: "derived_object.float" }
+- match: { aggregations.matrix_stats.fields.1.count: 5 }
 
 ---
 "Test median absolute deviation aggregation on derived_object.long":
