@@ -1125,7 +1125,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
         }
     }
 
-    public void testNodeIndicesStatsSerializationWithOldESVersionNodesWithoutAggregations() throws IOException {
+    public void testOldVersionNodes() throws IOException {
         long numDocs = randomLongBetween(0, 10000);
         long numDeletedDocs = randomLongBetween(0, 100);
         CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
@@ -1318,7 +1318,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
 
         commonStatsFlags.setIncludeIndicesStatsByLevel(true);
 
-        NodeIndicesStats.StatsLevel.acceptedValues().forEach(level -> {
+        Arrays.stream(NodeIndicesStats.StatsLevel.values()).forEach(enumLevel -> {
+            String level = enumLevel.getRestName();
             List<String> levelList = new ArrayList<>();
             levelList.add(level);
 

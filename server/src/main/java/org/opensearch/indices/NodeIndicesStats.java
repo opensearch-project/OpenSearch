@@ -61,8 +61,10 @@ import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
+import org.opensearch.transport.TransportException;
 
 import java.io.IOException;
+import java.rmi.UnexpectedException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -342,9 +344,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         stats.toXContent(builder, params);
 
         if (StatsLevel.INDICES.getRestName().equals(level)) {
-            if (statsByIndex == null && statsByShard != null) {
+            assert statsByIndex!=null || statsByShard!=null: "Expected shard stats or index stats in response for generating [" + StatsLevel.INDICES + "] field";
+            if (statsByIndex == null) {
                 statsByIndex = createStatsByIndex(statsByShard);
             }
+
             builder.startObject(StatsLevel.INDICES.getRestName());
             if (statsByIndex != null) {
                 for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
@@ -356,18 +360,17 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             builder.endObject();
         } else if (StatsLevel.SHARDS.getRestName().equals(level)) {
             builder.startObject(StatsLevel.SHARDS.getRestName());
-            if (statsByShard != null) {
-                for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-                    builder.startArray(entry.getKey().getName());
-                    for (IndexShardStats indexShardStats : entry.getValue()) {
-                        builder.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()));
-                        for (ShardStats shardStats : indexShardStats.getShards()) {
-                            shardStats.toXContent(builder, params);
-                        }
-                        builder.endObject().endObject();
+            assert statsByShard != null: "Expected shard stats in response for generating [" + StatsLevel.SHARDS + "] field";
+            for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
+                builder.startArray(entry.getKey().getName());
+                for (IndexShardStats indexShardStats : entry.getValue()) {
+                    builder.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()));
+                    for (ShardStats shardStats : indexShardStats.getShards()) {
+                        shardStats.toXContent(builder, params);
                     }
-                    builder.endArray();
+                    builder.endObject().endObject();
                 }
+                builder.endArray();
             }
             builder.endObject();
         }
@@ -422,8 +425,5 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             return restName;
         }
 
-        public static List<String> acceptedValues() {
-            return Arrays.stream(StatsLevel.values()).map(StatsLevel::getRestName).collect(Collectors.toList());
-        }
     }
 }
