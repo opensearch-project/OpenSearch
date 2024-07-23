@@ -139,7 +139,7 @@ public abstract class Plugin implements Closeable {
      * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
      *                                    is called, but will return the repositories service once the node is initialized.
-     * @param contextSwitcher
+     * @param contextSwitcher             A client for switching to plugin system context
      */
     public Collection<Object> createComponents(
         Client client,

@@ -60,6 +60,7 @@ public interface TelemetryAwarePlugin {
      *                                   is called, but will return the repositories service once the node is initialized.
      * @param tracer the tracer to add tracing instrumentation.
      * @param metricsRegistry the registry for metrics instrumentation.
+     * @param contextSwitcher A client for switching to plugin system context
      */
     default Collection<Object> createComponents(
         NodeClient client,
