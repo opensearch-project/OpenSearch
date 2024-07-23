@@ -41,8 +41,10 @@ import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.fielddata.FieldDataStats;
@@ -173,12 +175,12 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     public class AggregatedNodeLevelStats extends BaseNodeResponse {
 
         CommonStats commonStats;
-        Map<String, CommonStats.AggregatedIndexStats> indexStatsMap;
+        Map<String, AggregatedIndexStats> indexStatsMap;
 
         protected AggregatedNodeLevelStats(StreamInput in) throws IOException {
             super(in);
             commonStats = in.readOptionalWriteable(CommonStats::new);
-            indexStatsMap = in.readMap(StreamInput::readString, CommonStats.AggregatedIndexStats::new);
+            indexStatsMap = in.readMap(StreamInput::readString, AggregatedIndexStats::new);
         }
 
         protected AggregatedNodeLevelStats(DiscoveryNode node, ShardStats[] indexShardsStats) {
@@ -194,9 +196,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
             // Index Level Stats
             for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : indexShardsStats) {
-                CommonStats.AggregatedIndexStats indexShardStats = this.indexStatsMap.get(shardStats.getShardRouting().getIndexName());
+                AggregatedIndexStats indexShardStats = this.indexStatsMap.get(shardStats.getShardRouting().getIndexName());
                 if (indexShardStats == null) {
-                    indexShardStats = new CommonStats.AggregatedIndexStats();
+                    indexShardStats = new AggregatedIndexStats();
                     this.indexStatsMap.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
                 }
 
@@ -221,6 +223,28 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
             super.writeTo(out);
             out.writeOptionalWriteable(commonStats);
             out.writeMap(indexStatsMap, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
+        }
+    }
+
+    /**
+     * Node level statistics used for ClusterStatsIndices for _cluster/stats call.
+     */
+    @PublicApi(since = "2.16.0")
+    public static class AggregatedIndexStats implements Writeable {
+        public int total = 0;
+        public int primaries = 0;
+
+        public AggregatedIndexStats(StreamInput in) throws IOException {
+            total = in.readVInt();
+            primaries = in.readVInt();
+        }
+
+        public AggregatedIndexStats() {}
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(total);
+            out.writeVInt(primaries);
         }
     }
 }

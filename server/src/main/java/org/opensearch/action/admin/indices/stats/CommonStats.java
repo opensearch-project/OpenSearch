@@ -544,29 +544,4 @@ public class CommonStats implements Writeable, ToXContentFragment {
         }
         return builder;
     }
-
-    /**
-     * Node level statistics used for ClusterStatsIndices for _cluster/stats call.
-     */
-    @PublicApi(since = "2.16.0")
-    public static class AggregatedIndexStats implements Writeable {
-        public int indices = 0;
-        public int total = 0;
-        public int primaries = 0;
-
-        public AggregatedIndexStats(StreamInput in) throws IOException {
-            indices = in.readVInt();
-            total = in.readVInt();
-            primaries = in.readVInt();
-        }
-
-        public AggregatedIndexStats() {}
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(indices);
-            out.writeVInt(total);
-            out.writeVInt(primaries);
-        }
-    }
 }

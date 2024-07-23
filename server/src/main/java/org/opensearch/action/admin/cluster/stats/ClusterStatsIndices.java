@@ -81,7 +81,8 @@ public class ClusterStatsIndices implements ToXContentFragment {
             // Aggregated response from the node
             if (r.getAggregatedNodeLevelStats() != null) {
 
-                for (Map.Entry<String, CommonStats.AggregatedIndexStats> entry : r.getAggregatedNodeLevelStats().indexStatsMap.entrySet()) {
+                for (Map.Entry<String, ClusterStatsNodeResponse.AggregatedIndexStats> entry : r.getAggregatedNodeLevelStats().indexStatsMap
+                    .entrySet()) {
                     ShardStats indexShardStats = countsPerIndex.get(entry.getKey());
                     if (indexShardStats == null) {
                         indexShardStats = new ShardStats(entry.getValue());
@@ -208,6 +209,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
      */
     @PublicApi(since = "1.0.0")
     public static class ShardStats implements ToXContentFragment {
+
         int indices;
         int total;
         int primaries;
@@ -223,8 +225,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         public ShardStats() {}
 
-        public ShardStats(CommonStats.AggregatedIndexStats aggregatedIndexStats) {
-            this.indices = aggregatedIndexStats.indices;
+        public ShardStats(ClusterStatsNodeResponse.AggregatedIndexStats aggregatedIndexStats) {
             this.total = aggregatedIndexStats.total;
             this.primaries = aggregatedIndexStats.primaries;
         }
@@ -356,9 +357,8 @@ public class ClusterStatsIndices implements ToXContentFragment {
             }
         }
 
-        public void addStatsFrom(CommonStats.AggregatedIndexStats incomingStats) {
+        public void addStatsFrom(ClusterStatsNodeResponse.AggregatedIndexStats incomingStats) {
             this.total += incomingStats.total;
-            this.indices += incomingStats.indices;
             this.primaries += incomingStats.primaries;
         }
 
