@@ -10,6 +10,7 @@ package org.opensearch.common.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.core.common.util.CollectionUtils;
@@ -38,11 +39,11 @@ public class BatchRunnableExecutor implements Runnable {
     @Override
     public void run() {
         logger.debug("Starting execution of runnable of size [{}]", timeoutAwareRunnables.size());
-        Collections.shuffle(timeoutAwareRunnables);
         long startTime = System.nanoTime();
         if (CollectionUtils.isEmpty(timeoutAwareRunnables)) {
             return;
         }
+        Randomness.shuffle(timeoutAwareRunnables);
         for (TimeoutAwareRunnable workQueue : timeoutAwareRunnables) {
             if (timeoutSupplier.get().nanos() < 0 || System.nanoTime() - startTime < timeoutSupplier.get().nanos()) {
                 workQueue.run();
