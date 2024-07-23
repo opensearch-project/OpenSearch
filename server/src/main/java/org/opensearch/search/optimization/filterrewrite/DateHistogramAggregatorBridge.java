@@ -115,7 +115,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
         return bounds;
     }
 
-    private DateFieldMapper.DateFieldType getFieldType() {
+    protected DateFieldMapper.DateFieldType getFieldType() {
         assert fieldType instanceof DateFieldMapper.DateFieldType;
         return (DateFieldMapper.DateFieldType) fieldType;
     }
@@ -125,7 +125,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, final LeafBucketCollector sub) throws IOException {
+    public void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, final LeafBucketCollector sub) throws IOException {
         int size = getSize();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
@@ -147,7 +147,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
         optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), collectRangeIDs, size));
     }
 
-    private static long getBucketOrd(long bucketOrd) {
+    protected static long getBucketOrd(long bucketOrd) {
         if (bucketOrd < 0) { // already seen
             bucketOrd = -1 - bucketOrd;
         }

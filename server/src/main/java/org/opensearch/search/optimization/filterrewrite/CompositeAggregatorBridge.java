@@ -8,10 +8,19 @@
 
 package org.opensearch.search.optimization.filterrewrite;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.PointValues;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
 import org.opensearch.search.aggregations.bucket.composite.RoundingValuesSource;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.function.BiConsumer;
+
+import static org.opensearch.search.optimization.filterrewrite.TreeTraversal.multiRangesTraverse;
 
 /**
  * For composite aggregation to do optimization when it only has a single date histogram source
@@ -32,5 +41,18 @@ public abstract class CompositeAggregatorBridge extends DateHistogramAggregatorB
             }
         }
         return false;
+    }
+
+    @Override
+    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, final LeafBucketCollector sub) throws IOException {
+        DateFieldMapper.DateFieldType fieldType = getFieldType();
+        BiConsumer<Integer, List<Integer>> collectRangeIDs = (activeIndex, docIDs) -> {
+            long rangeStart = LongPoint.decodeDimension(optimizationContext.getRanges().lowers[activeIndex], 0);
+            rangeStart = fieldType.convertNanosToMillis(rangeStart);
+            long ord = getBucketOrd(bucketOrdProducer().apply(rangeStart));
+            incrementDocCount.accept(ord, (long) docIDs.size());
+        };
+
+        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), collectRangeIDs, getSize()));
     }
 }
