@@ -189,7 +189,7 @@ public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
         if (shouldSetBatchSize) {
-            bulkRequest.batchSize(numRequests);
+            bulkRequest.batchSize(scaledRandomIntBetween(2, numRequests));
         }
         for (int i = 0; i < numRequests; i++) {
             IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
@@ -214,54 +214,12 @@ public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                 );
                 assertThat(indexResponse, notNullValue());
                 assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
+                // verify field of successful doc
+                Map<String, Object> successDoc = client().prepareGet("index", indexResponse.getId()).get().getSourceAsMap();
+                assertThat(successDoc.get("processed"), equalTo(true));
                 assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
             }
         }
-
-        // cleanup
-        AcknowledgedResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
-        assertTrue(deletePipelineResponse.isAcknowledged());
-    }
-
-    public void testBulkWithIngestFailuresBatch() throws Exception {
-        createIndex("index");
-
-        BytesReference source = BytesReference.bytes(
-            jsonBuilder().startObject()
-                .field("description", "my_pipeline")
-                .startArray("processors")
-                .startObject()
-                .startObject("test")
-                .endObject()
-                .endObject()
-                .endArray()
-                .endObject()
-        );
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, MediaTypeRegistry.JSON);
-        client().admin().cluster().putPipeline(putPipelineRequest).get();
-
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.batchSize(2);
-        bulkRequest.add(
-            new IndexRequest("index").id("_fail").setPipeline("_id").source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", true)
-        );
-        bulkRequest.add(
-            new IndexRequest("index").id("_success").setPipeline("_id").source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", false)
-        );
-
-        BulkResponse response = client().bulk(bulkRequest).actionGet();
-        MatcherAssert.assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
-
-        Map<String, BulkItemResponse> results = Arrays.stream(response.getItems())
-            .collect(Collectors.toMap(BulkItemResponse::getId, r -> r));
-
-        MatcherAssert.assertThat(results.keySet(), containsInAnyOrder("_fail", "_success"));
-        assertNotNull(results.get("_fail").getFailure());
-        assertNull(results.get("_success").getFailure());
-
-        // verify field of successful doc
-        Map<String, Object> successDoc = client().prepareGet("index", "_success").get().getSourceAsMap();
-        assertThat(successDoc.get("processed"), equalTo(true));
 
         // cleanup
         AcknowledgedResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
