@@ -15,7 +15,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.TimeoutAwareRunnable;
 import org.opensearch.core.common.util.CollectionUtils;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
