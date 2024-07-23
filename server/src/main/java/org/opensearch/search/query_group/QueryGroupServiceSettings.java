@@ -135,8 +135,18 @@ public class QueryGroupServiceSettings {
         nodeLevelCpuRejectionThreshold = NODE_LEVEL_CPU_REJECTION_THRESHOLD.get(settings);
         maxQueryGroupCount = MAX_QUERY_GROUP_COUNT.get(settings);
 
-        ensureMemoryRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
-        ensureCpuRejectionThresholdIsLessThanCancellation(nodeLevelCpuRejectionThreshold, nodeLevelCpuCancellationThreshold);
+        ensureRejectionThresholdIsLessThanCancellation(
+            nodeLevelMemoryRejectionThreshold,
+            nodeLevelMemoryCancellationThreshold,
+            NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME,
+            NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME
+        );
+        ensureRejectionThresholdIsLessThanCancellation(
+            nodeLevelCpuRejectionThreshold,
+            nodeLevelCpuCancellationThreshold,
+            NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME,
+            NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME
+        );
 
         clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxQueryGroupCount);
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD, this::setNodeLevelMemoryCancellationThreshold);
@@ -184,7 +194,12 @@ public class QueryGroupServiceSettings {
             );
         }
 
-        ensureMemoryRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
+        ensureRejectionThresholdIsLessThanCancellation(
+            nodeLevelMemoryRejectionThreshold,
+            nodeLevelMemoryCancellationThreshold,
+            NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME,
+            NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME
+        );
 
         this.nodeLevelMemoryCancellationThreshold = nodeLevelMemoryCancellationThreshold;
     }
@@ -209,7 +224,12 @@ public class QueryGroupServiceSettings {
             );
         }
 
-        ensureCpuRejectionThresholdIsLessThanCancellation(nodeLevelCpuRejectionThreshold, nodeLevelCpuCancellationThreshold);
+        ensureRejectionThresholdIsLessThanCancellation(
+            nodeLevelCpuRejectionThreshold,
+            nodeLevelCpuCancellationThreshold,
+            NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME,
+            NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME
+        );
 
         this.nodeLevelCpuCancellationThreshold = nodeLevelCpuCancellationThreshold;
     }
@@ -234,7 +254,12 @@ public class QueryGroupServiceSettings {
             );
         }
 
-        ensureMemoryRejectionThresholdIsLessThanCancellation(nodeLevelMemoryRejectionThreshold, nodeLevelMemoryCancellationThreshold);
+        ensureRejectionThresholdIsLessThanCancellation(
+            nodeLevelMemoryRejectionThreshold,
+            nodeLevelMemoryCancellationThreshold,
+            NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME,
+            NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME
+        );
 
         this.nodeLevelMemoryRejectionThreshold = nodeLevelMemoryRejectionThreshold;
     }
@@ -259,31 +284,25 @@ public class QueryGroupServiceSettings {
             );
         }
 
-        ensureCpuRejectionThresholdIsLessThanCancellation(nodeLevelCpuRejectionThreshold, nodeLevelCpuCancellationThreshold);
+        ensureRejectionThresholdIsLessThanCancellation(
+            nodeLevelCpuRejectionThreshold,
+            nodeLevelCpuCancellationThreshold,
+            NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME,
+            NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME
+        );
 
         this.nodeLevelCpuRejectionThreshold = nodeLevelCpuRejectionThreshold;
     }
 
-    private void ensureMemoryRejectionThresholdIsLessThanCancellation(
-        Double nodeLevelMemoryRejectionThreshold,
-        Double nodeLevelMemoryCancellationThreshold
+    private void ensureRejectionThresholdIsLessThanCancellation(
+        Double nodeLevelRejectionThreshold,
+        Double nodeLevelCancellationThreshold,
+        String rejectionThresholdSettingName,
+        String cancellationThresholdSettingName
     ) {
-        if (Double.compare(nodeLevelMemoryCancellationThreshold, nodeLevelMemoryRejectionThreshold) < 0) {
+        if (Double.compare(nodeLevelCancellationThreshold, nodeLevelRejectionThreshold) < 0) {
             throw new IllegalArgumentException(
-                NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME
-                    + " value should not be less than "
-                    + NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME
-            );
-        }
-    }
-
-    private void ensureCpuRejectionThresholdIsLessThanCancellation(
-        Double nodeLevelCpuRejectionThreshold,
-        Double nodeLevelCpuCancellationThreshold
-    ) {
-        if (Double.compare(nodeLevelCpuCancellationThreshold, nodeLevelCpuRejectionThreshold) < 0) {
-            throw new IllegalArgumentException(
-                NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME + " value should not be less than " + NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME
+                cancellationThresholdSettingName + " value should not be less than " + rejectionThresholdSettingName
             );
         }
     }
