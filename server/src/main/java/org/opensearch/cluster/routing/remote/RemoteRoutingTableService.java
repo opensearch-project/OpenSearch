@@ -56,9 +56,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
                     Integer index = entry.getKey();
                     IndexShardRoutingTable currentShardRoutingTable = entry.getValue();
                     IndexShardRoutingTable previousShardRoutingTable = previousState.shard(index);
-                    if (previousShardRoutingTable == null) {
-                        diffs.add(currentShardRoutingTable);
-                    } else if (!previousShardRoutingTable.equals(currentShardRoutingTable)) {
+                    if (previousShardRoutingTable == null || !previousShardRoutingTable.equals(currentShardRoutingTable)) {
                         diffs.add(currentShardRoutingTable);
                     }
                 }
