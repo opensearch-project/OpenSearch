@@ -864,7 +864,9 @@ public class Node implements Closeable {
 
             final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService.getClusterSettings());
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
-            final SearchTaskRequestOperationsListener searchTaskRequestOperationsListener = new SearchTaskRequestOperationsListener(taskResourceTrackingService);
+            final SearchTaskRequestOperationsListener searchTaskRequestOperationsListener = new SearchTaskRequestOperationsListener(
+                taskResourceTrackingService
+            );
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
             CacheModule cacheModule = new CacheModule(pluginsService.filterPlugins(CachePlugin.class), settings);
