@@ -569,7 +569,10 @@ public class AllocationService {
 
         long startTime = System.nanoTime();
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
-        logger.debug("Completing allocateExistingUnassignedShards, elapsed time: [{}]", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+        logger.debug(
+            "Completing allocateExistingUnassignedShards, elapsed time: [{}]",
+            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime)
+        );
         startTime = System.nanoTime();
         shardsAllocator.allocate(allocation);
         logger.debug(
