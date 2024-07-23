@@ -30,7 +30,7 @@ import java.util.Objects;
  * {
  *              "_id": "fafjafjkaf9ag8a9ga9g7ag0aagaga",
  *              "resourceLimits": {
- *                  "jvm": 0.4
+ *                  "memory": 0.4
  *              },
  *              "resiliency_mode": "enforced",
  *              "name": "analytics",
@@ -112,8 +112,8 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             Objects.requireNonNull(resource.getKey(), "resourceName can't be null");
             Objects.requireNonNull(threshold, "resource limit threshold for" + resource.getKey().getName() + " : can't be null");
 
-            if (Double.compare(threshold, 1.0) > 0) {
-                throw new IllegalArgumentException("resource value should be less than 1.0");
+            if (Double.compare(threshold, 0.0) <= 0 || Double.compare(threshold, 1.0) > 0) {
+                throw new IllegalArgumentException("resource value should be greater than 0 and less or equal to 1.0");
             }
         }
     }
@@ -201,6 +201,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         if (o == null || getClass() != o.getClass()) return false;
         QueryGroup that = (QueryGroup) o;
         return Objects.equals(name, that.name)
+            && Objects.equals(resiliencyMode, that.resiliencyMode)
             && Objects.equals(resourceLimits, that.resourceLimits)
             && Objects.equals(_id, that._id)
             && updatedAtInMillis == that.updatedAtInMillis;
@@ -268,7 +269,6 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
             }
             throw new IllegalArgumentException("Invalid value for QueryGroupMode: " + s);
         }
-
     }
 
     /**

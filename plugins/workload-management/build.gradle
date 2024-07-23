@@ -11,7 +11,7 @@
 
 opensearchplugin {
   description 'OpenSearch Workload Management Plugin.'
-  classname 'org.opensearch.plugin.wlm.action.WorkloadManagementPlugin'
+  classname 'org.opensearch.plugin.wlm.WorkloadManagementPlugin'
 }
 
 dependencies {

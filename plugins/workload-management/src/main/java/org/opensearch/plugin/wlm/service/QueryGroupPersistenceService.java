@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action.service;
+package org.opensearch.plugin.wlm.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,7 +30,7 @@ import static org.opensearch.search.query_group.QueryGroupServiceSettings.MAX_QU
 /**
  * This class defines the functions for QueryGroup persistence
  */
-public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
+public class QueryGroupPersistenceService {
     private static final Logger logger = LogManager.getLogger(QueryGroupPersistenceService.class);
     private final ClusterService clusterService;
     private static final String SOURCE = "query-group-persistence-service";
@@ -74,10 +74,14 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
         this.maxQueryGroupCount = newMaxQueryGroupCount;
     }
 
-    @Override
-    public void get(String name, ActionListener<GetQueryGroupResponse> listener) {
+    /**
+     * Get the QueryGroup with the specified name from cluster state
+     * @param name - the QueryGroup name we are getting
+     * @param listener - ActionListener for GetQueryGroupResponse
+     */
+    public void getFromClusterStateMetadata(String name, ActionListener<GetQueryGroupResponse> listener) {
         ClusterState currentState = clusterService.state();
-        List<QueryGroup> resultGroups = getFromClusterStateMetadata(name, currentState);
+        List<QueryGroup> resultGroups = getQueryGroupsFromClusterState(name, currentState);
         if (resultGroups.isEmpty() && name != null && !name.isEmpty()) {
             logger.warn("No QueryGroup exists with the provided name: {}", name);
             Exception e = new RuntimeException("No QueryGroup exists with the provided name: " + name);
@@ -88,7 +92,7 @@ public class QueryGroupPersistenceService implements Persistable<QueryGroup> {
         listener.onResponse(response);
     }
 
-    List<QueryGroup> getFromClusterStateMetadata(String name, ClusterState currentState) {
+    List<QueryGroup> getQueryGroupsFromClusterState(String name, ClusterState currentState) {
         Map<String, QueryGroup> currentGroups = currentState.getMetadata().queryGroups();
         if (name == null || name.isEmpty()) {
             return new ArrayList<>(currentGroups.values());

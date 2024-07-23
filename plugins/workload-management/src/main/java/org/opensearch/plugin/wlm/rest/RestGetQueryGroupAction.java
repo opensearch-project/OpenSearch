@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action.rest;
+package org.opensearch.plugin.wlm.rest;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.rest.RestStatus;

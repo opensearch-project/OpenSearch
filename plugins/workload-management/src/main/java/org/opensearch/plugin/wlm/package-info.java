@@ -7,6 +7,6 @@
  */
 
 /**
- * Package for the service classes for QueryGroup CRUD operations
+ * Base package for CRUD API of QueryGroup
  */
-package org.opensearch.plugin.wlm.action.service;
+package org.opensearch.plugin.wlm;
