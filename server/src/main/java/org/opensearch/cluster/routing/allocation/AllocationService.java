@@ -73,6 +73,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -629,16 +630,10 @@ public class AllocationService {
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        BatchRunnableExecutor primaryShardsBatchExecutor = allocator.allocateAllUnassignedShards(allocation, true);
-        if (primaryShardsBatchExecutor != null) {
-            primaryShardsBatchExecutor.run();
-        }
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, true)).ifPresent(BatchRunnableExecutor::run);
         allocator.afterPrimariesBeforeReplicas(allocation);
         // Replicas Assignment
-        BatchRunnableExecutor replicaShardsBatchExecutor = allocator.allocateAllUnassignedShards(allocation, false);
-        if (replicaShardsBatchExecutor != null) {
-            replicaShardsBatchExecutor.run();
-        }
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, false)).ifPresent(BatchRunnableExecutor::run);
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {
