@@ -217,9 +217,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             clusterStatus,
             nodeInfo,
             nodeStats,
-            shardsStats.toArray(new ShardStats[shardsStats.size()])
+            shardsStats.toArray(new ShardStats[0]),
+            nodeRequest.request.useAggregatedNodeLevelResponses()
         );
-
     }
 
     /**
