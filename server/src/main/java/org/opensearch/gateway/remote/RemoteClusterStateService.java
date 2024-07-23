@@ -1328,10 +1328,7 @@ public class RemoteClusterStateService implements Closeable {
                 includeEphemeral ? manifest.getIndicesRouting() : emptyList(),
                 includeEphemeral && manifest.getHashesOfConsistentSettings() != null,
                 includeEphemeral ? manifest.getClusterStateCustomMap() : emptyMap(),
-                includeEphemeral
-                    && manifest.getDiffManifest() != null
-                    && manifest.getDiffManifest().getIndicesRoutingDiffPath() != null
-                    && !manifest.getDiffManifest().getIndicesRoutingDiffPath().isEmpty(),
+                false,
                 includeEphemeral
             );
         } else {
