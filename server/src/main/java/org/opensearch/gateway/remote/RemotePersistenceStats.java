@@ -51,10 +51,10 @@ public class RemotePersistenceStats extends PersistedStateStats {
     }
 
     public void indicesRoutingDiffFileCleanupAttemptFailed() {
-        indexRoutingFilesCleanupAttemptFailedCount.incrementAndGet();
+        indicesRoutingDiffFilesCleanupAttemptFailedCount.incrementAndGet();
     }
 
     public long getIndicesRoutingDiffFileCleanupAttemptFailedCount() {
-        return indexRoutingFilesCleanupAttemptFailedCount.get();
+        return indicesRoutingDiffFilesCleanupAttemptFailedCount.get();
     }
 }
