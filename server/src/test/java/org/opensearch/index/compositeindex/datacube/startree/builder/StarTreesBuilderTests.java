@@ -101,14 +101,6 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
         assertTrue(starTreeBuilder instanceof OnHeapStarTreeBuilder);
     }
 
-    public void test_getStarTreeBuilder_illegalArgument() {
-        when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
-        StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(1, new HashSet<>(), StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP);
-        StarTreeField starTreeField = new StarTreeField("star_tree", new ArrayList<>(), new ArrayList<>(), starTreeFieldConfiguration);
-        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService);
-        assertThrows(IllegalArgumentException.class, () -> starTreesBuilder.getSingleTreeBuilder(starTreeField, segmentWriteState, mapperService));
-    }
-
     public void test_closeWithNoStarTreeFields() throws IOException {
         StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(
             1,

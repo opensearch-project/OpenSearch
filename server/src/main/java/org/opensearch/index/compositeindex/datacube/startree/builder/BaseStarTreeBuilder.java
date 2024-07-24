@@ -72,7 +72,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
     protected final TreeNode rootNode = getNewNode();
 
-    private final StarTreeField starTreeField;
+    protected final StarTreeField starTreeField;
     private final MapperService mapperService;
     private final SegmentWriteState state;
     static String NUM_SEGMENT_DOCS = "numSegmentDocs";
@@ -142,6 +142,37 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     }
 
     /**
+     * Get star tree document from the segment for the current docId with the dimensionReaders and metricReaders
+     */
+    protected StarTreeDocument getStarTreeDocument(
+        int currentDocId,
+        SequentialDocValuesIterator[] dimensionReaders,
+        List<SequentialDocValuesIterator> metricReaders
+    ) throws IOException {
+        Long[] dims = new Long[numDimensions];
+        int i = 0;
+        for (SequentialDocValuesIterator dimensionDocValueIterator : dimensionReaders) {
+            dimensionDocValueIterator.nextDoc(currentDocId);
+            Long val = dimensionDocValueIterator.value(currentDocId);
+            dims[i] = val;
+            i++;
+        }
+        i = 0;
+        Object[] metrics = new Object[metricReaders.size()];
+        for (SequentialDocValuesIterator metricDocValuesIterator : metricReaders) {
+            metricDocValuesIterator.nextDoc(currentDocId);
+            // As part of merge, we traverse the star tree doc values
+            // The type of data stored in metric fields is different from the
+            // actual indexing field they're based on
+            metrics[i] = metricAggregatorInfos.get(i)
+                .getValueAggregators()
+                .toStarTreeNumericTypeValue(metricDocValuesIterator.value(currentDocId));
+            i++;
+        }
+        return new StarTreeDocument(dims, metrics);
+    }
+
+    /**
      * Adds a document to the star-tree.
      *
      * @param starTreeDocument star tree document to be added
@@ -163,7 +194,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      *
      * @return Star tree documents
      */
-    public abstract List<StarTreeDocument> getStarTreeDocuments();
+    public abstract List<StarTreeDocument> getStarTreeDocuments() throws IOException;
 
     /**
      * Returns the value of the dimension for the given dimension id and document in the star-tree.

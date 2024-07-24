@@ -8,8 +8,6 @@
 
 package org.opensearch.index.codec.composite;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.DocValues;
@@ -50,9 +48,9 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
     private final Set<CompositeMappedFieldType> compositeMappedFieldTypes;
     private final Set<String> compositeFieldSet;
     private final Set<String> segmentFieldSet;
+    private final boolean segmentHasCompositeFields;
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
-    private static final Logger logger = LogManager.getLogger(Composite99DocValuesWriter.class);
 
     public Composite99DocValuesWriter(DocValuesConsumer delegate, SegmentWriteState segmentWriteState, MapperService mapperService) {
 
@@ -70,6 +68,8 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
         for (CompositeMappedFieldType type : compositeMappedFieldTypes) {
             compositeFieldSet.addAll(type.fields());
         }
+        // check if there are any composite fields which are part of the segment
+        segmentHasCompositeFields = !Collections.disjoint(segmentFieldSet, compositeFieldSet);
     }
 
     @Override
@@ -91,7 +91,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
     public void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         delegate.addSortedNumericField(field, valuesProducer);
         // Perform this only during flush flow
-        if (mergeState.get() == null) {
+        if (mergeState.get() == null && segmentHasCompositeFields) {
             createCompositeIndicesIfPossible(valuesProducer, field);
         }
     }
