@@ -53,6 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `net.minidev:accessors-smart` from 2.5.0 to 2.5.1 ([#14673](https://github.com/opensearch-project/OpenSearch/pull/14673))
 - Bump `jackson` from 2.17.1 to 2.17.2 ([#14687](https://github.com/opensearch-project/OpenSearch/pull/14687))
 - Bump `net.minidev:json-smart` from 2.5.0 to 2.5.1 ([#14748](https://github.com/opensearch-project/OpenSearch/pull/14748))
+- Bump `org.apache.commons:commons-lang3` from 3.14.0 to 3.15.0 ([#14861](https://github.com/opensearch-project/OpenSearch/pull/14861))
 
 ### Changed
 - [Tiered Caching] Move query recomputation logic outside write lock ([#14187](https://github.com/opensearch-project/OpenSearch/pull/14187))
