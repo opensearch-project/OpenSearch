@@ -862,14 +862,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         long upper = 86399999;  // 1970-01-01T23:59:59.999 UTC
         assertEquals(calculateExpectedDateQuery(lower, upper), query);
         int msPerHour = 3600000;
-        assertEquals(
-            calculateExpectedDateQuery(lower - msPerHour, upper - msPerHour),
-            qsq.timeZone("+01:00").toQuery(context)
-        );
-        assertEquals(
-            calculateExpectedDateQuery(lower + msPerHour, upper + msPerHour),
-            qsq.timeZone("-01:00").toQuery(context)
-        );
+        assertEquals(calculateExpectedDateQuery(lower - msPerHour, upper - msPerHour), qsq.timeZone("+01:00").toQuery(context));
+        assertEquals(calculateExpectedDateQuery(lower + msPerHour, upper + msPerHour), qsq.timeZone("-01:00").toQuery(context));
     }
 
     private IndexOrDocValuesQuery calculateExpectedDateQuery(long lower, long upper) {

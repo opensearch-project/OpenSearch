@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PointRangeQuery;
@@ -30,8 +29,6 @@ import org.opensearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.BiFunction;
-import java.util.function.Predicate;
 
 /**
  * An approximate-able version of {@link PointRangeQuery}. It creates an instance of {@link PointRangeQuery} but short-circuits the intersect logic
@@ -89,7 +86,6 @@ public abstract class ApproximatePointRangeQuery extends Query {
     @Override
     public final ApproximateConstantScoreWeight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         Weight pointRangeQueryWeight = pointRangeQuery.createWeight(searcher, scoreMode, boost);
-
 
         return new ApproximateConstantScoreWeight(this, boost) {
 
@@ -204,21 +200,18 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 return true;
             }
 
-            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor)
-                throws IOException {
+            private void intersectLeft(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor) throws IOException {
                 intersectLeft(visitor, pointTree);
                 assert pointTree.moveToParent() == false;
             }
 
-            private void intersectRight(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor)
-                throws IOException {
+            private void intersectRight(PointValues.PointTree pointTree, PointValues.IntersectVisitor visitor) throws IOException {
                 intersectRight(visitor, pointTree);
                 assert pointTree.moveToParent() == false;
             }
 
             // custom intersect visitor to walk the left of the tree
-            public long intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree)
-                throws IOException {
+            public long intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree) throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= size) {
                     return 0;
@@ -269,8 +262,7 @@ public abstract class ApproximatePointRangeQuery extends Query {
             }
 
             // custom intersect visitor to walk the right of tree
-            public long intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree)
-                throws IOException {
+            public long intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree) throws IOException {
                 PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
                 if (docCount[0] >= size) {
                     return 0;
@@ -316,7 +308,8 @@ public abstract class ApproximatePointRangeQuery extends Query {
                     default:
                         throw new IllegalArgumentException("Unreachable code");
                 }
-                // docCount can be updated by the local visitor, so we ensure that we return docCount after pointTree.visitDocValues(visitor)
+                // docCount can be updated by the local visitor, so we ensure that we return docCount after
+                // pointTree.visitDocValues(visitor)
                 return docCount[0] > 0 ? docCount[0] : 0;
             }
 

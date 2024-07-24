@@ -20,11 +20,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.DocIdSetBuilder;
@@ -32,11 +29,8 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 
 import static org.apache.lucene.document.LongPoint.pack;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.*;
 
 public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
@@ -106,12 +100,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     try {
                         long lower = 0;
                         long upper = 1000;
-                        Query approximateQuery = new ApproximatePointRangeQuery(
-                                "point",
-                                pack(lower).bytes,
-                                pack(upper).bytes,
-                                dims
-                        ) {
+                        Query approximateQuery = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
@@ -149,13 +138,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     try {
                         long lower = 0;
                         long upper = 45;
-                        Query approximateQuery = new ApproximatePointRangeQuery(
-                                "point",
-                                pack(lower).bytes,
-                                pack(upper).bytes,
-                                dims,
-                                10
-                        ) {
+                        Query approximateQuery = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims, 10) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
@@ -193,11 +176,11 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         long lower = 0;
                         long upper = 12000;
                         Query approximateQuery = new ApproximatePointRangeQuery(
-                                "point",
-                                pack(lower).bytes,
-                                pack(upper).bytes,
-                                dims,
-                                11_000
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            11_000
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
@@ -285,12 +268,12 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         long lower = 0;
                         long upper = 20;
                         Query approximateQuery = new ApproximatePointRangeQuery(
-                                "point",
-                                pack(lower).bytes,
-                                pack(upper).bytes,
-                                dims,
-                                10,
-                                SortOrder.ASC
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            10,
+                            SortOrder.ASC
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
@@ -346,18 +329,22 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         long lower = 0;
                         long upper = 20;
                         ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
-                                "point",
-                                pack(lower).bytes,
-                                pack(upper).bytes,
-                                dims,
-                                10
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            10
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
                         IndexSearcher searcher = new IndexSearcher(reader);
-                        ApproximateConstantScoreWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F);
+                        ApproximateConstantScoreWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(
+                            searcher,
+                            ScoreMode.TOP_SCORES,
+                            1.0F
+                        );
                         LeafReaderContext lrc = reader.leaves().get(0);
                         PointValues values = lrc.reader().getPointValues("point");
                         final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, "point");
@@ -396,18 +383,22 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         long lower = 0;
                         long upper = 20;
                         ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
-                                "point",
-                                pack(lower).bytes,
-                                pack(upper).bytes,
-                                dims,
-                                10
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            10
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
                         IndexSearcher searcher = new IndexSearcher(reader);
-                        ApproximateConstantScoreWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F);
+                        ApproximateConstantScoreWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(
+                            searcher,
+                            ScoreMode.TOP_SCORES,
+                            1.0F
+                        );
                         LeafReaderContext lrc = reader.leaves().get(0);
                         PointValues values = lrc.reader().getPointValues("point");
                         final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, "point");

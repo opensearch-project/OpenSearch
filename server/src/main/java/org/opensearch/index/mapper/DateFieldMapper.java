@@ -490,22 +490,22 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         private Query createPointRangeQuery(long l, long u) {
             return new ApproximateScoreQuery(
-                    new PointRangeQuery(name(), pack(new long[]{l}).bytes, pack(new long[]{u}).bytes, new long[]{l}.length) {
-                        protected String toString(int dimension, byte[] value) {
-                            return Long.toString(LongPoint.decodeDimension(value, 0));
-                        }
-                    },
-                    new ApproximatePointRangeQuery(
-                            name(),
-                            pack(new long[]{l}).bytes,
-                            pack(new long[]{u}).bytes,
-                            new long[]{l}.length
-                    ) {
-                        @Override
-                        protected String toString(int dimension, byte[] value) {
-                            return Long.toString(LongPoint.decodeDimension(value, 0));
-                        }
+                new PointRangeQuery(name(), pack(new long[] { l }).bytes, pack(new long[] { u }).bytes, new long[] { l }.length) {
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
                     }
+                },
+                new ApproximatePointRangeQuery(
+                    name(),
+                    pack(new long[] { l }).bytes,
+                    pack(new long[] { u }).bytes,
+                    new long[] { l }.length
+                ) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                }
             );
         }
 
