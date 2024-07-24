@@ -343,6 +343,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 GatewayService.RECOVER_AFTER_NODES_SETTING,
                 GatewayService.RECOVER_AFTER_TIME_SETTING,
                 ShardsBatchGatewayAllocator.GATEWAY_ALLOCATOR_BATCH_SIZE,
+                ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING,
+                ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING,
                 PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
                 NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
