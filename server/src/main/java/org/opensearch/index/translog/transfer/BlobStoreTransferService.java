@@ -131,20 +131,18 @@ public class BlobStoreTransferService implements TransferService {
         }
         final String resourceDescription = "BlobStoreTransferService.uploadBlob(blob=\"" + fileName + "\")";
         byte[] bytes = inputStream.readAllBytes();
-        try (IndexInput input = new ByteArrayIndexInput(resourceDescription, bytes)) {
-            long expectedChecksum = computeChecksum(input, resourceDescription);
-            uploadBlobAsyncInternal(
-                fileName,
-                fileName,
-                bytes.length,
-                blobPath,
-                writePriority,
-                (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
-                expectedChecksum,
-                listener,
-                null
-            );
-        }
+        long expectedChecksum = computeChecksum(bytes, resourceDescription);
+        uploadBlobAsyncInternal(
+            fileName,
+            fileName,
+            bytes.length,
+            blobPath,
+            writePriority,
+            (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDescription, bytes), size, position),
+            expectedChecksum,
+            listener,
+            null
+        );
     }
 
     // Builds a metadata map containing the Base64-encoded checkpoint file data associated with a translog file.
@@ -220,7 +218,8 @@ public class BlobStoreTransferService implements TransferService {
 
     }
 
-    private void uploadBlobAsyncInternal(
+    // package private for testing
+    void uploadBlobAsyncInternal(
         String fileName,
         String remoteFileName,
         long contentLength,
@@ -335,10 +334,10 @@ public class BlobStoreTransferService implements TransferService {
         threadPool.executor(threadpoolName).execute(() -> { listAllInSortedOrder(path, filenamePrefix, limit, listener); });
     }
 
-    private static long computeChecksum(IndexInput indexInput, String resourceDescription) throws ChecksumCombinationException {
+    private static long computeChecksum(byte[] bytes, String resourceDescription) throws ChecksumCombinationException {
         long expectedChecksum;
-        try {
-            expectedChecksum = checksumOfChecksum(indexInput.clone(), CHECKSUM_BYTES_LENGTH);
+        try (IndexInput indexInput = new ByteArrayIndexInput(resourceDescription, bytes)) {
+            expectedChecksum = checksumOfChecksum(indexInput, CHECKSUM_BYTES_LENGTH);
         } catch (Exception e) {
             throw new ChecksumCombinationException(
                 "Potentially corrupted file: Checksum combination failed while combining stored checksum "
