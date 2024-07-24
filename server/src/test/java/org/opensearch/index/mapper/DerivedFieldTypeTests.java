@@ -119,6 +119,7 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
 
     public void testGetAggregationScript_keyword() throws IOException {
         DerivedFieldType dft = spy(createDerivedFieldType("keyword"));
+        assertTrue(dft.isAggregatable());
         QueryShardContext mockContext = mock(QueryShardContext.class);
         List<Object> expected = List.of("foo");
         mockValueFetcherForAggs(mockContext, dft, expected);
@@ -135,6 +136,7 @@ public class DerivedFieldTypeTests extends FieldTypeTestCase {
 
     public void testGetAggregationScript_ip() throws IOException {
         DerivedFieldType dft = spy(createDerivedFieldType("ip"));
+        assertTrue(dft.isAggregatable());
         QueryShardContext mockContext = mock(QueryShardContext.class);
         List<Object> expected = List.of("192.168.0.1");
         LeafSearchLookup leafSearchLookup = mockValueFetcherForAggs(mockContext, dft, expected);
