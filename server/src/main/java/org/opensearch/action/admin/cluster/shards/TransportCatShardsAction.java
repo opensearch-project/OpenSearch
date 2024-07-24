@@ -41,6 +41,7 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
         this.transportService = transportService;
         this.client = client;
     }
+
     @Override
     public void doExecute(Task task, CatShardsRequest shardsRequest, ActionListener<CatShardsResponse> listener) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
@@ -50,14 +51,13 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
 
         if (task != null) {
             clusterStateRequest.setParentTask(client.getLocalNodeId(), task.getId());
-            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+            TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 (CancellableTask) task,
                 ((CancellableTask) task).getCancellationTimeout(),
-                listener
+                ActionListener.wrap(r -> {}, e -> {})
             );
         }
-        ActionListener<CatShardsResponse> finalListener = listener;
         CatShardsResponse catShardsResponse = new CatShardsResponse();
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
@@ -68,27 +68,23 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                 indicesStatsRequest.indices(shardsRequest.getIndices());
                 catShardsResponse.setClusterStateResponse(clusterStateResponse);
                 indicesStatsRequest.setParentTask(client.getLocalNodeId(), task.getId());
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-
                 client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                     @Override
                     public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                         catShardsResponse.setIndicesStatsResponse(indicesStatsResponse);
-                        finalListener.onResponse(catShardsResponse);
+                        listener.onResponse(catShardsResponse);
                     }
+
                     @Override
                     public void onFailure(Exception e) {
-                        finalListener.onFailure(e);
+                        listener.onFailure(e);
                     }
                 });
             }
+
             @Override
             public void onFailure(Exception e) {
-                finalListener.onFailure(e);
+                listener.onFailure(e);
             }
         });
     }

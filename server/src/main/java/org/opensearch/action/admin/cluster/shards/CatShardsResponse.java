@@ -27,7 +27,7 @@ public class CatShardsResponse extends ActionResponse {
 
     }
 
-    public CatShardsResponse(){}
+    public CatShardsResponse() {}
 
     public CatShardsResponse(StreamInput in) throws IOException {
         super(in);

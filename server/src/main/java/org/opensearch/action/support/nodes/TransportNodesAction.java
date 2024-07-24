@@ -210,7 +210,7 @@ public abstract class TransportNodesAction<
 
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
-        if (client != null && task instanceof CancellableTask && ((CancellableTask)task).getCancellationTimeout() != NO_TIMEOUT) {
+        if (client != null && task instanceof CancellableTask && ((CancellableTask) task).getCancellationTimeout() != NO_TIMEOUT) {
             listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 (CancellableTask) task,

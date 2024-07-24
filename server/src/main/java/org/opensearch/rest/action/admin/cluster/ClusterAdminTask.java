@@ -16,6 +16,7 @@ import org.opensearch.tasks.CancellableTask;
 import java.util.Map;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
+
 /**
  * Task storing information about a currently running ClusterRequest.
  *
@@ -28,7 +29,14 @@ public class ClusterAdminTask extends CancellableTask {
         this(id, type, action, parentTaskId, headers, NO_TIMEOUT);
     }
 
-    public ClusterAdminTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers, TimeValue cancelAfterTimeInterval) {
+    public ClusterAdminTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        TimeValue cancelAfterTimeInterval
+    ) {
         super(id, type, action, null, parentTaskId, headers, cancelAfterTimeInterval);
     }
 

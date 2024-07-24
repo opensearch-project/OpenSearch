@@ -14,7 +14,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
@@ -27,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
 /**
  * Utility to cancel a timeout task
@@ -53,9 +51,7 @@ public class TimeoutTaskCancellationUtility {
         TimeValue timeout,
         ActionListener<Response> listener
     ) {
-        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null)
-            ? timeout
-            : taskToCancel.getCancellationTimeout();
+        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? timeout : taskToCancel.getCancellationTimeout();
         // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
         // set to null and cluster level set to -1.
         ActionListener<Response> listenerToReturn = listener;
