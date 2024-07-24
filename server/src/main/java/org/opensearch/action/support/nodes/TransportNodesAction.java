@@ -35,7 +35,6 @@ package org.opensearch.action.support.nodes;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.FailedNodeException;
-import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
@@ -216,7 +215,7 @@ public abstract class TransportNodesAction<
             listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 (CancellableTask) task,
-//                clusterService.getClusterSettings(),
+                clusterService.getClusterSettings(),
                 listener
             );
         }
@@ -327,9 +326,9 @@ public abstract class TransportNodesAction<
                 final DiscoveryNode node = nodes[i];
                 final String nodeId = node.getId();
                 try {
-//                    if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()){
-//                        throw new TaskCancelledException("cancelled task with reason: " + ((CancellableTask) task).getReasonCancelled());
-//                    }
+                    if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()){
+                        throw new TaskCancelledException("cancelled task with reason: " + ((CancellableTask) task).getReasonCancelled());
+                    }
                     TransportRequest nodeRequest = newNodeRequest(request);
                     if (task != null) {
                         nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());

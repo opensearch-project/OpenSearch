@@ -157,7 +157,10 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusActio
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequestBuilder;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.opensearch.action.admin.cluster.state.*;
+import org.opensearch.action.admin.cluster.state.ClusterStateAction;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequestBuilder;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
@@ -999,11 +1002,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public void getTask(final GetTaskRequest request, final ActionListener<GetTaskResponse> listener) {
             execute(GetTaskAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public void createTask(final GetTaskRequest request, final ActionListener<GetTaskResponse> listener) {
-            execute(ShardsAction.INSTANCE, request, listener);
         }
 
         @Override

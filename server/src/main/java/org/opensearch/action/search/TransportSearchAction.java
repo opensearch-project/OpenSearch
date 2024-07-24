@@ -327,7 +327,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
                 client,
                 (CancellableTask) task,
-//                clusterService.getClusterSettings(),
+                clusterService.getClusterSettings(),
                 listener
             );
         }

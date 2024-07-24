@@ -23,7 +23,6 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -44,17 +43,17 @@ public class TimeoutTaskCancellationUtility {
      * generic thread pool
      * @param client - {@link NodeClient}
      * @param taskToCancel - task to schedule cancellation for
-//     * @param clusterSettings - {@link ClusterSettings}
+     * @param clusterSettings - {@link ClusterSettings}
      * @param listener - original listener associated with the task
      * @return wrapped listener
      */
     public static <Response> ActionListener<Response> wrapWithCancellationListener(
         NodeClient client,
         CancellableTask taskToCancel,
-//        ClusterSettings clusterSettings,
+        ClusterSettings clusterSettings,
         ActionListener<Response> listener
     ) {
-        final TimeValue globalTimeout = TimeValue.timeValueSeconds(30);
+        final TimeValue globalTimeout = clusterSettings.get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
         final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null)
             ? globalTimeout
             : taskToCancel.getCancellationTimeout();
@@ -99,25 +98,6 @@ public class TimeoutTaskCancellationUtility {
             logger.warn("Failed to schedule the cancellation task for original task: {}, will continue without it", taskToCancel.getId());
         }
         return listenerToReturn;
-    }
-
-    public static <Response> ActionListener<Response> wrapWithCancellationListener(
-        NodeClient client,
-        CountDownLatch latch,
-        TimeValue timeoutInterval,
-        ActionListener<Response> listener
-    ) {
-        try {
-            final TimeoutRunnableListener<Response> wrappedListener = new TimeoutRunnableListener<>(timeoutInterval, listener, () -> {
-                // timeout expired
-                latch.countDown();
-            });
-            client.threadPool().schedule(wrappedListener, timeoutInterval, ThreadPool.Names.GENERIC);
-        } catch (Exception ex) {
-            // if there is any exception in scheduling thread then continue without it
-            logger.warn("Failed to schedule the thread, will continue without it");
-        }
-        return listener;
     }
 
     /**

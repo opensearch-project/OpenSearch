@@ -44,7 +44,6 @@ import org.opensearch.rest.action.admin.cluster.ClusterTask;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 /**
@@ -58,7 +57,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
 
-    private TimeValue cancelAfterTimeInterval = null;
+    private TimeValue cancelAfterTimeInterval;
 
     public NodesStatsRequest() {
         super((String[]) null);

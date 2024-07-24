@@ -36,11 +36,8 @@ import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.tasks.TaskId;
-import org.opensearch.rest.action.admin.cluster.ClusterTask;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
@@ -66,10 +63,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         flags = new CommonStatsFlags(in);
     }
 
-    @Override
-    public ClusterTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new ClusterTask(id, type, action, parentTaskId, headers);
-    }
     /**
      * Sets all flags to return all stats.
      */
