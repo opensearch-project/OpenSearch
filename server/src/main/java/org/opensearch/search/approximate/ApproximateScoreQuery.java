@@ -134,11 +134,7 @@ public final class ApproximateScoreQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (!sameClassAs(o)) {
-            return false;
-        }
-        ApproximateScoreQuery that = (ApproximateScoreQuery) o;
-        return originalQuery.equals(that.originalQuery) && approximationQuery.equals(that.approximationQuery);
+        return sameClassAs(o);
     }
 
     @Override

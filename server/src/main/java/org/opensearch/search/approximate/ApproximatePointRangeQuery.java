@@ -92,7 +92,18 @@ public abstract class ApproximatePointRangeQuery extends Query {
             private final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
 
             private boolean matches(byte[] packedValue) {
-                return relate(packedValue, packedValue) != PointValues.Relation.CELL_OUTSIDE_QUERY;
+                for (int dim = 0; dim < pointRangeQuery.getNumDims(); dim++) {
+                    int offset = dim * pointRangeQuery.getBytesPerDim();
+                    if (comparator.compare(packedValue, offset, pointRangeQuery.getLowerPoint(), offset) < 0) {
+                        // Doc's value is too low, in this dimension
+                        return false;
+                    }
+                    if (comparator.compare(packedValue, offset, pointRangeQuery.getUpperPoint(), offset) > 0) {
+                        // Doc's value is too high, in this dimension
+                        return false;
+                    }
+                }
+                return true;
             }
 
             private PointValues.Relation relate(byte[] minPackedValue, byte[] maxPackedValue) {
