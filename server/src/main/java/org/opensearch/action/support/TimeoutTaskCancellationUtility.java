@@ -43,19 +43,18 @@ public class TimeoutTaskCancellationUtility {
      * generic thread pool
      * @param client - {@link NodeClient}
      * @param taskToCancel - task to schedule cancellation for
-     * @param clusterSettings - {@link ClusterSettings}
+     * @param timeout - {@link TimeValue}
      * @param listener - original listener associated with the task
      * @return wrapped listener
      */
     public static <Response> ActionListener<Response> wrapWithCancellationListener(
         NodeClient client,
         CancellableTask taskToCancel,
-        ClusterSettings clusterSettings,
+        TimeValue timeout,
         ActionListener<Response> listener
     ) {
-        final TimeValue globalTimeout = clusterSettings.get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
         final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null)
-            ? globalTimeout
+            ? timeout
             : taskToCancel.getCancellationTimeout();
         // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
         // set to null and cluster level set to -1.

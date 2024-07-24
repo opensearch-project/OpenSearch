@@ -37,12 +37,15 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TimeoutTaskCancellationUtility;
+import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NodeShouldNotConnectException;
@@ -61,6 +64,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * Base action class for transport nodes
@@ -81,6 +86,8 @@ public abstract class TransportNodesAction<
 
     private final String finalExecutor;
 
+    private final NodeClient client;
+
     /**
      * @param actionName        action name
      * @param threadPool        thread-pool
@@ -93,6 +100,31 @@ public abstract class TransportNodesAction<
      * @param finalExecutor     executor to execute final collection of all responses on
      * @param nodeResponseClass class of the node responses
      */
+    protected TransportNodesAction(
+        NodeClient client,
+        String actionName,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<NodesRequest> request,
+        Writeable.Reader<NodeRequest> nodeRequest,
+        String nodeExecutor,
+        String finalExecutor,
+        Class<NodeResponse> nodeResponseClass
+    ) {
+        super(actionName, transportService, actionFilters, request);
+        this.threadPool = threadPool;
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.transportService = Objects.requireNonNull(transportService);
+        this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
+        this.client = client;
+
+        this.transportNodeAction = actionName + "[n]";
+        this.finalExecutor = finalExecutor;
+        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
+    }
+
     protected TransportNodesAction(
         String actionName,
         ThreadPool threadPool,
@@ -110,6 +142,7 @@ public abstract class TransportNodesAction<
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
         this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
+        this.client = null;
 
         this.transportNodeAction = actionName + "[n]";
         this.finalExecutor = finalExecutor;
@@ -123,6 +156,33 @@ public abstract class TransportNodesAction<
      * This constructor should only be used for actions for which the creation of the final response is fast enough to be safely executed
      * on a transport thread.
      */
+    protected TransportNodesAction(
+        NodeClient client,
+        String actionName,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<NodesRequest> request,
+        Writeable.Reader<NodeRequest> nodeRequest,
+        String nodeExecutor,
+        Class<NodeResponse> nodeResponseClass
+    ) {
+        this(
+            client,
+            actionName,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            request,
+            nodeRequest,
+            nodeExecutor,
+            ThreadPool.Names.SAME,
+            nodeResponseClass
+        );
+    }
+
     protected TransportNodesAction(
         String actionName,
         ThreadPool threadPool,
@@ -150,6 +210,14 @@ public abstract class TransportNodesAction<
 
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
+        if (client != null && task instanceof CancellableTask && ((CancellableTask)task).getCancellationTimeout() != NO_TIMEOUT) {
+            listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
+                client,
+                (CancellableTask) task,
+                ((CancellableTask) task).getCancellationTimeout(),
+                listener
+            );
+        }
         new AsyncAction(task, request, listener).start();
     }
 

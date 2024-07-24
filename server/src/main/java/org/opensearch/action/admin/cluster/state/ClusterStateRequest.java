@@ -41,8 +41,11 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.rest.action.admin.cluster.ClusterAdminTask;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Transport request for obtaining cluster state
@@ -210,5 +213,10 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
         }
         this.waitForMetadataVersion = waitForMetadataVersion;
         return this;
+    }
+
+    @Override
+    public ClusterAdminTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new ClusterAdminTask(id, type, action, parentTaskId, headers);
     }
 }
