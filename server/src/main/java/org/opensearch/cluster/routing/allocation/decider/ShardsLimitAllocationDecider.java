@@ -125,8 +125,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         RoutingAllocation allocation,
         BiPredicate<Integer, Integer> decider
     ) {
-        IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
-        final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
+        final int indexShardLimit = allocation.metadata().getIndexSafe(shardRouting.index()).getIndexTotalShardsPerNodeLimit();
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;
