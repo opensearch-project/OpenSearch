@@ -35,7 +35,6 @@ package org.opensearch.action.search;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
 import org.opensearch.wlm.QueryGroupTask;
 

@@ -37,7 +37,6 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
-import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
 import org.opensearch.wlm.QueryGroupTask;
 

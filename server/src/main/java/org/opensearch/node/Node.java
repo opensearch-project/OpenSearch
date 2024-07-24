@@ -263,7 +263,7 @@ import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.opensearch.wlm.SearchWorkloadTransportInterceptor;
+import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
 
 import javax.net.ssl.SNIHostName;
 
@@ -1048,7 +1048,9 @@ public class Node implements Closeable {
                 admissionControlService
             );
 
-            SearchWorkloadTransportInterceptor searchWorkloadTransportInterceptor = new SearchWorkloadTransportInterceptor(threadPool);
+            WorkloadManagementTransportInterceptor workloadManagementTransportInterceptor = new WorkloadManagementTransportInterceptor(
+                threadPool
+            );
 
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -1057,7 +1059,10 @@ public class Node implements Closeable {
                 .map(Optional::get)
                 .collect(Collectors.toList());
 
-            List<TransportInterceptor> transportInterceptors = List.of(admissionControlTransportInterceptor, searchWorkloadTransportInterceptor);
+            List<TransportInterceptor> transportInterceptors = List.of(
+                admissionControlTransportInterceptor,
+                workloadManagementTransportInterceptor
+            );
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),

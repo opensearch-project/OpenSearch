@@ -17,27 +17,27 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
+import org.opensearch.wlm.WorkloadManagementTransportInterceptor.WorkloadManagementTransportHandler;
 
 import java.util.Collections;
 
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class SearchWorkloadTransportHandlerTests extends OpenSearchTestCase {
-    private SearchWorkloadTransportHandler<TransportRequest> sut;
+public class WorkloadManagementTransportHandlerTests extends OpenSearchTestCase {
+    private WorkloadManagementTransportHandler<TransportRequest> sut;
     private ThreadPool threadPool;
 
-    private TransportRequestHandler<TransportRequest> actualHandler;
+    private TestTransportRequestHandler<TransportRequest> actualHandler;
 
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getTestName());
         actualHandler = new TestTransportRequestHandler<>();
 
-        sut = new SearchWorkloadTransportHandler<>(threadPool, actualHandler);
+        sut = new WorkloadManagementTransportHandler<>(threadPool, actualHandler);
     }
 
     public void tearDown() throws Exception {
@@ -47,27 +47,23 @@ public class SearchWorkloadTransportHandlerTests extends OpenSearchTestCase {
 
     public void testMessageReceivedForSearchWorkload() throws Exception {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
-        Task spyTask = getSpyTask();
+        QueryGroupTask spyTask = getSpyTask();
 
         sut.messageReceived(request, mock(TransportChannel.class), spyTask);
 
-        verify(spyTask, times(1)).addHeader(
-            QueryGroupConstants.QUERY_GROUP_ID_HEADER,
-            threadPool.getThreadContext(),
-            QueryGroupConstants.DEFAULT_QUERY_GROUP_ID_SUPPLIER
-        );
+        verify(spyTask, times(1)).setQueryGroupId(threadPool.getThreadContext());
     }
 
     public void testMessageReceivedForNonSearchWorkload() throws Exception {
         IndexRequest indexRequest = mock(IndexRequest.class);
-        Task spyTask = getSpyTask();
-        sut.messageReceived(indexRequest, mock(TransportChannel.class), spyTask);
-
-        verify(spyTask, times(0)).addHeader(any(), any(), any());
+        Task task = mock(Task.class);
+        sut.messageReceived(indexRequest, mock(TransportChannel.class), task);
+        assertFalse(sut.isSearchWorkloadRequest(task));
+        assertEquals(1, actualHandler.invokeCount);
     }
 
-    private static Task getSpyTask() {
-        final Task task = new Task(123, "transport", "Search", "test task", null, Collections.emptyMap());
+    private static QueryGroupTask getSpyTask() {
+        final QueryGroupTask task = new QueryGroupTask(123, "transport", "Search", "test task", null, Collections.emptyMap());
 
         return spy(task);
     }
@@ -79,6 +75,5 @@ public class SearchWorkloadTransportHandlerTests extends OpenSearchTestCase {
         public void messageReceived(TransportRequest request, TransportChannel channel, Task task) throws Exception {
             invokeCount += 1;
         }
-
     };
 }
