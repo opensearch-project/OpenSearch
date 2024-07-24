@@ -13,7 +13,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.wlm.WorkloadManagementTransportInterceptor.WorkloadManagementTransportHandler;
+import org.opensearch.wlm.WorkloadManagementTransportInterceptor.RequestHandler;
 
 import static org.opensearch.threadpool.ThreadPool.Names.SAME;
 
@@ -33,6 +33,6 @@ public class WorkloadManagementTransportInterceptorTests extends OpenSearchTestC
 
     public void testInterceptHandler() {
         TransportRequestHandler<TransportRequest> requestHandler = sut.interceptHandler("Search", SAME, false, null);
-        assertTrue(requestHandler instanceof WorkloadManagementTransportHandler);
+        assertTrue(requestHandler instanceof RequestHandler);
     }
 }

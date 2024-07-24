@@ -8,6 +8,8 @@
 
 package org.opensearch.wlm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.tasks.TaskId;
@@ -22,6 +24,7 @@ import static org.opensearch.search.SearchService.NO_TIMEOUT;
  */
 public class QueryGroupTask extends CancellableTask {
 
+    private static final Logger logger = LogManager.getLogger(QueryGroupTask.class);
     private String queryGroupId;
 
     public QueryGroupTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
@@ -46,7 +49,7 @@ public class QueryGroupTask extends CancellableTask {
      */
     public String getQueryGroupId() {
         if (queryGroupId == null) {
-            throw new IllegalStateException("queryGroupId is not set, queryGroup has to be set for the object");
+            logger.warn("QueryGroup _id can't be null, It should be set before accessing it. This is abnormal behaviour ");
         }
         return queryGroupId;
     }

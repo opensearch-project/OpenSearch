@@ -17,7 +17,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
-import org.opensearch.wlm.WorkloadManagementTransportInterceptor.WorkloadManagementTransportHandler;
 
 import java.util.Collections;
 
@@ -26,8 +25,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class WorkloadManagementTransportHandlerTests extends OpenSearchTestCase {
-    private WorkloadManagementTransportHandler<TransportRequest> sut;
+public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTestCase {
+    private WorkloadManagementTransportInterceptor.RequestHandler<TransportRequest> sut;
     private ThreadPool threadPool;
 
     private TestTransportRequestHandler<TransportRequest> actualHandler;
@@ -37,7 +36,7 @@ public class WorkloadManagementTransportHandlerTests extends OpenSearchTestCase 
         threadPool = new TestThreadPool(getTestName());
         actualHandler = new TestTransportRequestHandler<>();
 
-        sut = new WorkloadManagementTransportHandler<>(threadPool, actualHandler);
+        sut = new WorkloadManagementTransportInterceptor.RequestHandler<>(threadPool, actualHandler);
     }
 
     public void tearDown() throws Exception {

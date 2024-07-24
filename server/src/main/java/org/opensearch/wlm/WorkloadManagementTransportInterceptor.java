@@ -32,19 +32,19 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
         boolean forceExecution,
         TransportRequestHandler<T> actualHandler
     ) {
-        return new WorkloadManagementTransportHandler<T>(threadPool, actualHandler);
+        return new RequestHandler<T>(threadPool, actualHandler);
     }
 
     /**
      * This class is mainly used to populate the queryGroupId header
      * @param <T> T is Search related request
      */
-    public static class WorkloadManagementTransportHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
+    public static class RequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
 
         private final ThreadPool threadPool;
         TransportRequestHandler<T> actualHandler;
 
-        public WorkloadManagementTransportHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler) {
+        public RequestHandler(ThreadPool threadPool, TransportRequestHandler<T> actualHandler) {
             this.threadPool = threadPool;
             this.actualHandler = actualHandler;
         }
