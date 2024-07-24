@@ -90,7 +90,7 @@ public class Task {
 
     private final TaskId parentTask;
 
-    private Map<String, String> headers;
+    private final Map<String, String> headers;
 
     private final Map<Long, List<ThreadResourceInfo>> resourceStats;
 
@@ -523,28 +523,6 @@ public class Task {
      */
     public String getHeader(String header) {
         return headers.get(header);
-    }
-
-    /**
-     * This method adds a new header, <b>Only use this method if the header can not be passed from request headers</b>
-     * @param threadContext current thread context
-     */
-    public void addHeader(final String headerName, final ThreadContext threadContext, final Supplier<String> defaultValueSupplier) {
-        // For now this header will be coming from HTTP headers but in second phase this header
-
-        // We will use this constant from QueryGroup Service once the framework changes are done
-
-        String headerValue = threadContext.getHeader(headerName);
-
-        if (headerValue == null) {
-            headerValue = defaultValueSupplier.get();
-        }
-
-        final Map<String, String> newHeaders = new HashMap<>(headers);
-
-        newHeaders.put(headerName, headerValue);
-
-        this.headers = newHeaders;
     }
 
     public TaskResult result(final String nodeId, Exception error) throws IOException {

@@ -102,6 +102,7 @@ import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
 import org.opensearch.wlm.QueryGroupConstants;
+import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -445,11 +446,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
             // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
-            task.addHeader(
-                QueryGroupConstants.QUERY_GROUP_ID_HEADER,
-                threadPool.getThreadContext(),
-                QueryGroupConstants.DEFAULT_QUERY_GROUP_ID_SUPPLIER
-            );
+
+            ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
 
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;

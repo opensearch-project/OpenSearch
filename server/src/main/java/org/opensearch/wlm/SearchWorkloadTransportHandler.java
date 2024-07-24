@@ -34,20 +34,13 @@ public class SearchWorkloadTransportHandler<T extends TransportRequest> implemen
 
     @Override
     public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
-        if (isSearchWorkloadRequest(request)) {
-            task.addHeader(
-                QueryGroupConstants.QUERY_GROUP_ID_HEADER,
-                threadPool.getThreadContext(),
-                QueryGroupConstants.DEFAULT_QUERY_GROUP_ID_SUPPLIER
-            );
+        if (isSearchWorkloadRequest(task)) {
+            ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
         }
         actualHandler.messageReceived(request, channel, task);
     }
 
-    private boolean isSearchWorkloadRequest(TransportRequest request) {
-        return (request instanceof ShardSearchRequest)
-            || (request instanceof ShardFetchRequest)
-            || (request instanceof InternalScrollSearchRequest)
-            || (request instanceof QuerySearchRequest);
+    private boolean isSearchWorkloadRequest(Task task) {
+        return task instanceof QueryGroupTask;
     }
 }

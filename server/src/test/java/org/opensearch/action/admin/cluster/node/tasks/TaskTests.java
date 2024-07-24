@@ -41,9 +41,6 @@ import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.TestThreadPool;
-import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.wlm.QueryGroupConstants;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -237,52 +234,6 @@ public class TaskTests extends OpenSearchTestCase {
             fail("update should not be successful as entry for CPU is not present!");
         } catch (IllegalStateException e) {
             // pass
-        }
-    }
-
-    public void testAddQueryGroupHeaders() {
-        ThreadPool threadPool = new TestThreadPool(getClass().getName());
-        try {
-            Task task = new Task(
-                randomLong(),
-                "transport",
-                SearchAction.NAME,
-                "description",
-                new TaskId(randomLong() + ":" + randomLong()),
-                Collections.emptyMap()
-            );
-
-            threadPool.getThreadContext().putHeader("queryGroupId", "afakgkagj09532059");
-
-            task.addHeader(QueryGroupConstants.QUERY_GROUP_ID_HEADER, threadPool.getThreadContext(), () -> "default_val");
-
-            String queryGroupId = task.getHeader(QueryGroupConstants.QUERY_GROUP_ID_HEADER);
-
-            assertEquals("afakgkagj09532059", queryGroupId);
-        } finally {
-            threadPool.shutdown();
-        }
-    }
-
-    public void testAddQueryGroupHeadersWhenHeaderIsNotPresentInThreadContext() {
-        ThreadPool threadPool = new TestThreadPool(getClass().getName());
-        try {
-            Task task = new Task(
-                randomLong(),
-                "transport",
-                SearchAction.NAME,
-                "description",
-                new TaskId(randomLong() + ":" + randomLong()),
-                Collections.emptyMap()
-            );
-
-            task.addHeader(QueryGroupConstants.QUERY_GROUP_ID_HEADER, threadPool.getThreadContext(), () -> "default_val");
-
-            String queryGroupId = task.getHeader("queryGroupId");
-
-            assertEquals("default_val", queryGroupId);
-        } finally {
-            threadPool.shutdown();
         }
     }
 }
