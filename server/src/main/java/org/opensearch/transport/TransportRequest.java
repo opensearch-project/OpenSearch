@@ -33,7 +33,6 @@
 package org.opensearch.transport;
 
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.tasks.TaskId;
@@ -41,9 +40,6 @@ import org.opensearch.core.transport.TransportMessage;
 import org.opensearch.tasks.TaskAwareRequest;
 
 import java.io.IOException;
-import java.util.Date;
-
-import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * A transport request
@@ -57,7 +53,6 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
      *
      * @opensearch.internal
      */
-    private TimeValue cancelAfterTimeInterval = NO_TIMEOUT;
     public static class Empty extends TransportRequest {
         public static final Empty INSTANCE = new Empty();
 
@@ -77,14 +72,6 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
 
     public TransportRequest(StreamInput in) throws IOException {
         parentTaskId = TaskId.readFromStream(in);
-    }
-
-    public void setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
-        this.cancelAfterTimeInterval = cancelAfterTimeInterval;
-    }
-
-    public TimeValue getCancelAfterTimeInterval() {
-        return cancelAfterTimeInterval;
     }
 
     /**

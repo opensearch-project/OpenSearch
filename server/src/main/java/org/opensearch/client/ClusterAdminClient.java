@@ -57,8 +57,6 @@ import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettings
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.opensearch.action.admin.cluster.node.tasks.create.CreateTaskRequest;
-import org.opensearch.action.admin.cluster.node.tasks.create.CreateTaskResponse;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -68,8 +66,6 @@ import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.opensearch.action.admin.cluster.node.tasks.unregister.UnregisterTaskRequest;
-import org.opensearch.action.admin.cluster.node.tasks.unregister.UnregisterTaskResponse;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
@@ -416,9 +412,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
      */
     void getTask(GetTaskRequest request, ActionListener<GetTaskResponse> listener);
 
-    void createTask(CreateTaskRequest request, ActionListener<CreateTaskResponse> listener);
-
-    void UnregisterTask(UnregisterTaskRequest request, ActionListener<UnregisterTaskResponse> listener);
+    void createTask(GetTaskRequest request, ActionListener<GetTaskResponse> listener);
 
     /**
      * Fetch a task by id.

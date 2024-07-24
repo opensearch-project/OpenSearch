@@ -380,11 +380,13 @@ public abstract class TransportBroadcastByNodeAction<
 
                         @Override
                         public void handleResponse(NodeResponse response) {
+                            logger.info("TransportBroadcastByNodeAction testing: Response received");
                             onNodeResponse(node, nodeIndex, response);
                         }
 
                         @Override
                         public void handleException(TransportException exp) {
+                            logger.info("TransportBroadcastByNodeAction testing: Exception occurred");
                             onNodeFailure(node, nodeIndex, exp);
                         }
 

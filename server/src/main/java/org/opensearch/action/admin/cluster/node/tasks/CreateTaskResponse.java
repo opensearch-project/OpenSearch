@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.node.tasks.create;
+package org.opensearch.action.admin.cluster.node.tasks;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.action.ActionResponse;
@@ -14,6 +14,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResult;
 
 import java.io.IOException;
 
@@ -25,15 +26,16 @@ import java.io.IOException;
 @PublicApi(since = "1.0.0")
 public class CreateTaskResponse extends ActionResponse {
 
-    private Task task;
+    private final Task task;
 
     public CreateTaskResponse(Task task) {
         this.task = task;
     }
 
-    public CreateTaskResponse(StreamInput in) throws IOException {
-        super(in);
-    }
+//    public CreateTaskResponse(StreamInput in) throws IOException {
+//        super(in);
+////        task = in.readOptionalWriteable(Task);
+//    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

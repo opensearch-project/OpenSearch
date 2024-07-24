@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.node.tasks.create;
+package org.opensearch.action.admin.cluster.node.tasks;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -27,6 +27,7 @@ import java.util.Map;
 @PublicApi(since = "1.0.0")
 public class CreateTaskRequest extends ActionRequest {
 
+    private TimeValue cancelAfterTimeInterval = null;
     private String actionName;
 
     public CreateTaskRequest() {}
@@ -42,7 +43,15 @@ public class CreateTaskRequest extends ActionRequest {
 
     @Override
     public ClusterTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new ClusterTask(id, type, action, parentTaskId, headers, this.getCancelAfterTimeInterval());
+        return new ClusterTask(id, type, action, parentTaskId, headers, cancelAfterTimeInterval);
+    }
+
+    public void setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
+        this.cancelAfterTimeInterval = cancelAfterTimeInterval;
+    }
+
+    public TimeValue getCancelAfterTimeInterval() {
+        return cancelAfterTimeInterval;
     }
 
     public void setActionName(String actionName) {

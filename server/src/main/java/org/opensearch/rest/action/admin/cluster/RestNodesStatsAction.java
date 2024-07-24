@@ -33,26 +33,33 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.cache.CacheType;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions.NodesResponseRestListener;
-import org.opensearch.rest.action.admin.AdminAPIsUtility;
-import org.opensearch.tasks.CancellableTask;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
-import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
  * Transport action to get nodes stats
@@ -108,6 +115,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.timeout(request.param("timeout"));
+        nodesStatsRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", TimeValue.timeValueSeconds(30)));
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             if (request.hasParam("index_metric")) {
@@ -231,14 +239,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         String[] levels = Strings.splitStringByCommaToArray(request.param("level"));
         nodesStatsRequest.indices().setLevels(levels);
 
-        nodesStatsRequest.setCancelAfterTimeInterval(request.paramAsTime("cancel_after_time_interval", NO_TIMEOUT));
-        AdminAPIsUtility adminAPIsUtility = new AdminAPIsUtility();
-        CancellableTask task = adminAPIsUtility.createAndCancelCancellableTask(client, nodesStatsRequest.getCancelAfterTimeInterval());
-        if (task != null) nodesStatsRequest.setParentTask(client.getLocalNodeId(), task.getId());
-        return channel -> {
-            client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
-            if (task != null) adminAPIsUtility.unregisterTask(client, task);
-        };
+        return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
     }
 
     private final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

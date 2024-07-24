@@ -58,6 +58,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
 
+    private TimeValue cancelAfterTimeInterval = null;
+
     public NodesStatsRequest() {
         super((String[]) null);
     }
@@ -98,7 +100,15 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     @Override
     public ClusterTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new ClusterTask(id, type, action, parentTaskId, headers, this.getCancelAfterTimeInterval());
+        return new ClusterTask(id, type, action, parentTaskId, headers, cancelAfterTimeInterval);
+    }
+
+    public void setCancelAfterTimeInterval(TimeValue cancelAfterTimeInterval) {
+        this.cancelAfterTimeInterval = cancelAfterTimeInterval;
+    }
+
+    public TimeValue getCancelAfterTimeInterval() {
+        return cancelAfterTimeInterval;
     }
 
 

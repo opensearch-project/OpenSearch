@@ -51,11 +51,12 @@ public class TimeoutTaskCancellationUtility {
     public static <Response> ActionListener<Response> wrapWithCancellationListener(
         NodeClient client,
         CancellableTask taskToCancel,
-        TimeValue timeout,
+//        ClusterSettings clusterSettings,
         ActionListener<Response> listener
     ) {
+        final TimeValue globalTimeout = TimeValue.timeValueSeconds(30);
         final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null)
-            ? timeout
+            ? globalTimeout
             : taskToCancel.getCancellationTimeout();
         // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
         // set to null and cluster level set to -1.
@@ -98,6 +99,25 @@ public class TimeoutTaskCancellationUtility {
             logger.warn("Failed to schedule the cancellation task for original task: {}, will continue without it", taskToCancel.getId());
         }
         return listenerToReturn;
+    }
+
+    public static <Response> ActionListener<Response> wrapWithCancellationListener(
+        NodeClient client,
+        CountDownLatch latch,
+        TimeValue timeoutInterval,
+        ActionListener<Response> listener
+    ) {
+        try {
+            final TimeoutRunnableListener<Response> wrappedListener = new TimeoutRunnableListener<>(timeoutInterval, listener, () -> {
+                // timeout expired
+                latch.countDown();
+            });
+            client.threadPool().schedule(wrappedListener, timeoutInterval, ThreadPool.Names.GENERIC);
+        } catch (Exception ex) {
+            // if there is any exception in scheduling thread then continue without it
+            logger.warn("Failed to schedule the thread, will continue without it");
+        }
+        return listener;
     }
 
     /**
