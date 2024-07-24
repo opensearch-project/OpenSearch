@@ -223,10 +223,11 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> extends BaseBlo
             return;
         }
         final String blobName = blobName(name);
-        final BytesReference bytes = serialize(obj, blobName, compressor, params);
+        final BytesReference bytesReference = serialize(obj, blobName, compressor, params);
         final String resourceDescription = "ChecksumBlobStoreFormat.writeAsyncWithPriority(blob=\"" + blobName + "\")";
-        try (IndexInput input = new ByteArrayIndexInput(resourceDescription, BytesReference.toBytes(bytes))) {
-            long expectedChecksum;
+        byte[] bytes = BytesReference.toBytes(bytesReference);
+        long expectedChecksum;
+        try (IndexInput input = new ByteArrayIndexInput(resourceDescription, bytes)) {
             try {
                 expectedChecksum = checksumOfChecksum(input.clone(), 8);
             } catch (Exception e) {
@@ -237,21 +238,21 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> extends BaseBlo
                     e
                 );
             }
+        }
 
-            try (
-                RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-                    blobName,
-                    blobName,
-                    bytes.length(),
-                    true,
-                    priority,
-                    (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
-                    expectedChecksum,
-                    ((AsyncMultiStreamBlobContainer) blobContainer).remoteIntegrityCheckSupported()
-                )
-            ) {
-                ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
-            }
+        try (
+            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                blobName,
+                blobName,
+                bytes.length,
+                true,
+                priority,
+                (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDescription, bytes), size, position),
+                expectedChecksum,
+                ((AsyncMultiStreamBlobContainer) blobContainer).remoteIntegrityCheckSupported()
+            )
+        ) {
+            ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
         }
     }
 

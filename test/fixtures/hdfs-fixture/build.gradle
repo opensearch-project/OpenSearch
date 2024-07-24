@@ -76,7 +76,7 @@ dependencies {
   api "ch.qos.logback:logback-core:1.5.6"
   api "ch.qos.logback:logback-classic:1.2.13"
   api "org.jboss.xnio:xnio-nio:3.8.16.Final"
-  api 'org.jline:jline:3.26.2'
+  api 'org.jline:jline:3.26.3'
   api 'org.apache.commons:commons-configuration2:2.11.0'
   api 'com.nimbusds:nimbus-jose-jwt:9.40'
   api ('org.apache.kerby:kerb-admin:2.0.3') {

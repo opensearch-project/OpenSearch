@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -26,10 +27,10 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableServiceFactory;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobStore;
@@ -57,6 +58,7 @@ import org.opensearch.gateway.remote.model.RemotePersistentSettingsMetadata;
 import org.opensearch.gateway.remote.model.RemoteReadResult;
 import org.opensearch.gateway.remote.model.RemoteTemplatesMetadata;
 import org.opensearch.gateway.remote.model.RemoteTransientSettingsMetadata;
+import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -235,13 +237,21 @@ public class RemoteClusterStateService implements Closeable {
             isPublicationEnabled,
             isPublicationEnabled ? clusterState.customs() : Collections.emptyMap(),
             isPublicationEnabled,
-            remoteRoutingTableService.getIndicesRouting(clusterState.getRoutingTable())
+            remoteRoutingTableService.getIndicesRouting(clusterState.getRoutingTable()),
+            null
+        );
+
+        ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
+            clusterState,
+            ClusterState.EMPTY_STATE,
+            null,
+            null
         );
         final RemoteClusterStateManifestInfo manifestDetails = remoteManifestManager.uploadManifest(
             clusterState,
             uploadedMetadataResults,
             previousClusterUUID,
-            new ClusterStateDiffManifest(clusterState, ClusterState.EMPTY_STATE),
+            clusterStateDiffManifest,
             false
         );
 
@@ -331,10 +341,13 @@ public class RemoteClusterStateService implements Closeable {
             indicesToBeDeletedFromRemote.remove(indexMetadata.getIndex().getName());
         }
 
-        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableDiff = remoteRoutingTableService
-            .getIndicesRoutingMapDiff(previousClusterState.getRoutingTable(), clusterState.getRoutingTable());
         final List<IndexRoutingTable> indicesRoutingToUpload = new ArrayList<>();
-        routingTableDiff.getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
+        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff =
+            remoteRoutingTableService.getIndicesRoutingMapDiff(previousClusterState.getRoutingTable(), clusterState.getRoutingTable());
+
+        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiffs = routingTableIncrementalDiff.getDiffs();
+        routingTableIncrementalDiff.getDiffs().forEach((k, v) -> indicesRoutingToUpload.add(clusterState.getRoutingTable().index(k)));
+        routingTableIncrementalDiff.getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
 
         UploadedMetadataResults uploadedMetadataResults;
         // For migration case from codec V0 or V1 to V2, we have added null check on metadata attribute files,
@@ -370,7 +383,8 @@ public class RemoteClusterStateService implements Closeable {
             updateTransientSettingsMetadata,
             clusterStateCustomsDiff.getUpserts(),
             updateHashesOfConsistentSettings,
-            indicesRoutingToUpload
+            indicesRoutingToUpload,
+            indexRoutingTableDiffs
         );
 
         // update the map if the metadata was uploaded
@@ -412,14 +426,23 @@ public class RemoteClusterStateService implements Closeable {
         uploadedMetadataResults.uploadedIndicesRoutingMetadata = remoteRoutingTableService.getAllUploadedIndicesRouting(
             previousManifest,
             uploadedMetadataResults.uploadedIndicesRoutingMetadata,
-            routingTableDiff.getDeletes()
+            routingTableIncrementalDiff.getDeletes()
+        );
+
+        ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
+            clusterState,
+            previousClusterState,
+            routingTableIncrementalDiff,
+            uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null
+                ? uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
+                : null
         );
 
         final RemoteClusterStateManifestInfo manifestDetails = remoteManifestManager.uploadManifest(
             clusterState,
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
-            new ClusterStateDiffManifest(clusterState, previousClusterState),
+            clusterStateDiffManifest,
             false
         );
 
@@ -489,15 +512,17 @@ public class RemoteClusterStateService implements Closeable {
         boolean uploadTransientSettingMetadata,
         Map<String, ClusterState.Custom> clusterStateCustomToUpload,
         boolean uploadHashesOfConsistentSettings,
-        List<IndexRoutingTable> indicesRoutingToUpload
+        List<IndexRoutingTable> indicesRoutingToUpload,
+        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff
     ) throws IOException {
         assert Objects.nonNull(indexMetadataUploadListeners) : "indexMetadataUploadListeners can not be null";
         int totalUploadTasks = indexToUpload.size() + indexMetadataUploadListeners.size() + customToUpload.size()
             + (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0)
             + (uploadDiscoveryNodes ? 1 : 0) + (uploadClusterBlock ? 1 : 0) + (uploadTransientSettingMetadata ? 1 : 0)
-            + clusterStateCustomToUpload.size() + (uploadHashesOfConsistentSettings ? 1 : 0) + indicesRoutingToUpload.size();
+            + clusterStateCustomToUpload.size() + (uploadHashesOfConsistentSettings ? 1 : 0) + indicesRoutingToUpload.size()
+            + (indexRoutingTableDiff != null && !indexRoutingTableDiff.isEmpty() ? 1 : 0);
         CountDownLatch latch = new CountDownLatch(totalUploadTasks);
-        Map<String, CheckedRunnable<IOException>> uploadTasks = new ConcurrentHashMap<>(totalUploadTasks);
+        List<String> uploadTasks = Collections.synchronizedList(new ArrayList<>(totalUploadTasks));
         Map<String, ClusterMetadataManifest.UploadedMetadata> results = new ConcurrentHashMap<>(totalUploadTasks);
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalUploadTasks));
 
@@ -516,166 +541,164 @@ public class RemoteClusterStateService implements Closeable {
         );
 
         if (uploadSettingsMetadata) {
-            uploadTasks.put(
+            uploadTasks.add(SETTING_METADATA);
+            remoteGlobalMetadataManager.writeAsync(
                 SETTING_METADATA,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
-                    new RemotePersistentSettingsMetadata(
-                        clusterState.metadata().persistentSettings(),
-                        clusterState.metadata().version(),
-                        clusterState.metadata().clusterUUID(),
-                        blobStoreRepository.getCompressor(),
-                        blobStoreRepository.getNamedXContentRegistry()
-                    ),
-                    listener
-                )
+                new RemotePersistentSettingsMetadata(
+                    clusterState.metadata().persistentSettings(),
+                    clusterState.metadata().version(),
+                    clusterState.metadata().clusterUUID(),
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         }
         if (uploadTransientSettingMetadata) {
-            uploadTasks.put(
+            uploadTasks.add(TRANSIENT_SETTING_METADATA);
+            remoteGlobalMetadataManager.writeAsync(
                 TRANSIENT_SETTING_METADATA,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
-                    new RemoteTransientSettingsMetadata(
-                        clusterState.metadata().transientSettings(),
-                        clusterState.metadata().version(),
-                        clusterState.metadata().clusterUUID(),
-                        blobStoreRepository.getCompressor(),
-                        blobStoreRepository.getNamedXContentRegistry()
-                    ),
-                    listener
-                )
+                new RemoteTransientSettingsMetadata(
+                    clusterState.metadata().transientSettings(),
+                    clusterState.metadata().version(),
+                    clusterState.metadata().clusterUUID(),
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         }
         if (uploadCoordinationMetadata) {
-            uploadTasks.put(
+            uploadTasks.add(COORDINATION_METADATA);
+            remoteGlobalMetadataManager.writeAsync(
                 COORDINATION_METADATA,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
-                    new RemoteCoordinationMetadata(
-                        clusterState.metadata().coordinationMetadata(),
-                        clusterState.metadata().version(),
-                        clusterState.metadata().clusterUUID(),
-                        blobStoreRepository.getCompressor(),
-                        blobStoreRepository.getNamedXContentRegistry()
-                    ),
-                    listener
-                )
+                new RemoteCoordinationMetadata(
+                    clusterState.metadata().coordinationMetadata(),
+                    clusterState.metadata().version(),
+                    clusterState.metadata().clusterUUID(),
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         }
         if (uploadTemplateMetadata) {
-            uploadTasks.put(
+            uploadTasks.add(TEMPLATES_METADATA);
+            remoteGlobalMetadataManager.writeAsync(
                 TEMPLATES_METADATA,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
-                    new RemoteTemplatesMetadata(
-                        clusterState.metadata().templatesMetadata(),
-                        clusterState.metadata().version(),
-                        clusterState.metadata().clusterUUID(),
-                        blobStoreRepository.getCompressor(),
-                        blobStoreRepository.getNamedXContentRegistry()
-                    ),
-                    listener
-                )
+                new RemoteTemplatesMetadata(
+                    clusterState.metadata().templatesMetadata(),
+                    clusterState.metadata().version(),
+                    clusterState.metadata().clusterUUID(),
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         }
         if (uploadDiscoveryNodes) {
-            uploadTasks.put(
-                DISCOVERY_NODES,
-                remoteClusterStateAttributesManager.getAsyncMetadataWriteAction(
-                    RemoteDiscoveryNodes.DISCOVERY_NODES,
-                    new RemoteDiscoveryNodes(
-                        clusterState.nodes(),
-                        clusterState.version(),
-                        clusterState.stateUUID(),
-                        blobStoreRepository.getCompressor()
-                    ),
-                    listener
-                )
+            uploadTasks.add(DISCOVERY_NODES);
+            remoteClusterStateAttributesManager.writeAsync(
+                RemoteDiscoveryNodes.DISCOVERY_NODES,
+                new RemoteDiscoveryNodes(
+                    clusterState.nodes(),
+                    clusterState.version(),
+                    clusterState.stateUUID(),
+                    blobStoreRepository.getCompressor()
+                ),
+                listener
             );
         }
         if (uploadClusterBlock) {
-            uploadTasks.put(
-                CLUSTER_BLOCKS,
-                remoteClusterStateAttributesManager.getAsyncMetadataWriteAction(
-                    RemoteClusterBlocks.CLUSTER_BLOCKS,
-                    new RemoteClusterBlocks(
-                        clusterState.blocks(),
-                        clusterState.version(),
-                        clusterState.metadata().clusterUUID(),
-                        blobStoreRepository.getCompressor()
-                    ),
-                    listener
-                )
+            uploadTasks.add(CLUSTER_BLOCKS);
+            remoteClusterStateAttributesManager.writeAsync(
+                RemoteClusterBlocks.CLUSTER_BLOCKS,
+                new RemoteClusterBlocks(
+                    clusterState.blocks(),
+                    clusterState.version(),
+                    clusterState.metadata().clusterUUID(),
+                    blobStoreRepository.getCompressor()
+                ),
+                listener
             );
         }
         if (uploadHashesOfConsistentSettings) {
-            uploadTasks.put(
+            uploadTasks.add(HASHES_OF_CONSISTENT_SETTINGS);
+            remoteGlobalMetadataManager.writeAsync(
                 HASHES_OF_CONSISTENT_SETTINGS,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
-                    new RemoteHashesOfConsistentSettings(
-                        (DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings(),
-                        clusterState.metadata().version(),
-                        clusterState.metadata().clusterUUID(),
-                        blobStoreRepository.getCompressor()
-                    ),
-                    listener
-                )
+                new RemoteHashesOfConsistentSettings(
+                    (DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings(),
+                    clusterState.metadata().version(),
+                    clusterState.metadata().clusterUUID(),
+                    blobStoreRepository.getCompressor()
+                ),
+                listener
             );
         }
         customToUpload.forEach((key, value) -> {
             String customComponent = String.join(CUSTOM_DELIMITER, CUSTOM_METADATA, key);
-            uploadTasks.put(
+            uploadTasks.add(customComponent);
+            remoteGlobalMetadataManager.writeAsync(
                 customComponent,
-                remoteGlobalMetadataManager.getAsyncMetadataWriteAction(
-                    new RemoteCustomMetadata(
-                        value,
-                        key,
-                        clusterState.metadata().version(),
-                        clusterState.metadata().clusterUUID(),
-                        blobStoreRepository.getCompressor(),
-                        namedWriteableRegistry
-                    ),
-                    listener
-                )
+                new RemoteCustomMetadata(
+                    value,
+                    key,
+                    clusterState.metadata().version(),
+                    clusterState.metadata().clusterUUID(),
+                    blobStoreRepository.getCompressor(),
+                    namedWriteableRegistry
+                ),
+                listener
             );
         });
         indexToUpload.forEach(indexMetadata -> {
-            uploadTasks.put(
+            uploadTasks.add(indexMetadata.getIndex().getName());
+            remoteIndexMetadataManager.writeAsync(
                 indexMetadata.getIndex().getName(),
-                remoteIndexMetadataManager.getAsyncIndexMetadataWriteAction(indexMetadata, clusterState.metadata().clusterUUID(), listener)
+                new RemoteIndexMetadata(
+                    indexMetadata,
+                    clusterState.metadata().clusterUUID(),
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         });
 
         clusterStateCustomToUpload.forEach((key, value) -> {
-            uploadTasks.put(
-                key,
-                remoteClusterStateAttributesManager.getAsyncMetadataWriteAction(
-                    CLUSTER_STATE_CUSTOM,
-                    new RemoteClusterStateCustoms(
-                        value,
-                        key,
-                        clusterState.version(),
-                        clusterState.metadata().clusterUUID(),
-                        blobStoreRepository.getCompressor(),
-                        namedWriteableRegistry
-                    ),
-                    listener
-                )
+            uploadTasks.add(key);
+            remoteClusterStateAttributesManager.writeAsync(
+                CLUSTER_STATE_CUSTOM,
+                new RemoteClusterStateCustoms(
+                    value,
+                    key,
+                    clusterState.version(),
+                    clusterState.metadata().clusterUUID(),
+                    blobStoreRepository.getCompressor(),
+                    namedWriteableRegistry
+                ),
+                listener
             );
         });
         indicesRoutingToUpload.forEach(indexRoutingTable -> {
-            uploadTasks.put(
-                INDEX_ROUTING_METADATA_PREFIX + indexRoutingTable.getIndex().getName(),
-                remoteRoutingTableService.getAsyncIndexRoutingWriteAction(
-                    clusterState.metadata().clusterUUID(),
-                    clusterState.term(),
-                    clusterState.version(),
-                    indexRoutingTable,
-                    listener
-                )
+            uploadTasks.add(INDEX_ROUTING_METADATA_PREFIX + indexRoutingTable.getIndex().getName());
+            remoteRoutingTableService.getAsyncIndexRoutingWriteAction(
+                clusterState.metadata().clusterUUID(),
+                clusterState.term(),
+                clusterState.version(),
+                indexRoutingTable,
+                listener
             );
         });
-
-        // start async upload of all required metadata files
-        for (CheckedRunnable<IOException> uploadTask : uploadTasks.values()) {
-            uploadTask.run();
+        if (indexRoutingTableDiff != null && !indexRoutingTableDiff.isEmpty()) {
+            uploadTasks.add(RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE);
+            remoteRoutingTableService.getAsyncIndexRoutingDiffWriteAction(
+                clusterState.metadata().clusterUUID(),
+                clusterState.term(),
+                clusterState.version(),
+                indexRoutingTableDiff,
+                listener
+            );
         }
         invokeIndexMetadataUploadListeners(indexToUpload, prevIndexMetadataByName, latch, exceptionList);
 
@@ -686,7 +709,7 @@ public class RemoteClusterStateService implements Closeable {
                     String.format(
                         Locale.ROOT,
                         "Timed out waiting for transfer of following metadata to complete - %s",
-                        String.join(", ", uploadTasks.keySet())
+                        String.join(", ", uploadTasks)
                     )
                 );
                 exceptionList.forEach(ex::addSuppressed);
@@ -695,11 +718,7 @@ public class RemoteClusterStateService implements Closeable {
         } catch (InterruptedException ex) {
             exceptionList.forEach(ex::addSuppressed);
             RemoteStateTransferException exception = new RemoteStateTransferException(
-                String.format(
-                    Locale.ROOT,
-                    "Timed out waiting for transfer of metadata to complete - %s",
-                    String.join(", ", uploadTasks.keySet())
-                ),
+                String.format(Locale.ROOT, "Timed out waiting for transfer of metadata to complete - %s", String.join(", ", uploadTasks)),
                 ex
             );
             Thread.currentThread().interrupt();
@@ -707,20 +726,28 @@ public class RemoteClusterStateService implements Closeable {
         }
         if (!exceptionList.isEmpty()) {
             RemoteStateTransferException exception = new RemoteStateTransferException(
-                String.format(
-                    Locale.ROOT,
-                    "Exception during transfer of following metadata to Remote - %s",
-                    String.join(", ", uploadTasks.keySet())
-                )
+                String.format(Locale.ROOT, "Exception during transfer of following metadata to Remote - %s", String.join(", ", uploadTasks))
             );
             exceptionList.forEach(exception::addSuppressed);
             throw exception;
+        }
+        if (results.size() != uploadTasks.size()) {
+            throw new RemoteStateTransferException(
+                String.format(
+                    Locale.ROOT,
+                    "Some metadata components were not uploaded successfully. Objects to be uploaded: %s, uploaded objects: %s",
+                    String.join(", ", uploadTasks),
+                    String.join(", ", results.keySet())
+                )
+            );
         }
         UploadedMetadataResults response = new UploadedMetadataResults();
         results.forEach((name, uploadedMetadata) -> {
             if (uploadedMetadata.getClass().equals(UploadedIndexMetadata.class)
                 && uploadedMetadata.getComponent().contains(INDEX_ROUTING_METADATA_PREFIX)) {
                 response.uploadedIndicesRoutingMetadata.add((UploadedIndexMetadata) uploadedMetadata);
+            } else if (RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE.equals(name)) {
+                response.uploadedIndicesRoutingDiffMetadata = (UploadedMetadataAttribute) uploadedMetadata;
             } else if (name.startsWith(CUSTOM_METADATA)) {
                 // component name for custom metadata will look like custom--<metadata-attribute>
                 String custom = name.split(DELIMITER)[0].split(CUSTOM_DELIMITER)[1];
@@ -990,17 +1017,18 @@ public class RemoteClusterStateService implements Closeable {
         List<UploadedIndexMetadata> indicesRoutingToRead,
         boolean readHashesOfConsistentSettings,
         Map<String, UploadedMetadataAttribute> clusterStateCustomToRead,
+        boolean readIndexRoutingTableDiff,
         boolean includeEphemeral
     ) throws IOException {
         int totalReadTasks = indicesToRead.size() + customToRead.size() + (readCoordinationMetadata ? 1 : 0) + (readSettingsMetadata
             ? 1
             : 0) + (readTemplatesMetadata ? 1 : 0) + (readDiscoveryNodes ? 1 : 0) + (readClusterBlocks ? 1 : 0)
             + (readTransientSettingsMetadata ? 1 : 0) + (readHashesOfConsistentSettings ? 1 : 0) + clusterStateCustomToRead.size()
-            + indicesRoutingToRead.size();
+            + indicesRoutingToRead.size() + (readIndexRoutingTableDiff ? 1 : 0);
         CountDownLatch latch = new CountDownLatch(totalReadTasks);
-        List<CheckedRunnable<IOException>> asyncMetadataReadActions = new ArrayList<>();
         List<RemoteReadResult> readResults = Collections.synchronizedList(new ArrayList<>());
         List<IndexRoutingTable> readIndexRoutingTableResults = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<RoutingTableIncrementalDiff> readIndexRoutingTableDiffResults = new AtomicReference<>();
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
 
         LatchedActionListener<RemoteReadResult> listener = new LatchedActionListener<>(ActionListener.wrap(response -> {
@@ -1012,8 +1040,15 @@ public class RemoteClusterStateService implements Closeable {
         }), latch);
 
         for (UploadedIndexMetadata indexMetadata : indicesToRead) {
-            asyncMetadataReadActions.add(
-                remoteIndexMetadataManager.getAsyncIndexMetadataReadAction(clusterUUID, indexMetadata.getUploadedFilename(), listener)
+            remoteIndexMetadataManager.readAsync(
+                indexMetadata.getIndexName(),
+                new RemoteIndexMetadata(
+                    RemoteClusterStateUtils.getFormattedIndexFileName(indexMetadata.getUploadedFilename()),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         }
 
@@ -1029,152 +1064,147 @@ public class RemoteClusterStateService implements Closeable {
         );
 
         for (UploadedIndexMetadata indexRouting : indicesRoutingToRead) {
-            asyncMetadataReadActions.add(
-                remoteRoutingTableService.getAsyncIndexRoutingReadAction(
-                    clusterUUID,
-                    indexRouting.getUploadedFilename(),
-                    routingTableLatchedActionListener
-                )
+            remoteRoutingTableService.getAsyncIndexRoutingReadAction(
+                clusterUUID,
+                indexRouting.getUploadedFilename(),
+                routingTableLatchedActionListener
+            );
+        }
+
+        LatchedActionListener<RoutingTableIncrementalDiff> routingTableDiffLatchedActionListener = new LatchedActionListener<>(
+            ActionListener.wrap(response -> {
+                logger.debug("Successfully read routing table diff component from remote");
+                readIndexRoutingTableDiffResults.set(response);
+            }, ex -> {
+                logger.error("Failed to read routing table diff from remote", ex);
+                exceptionList.add(ex);
+            }),
+            latch
+        );
+
+        if (readIndexRoutingTableDiff) {
+            remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
+                clusterUUID,
+                manifest.getDiffManifest().getIndicesRoutingDiffPath(),
+                routingTableDiffLatchedActionListener
             );
         }
 
         for (Map.Entry<String, UploadedMetadataAttribute> entry : customToRead.entrySet()) {
-            asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
-                    new RemoteCustomMetadata(
-                        entry.getValue().getUploadedFilename(),
-                        entry.getKey(),
-                        clusterUUID,
-                        blobStoreRepository.getCompressor(),
-                        namedWriteableRegistry
-                    ),
-                    entry.getValue().getAttributeName(),
-                    listener
-                )
+            remoteGlobalMetadataManager.readAsync(
+                entry.getValue().getAttributeName(),
+                new RemoteCustomMetadata(
+                    entry.getValue().getUploadedFilename(),
+                    entry.getKey(),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor(),
+                    namedWriteableRegistry
+                ),
+                listener
             );
         }
 
         if (readCoordinationMetadata) {
-            asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
-                    new RemoteCoordinationMetadata(
-                        manifest.getCoordinationMetadata().getUploadedFilename(),
-                        clusterUUID,
-                        blobStoreRepository.getCompressor(),
-                        blobStoreRepository.getNamedXContentRegistry()
-                    ),
-                    COORDINATION_METADATA,
-                    listener
-                )
+            remoteGlobalMetadataManager.readAsync(
+                COORDINATION_METADATA,
+                new RemoteCoordinationMetadata(
+                    manifest.getCoordinationMetadata().getUploadedFilename(),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         }
 
         if (readSettingsMetadata) {
-            asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
-                    new RemotePersistentSettingsMetadata(
-                        manifest.getSettingsMetadata().getUploadedFilename(),
-                        clusterUUID,
-                        blobStoreRepository.getCompressor(),
-                        blobStoreRepository.getNamedXContentRegistry()
-                    ),
-                    SETTING_METADATA,
-                    listener
-                )
+            remoteGlobalMetadataManager.readAsync(
+                SETTING_METADATA,
+                new RemotePersistentSettingsMetadata(
+                    manifest.getSettingsMetadata().getUploadedFilename(),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         }
 
         if (readTransientSettingsMetadata) {
-            asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
-                    new RemoteTransientSettingsMetadata(
-                        manifest.getTransientSettingsMetadata().getUploadedFilename(),
-                        clusterUUID,
-                        blobStoreRepository.getCompressor(),
-                        blobStoreRepository.getNamedXContentRegistry()
-                    ),
-                    TRANSIENT_SETTING_METADATA,
-                    listener
-                )
+            remoteGlobalMetadataManager.readAsync(
+                TRANSIENT_SETTING_METADATA,
+                new RemoteTransientSettingsMetadata(
+                    manifest.getTransientSettingsMetadata().getUploadedFilename(),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         }
 
         if (readTemplatesMetadata) {
-            asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
-                    new RemoteTemplatesMetadata(
-                        manifest.getTemplatesMetadata().getUploadedFilename(),
-                        clusterUUID,
-                        blobStoreRepository.getCompressor(),
-                        blobStoreRepository.getNamedXContentRegistry()
-                    ),
-                    TEMPLATES_METADATA,
-                    listener
-                )
+            remoteGlobalMetadataManager.readAsync(
+                TEMPLATES_METADATA,
+                new RemoteTemplatesMetadata(
+                    manifest.getTemplatesMetadata().getUploadedFilename(),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor(),
+                    blobStoreRepository.getNamedXContentRegistry()
+                ),
+                listener
             );
         }
 
         if (readDiscoveryNodes) {
-            asyncMetadataReadActions.add(
-                remoteClusterStateAttributesManager.getAsyncMetadataReadAction(
-                    DISCOVERY_NODES,
-                    new RemoteDiscoveryNodes(
-                        manifest.getDiscoveryNodesMetadata().getUploadedFilename(),
-                        clusterUUID,
-                        blobStoreRepository.getCompressor()
-                    ),
-                    listener
-                )
+            remoteClusterStateAttributesManager.readAsync(
+                DISCOVERY_NODES,
+                new RemoteDiscoveryNodes(
+                    manifest.getDiscoveryNodesMetadata().getUploadedFilename(),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor()
+                ),
+                listener
             );
         }
 
         if (readClusterBlocks) {
-            asyncMetadataReadActions.add(
-                remoteClusterStateAttributesManager.getAsyncMetadataReadAction(
-                    CLUSTER_BLOCKS,
-                    new RemoteClusterBlocks(
-                        manifest.getClusterBlocksMetadata().getUploadedFilename(),
-                        clusterUUID,
-                        blobStoreRepository.getCompressor()
-                    ),
-                    listener
-                )
+            remoteClusterStateAttributesManager.readAsync(
+                CLUSTER_BLOCKS,
+                new RemoteClusterBlocks(
+                    manifest.getClusterBlocksMetadata().getUploadedFilename(),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor()
+                ),
+                listener
             );
         }
 
         if (readHashesOfConsistentSettings) {
-            asyncMetadataReadActions.add(
-                remoteGlobalMetadataManager.getAsyncMetadataReadAction(
-                    new RemoteHashesOfConsistentSettings(
-                        manifest.getHashesOfConsistentSettings().getUploadedFilename(),
-                        clusterUUID,
-                        blobStoreRepository.getCompressor()
-                    ),
-                    HASHES_OF_CONSISTENT_SETTINGS,
-                    listener
-                )
+            remoteGlobalMetadataManager.readAsync(
+                HASHES_OF_CONSISTENT_SETTINGS,
+                new RemoteHashesOfConsistentSettings(
+                    manifest.getHashesOfConsistentSettings().getUploadedFilename(),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor()
+                ),
+                listener
             );
         }
 
         for (Map.Entry<String, UploadedMetadataAttribute> entry : clusterStateCustomToRead.entrySet()) {
-            asyncMetadataReadActions.add(
-                remoteClusterStateAttributesManager.getAsyncMetadataReadAction(
-                    // pass component name as cluster-state-custom--<custom_name>, so that we can interpret it later
-                    String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, entry.getKey()),
-                    new RemoteClusterStateCustoms(
-                        entry.getValue().getUploadedFilename(),
-                        entry.getValue().getAttributeName(),
-                        clusterUUID,
-                        blobStoreRepository.getCompressor(),
-                        namedWriteableRegistry
-                    ),
-                    listener
-                )
+            remoteClusterStateAttributesManager.readAsync(
+                // pass component name as cluster-state-custom--<custom_name>, so that we can interpret it later
+                String.join(CUSTOM_DELIMITER, CLUSTER_STATE_CUSTOM, entry.getKey()),
+                new RemoteClusterStateCustoms(
+                    entry.getValue().getUploadedFilename(),
+                    entry.getValue().getAttributeName(),
+                    clusterUUID,
+                    blobStoreRepository.getCompressor(),
+                    namedWriteableRegistry
+                ),
+                listener
             );
-        }
-
-        for (CheckedRunnable<IOException> asyncMetadataReadAction : asyncMetadataReadActions) {
-            asyncMetadataReadAction.run();
         }
 
         try {
@@ -1262,6 +1292,14 @@ public class RemoteClusterStateService implements Closeable {
         readIndexRoutingTableResults.forEach(
             indexRoutingTable -> indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable)
         );
+        RoutingTableIncrementalDiff routingTableDiff = readIndexRoutingTableDiffResults.get();
+        if (routingTableDiff != null) {
+            routingTableDiff.getDiffs().forEach((key, diff) -> {
+                IndexRoutingTable previousIndexRoutingTable = indicesRouting.get(key);
+                IndexRoutingTable updatedTable = diff.apply(previousIndexRoutingTable);
+                indicesRouting.put(key, updatedTable);
+            });
+        }
         clusterStateBuilder.routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indicesRouting));
 
         return clusterStateBuilder.build();
@@ -1290,6 +1328,7 @@ public class RemoteClusterStateService implements Closeable {
                 includeEphemeral ? manifest.getIndicesRouting() : emptyList(),
                 includeEphemeral && manifest.getHashesOfConsistentSettings() != null,
                 includeEphemeral ? manifest.getClusterStateCustomMap() : emptyMap(),
+                false,
                 includeEphemeral
             );
         } else {
@@ -1310,6 +1349,7 @@ public class RemoteClusterStateService implements Closeable {
                 emptyList(),
                 false,
                 emptyMap(),
+                false,
                 false
             );
             Metadata.Builder mb = Metadata.builder(remoteGlobalMetadataManager.getGlobalMetadata(manifest.getClusterUUID(), manifest));
@@ -1366,6 +1406,9 @@ public class RemoteClusterStateService implements Closeable {
             updatedIndexRouting,
             diff.isHashesOfConsistentSettingsUpdated(),
             updatedClusterStateCustom,
+            manifest.getDiffManifest() != null
+                && manifest.getDiffManifest().getIndicesRoutingDiffPath() != null
+                && !manifest.getDiffManifest().getIndicesRoutingDiffPath().isEmpty(),
             true
         );
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(updatedClusterState);

@@ -78,6 +78,7 @@ import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.hamcrest.MatcherAssert;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
@@ -104,15 +105,16 @@ import org.mockito.invocation.InvocationOnMock;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.doAnswer;
@@ -1106,27 +1108,23 @@ public class IngestServiceTests extends OpenSearchTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
-    public void testBulkRequestExecutionWithFailures() throws Exception {
+    public void testBulkRequestExecutionWithFailures() {
         BulkRequest bulkRequest = new BulkRequest();
         String pipelineId = "_id";
 
-        int numRequest = scaledRandomIntBetween(8, 64);
-        int numIndexRequests = 0;
-        for (int i = 0; i < numRequest; i++) {
-            DocWriteRequest request;
+        int numIndexRequests = scaledRandomIntBetween(4, 32);
+        for (int i = 0; i < numIndexRequests; i++) {
+            IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+            bulkRequest.add(indexRequest);
+        }
+        int numOtherRequests = scaledRandomIntBetween(4, 32);
+        for (int i = 0; i < numOtherRequests; i++) {
             if (randomBoolean()) {
-                if (randomBoolean()) {
-                    request = new DeleteRequest("_index", "_id");
-                } else {
-                    request = new UpdateRequest("_index", "_id");
-                }
+                bulkRequest.add(new DeleteRequest("_index", "_id"));
             } else {
-                IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
-                indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
-                request = indexRequest;
-                numIndexRequests++;
+                bulkRequest.add(new UpdateRequest("_index", "_id"));
             }
-            bulkRequest.add(request);
         }
 
         CompoundProcessor processor = mock(CompoundProcessor.class);
@@ -1134,10 +1132,14 @@ public class IngestServiceTests extends OpenSearchTestCase {
         Exception error = new RuntimeException();
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
-            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
-            handler.accept(null, error);
+            List<IngestDocumentWrapper> ingestDocumentWrappers = (List) args.getArguments()[0];
+            Consumer<List<IngestDocumentWrapper>> handler = (Consumer) args.getArguments()[1];
+            for (IngestDocumentWrapper wrapper : ingestDocumentWrappers) {
+                wrapper.update(wrapper.getIngestDocument(), error);
+            }
+            handler.accept(ingestDocumentWrappers);
             return null;
-        }).when(processor).execute(any(), any());
+        }).when(processor).batchExecute(any(), any());
         IngestService ingestService = createWithProcessors(
             Collections.singletonMap("mock", (factories, tag, description, config) -> processor)
         );
@@ -1151,23 +1153,22 @@ public class IngestServiceTests extends OpenSearchTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        @SuppressWarnings("unchecked")
-        BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        final Map<Integer, Exception> errorHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
         ingestService.executeBulkRequest(
-            numRequest,
+            numIndexRequests + numOtherRequests,
             bulkRequest.requests(),
-            requestItemErrorHandler,
-            completionHandler,
+            errorHandler::put,
+            completionHandler::put,
             indexReq -> {},
             Names.WRITE,
             bulkRequest
         );
 
-        verify(requestItemErrorHandler, times(numIndexRequests)).accept(anyInt(), argThat(o -> o.getCause().equals(error)));
+        MatcherAssert.assertThat(errorHandler.entrySet(), hasSize(numIndexRequests));
+        errorHandler.values().forEach(e -> assertEquals(e.getCause(), error));
 
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        MatcherAssert.assertThat(completionHandler.keySet(), contains(Thread.currentThread()));
     }
 
     public void testBulkRequestExecution() throws Exception {
@@ -1192,10 +1193,11 @@ public class IngestServiceTests extends OpenSearchTestCase {
         when(processor.getTag()).thenReturn("mockTag");
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
-            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
-            handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
+            List<IngestDocumentWrapper> ingestDocumentWrappers = (List) args.getArguments()[0];
+            Consumer<List<IngestDocumentWrapper>> handler = (Consumer) args.getArguments()[1];
+            handler.accept(ingestDocumentWrappers);
             return null;
-        }).when(processor).execute(any(), any());
+        }).when(processor).batchExecute(any(), any());
         Map<String, Processor.Factory> map = new HashMap<>(2);
         map.put("mock", (factories, tag, description, config) -> processor);
 
@@ -1953,6 +1955,42 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertEquals(Set.of(1), failureHandler.keySet());
         assertEquals(List.of(2), dropHandler);
         assertEquals(Set.of(Thread.currentThread()), completionHandler.keySet());
+        verify(mockCompoundProcessor, times(1)).batchExecute(any(), any());
+        verify(mockCompoundProcessor, never()).execute(any(), any());
+    }
+
+    public void testExecuteBulkRequestInBatchWithDefaultBatchSize() {
+        CompoundProcessor mockCompoundProcessor = mockCompoundProcessor();
+        IngestService ingestService = createWithProcessors(
+            Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor)
+        );
+        createPipeline("_id", ingestService);
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest2);
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_none").setFinalPipeline("_id");
+        bulkRequest.add(indexRequest3);
+        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest4);
+        @SuppressWarnings("unchecked")
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        final List<Integer> dropHandler = new ArrayList<>();
+        ingestService.executeBulkRequest(
+            4,
+            bulkRequest.requests(),
+            failureHandler::put,
+            completionHandler::put,
+            dropHandler::add,
+            Names.WRITE,
+            bulkRequest
+        );
+        assertTrue(failureHandler.isEmpty());
+        assertTrue(dropHandler.isEmpty());
+        assertEquals(1, completionHandler.size());
+        assertNull(completionHandler.get(Thread.currentThread()));
         verify(mockCompoundProcessor, times(1)).batchExecute(any(), any());
         verify(mockCompoundProcessor, never()).execute(any(), any());
     }

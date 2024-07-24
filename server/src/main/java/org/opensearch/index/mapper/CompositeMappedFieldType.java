@@ -72,6 +72,10 @@ public abstract class CompositeMappedFieldType extends MappedFieldType {
         }
     }
 
+    public CompositeFieldType getCompositeIndexType() {
+        return type;
+    }
+
     public List<String> fields() {
         return fields;
     }

@@ -12,10 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.CheckedRunnable;
+import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.remote.RemoteWritableEntityStore;
@@ -26,8 +27,10 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteStateTransferException;
+import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
+import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -59,6 +62,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     private final Supplier<RepositoriesService> repositoriesService;
     private Compressor compressor;
     private RemoteWritableEntityStore<IndexRoutingTable, RemoteIndexRoutingTable> remoteIndexRoutingTableStore;
+    private RemoteWritableEntityStore<RoutingTableIncrementalDiff, RemoteRoutingTableDiff> remoteRoutingTableDiffStore;
     private final ClusterSettings clusterSettings;
     private BlobStoreRepository blobStoreRepository;
     private final ThreadPool threadPool;
@@ -85,9 +89,10 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
     /**
      * Returns diff between the two routing tables, which includes upserts and deletes.
+     *
      * @param before previous routing table
-     * @param after current routing table
-     * @return diff of the previous and current routing table
+     * @param after  current routing table
+     * @return incremental diff of the previous and current routing table
      */
     public DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> getIndicesRoutingMapDiff(
         RoutingTable before,
@@ -97,21 +102,21 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             before.getIndicesRouting(),
             after.getIndicesRouting(),
             DiffableUtils.getStringKeySerializer(),
-            CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER
+            CUSTOM_ROUTING_TABLE_DIFFABLE_VALUE_SERIALIZER
         );
     }
 
     /**
-     * Create async action for writing one {@code IndexRoutingTable} to remote store
+     * Async action for writing one {@code IndexRoutingTable} to remote store
+     *
      * @param term current term
      * @param version current version
      * @param clusterUUID current cluster UUID
      * @param indexRouting indexRoutingTable to write to remote store
      * @param latchedActionListener listener for handling async action response
-     * @return returns runnable async action
      */
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingWriteAction(
+    public void getAsyncIndexRoutingWriteAction(
         String clusterUUID,
         long term,
         long version,
@@ -128,7 +133,34 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             )
         );
 
-        return () -> remoteIndexRoutingTableStore.writeAsync(remoteIndexRoutingTable, completionListener);
+        remoteIndexRoutingTableStore.writeAsync(remoteIndexRoutingTable, completionListener);
+    }
+
+    @Override
+    public void getAsyncIndexRoutingDiffWriteAction(
+        String clusterUUID,
+        long term,
+        long version,
+        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff,
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+    ) {
+        RoutingTableIncrementalDiff routingTableIncrementalDiff = new RoutingTableIncrementalDiff(indexRoutingTableDiff);
+        RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(
+            routingTableIncrementalDiff,
+            clusterUUID,
+            compressor,
+            term,
+            version
+        );
+
+        ActionListener<Void> completionListener = ActionListener.wrap(
+            resp -> latchedActionListener.onResponse(remoteRoutingTableDiff.getUploadedMetadata()),
+            ex -> latchedActionListener.onFailure(
+                new RemoteStateTransferException("Exception in writing index routing diff to remote store", ex)
+            )
+        );
+
+        remoteRoutingTableDiffStore.writeAsync(remoteRoutingTableDiff, completionListener);
     }
 
     /**
@@ -156,7 +188,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
     }
 
     @Override
-    public CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    public void getAsyncIndexRoutingReadAction(
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
@@ -169,7 +201,23 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
 
         RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(uploadedFilename, clusterUUID, compressor);
 
-        return () -> remoteIndexRoutingTableStore.readAsync(remoteIndexRoutingTable, actionListener);
+        remoteIndexRoutingTableStore.readAsync(remoteIndexRoutingTable, actionListener);
+    }
+
+    @Override
+    public void getAsyncIndexRoutingTableDiffReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<RoutingTableIncrementalDiff> latchedActionListener
+    ) {
+        ActionListener<RoutingTableIncrementalDiff> actionListener = ActionListener.wrap(
+            latchedActionListener::onResponse,
+            latchedActionListener::onFailure
+        );
+
+        RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(uploadedFilename, clusterUUID, compressor);
+
+        remoteRoutingTableDiffStore.readAsync(remoteRoutingTableDiff, actionListener);
     }
 
     @Override
@@ -213,6 +261,14 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             ThreadPool.Names.REMOTE_STATE_READ,
             clusterSettings
         );
+
+        this.remoteRoutingTableDiffStore = new RemoteClusterStateBlobStore<>(
+            new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
+            blobStoreRepository,
+            clusterName,
+            threadPool,
+            ThreadPool.Names.REMOTE_STATE_READ
+        );
     }
 
     @Override
@@ -225,6 +281,16 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             blobStoreRepository.blobStore().blobContainer(BlobPath.cleanPath()).deleteBlobsIgnoringIfNotExists(stalePaths);
         } catch (IOException e) {
             logger.error(() -> new ParameterizedMessage("Failed to delete some stale index routing paths from {}", stalePaths), e);
+            throw e;
+        }
+    }
+
+    public void deleteStaleIndexRoutingDiffPaths(List<String> stalePaths) throws IOException {
+        try {
+            logger.debug(() -> "Deleting stale index routing diff files from remote - " + stalePaths);
+            blobStoreRepository.blobStore().blobContainer(BlobPath.cleanPath()).deleteBlobsIgnoringIfNotExists(stalePaths);
+        } catch (IOException e) {
+            logger.error(() -> new ParameterizedMessage("Failed to delete some stale index routing diff paths from {}", stalePaths), e);
             throw e;
         }
     }
