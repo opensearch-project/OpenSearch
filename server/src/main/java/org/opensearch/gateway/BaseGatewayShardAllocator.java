@@ -44,6 +44,7 @@ import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -82,12 +83,16 @@ public abstract class BaseGatewayShardAllocator {
     }
 
     protected void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation, boolean primary) {
-        Set<ShardRouting> batchShardRoutingSet = new HashSet<>(shardRoutings);
+        Set<ShardId> shardIdsFromBatch = new HashSet<>();
+        for (ShardRouting shardRouting : shardRoutings) {
+            ShardId shardId = shardRouting.shardId();
+            shardIdsFromBatch.add(shardId);
+        }
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
             ShardRouting unassignedShard = iterator.next();
             AllocateUnassignedDecision allocationDecision;
-            if (unassignedShard.primary() == primary && batchShardRoutingSet.contains(unassignedShard)) {
+            if (unassignedShard.primary() == primary && shardIdsFromBatch.contains(unassignedShard.shardId())) {
                 allocationDecision = AllocateUnassignedDecision.throttle(null);
                 executeDecision(unassignedShard, allocationDecision, allocation, iterator);
             }

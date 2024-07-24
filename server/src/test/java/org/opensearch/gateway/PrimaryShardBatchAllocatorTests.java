@@ -297,10 +297,10 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
             .replicaShards()
             .get(0);
         List<ShardRouting> shardRoutings = Arrays.asList(shardRouting);
-        batchAllocator.allocateUnassignedBatchOnTimeout(shardRoutings, routingAllocation, true);
+        batchAllocator.allocateUnassignedBatchOnTimeout(shardRoutings, routingAllocation, false);
 
         List<ShardRouting> ignoredShards = routingAllocation.routingNodes().unassigned().ignored();
-        assertEquals(0, ignoredShards.size());
+        assertEquals(1, ignoredShards.size());
     }
 
     private RoutingAllocation routingAllocationWithOnePrimary(
