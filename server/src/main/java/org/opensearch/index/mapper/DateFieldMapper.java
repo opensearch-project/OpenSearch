@@ -63,7 +63,7 @@ import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
-import org.opensearch.search.approximate.ApproximateableQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -467,28 +467,10 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
             DateMathParser parser = forcedDateParser == null ? dateMathParser : forcedDateParser;
             return dateRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, parser, context, resolution, (l, u) -> {
+                Query pointRangeQuery = createPointRangeQuery(l, u);
+                Query dvQuery = hasDocValues() ? SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u) : null;
                 if (isSearchable() && hasDocValues()) {
-                    Query query = new ApproximateableQuery(
-                        new PointRangeQuery(name(), pack(new long[] { l }).bytes, pack(new long[] { u }).bytes, new long[] { l }.length) {
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        },
-                        new ApproximatePointRangeQuery(
-                            name(),
-                            pack(new long[] { l }).bytes,
-                            pack(new long[] { u }).bytes,
-                            new long[] { l }.length
-                        ) {
-                            @Override
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        }
-                    );
-
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
-                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                    Query query = new IndexOrDocValuesQuery(pointRangeQuery, dvQuery);
 
                     if (context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -502,25 +484,29 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     }
                     return query;
                 }
-                return new ApproximateableQuery(
-                    new PointRangeQuery(name(), pack(new long[] { l }).bytes, pack(new long[] { u }).bytes, new long[] { l }.length) {
+                return pointRangeQuery;
+            });
+        }
+
+        private Query createPointRangeQuery(long l, long u) {
+            return new ApproximateScoreQuery(
+                    new PointRangeQuery(name(), pack(new long[]{l}).bytes, pack(new long[]{u}).bytes, new long[]{l}.length) {
                         protected String toString(int dimension, byte[] value) {
                             return Long.toString(LongPoint.decodeDimension(value, 0));
                         }
                     },
                     new ApproximatePointRangeQuery(
-                        name(),
-                        pack(new long[] { l }).bytes,
-                        pack(new long[] { u }).bytes,
-                        new long[] { l }.length
+                            name(),
+                            pack(new long[]{l}).bytes,
+                            pack(new long[]{u}).bytes,
+                            new long[]{l}.length
                     ) {
                         @Override
                         protected String toString(int dimension, byte[] value) {
                             return Long.toString(LongPoint.decodeDimension(value, 0));
                         }
                     }
-                );
-            });
+            );
         }
 
         public static Query dateRangeQuery(

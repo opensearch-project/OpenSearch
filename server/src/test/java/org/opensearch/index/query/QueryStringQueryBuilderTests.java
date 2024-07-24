@@ -78,7 +78,7 @@ import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.QueryStringQueryParser;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
-import org.opensearch.search.approximate.ApproximateableQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -860,20 +860,20 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
         long lower = 0; // 1970-01-01T00:00:00.999 UTC
         long upper = 86399999;  // 1970-01-01T23:59:59.999 UTC
-        assertEquals(calculateExpectedDateQuery(lower, upper).toString(), query.toString());
+        assertEquals(calculateExpectedDateQuery(lower, upper), query);
         int msPerHour = 3600000;
         assertEquals(
-            calculateExpectedDateQuery(lower - msPerHour, upper - msPerHour).toString(),
-            qsq.timeZone("+01:00").toQuery(context).toString()
+            calculateExpectedDateQuery(lower - msPerHour, upper - msPerHour),
+            qsq.timeZone("+01:00").toQuery(context)
         );
         assertEquals(
-            calculateExpectedDateQuery(lower + msPerHour, upper + msPerHour).toString(),
-            qsq.timeZone("-01:00").toQuery(context).toString()
+            calculateExpectedDateQuery(lower + msPerHour, upper + msPerHour),
+            qsq.timeZone("-01:00").toQuery(context)
         );
     }
 
     private IndexOrDocValuesQuery calculateExpectedDateQuery(long lower, long upper) {
-        Query query = new ApproximateableQuery(
+        Query query = new ApproximateScoreQuery(
             new PointRangeQuery(
                 DATE_FIELD_NAME,
                 pack(new long[] { lower }).bytes,

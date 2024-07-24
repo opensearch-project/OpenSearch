@@ -50,7 +50,7 @@ import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
-import org.opensearch.search.approximate.ApproximateableQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -176,7 +176,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         DateFieldMapper.DateFieldType dateType = (DateFieldMapper.DateFieldType) context.fieldMapper(DATE_FIELD_NAME);
         parser = dateType.dateMathParser;
         Query queryOnDateField = new QueryStringQueryBuilder(DATE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
-        Query controlQuery = new ApproximateableQuery(
+        Query controlQuery = new ApproximateScoreQuery(
             new PointRangeQuery(
                 DATE_FIELD_NAME,
                 pack(new long[] { parser.parse(lowerBoundExact, () -> 0).toEpochMilli() }).bytes,
@@ -205,7 +205,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
             parser.parse(upperBoundExact, () -> 0).toEpochMilli()
         );
-        assertEquals(new IndexOrDocValuesQuery(controlQuery, controlDv).toString(), queryOnDateField.toString());
+        assertEquals(new IndexOrDocValuesQuery(controlQuery, controlDv), queryOnDateField);
     }
 
     public void testIPRangeQuery() throws Exception {

@@ -72,7 +72,7 @@ import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
-import org.opensearch.search.approximate.ApproximateableQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
@@ -327,7 +327,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Bits liveDocs = ctx.reader().getLiveDocs();
         BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
         if (isApproximateableRangeQuery()) {
-            ApproximateableQuery query = ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery());
+            ApproximateScoreQuery query = ((ApproximateScoreQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery());
             if (searchContext.size() > 10_000) ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSize(searchContext.size());
             if (searchContext.request() != null && searchContext.request().source() != null) {
                 FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
@@ -432,8 +432,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private boolean isApproximateableRangeQuery() {
         return searchContext.query() instanceof IndexOrDocValuesQuery
-            && ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery() instanceof ApproximateableQuery
-            && ((ApproximateableQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery())
+            && ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery() instanceof ApproximateScoreQuery
+            && ((ApproximateScoreQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery())
                 .getOriginalQuery() instanceof PointRangeQuery;
     }
 

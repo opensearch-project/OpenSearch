@@ -14,19 +14,29 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 
 import static org.apache.lucene.document.LongPoint.pack;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.*;
 
 public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
@@ -75,7 +85,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
-    public void testApproximateRangeWithSize() throws IOException {
+    public void testApproximateRangeWithDefaultSize() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
@@ -95,38 +105,107 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                 try (IndexReader reader = iw.getReader()) {
                     try {
                         long lower = 0;
-                        long upper = 100;
-                        Query approximateQuerySmall = new ApproximatePointRangeQuery(
-                            "point",
-                            pack(lower).bytes,
-                            pack(upper).bytes,
-                            dims,
-                            10
-                        ) {
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        };
-                        Query approximateQueryBig = new ApproximatePointRangeQuery(
-                            "point",
-                            pack(lower).bytes,
-                            pack(upper).bytes,
-                            dims,
-                            100
+                        long upper = 1000;
+                        Query approximateQuery = new ApproximatePointRangeQuery(
+                                "point",
+                                pack(lower).bytes,
+                                pack(upper).bytes,
+                                dims
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
                         IndexSearcher searcher = new IndexSearcher(reader);
-                        TopDocs topDocs = searcher.search(approximateQuerySmall, 10);
-                        TopDocs topDocs1 = searcher.search(approximateQueryBig, 10);
+                        TopDocs topDocs = searcher.search(approximateQuery, 10);
+                        assertEquals(topDocs.totalHits, new TotalHits(1000, TotalHits.Relation.EQUAL_TO));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
 
-                        // the first query with size 10 will produce smaller hits compared to the bigger query
-                        assertNotEquals(topDocs.totalHits, topDocs1.totalHits);
-                        assertEquals(topDocs.totalHits, new TotalHits(11, TotalHits.Relation.EQUAL_TO));
-                        assertEquals(topDocs1.totalHits, new TotalHits(101, TotalHits.Relation.EQUAL_TO));
+                }
+            }
+        }
+    }
 
+    public void testApproximateRangeWithSizeUnderDefault() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                long[] scratch = new long[dims];
+                int numPoints = 1000;
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    for (int v = 0; v < dims; v++) {
+                        scratch[v] = i;
+                    }
+                    doc.add(new LongPoint("point", scratch));
+                    iw.addDocument(doc);
+                    if (i % 15 == 0) iw.flush();
+                }
+                iw.flush();
+                try (IndexReader reader = iw.getReader()) {
+                    try {
+                        long lower = 0;
+                        long upper = 45;
+                        Query approximateQuery = new ApproximatePointRangeQuery(
+                                "point",
+                                pack(lower).bytes,
+                                pack(upper).bytes,
+                                dims,
+                                10
+                        ) {
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
+                        };
+                        IndexSearcher searcher = new IndexSearcher(reader);
+                        TopDocs topDocs = searcher.search(approximateQuery, 10);
+                        assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                }
+            }
+        }
+    }
+
+    public void testApproximateRangeWithSizeOverDefault() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                long[] scratch = new long[dims];
+                int numPoints = 15000;
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    for (int v = 0; v < dims; v++) {
+                        scratch[v] = i;
+                    }
+                    doc.add(new LongPoint("point", scratch));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                try (IndexReader reader = iw.getReader()) {
+                    try {
+                        long lower = 0;
+                        long upper = 12000;
+                        Query approximateQuery = new ApproximatePointRangeQuery(
+                                "point",
+                                pack(lower).bytes,
+                                pack(upper).bytes,
+                                dims,
+                                11_000
+                        ) {
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
+                        };
+                        IndexSearcher searcher = new IndexSearcher(reader);
+                        TopDocs topDocs = searcher.search(approximateQuery, 11000);
+                        assertEquals(topDocs.totalHits, new TotalHits(11001, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -173,7 +252,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
                         // since we short-circuit from the approx range at the end of size these will not be equal
                         assertNotEquals(topDocs.totalHits, topDocs1.totalHits);
-                        assertEquals(topDocs.totalHits, new TotalHits(11, TotalHits.Relation.EQUAL_TO));
+                        assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
                         assertEquals(topDocs1.totalHits, new TotalHits(101, TotalHits.Relation.EQUAL_TO));
 
                     } catch (IOException e) {
@@ -199,7 +278,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     }
                     doc.add(new LongPoint("point", scratch));
                     iw.addDocument(doc);
-                    // if (i % 10 == 0) iw.flush();
                 }
                 iw.flush();
                 try (IndexReader reader = iw.getReader()) {
@@ -207,12 +285,12 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                         long lower = 0;
                         long upper = 20;
                         Query approximateQuery = new ApproximatePointRangeQuery(
-                            "point",
-                            pack(lower).bytes,
-                            pack(upper).bytes,
-                            dims,
-                            10,
-                            SortOrder.ASC
+                                "point",
+                                pack(lower).bytes,
+                                pack(upper).bytes,
+                                dims,
+                                10,
+                                SortOrder.ASC
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
@@ -229,7 +307,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
                         // since we short-circuit from the approx range at the end of size these will not be equal
                         assertNotEquals(topDocs.totalHits, topDocs1.totalHits);
-                        assertEquals(topDocs.totalHits, new TotalHits(11, TotalHits.Relation.EQUAL_TO));
+                        assertEquals(topDocs.totalHits, new TotalHits(10, TotalHits.Relation.EQUAL_TO));
                         assertEquals(topDocs1.totalHits, new TotalHits(21, TotalHits.Relation.EQUAL_TO));
                         assertEquals(topDocs.scoreDocs[0].doc, 0);
                         assertEquals(topDocs.scoreDocs[1].doc, 1);
@@ -246,4 +324,105 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             }
         }
     }
+
+    public void testIntersectLeft() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                long[] scratch = new long[dims];
+                int numPoints = 1000;
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    for (int v = 0; v < dims; v++) {
+                        scratch[v] = i;
+                    }
+                    doc.add(new LongPoint("point", scratch));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                try (IndexReader reader = iw.getReader()) {
+                    try {
+                        long lower = 0;
+                        long upper = 20;
+                        ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
+                                "point",
+                                pack(lower).bytes,
+                                pack(upper).bytes,
+                                dims,
+                                10
+                        ) {
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
+                        };
+                        IndexSearcher searcher = new IndexSearcher(reader);
+                        ApproximateConstantScoreWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F);
+                        LeafReaderContext lrc = reader.leaves().get(0);
+                        PointValues values = lrc.reader().getPointValues("point");
+                        final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, "point");
+                        PointValues.IntersectVisitor visitor = approximatePointRangeQueryWeight.getIntersectVisitor(result);
+                        long intersectCount = approximatePointRangeQueryWeight.intersectLeft(visitor, values.getPointTree());
+
+                        // Assert
+                        assertEquals(10, intersectCount);
+
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testIntersectRight() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                long[] scratch = new long[dims];
+                int numPoints = 1000;
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    for (int v = 0; v < dims; v++) {
+                        scratch[v] = i;
+                    }
+                    doc.add(new LongPoint("point", scratch));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                try (IndexReader reader = iw.getReader()) {
+                    try {
+                        long lower = 0;
+                        long upper = 20;
+                        ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
+                                "point",
+                                pack(lower).bytes,
+                                pack(upper).bytes,
+                                dims,
+                                10
+                        ) {
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
+                        };
+                        IndexSearcher searcher = new IndexSearcher(reader);
+                        ApproximateConstantScoreWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F);
+                        LeafReaderContext lrc = reader.leaves().get(0);
+                        PointValues values = lrc.reader().getPointValues("point");
+                        final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, "point");
+                        PointValues.IntersectVisitor visitor = approximatePointRangeQueryWeight.getIntersectVisitor(result);
+                        long intersectCount = approximatePointRangeQueryWeight.intersectRight(visitor, values.getPointTree());
+
+                        // Assert
+                        assertEquals(10, intersectCount);
+
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+    }
+
 }

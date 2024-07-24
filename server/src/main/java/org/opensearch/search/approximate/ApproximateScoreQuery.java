@@ -23,19 +23,21 @@ import org.apache.lucene.search.Weight;
 import java.io.IOException;
 
 /**
- * Base class for a query that can be approximated
+ * Base class for a query that can be approximated.
+ *
+ * This class is heavily inspired by {@link org.apache.lucene.search.IndexOrDocValuesQuery}. It acts as a wrapper that consumer two queries, a regular query and an approximate version of the same. By default, it executes the regular query and returns {@link Weight#scorer} for the original query. At run-time, depending on certain constraints, we can re-write the {@code Weight} to use the approximate weight instead.
  */
-public final class ApproximateableQuery extends Query {
+public final class ApproximateScoreQuery extends Query {
 
     private final Query originalQuery, approximationQuery;
 
     private Weight originalQueryWeight, approximationQueryWeight;
 
-    public ApproximateableQuery(Query originalQuery, Query approximationQuery) {
+    public ApproximateScoreQuery(Query originalQuery, Query approximationQuery) {
         this(originalQuery, approximationQuery, null, null);
     }
 
-    public ApproximateableQuery(
+    public ApproximateScoreQuery(
         Query originalQuery,
         Query approximationQuery,
         Weight originalQueryWeight,
@@ -116,7 +118,7 @@ public final class ApproximateableQuery extends Query {
 
     @Override
     public String toString(String s) {
-        return "ApproximateableQuery(originalQuery="
+        return "ApproximateScoreQuery(originalQuery="
             + originalQuery.toString()
             + ", approximationQuery="
             + approximationQuery.toString()
@@ -135,7 +137,7 @@ public final class ApproximateableQuery extends Query {
         if (!sameClassAs(o)) {
             return false;
         }
-        ApproximateableQuery that = (ApproximateableQuery) o;
+        ApproximateScoreQuery that = (ApproximateScoreQuery) o;
         return originalQuery.equals(that.originalQuery) && approximationQuery.equals(that.approximationQuery);
     }
 

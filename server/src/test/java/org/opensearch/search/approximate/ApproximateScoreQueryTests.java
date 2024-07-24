@@ -26,7 +26,7 @@ import java.io.IOException;
 
 import static org.apache.lucene.document.LongPoint.pack;
 
-public class ApproximateableQueryTests extends OpenSearchTestCase {
+public class ApproximateScoreQueryTests extends OpenSearchTestCase {
 
     public void testApproximationScoreSupplier() throws IOException {
         long l = Long.MIN_VALUE;
@@ -53,7 +53,7 @@ public class ApproximateableQueryTests extends OpenSearchTestCase {
             }
         };
 
-        ApproximateableQuery query = new ApproximateableQuery(originalQuery, approximateQuery);
+        ApproximateScoreQuery query = new ApproximateScoreQuery(originalQuery, approximateQuery);
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
