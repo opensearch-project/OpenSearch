@@ -8,17 +8,6 @@
 
 package org.opensearch.benchmark.routing.allocation;
 
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.BenchmarkMode;
-import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Mode;
-import org.openjdk.jmh.annotations.OutputTimeUnit;
-import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.Warmup;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -30,6 +19,17 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.settings.Settings;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.HashMap;
 import java.util.List;
@@ -48,14 +48,12 @@ import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 public class RerouteBenchmark {
     @Param({
         // indices| nodes
-        "    10000|  500|",
-    })
+        "    10000|  500|", })
     public String indicesNodes = "1|1";
     public int numIndices;
     public int numNodes;
     public int numShards = 10;
     public int numReplicas = 1;
-
 
     private AllocationService allocationService;
     private ClusterState initialClusterState;
