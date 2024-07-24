@@ -36,6 +36,11 @@ public class BatchRunnableExecutor implements Runnable {
         this.timeoutAwareRunnables = timeoutAwareRunnables;
     }
 
+    // for tests
+    public List<TimeoutAwareRunnable> getTimeoutAwareRunnables() {
+        return this.timeoutAwareRunnables;
+    }
+
     @Override
     public void run() {
         logger.debug("Starting execution of runnable of size [{}]", timeoutAwareRunnables.size());
