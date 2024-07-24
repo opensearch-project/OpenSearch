@@ -34,7 +34,6 @@ package org.opensearch.tasks;
 
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.io.stream.NamedWriteable;
@@ -58,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 
 /**
  * Current task information

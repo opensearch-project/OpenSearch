@@ -33,10 +33,19 @@ public class QueryGroupTask extends CancellableTask {
         super(id, type, action, description, parentTaskId, headers, cancelAfterTimeInterval);
     }
 
+    /**
+     *
+     * @return task queryGroupId
+     */
     public String getQueryGroupId() {
         return queryGroupId;
     }
 
+    /**
+     * sets the queryGroupId from threadContext into the task itself,
+     * This method was defined since the queryGroupId can only be evaluated after task creation
+     * @param threadContext current threadContext
+     */
     public void setQueryGroupId(final ThreadContext threadContext) {
         this.queryGroupId = QueryGroupConstants.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get();
 
