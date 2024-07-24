@@ -110,8 +110,12 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
         return createMapperService(mappings).documentMapper();
     }
 
+    protected final DocumentMapper createDocumentMapper(XContentBuilder mappings, Settings settings) throws IOException {
+        return createMapperService(mappings, settings).documentMapper();
+    }
+
     protected final DocumentMapper createDocumentMapper(Version version, XContentBuilder mappings) throws IOException {
-        return createMapperService(version, mappings).documentMapper();
+        return createMapperService(version, mappings, getIndexSettings()).documentMapper();
     }
 
     protected final DocumentMapper createDocumentMapper(String type, String mappings) throws IOException {
@@ -121,7 +125,11 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
     }
 
     protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
-        return createMapperService(Version.CURRENT, mappings);
+        return createMapperService(Version.CURRENT, mappings, getIndexSettings());
+    }
+
+    protected MapperService createMapperService(XContentBuilder mappings, Settings settings) throws IOException {
+        return createMapperService(Version.CURRENT, mappings, settings);
     }
 
     protected final MapperService createMapperService(String type, String mappings) throws IOException {
@@ -133,13 +141,13 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
     /**
      * Create a {@link MapperService} like we would for an index.
      */
-    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+    protected final MapperService createMapperService(Version version, XContentBuilder mapping, Settings settings) throws IOException {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(Settings.builder().put("index.version.created", version))
             .numberOfReplicas(0)
             .numberOfShards(1)
             .build();
-        IndexSettings indexSettings = new IndexSettings(meta, getIndexSettings());
+        IndexSettings indexSettings = new IndexSettings(meta, settings);
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();

@@ -1200,6 +1200,214 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals(2, doc.rootDoc().getFields("test1").length);
     }
 
+    public void testDynamicValueWithUnmapFieldsBeyondTotalLimit() throws Exception {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("foo");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("bar");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("zoo");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }
+
+        ), settings);
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("test1", "baz")));
+        assertEquals(0, doc.rootDoc().getFields("test1").length);
+    }
+
+    public void testDynamicLongArrayWithUnmapFieldsBeyondTotalLimit() throws Exception {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("foo");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("bar");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("zoo");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }), settings);
+
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("test").value(0).value(1).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("test").length);
+    }
+
+    public void testDynamicObjectWithUnmapFieldsBeyondTotalLimit() throws Exception {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("foo");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("bar");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("zoo");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }
+
+        ), settings);
+
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("test").field("test1", "baz").endObject()));
+        assertEquals(0, doc.rootDoc().getFields("test.test1").length);
+    }
+
+    public void testDynamicStrictAllowTemplatesValueWithUnmapFieldsBeyondTotalLimit() throws Exception {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "strict_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "test*");
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            {
+                b.startObject("foo");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("bar");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("zoo");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }
+
+        ), settings);
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("test1", "baz")));
+        assertEquals(0, doc.rootDoc().getFields("test1").length);
+    }
+
+    public void testDynamicAllowTemplatesStrictLongArrayWithUnmapFieldsBeyondTotalLimit() throws Exception {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "strict_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "test");
+                        b.startObject("mapping").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            {
+                b.startObject("foo");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("bar");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("zoo");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }), settings);
+
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("test").value(0).value(1).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("test").length);
+    }
+
+    public void testDynamicStrictAllowTemplatesObjectWithUnmapFieldsBeyondTotalLimit() throws Exception {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "strict_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "test");
+                        b.field("match_mapping_type", "object");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            {
+                b.startObject("foo");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("bar");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("zoo");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }
+
+        ), settings);
+
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("test").field("test1", "baz").endObject()));
+        assertEquals(0, doc.rootDoc().getFields("test.test1").length);
+    }
+
     public void testDynamicStrictAllowTemplatesNull() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "strict_allow_templates")));
         StrictDynamicMappingException exception = expectThrows(

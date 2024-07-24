@@ -146,6 +146,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+    // if set to true, the new detected fields from dynamic mapping which beyond the total fields limit will be unmapped, i.e. will not
+    // be added to the mapping
+    public static final Setting<Boolean> INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING = Setting.boolSetting(
+        "index.mapping.total_fields.unmap_fields_beyond_limit",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
         20L,
