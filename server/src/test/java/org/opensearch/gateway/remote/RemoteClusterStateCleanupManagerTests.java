@@ -652,7 +652,7 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
             assertEquals(0, remoteClusterStateCleanupManager.getStats().getIndicesRoutingDiffFileCleanupAttemptFailedCount());
         });
 
-        doThrow(IOException.class).when(remoteRoutingTableService).deleteStaleIndexRoutingPaths(any());
+        doThrow(IOException.class).when(remoteRoutingTableService).deleteStaleIndexRoutingDiffPaths(any());
         remoteClusterStateCleanupManager.deleteClusterMetadata(clusterName, clusterUUID, activeBlobs, inactiveBlobs);
         assertBusy(() -> {
             // wait for stats to get updated
