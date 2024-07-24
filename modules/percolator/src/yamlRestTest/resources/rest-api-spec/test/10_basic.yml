@@ -83,3 +83,48 @@
                 index: documents_index
                 id: some_id
   - match:  { responses.0.hits.total:     1  }
+
+  - do:
+      catch: bad_request
+      index:
+        index: queries_index
+        body:
+          query:
+            query_string:
+              query: "unmapped: *"
+
+  - do:
+      catch: bad_request
+      index:
+        index: queries_index
+        body:
+          query:
+            query_string:
+              query: "_exists_: unmappedField"
+
+  - do:
+        catch: bad_request
+        index:
+          index: queries_index
+          body:
+            query:
+              query_string:
+                query: "unmappedField: <100"
+
+  - do:
+      catch: bad_request
+      index:
+        index: queries_index
+        body:
+          query:
+            query_string:
+              query: "unmappedField: test~"
+
+  - do:
+      catch: bad_request
+      index:
+        index: queries_index
+        body:
+          query:
+            query_string:
+              query: "unmappedField: test*"

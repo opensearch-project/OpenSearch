@@ -19,8 +19,7 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         assertEquals(MetricStat.SUM, pair.getMetricStat());
         assertEquals("column1", pair.getField());
@@ -31,8 +30,7 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.COUNT,
             "anything",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         assertEquals(MetricStat.COUNT, pair.getMetricStat());
         assertEquals("anything", pair.getField());
@@ -43,8 +41,7 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column2",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         assertEquals("star_tree_field_column2_sum", pair.toFieldName());
     }
@@ -54,24 +51,22 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         MetricAggregatorInfo pair2 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         assertEquals(pair1, pair2);
         assertNotEquals(
             pair1,
-            new MetricAggregatorInfo(MetricStat.COUNT, "column1", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE, null)
+            new MetricAggregatorInfo(MetricStat.COUNT, "column1", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE)
         );
         assertNotEquals(
             pair1,
-            new MetricAggregatorInfo(MetricStat.SUM, "column2", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE, null)
+            new MetricAggregatorInfo(MetricStat.SUM, "column2", "star_tree_field", IndexNumericFieldData.NumericType.DOUBLE)
         );
     }
 
@@ -80,15 +75,13 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         MetricAggregatorInfo pair2 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         assertEquals(pair1.hashCode(), pair2.hashCode());
     }
@@ -98,22 +91,19 @@ public class MetricAggregatorInfoTests extends OpenSearchTestCase {
             MetricStat.SUM,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         MetricAggregatorInfo pair2 = new MetricAggregatorInfo(
             MetricStat.SUM,
             "column2",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         MetricAggregatorInfo pair3 = new MetricAggregatorInfo(
             MetricStat.COUNT,
             "column1",
             "star_tree_field",
-            IndexNumericFieldData.NumericType.DOUBLE,
-            null
+            IndexNumericFieldData.NumericType.DOUBLE
         );
         assertTrue(pair1.compareTo(pair2) < 0);
         assertTrue(pair2.compareTo(pair1) > 0);

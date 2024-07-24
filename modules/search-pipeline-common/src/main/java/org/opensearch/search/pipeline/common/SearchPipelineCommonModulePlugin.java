@@ -97,8 +97,8 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
                 new TruncateHitsResponseProcessor.Factory(),
                 CollapseResponseProcessor.TYPE,
                 new CollapseResponseProcessor.Factory(),
-                SplitResponseProcessor.TYPE,
-                new SplitResponseProcessor.Factory()
+                SortResponseProcessor.TYPE,
+                new SortResponseProcessor.Factory()
             )
         );
     }

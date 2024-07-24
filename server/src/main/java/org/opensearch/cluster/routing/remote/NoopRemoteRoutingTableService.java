@@ -9,9 +9,11 @@
 package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
@@ -34,7 +36,12 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         RoutingTable before,
         RoutingTable after
     ) {
-        return DiffableUtils.diff(Map.of(), Map.of(), DiffableUtils.getStringKeySerializer(), CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER);
+        return DiffableUtils.diff(
+            Map.of(),
+            Map.of(),
+            DiffableUtils.getStringKeySerializer(),
+            CUSTOM_ROUTING_TABLE_DIFFABLE_VALUE_SERIALIZER
+        );
     }
 
     @Override
@@ -43,6 +50,17 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         long term,
         long version,
         IndexRoutingTable indexRouting,
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+    ) {
+        // noop
+    }
+
+    @Override
+    public void getAsyncIndexRoutingDiffWriteAction(
+        String clusterUUID,
+        long term,
+        long version,
+        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
         // noop
@@ -63,6 +81,15 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         String clusterUUID,
         String uploadedFilename,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
+    ) {
+        // noop
+    }
+
+    @Override
+    public void getAsyncIndexRoutingTableDiffReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<RoutingTableIncrementalDiff> latchedActionListener
     ) {
         // noop
     }
@@ -93,6 +120,10 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
 
     @Override
     public void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException {
+        // noop
+    }
+
+    public void deleteStaleIndexRoutingDiffPaths(List<String> stalePaths) throws IOException {
         // noop
     }
 }

@@ -717,6 +717,33 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, allocateUnassignedDecision.getAllocationStatus());
     }
 
+    public void testAllocateUnassignedBatchOnTimeoutWithUnassignedReplicaShard() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
+        final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        List<ShardRouting> shards = new ArrayList<>();
+        while (iterator.hasNext()) {
+            shards.add(iterator.next());
+        }
+        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
+        assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
+        assertEquals(
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            allocation.routingNodes().unassigned().ignored().get(0).unassignedInfo().getLastAllocationStatus()
+        );
+    }
+
+    public void testAllocateUnassignedBatchOnTimeoutWithAlreadyRecoveringReplicaShard() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
+        final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        List<ShardRouting> shards = new ArrayList<>();
+        while (iterator.hasNext()) {
+            shards.add(iterator.next());
+        }
+        testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(0));
+    }
+
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders) {
         return onePrimaryOnNode1And1Replica(deciders, Settings.EMPTY, UnassignedInfo.Reason.CLUSTER_RECOVERED);
     }

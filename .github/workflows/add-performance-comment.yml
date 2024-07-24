@@ -6,7 +6,10 @@ on:
 
 jobs:
   add-comment:
-    if: github.event.label.name == 'Performance'
+    if: |
+      github.event.label.name == 'Performance' ||
+      github.event.label.name == 'Search:Performance' ||
+      github.event.label.name == 'Indexing:Performance'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

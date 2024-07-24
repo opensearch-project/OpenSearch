@@ -153,6 +153,7 @@ import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.repositories.fs.ReloadableFsRepository;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.MockSearchService;
@@ -220,6 +221,7 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SET
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
@@ -2583,11 +2585,63 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     public static Settings remoteStoreClusterSettings(
         String segmentRepoName,
         Path segmentRepoPath,
+        String segmentRepoType,
+        String translogRepoName,
+        Path translogRepoPath,
+        String translogRepoType,
+        String routingTableRepoName,
+        Path routingTableRepoPath,
+        String routingTableRepoType
+    ) {
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(
+            buildRemoteStoreNodeAttributes(
+                segmentRepoName,
+                segmentRepoPath,
+                segmentRepoType,
+                translogRepoName,
+                translogRepoPath,
+                translogRepoType,
+                routingTableRepoName,
+                routingTableRepoPath,
+                routingTableRepoType,
+                false
+            )
+        );
+        return settingsBuilder.build();
+    }
+
+    public static Settings remoteStoreClusterSettings(
+        String segmentRepoName,
+        Path segmentRepoPath,
         String translogRepoName,
         Path translogRepoPath
     ) {
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(buildRemoteStoreNodeAttributes(segmentRepoName, segmentRepoPath, translogRepoName, translogRepoPath, false));
+        return settingsBuilder.build();
+    }
+
+    public static Settings remoteStoreClusterSettings(
+        String segmentRepoName,
+        Path segmentRepoPath,
+        String translogRepoName,
+        Path translogRepoPath,
+        String remoteRoutingTableRepoName,
+        Path remoteRoutingTableRepoPath
+    ) {
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(
+            buildRemoteStoreNodeAttributes(
+                segmentRepoName,
+                segmentRepoPath,
+                translogRepoName,
+                translogRepoPath,
+                remoteRoutingTableRepoName,
+                remoteRoutingTableRepoPath,
+                false
+            )
+        );
         return settingsBuilder.build();
     }
 
@@ -2609,6 +2663,29 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         );
     }
 
+    public static Settings buildRemoteStoreNodeAttributes(
+        String segmentRepoName,
+        Path segmentRepoPath,
+        String translogRepoName,
+        Path translogRepoPath,
+        String remoteRoutingTableRepoName,
+        Path remoteRoutingTableRepoPath,
+        boolean withRateLimiterAttributes
+    ) {
+        return buildRemoteStoreNodeAttributes(
+            segmentRepoName,
+            segmentRepoPath,
+            ReloadableFsRepository.TYPE,
+            translogRepoName,
+            translogRepoPath,
+            ReloadableFsRepository.TYPE,
+            remoteRoutingTableRepoName,
+            remoteRoutingTableRepoPath,
+            FsRepository.TYPE,
+            withRateLimiterAttributes
+        );
+    }
+
     private static Settings buildRemoteStoreNodeAttributes(
         String segmentRepoName,
         Path segmentRepoPath,
@@ -2616,6 +2693,32 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         String translogRepoName,
         Path translogRepoPath,
         String translogRepoType,
+        boolean withRateLimiterAttributes
+    ) {
+        return buildRemoteStoreNodeAttributes(
+            segmentRepoName,
+            segmentRepoPath,
+            segmentRepoType,
+            translogRepoName,
+            translogRepoPath,
+            translogRepoType,
+            null,
+            null,
+            null,
+            withRateLimiterAttributes
+        );
+    }
+
+    private static Settings buildRemoteStoreNodeAttributes(
+        String segmentRepoName,
+        Path segmentRepoPath,
+        String segmentRepoType,
+        String translogRepoName,
+        Path translogRepoPath,
+        String translogRepoType,
+        String routingTableRepoName,
+        Path routingTableRepoPath,
+        String routingTableRepoType,
         boolean withRateLimiterAttributes
     ) {
         String segmentRepoTypeAttributeKey = String.format(
@@ -2648,6 +2751,19 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
             segmentRepoName
         );
+        String routingTableRepoAttributeKey = null, routingTableRepoSettingsAttributeKeyPrefix = null;
+        if (routingTableRepoName != null) {
+            routingTableRepoAttributeKey = String.format(
+                Locale.getDefault(),
+                "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
+                routingTableRepoName
+            );
+            routingTableRepoSettingsAttributeKeyPrefix = String.format(
+                Locale.getDefault(),
+                "node.attr." + REMOTE_STORE_REPOSITORY_SETTINGS_ATTRIBUTE_KEY_PREFIX,
+                routingTableRepoName
+            );
+        }
 
         String prefixModeVerificationSuffix = BlobStoreRepository.PREFIX_MODE_VERIFICATION_SETTING.getKey();
 
@@ -2664,6 +2780,11 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put(stateRepoTypeAttributeKey, segmentRepoType)
             .put(stateRepoSettingsAttributeKeyPrefix + "location", segmentRepoPath)
             .put(stateRepoSettingsAttributeKeyPrefix + prefixModeVerificationSuffix, prefixModeVerificationEnable);
+        if (routingTableRepoName != null) {
+            settings.put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
+                .put(routingTableRepoAttributeKey, routingTableRepoType)
+                .put(routingTableRepoSettingsAttributeKeyPrefix + "location", routingTableRepoPath);
+        }
 
         if (withRateLimiterAttributes) {
             settings.put(segmentRepoSettingsAttributeKeyPrefix + "compress", randomBoolean())

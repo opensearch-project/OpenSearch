@@ -9,7 +9,6 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
-import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 
 import java.util.Comparator;
@@ -17,7 +16,6 @@ import java.util.Objects;
 
 /**
  * Builds aggregation function and doc values field pair to support various aggregations
- *
  * @opensearch.experimental
  */
 public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
@@ -29,22 +27,14 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
     private final String field;
     private final ValueAggregator valueAggregators;
     private final StarTreeNumericType starTreeNumericType;
-    private final SequentialDocValuesIterator metricStatReader;
 
     /**
      * Constructor for MetricAggregatorInfo
      */
-    public MetricAggregatorInfo(
-        MetricStat metricStat,
-        String field,
-        String starFieldName,
-        IndexNumericFieldData.NumericType numericType,
-        SequentialDocValuesIterator metricStatReader
-    ) {
+    public MetricAggregatorInfo(MetricStat metricStat, String field, String starFieldName, IndexNumericFieldData.NumericType numericType) {
         this.metricStat = metricStat;
-        this.valueAggregators = ValueAggregatorFactory.getValueAggregator(metricStat);
         this.starTreeNumericType = StarTreeNumericType.fromNumericType(numericType);
-        this.metricStatReader = metricStatReader;
+        this.valueAggregators = ValueAggregatorFactory.getValueAggregator(metricStat, this.starTreeNumericType);
         this.field = field;
         this.starFieldName = starFieldName;
         this.metric = toFieldName();
@@ -83,13 +73,6 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
      */
     public StarTreeNumericType getAggregatedValueType() {
         return starTreeNumericType;
-    }
-
-    /**
-     * @return metric value reader iterator
-     */
-    public SequentialDocValuesIterator getMetricStatReader() {
-        return metricStatReader;
     }
 
     /**

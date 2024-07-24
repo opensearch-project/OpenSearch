@@ -12,12 +12,15 @@ import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
@@ -50,8 +53,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -69,6 +75,10 @@ import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_METADATA_PREFIX;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE;
 import static org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable.INDEX_ROUTING_TABLE_FORMAT;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.REMOTE_ROUTING_TABLE_DIFF_FORMAT;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_METADATA_PREFIX;
+import static org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_PATH_TOKEN;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_BASE64;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
@@ -281,10 +291,14 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
             .getIndicesRoutingMapDiff(routingTable, routingTable2);
-        assertEquals(1, diff.getUpserts().size());
-        assertNotNull(diff.getUpserts().get(indexName));
-        assertEquals(noOfShards + 1, diff.getUpserts().get(indexName).getShards().size());
-        assertEquals(noOfReplicas + 1, diff.getUpserts().get(indexName).getShards().get(0).getSize());
+        assertEquals(0, diff.getUpserts().size());
+        assertEquals(1, diff.getDiffs().size());
+        assertNotNull(diff.getDiffs().get(indexName));
+        assertEquals(noOfShards + 1, diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).shards().size());
+        assertEquals(
+            noOfReplicas + 1,
+            diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).getShards().get(0).getSize()
+        );
         assertEquals(0, diff.getDeletes().size());
 
         final IndexMetadata indexMetadata3 = new IndexMetadata.Builder(indexName).settings(
@@ -296,11 +310,14 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         RoutingTable routingTable3 = RoutingTable.builder().addAsNew(indexMetadata3).build();
 
         diff = remoteRoutingTableService.getIndicesRoutingMapDiff(routingTable2, routingTable3);
-        assertEquals(1, diff.getUpserts().size());
-        assertNotNull(diff.getUpserts().get(indexName));
-        assertEquals(noOfShards + 1, diff.getUpserts().get(indexName).getShards().size());
-        assertEquals(noOfReplicas + 2, diff.getUpserts().get(indexName).getShards().get(0).getSize());
-
+        assertEquals(0, diff.getUpserts().size());
+        assertEquals(1, diff.getDiffs().size());
+        assertNotNull(diff.getDiffs().get(indexName));
+        assertEquals(noOfShards + 1, diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).shards().size());
+        assertEquals(
+            noOfReplicas + 2,
+            diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).getShards().get(0).getSize()
+        );
         assertEquals(0, diff.getDeletes().size());
     }
 
@@ -320,10 +337,10 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
 
         DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> diff = remoteRoutingTableService
             .getIndicesRoutingMapDiff(routingTable, routingTable2);
-        assertEquals(1, diff.getUpserts().size());
-        assertNotNull(diff.getUpserts().get(indexName));
-        assertEquals(noOfShards, diff.getUpserts().get(indexName).getShards().size());
-        assertEquals(noOfReplicas + 1, diff.getUpserts().get(indexName).getShards().get(0).getSize());
+        assertEquals(1, diff.getDiffs().size());
+        assertNotNull(diff.getDiffs().get(indexName));
+        assertEquals(noOfShards, diff.getDiffs().get(indexName).apply(routingTable.indicesRouting().get(indexName)).shards().size());
+        assertEquals(0, diff.getUpserts().size());
         assertEquals(0, diff.getDeletes().size());
     }
 
@@ -552,6 +569,44 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertEquals(clusterState.getRoutingTable().getIndicesRouting().get(indexName), indexRoutingTable);
     }
 
+    public void testGetAsyncIndexRoutingTableDiffReadAction() throws Exception {
+        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
+        ClusterState currentState = createClusterState(indexName);
+
+        // Get the IndexRoutingTable from the current state
+        IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexName);
+        Map<Integer, IndexShardRoutingTable> shardRoutingTables = indexRoutingTable.getShards();
+
+        RoutingTableIncrementalDiff.IndexRoutingTableIncrementalDiff indexRoutingTableDiff =
+            new RoutingTableIncrementalDiff.IndexRoutingTableIncrementalDiff(new ArrayList<>(shardRoutingTables.values()));
+
+        // Create the map for RoutingTableIncrementalDiff
+        Map<String, Diff<IndexRoutingTable>> diffs = new HashMap<>();
+        diffs.put(indexName, indexRoutingTableDiff);
+
+        RoutingTableIncrementalDiff diff = new RoutingTableIncrementalDiff(diffs);
+
+        String uploadedFileName = String.format(Locale.ROOT, "routing-table-diff/" + indexName);
+        when(blobContainer.readBlob(indexName)).thenReturn(
+            REMOTE_ROUTING_TABLE_DIFF_FORMAT.serialize(diff, uploadedFileName, compressor).streamInput()
+        );
+
+        TestCapturingListener<RoutingTableIncrementalDiff> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
+            "cluster-uuid",
+            uploadedFileName,
+            new LatchedActionListener<>(listener, latch)
+        );
+        latch.await();
+
+        assertNull(listener.getFailure());
+        assertNotNull(listener.getResult());
+        RoutingTableIncrementalDiff resultDiff = listener.getResult();
+        assertEquals(diff.getDiffs().size(), resultDiff.getDiffs().size());
+    }
+
     public void testGetAsyncIndexRoutingWriteAction() throws Exception {
         String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
         ClusterState clusterState = createClusterState(indexName);
@@ -601,6 +656,68 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         assertEquals(fileNameTokens[0], INDEX_ROUTING_FILE);
         assertEquals(fileNameTokens[1], RemoteStoreUtils.invertLong(1L));
         assertEquals(fileNameTokens[2], RemoteStoreUtils.invertLong(2L));
+        assertThat(RemoteStoreUtils.invertLong(fileNameTokens[3]), lessThanOrEqualTo(System.currentTimeMillis()));
+    }
+
+    public void testGetAsyncIndexRoutingDiffWriteAction() throws Exception {
+        String indexName = randomAlphaOfLength(randomIntBetween(1, 50));
+        ClusterState currentState = createClusterState(indexName);
+
+        // Get the IndexRoutingTable from the current state
+        IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexName);
+        Map<Integer, IndexShardRoutingTable> shardRoutingTables = indexRoutingTable.getShards();
+
+        RoutingTableIncrementalDiff.IndexRoutingTableIncrementalDiff indexRoutingTableDiff =
+            new RoutingTableIncrementalDiff.IndexRoutingTableIncrementalDiff(new ArrayList<>(shardRoutingTables.values()));
+
+        // Create the map for RoutingTableIncrementalDiff
+        Map<String, Diff<IndexRoutingTable>> diffs = new HashMap<>();
+        diffs.put(indexName, indexRoutingTableDiff);
+
+        // RoutingTableIncrementalDiff diff = new RoutingTableIncrementalDiff(diffs);
+
+        Iterable<String> remotePath = new BlobPath().add("base-path")
+            .add(
+                Base64.getUrlEncoder()
+                    .withoutPadding()
+                    .encodeToString(currentState.getClusterName().value().getBytes(StandardCharsets.UTF_8))
+            )
+            .add("cluster-state")
+            .add(currentState.metadata().clusterUUID())
+            .add(ROUTING_TABLE_DIFF_PATH_TOKEN);
+
+        doAnswer(invocationOnMock -> {
+            invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
+            return null;
+        }).when(blobStoreTransferService)
+            .uploadBlob(any(InputStream.class), eq(remotePath), anyString(), eq(WritePriority.URGENT), any(ActionListener.class));
+
+        TestCapturingListener<ClusterMetadataManifest.UploadedMetadata> listener = new TestCapturingListener<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        remoteRoutingTableService.getAsyncIndexRoutingDiffWriteAction(
+            currentState.metadata().clusterUUID(),
+            currentState.term(),
+            currentState.version(),
+            diffs,
+            new LatchedActionListener<>(listener, latch)
+        );
+        latch.await();
+        assertNull(listener.getFailure());
+        assertNotNull(listener.getResult());
+        ClusterMetadataManifest.UploadedMetadata uploadedMetadata = listener.getResult();
+
+        assertEquals(ROUTING_TABLE_DIFF_FILE, uploadedMetadata.getComponent());
+        String uploadedFileName = uploadedMetadata.getUploadedFilename();
+        String[] pathTokens = uploadedFileName.split(PATH_DELIMITER);
+        assertEquals(6, pathTokens.length);
+        assertEquals(pathTokens[0], "base-path");
+        String[] fileNameTokens = pathTokens[5].split(DELIMITER);
+
+        assertEquals(4, fileNameTokens.length);
+        assertEquals(ROUTING_TABLE_DIFF_METADATA_PREFIX, fileNameTokens[0]);
+        assertEquals(RemoteStoreUtils.invertLong(1L), fileNameTokens[1]);
+        assertEquals(RemoteStoreUtils.invertLong(2L), fileNameTokens[2]);
         assertThat(RemoteStoreUtils.invertLong(fileNameTokens[3]), lessThanOrEqualTo(System.currentTimeMillis()));
     }
 
@@ -687,4 +804,26 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
     }
 
+    public void testDeleteStaleIndexRoutingDiffPaths() throws IOException {
+        doNothing().when(blobContainer).deleteBlobsIgnoringIfNotExists(any());
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        List<String> stalePaths = Arrays.asList("path1", "path2");
+        remoteRoutingTableService.doStart();
+        remoteRoutingTableService.deleteStaleIndexRoutingDiffPaths(stalePaths);
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
+    }
+
+    public void testDeleteStaleIndexRoutingDiffPathsThrowsIOException() throws IOException {
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        List<String> stalePaths = Arrays.asList("path1", "path2");
+        // Simulate an IOException
+        doThrow(new IOException("test exception")).when(blobContainer).deleteBlobsIgnoringIfNotExists(Mockito.anyList());
+
+        remoteRoutingTableService.doStart();
+        IOException thrown = assertThrows(IOException.class, () -> {
+            remoteRoutingTableService.deleteStaleIndexRoutingDiffPaths(stalePaths);
+        });
+        assertEquals("test exception", thrown.getMessage());
+        verify(blobContainer).deleteBlobsIgnoringIfNotExists(stalePaths);
+    }
 }
