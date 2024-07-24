@@ -895,6 +895,53 @@ public class UpdateSettingsIT extends OpenSearchIntegTestCase {
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(response.getIndexToSettings().get("test")), equalTo(1));
     }
 
+    public void testNullReplicaUpdate() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        // cluster setting
+        String defaultNumberOfReplica = "3";
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("cluster.default_number_of_replicas", defaultNumberOfReplica))
+                .get()
+        );
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "2"))
+        );
+
+        String numberOfReplicas = client().admin()
+            .indices()
+            .prepareGetSettings("test")
+            .get()
+            .getSetting("test", IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
+        assertEquals("2", numberOfReplicas);
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS))
+        );
+
+        numberOfReplicas = client().admin()
+            .indices()
+            .prepareGetSettings("test")
+            .get()
+            .getSetting("test", IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
+        assertEquals(defaultNumberOfReplica, numberOfReplicas);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull("cluster.default_number_of_replicas"))
+        );
+    }
+
     public void testNoopUpdate() {
         internalCluster().ensureAtLeastNumDataNodes(2);
         final ClusterService clusterService = internalCluster().getClusterManagerNodeInstance(ClusterService.class);
