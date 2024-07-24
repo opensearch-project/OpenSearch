@@ -145,8 +145,28 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         FsBlobStore fsBlobStore = mock(FsBlobStore.class);
         when(fsBlobStore.blobContainer(any())).thenReturn(mockAsyncFsContainer);
 
-        TransferService transferService = new BlobStoreTransferService(fsBlobStore, threadPool);
-        uploadBlobFromInputStream(transferService);
+        BlobStoreTransferService transferServiceSpy = Mockito.spy(new BlobStoreTransferService(fsBlobStore, threadPool));
+        uploadBlobFromInputStream(transferServiceSpy);
+
+        ArgumentCaptor<RemoteTransferContainer.OffsetRangeInputStreamSupplier> inputStreamCaptor = ArgumentCaptor.forClass(
+            RemoteTransferContainer.OffsetRangeInputStreamSupplier.class
+        );
+        verify(transferServiceSpy).uploadBlobAsyncInternal(
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyLong(),
+            Mockito.any(),
+            Mockito.any(),
+            inputStreamCaptor.capture(),
+            Mockito.anyLong(),
+            Mockito.any(),
+            Mockito.any()
+        );
+        RemoteTransferContainer.OffsetRangeInputStreamSupplier inputStreamSupplier = inputStreamCaptor.getValue();
+        OffsetRangeInputStream inputStream1 = inputStreamSupplier.get(1, 0);
+        OffsetRangeInputStream inputStream2 = inputStreamSupplier.get(1, 2);
+        assertNotEquals(inputStream1, inputStream2);
+        assertNotEquals(inputStream1.getFilePointer(), inputStream2.getFilePointer());
     }
 
     private IndexMetadata getIndexMetadata() {
@@ -159,7 +179,6 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
     }
 
     private void uploadBlobFromInputStream(TransferService transferService) throws IOException, InterruptedException {
-        BlobStoreTransferService transferServiceSpy = Mockito.spy((BlobStoreTransferService) transferService);
         TestClass testObject = new TestClass("field1", "value1");
         AtomicBoolean succeeded = new AtomicBoolean(false);
         ChecksumBlobStoreFormat<IndexMetadata> blobStoreFormat = new ChecksumBlobStoreFormat<>(
@@ -193,28 +212,9 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
                 resp -> listener.onResponse(testObject),
                 ex -> listener.onFailure(ex)
             );
-            transferServiceSpy.uploadBlob(inputStream, repository.basePath(), "test-object", WritePriority.URGENT, completionListener);
+            transferService.uploadBlob(inputStream, repository.basePath(), "test-object", WritePriority.URGENT, completionListener);
             assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
             assertTrue(succeeded.get());
-            ArgumentCaptor<RemoteTransferContainer.OffsetRangeInputStreamSupplier> inputStreamCaptor = ArgumentCaptor.forClass(
-                RemoteTransferContainer.OffsetRangeInputStreamSupplier.class
-            );
-            verify(transferServiceSpy).uploadBlobAsyncInternal(
-                Mockito.anyString(),
-                Mockito.anyString(),
-                Mockito.anyLong(),
-                Mockito.any(),
-                Mockito.any(),
-                inputStreamCaptor.capture(),
-                Mockito.anyLong(),
-                Mockito.any(),
-                Mockito.any()
-            );
-            RemoteTransferContainer.OffsetRangeInputStreamSupplier inputStreamSupplier = inputStreamCaptor.getValue();
-            OffsetRangeInputStream inputStream1 = inputStreamSupplier.get(1, 0);
-            OffsetRangeInputStream inputStream2 = inputStreamSupplier.get(1, 2);
-            assertNotEquals(inputStream1, inputStream2);
-            assertNotEquals(inputStream1.getFilePointer(), inputStream2.getFilePointer());
         }
     }
 
