@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
