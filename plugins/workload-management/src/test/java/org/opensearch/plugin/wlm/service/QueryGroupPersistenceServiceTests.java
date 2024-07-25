@@ -32,12 +32,13 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_NONE_EXISTED;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_TWO;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterSettingsSet;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.compareQueryGroups;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.preparePersistenceServiceSetup;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupTwo;
-import static org.opensearch.search.query_group.QueryGroupServiceSettings.QUERY_GROUP_COUNT_SETTING_NAME;
+import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
 import static org.mockito.Mockito.mock;
 
 public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
@@ -87,7 +88,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         QueryGroup toCreate = builder().name(NAME_ONE)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")
             .mode(MONITOR_STRING)
-            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.5))
+            .resourceLimits(Map.of(ResourceType.fromName(MEMORY_STRING), 0.41))
             .updatedAt(1690934400000L)
             .build();
         QueryGroupPersistenceService queryGroupPersistenceService1 = (QueryGroupPersistenceService) setup.get(0);
@@ -104,7 +105,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
             .build();
         Metadata metadata = Metadata.builder().queryGroups(Map.of(_ID_ONE, queryGroupOne, _ID_TWO, queryGroupTwo)).build();
         Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 2).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
         ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
         QueryGroupPersistenceService queryGroupPersistenceService1 = new QueryGroupPersistenceService(

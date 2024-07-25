@@ -16,6 +16,7 @@ import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
 import org.opensearch.search.ResourceType;
@@ -23,12 +24,15 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
 import static org.opensearch.search.ResourceType.fromName;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -68,12 +72,19 @@ public class QueryGroupTestUtils {
         return ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
     }
 
+    public static Set<Setting<?>> clusterSettingsSet() {
+        Set<Setting<?>> set = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        set.add(QueryGroupPersistenceService.MAX_QUERY_GROUP_COUNT);
+        assertFalse(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(QueryGroupPersistenceService.MAX_QUERY_GROUP_COUNT));
+        return set;
+    }
+
     public static Settings settings() {
         return Settings.builder().build();
     }
 
     public static ClusterSettings clusterSettings() {
-        return new ClusterSettings(settings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        return new ClusterSettings(settings(), clusterSettingsSet());
     }
 
     public static QueryGroupPersistenceService queryGroupPersistenceService() {
@@ -97,7 +108,7 @@ public class QueryGroupTestUtils {
         Metadata metadata = Metadata.builder().queryGroups(queryGroups).build();
         Settings settings = Settings.builder().build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
         ClusterApplierService clusterApplierService = new ClusterApplierService(
             "name",
             settings(),

@@ -50,8 +50,8 @@ public class CreateQueryGroupResponseTests extends OpenSearchTestCase {
             + "  \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
             + "  \"name\" : \"query_group_one\",\n"
             + "  \"resiliency_mode\" : \"monitor\",\n"
-            + "  \"updatedAt\" : 4513232413,\n"
-            + "  \"resourceLimits\" : {\n"
+            + "  \"updated_at\" : 4513232413,\n"
+            + "  \"resource_limits\" : {\n"
             + "    \"memory\" : 0.3\n"
             + "  }\n"
             + "}";
