@@ -88,16 +88,16 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
     public void test_buildWithNoStarTreeFields() throws IOException {
         when(mapperService.getCompositeFieldTypes()).thenReturn(new HashSet<>());
 
-        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(fieldProducerMap, segmentWriteState, mapperService);
-        starTreesBuilder.build();
+        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService);
+        starTreesBuilder.build(fieldProducerMap);
 
         verifyNoInteractions(docValuesProducer);
     }
 
     public void test_getStarTreeBuilder() throws IOException {
         when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
-        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(fieldProducerMap, segmentWriteState, mapperService);
-        StarTreeBuilder starTreeBuilder = starTreesBuilder.getStarTreeBuilder(starTreeField, fieldProducerMap, segmentWriteState, mapperService);
+        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService);
+        StarTreeBuilder starTreeBuilder = starTreesBuilder.getSingleTreeBuilder(starTreeField, segmentWriteState, mapperService);
         assertTrue(starTreeBuilder instanceof OnHeapStarTreeBuilder);
     }
 
@@ -105,8 +105,8 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
         when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
         StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(1, new HashSet<>(), StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP);
         StarTreeField starTreeField = new StarTreeField("star_tree", new ArrayList<>(), new ArrayList<>(), starTreeFieldConfiguration);
-        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(fieldProducerMap, segmentWriteState, mapperService);
-        assertThrows(IllegalArgumentException.class, () -> starTreesBuilder.getStarTreeBuilder(starTreeField, fieldProducerMap, segmentWriteState, mapperService));
+        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService);
+        assertThrows(IllegalArgumentException.class, () -> starTreesBuilder.getSingleTreeBuilder(starTreeField, segmentWriteState, mapperService));
     }
 
     public void test_closeWithNoStarTreeFields() throws IOException {
@@ -118,7 +118,7 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
         StarTreeField starTreeField = new StarTreeField("star_tree", new ArrayList<>(), new ArrayList<>(), starTreeFieldConfiguration);
         starTreeFieldType = new StarTreeMapper.StarTreeFieldType("star_tree", starTreeField);
         when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
-        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(fieldProducerMap, segmentWriteState, mapperService);
+        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService);
         starTreesBuilder.close();
 
         verifyNoInteractions(docValuesProducer);

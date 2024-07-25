@@ -129,7 +129,6 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         clusterStateCustomUpdated = new ArrayList<>(clusterStateCustomDiff.getDiffs().keySet());
         clusterStateCustomUpdated.addAll(clusterStateCustomDiff.getUpserts().keySet());
         clusterStateCustomDeleted = clusterStateCustomDiff.getDeletes();
-        List<String> indicie1s = indicesRoutingUpdated;
     }
 
     public ClusterStateDiffManifest(
@@ -190,7 +189,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         this.hashesOfConsistentSettingsUpdated = in.readBoolean();
         this.clusterStateCustomUpdated = in.readStringList();
         this.clusterStateCustomDeleted = in.readStringList();
-        this.indicesRoutingDiffPath = in.readString();
+        this.indicesRoutingDiffPath = in.readOptionalString();
     }
 
     @Override
@@ -535,7 +534,8 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
             indicesRoutingDeleted,
             hashesOfConsistentSettingsUpdated,
             clusterStateCustomUpdated,
-            clusterStateCustomDeleted
+            clusterStateCustomDeleted,
+            indicesRoutingDiffPath
         );
     }
 
@@ -562,7 +562,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         out.writeBoolean(hashesOfConsistentSettingsUpdated);
         out.writeStringCollection(clusterStateCustomUpdated);
         out.writeStringCollection(clusterStateCustomDeleted);
-        out.writeString(indicesRoutingDiffPath);
+        out.writeOptionalString(indicesRoutingDiffPath);
     }
 
     /**

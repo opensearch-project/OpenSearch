@@ -50,7 +50,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
 
     public ClusterStatsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
             useAggregatedNodeLevelResponses = in.readOptionalBoolean();
         }
     }
@@ -76,7 +76,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
             out.writeOptionalBoolean(useAggregatedNodeLevelResponses);
         }
     }
