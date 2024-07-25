@@ -20,6 +20,11 @@ import java.util.Map;
 
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
+/**
+ * A request of _cat/shards.
+ *
+ * @opensearch.api
+ */
 public class CatShardsRequest extends ClusterManagerNodeReadRequest<CatShardsRequest> {
 
     private String[] indices;

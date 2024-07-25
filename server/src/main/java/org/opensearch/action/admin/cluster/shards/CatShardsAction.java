@@ -10,6 +10,11 @@ package org.opensearch.action.admin.cluster.shards;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Transport action for cat shards
+ *
+ * @opensearch.internal
+ */
 public class CatShardsAction extends ActionType<CatShardsResponse> {
     public static final CatShardsAction INSTANCE = new CatShardsAction();
     public static final String NAME = "cluster:monitor/shards";

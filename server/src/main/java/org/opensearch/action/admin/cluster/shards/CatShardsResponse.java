@@ -16,11 +16,16 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * A response of a cat shards request.
+ *
+ * @opensearch.api
+ */
 public class CatShardsResponse extends ActionResponse {
 
-    private ClusterStateResponse clusterStateResponse;
+    private ClusterStateResponse clusterStateResponse = null;
 
-    private IndicesStatsResponse indicesStatsResponse;
+    private IndicesStatsResponse indicesStatsResponse = null;
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
