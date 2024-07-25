@@ -32,7 +32,7 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 public class CreateQueryGroupRequest extends ActionRequest {
-    final QueryGroup queryGroup;
+    private final QueryGroup queryGroup;
 
     /**
      * Constructor for CreateQueryGroupRequest

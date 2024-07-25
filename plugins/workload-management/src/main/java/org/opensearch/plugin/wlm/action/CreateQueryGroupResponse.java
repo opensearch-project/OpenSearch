@@ -26,7 +26,7 @@ import java.io.IOException;
  */
 public class CreateQueryGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final QueryGroup queryGroup;
-    private RestStatus restStatus;
+    private final RestStatus restStatus;
 
     /**
      * Constructor for CreateQueryGroupResponse
