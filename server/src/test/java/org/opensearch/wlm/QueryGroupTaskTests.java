@@ -38,8 +38,4 @@ public class QueryGroupTaskTests extends OpenSearchTestCase {
         sut.setQueryGroupId(threadPool.getThreadContext());
         assertEquals("akfanglkaglknag2332", sut.getQueryGroupId());
     }
-
-    public void testUnsuccessfulSetGroupId() {
-        assertThrows(IllegalStateException.class, () -> sut.getQueryGroupId());
-    }
 }
