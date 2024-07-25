@@ -33,7 +33,7 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
         assertEquals(1.0, aggregator.getInitialAggregatedValueForSegmentDocValue(1L), 0.0);
-        assertThrows(NullPointerException.class, () -> aggregator.getInitialAggregatedValueForSegmentDocValue(null));
+        assertEquals(aggregator.getIdentityMetricValue(), aggregator.getInitialAggregatedValueForSegmentDocValue(null));
     }
 
     public void testMergeAggregatedValueAndSegmentValue() {
@@ -43,7 +43,7 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
 
     public void testMergeAggregatedValueAndSegmentValue_nullSegmentDocValue() {
         aggregator.getInitialAggregatedValue(2.0);
-        assertThrows(NullPointerException.class, () -> aggregator.mergeAggregatedValueAndSegmentValue(2.0, null));
+        assertEquals(2.0, aggregator.mergeAggregatedValueAndSegmentValue(2.0, null), 0.0);
     }
 
     public void testMergeAggregatedValues() {
@@ -65,5 +65,9 @@ public class SumValueAggregatorTests extends OpenSearchTestCase {
 
     public void testToStarTreeNumericTypeValue() {
         assertEquals(NumericUtils.sortableLongToDouble(3L), aggregator.toStarTreeNumericTypeValue(3L), 0.0);
+    }
+
+    public void testIdentityMetricValue() {
+        assertEquals(0.0, aggregator.getIdentityMetricValue(), 0);
     }
 }

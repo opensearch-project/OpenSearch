@@ -19,6 +19,11 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
 public class MinValueAggregator implements ValueAggregator<Double> {
 
     public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
+    private final StarTreeNumericType starTreeNumericType;
+
+    public MinValueAggregator(StarTreeNumericType starTreeNumericType) {
+        this.starTreeNumericType = starTreeNumericType;
+    }
 
     @Override
     public MetricStat getAggregationType() {
@@ -31,22 +36,38 @@ public class MinValueAggregator implements ValueAggregator<Double> {
     }
 
     @Override
-    public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
+    public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue) {
+        if (segmentDocValue == null) {
+            return getIdentityMetricValue();
+        }
         return starTreeNumericType.getDoubleValue(segmentDocValue);
     }
 
     @Override
-    public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue, StarTreeNumericType starTreeNumericType) {
+    public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue) {
+        if (segmentDocValue == null && value != null) {
+            return value;
+        } else if (segmentDocValue == null) {
+            return getIdentityMetricValue();
+        }
         return Math.min(value, starTreeNumericType.getDoubleValue(segmentDocValue));
     }
 
     @Override
     public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
+        if (value == null && aggregatedValue != null) {
+            return aggregatedValue;
+        } else if (value == null) {
+            return getIdentityMetricValue();
+        }
         return Math.min(value, aggregatedValue);
     }
 
     @Override
     public Double getInitialAggregatedValue(Double value) {
+        if (value == null) {
+            return getIdentityMetricValue();
+        }
         return value;
     }
 
@@ -58,6 +79,9 @@ public class MinValueAggregator implements ValueAggregator<Double> {
     @Override
     public Long toLongValue(Double value) {
         try {
+            if (value == null) {
+                return null;
+            }
             return NumericUtils.doubleToSortableLong(value);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot convert " + value + " to sortable long", e);
@@ -65,11 +89,20 @@ public class MinValueAggregator implements ValueAggregator<Double> {
     }
 
     @Override
-    public Double toStarTreeNumericTypeValue(Long value, StarTreeNumericType type) {
+    public Double toStarTreeNumericTypeValue(Long value) {
         try {
-            return type.getDoubleValue(value);
+            if (value == null) {
+                return getIdentityMetricValue();
+            }
+            return starTreeNumericType.getDoubleValue(value);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }
+    }
+
+    @Override
+    public Double getIdentityMetricValue() {
+        // in present aggregations, if the metric behind min is missing, we treat it as null
+        return null;
     }
 }

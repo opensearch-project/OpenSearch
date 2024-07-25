@@ -50,4 +50,8 @@ public class CountValueAggregatorTests extends OpenSearchTestCase {
     public void testToStarTreeNumericTypeValue() {
         assertEquals(3L, aggregator.toStarTreeNumericTypeValue(3L), 0.0);
     }
+
+    public void testIdentityMetricValue() {
+        assertEquals(0L, aggregator.getIdentityMetricValue(), 0);
+    }
 }

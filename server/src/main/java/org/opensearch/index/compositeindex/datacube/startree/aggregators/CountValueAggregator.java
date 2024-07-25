@@ -18,7 +18,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
 public class CountValueAggregator implements ValueAggregator<Long> {
     public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
     public static final long DEFAULT_INITIAL_VALUE = 1L;
-    private StarTreeNumericType starTreeNumericType;
+    private final StarTreeNumericType starTreeNumericType;
 
     public CountValueAggregator(StarTreeNumericType starTreeNumericType) {
         this.starTreeNumericType = starTreeNumericType;
@@ -41,12 +41,25 @@ public class CountValueAggregator implements ValueAggregator<Long> {
 
     @Override
     public Long mergeAggregatedValueAndSegmentValue(Long value, Long segmentDocValue) {
-        return value + 1;
+        long totalCount = getIdentityMetricValue();
+        if (value != null) {
+            totalCount += value;
+        }
+        return totalCount + 1;
     }
 
     @Override
     public Long mergeAggregatedValues(Long value, Long aggregatedValue) {
-        return value + aggregatedValue;
+        long totalCount = getIdentityMetricValue();
+        if (value != null) {
+            totalCount += value;
+        }
+
+        if (aggregatedValue != null) {
+            totalCount += aggregatedValue;
+        }
+
+        return totalCount;
     }
 
     @Override

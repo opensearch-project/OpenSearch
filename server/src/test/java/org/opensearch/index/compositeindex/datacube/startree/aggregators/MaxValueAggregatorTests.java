@@ -14,7 +14,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
 import org.opensearch.test.OpenSearchTestCase;
 
 public class MaxValueAggregatorTests extends OpenSearchTestCase {
-    private final MaxValueAggregator aggregator = new MaxValueAggregator();
+    private final MaxValueAggregator aggregator = new MaxValueAggregator(StarTreeNumericType.LONG);
 
     public void testGetAggregationType() {
         assertEquals(MetricStat.MAX.getTypeName(), aggregator.getAggregationType().getTypeName());
@@ -25,15 +25,12 @@ public class MaxValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
-        assertEquals(1.0, aggregator.getInitialAggregatedValueForSegmentDocValue(1L, StarTreeNumericType.LONG), 0.0);
-        assertThrows(
-            NullPointerException.class,
-            () -> aggregator.getInitialAggregatedValueForSegmentDocValue(null, StarTreeNumericType.DOUBLE)
-        );
+        assertEquals(1.0, aggregator.getInitialAggregatedValueForSegmentDocValue(1L), 0.0);
+        assertNull(aggregator.getInitialAggregatedValueForSegmentDocValue(null));
     }
 
     public void testMergeAggregatedValueAndSegmentValue() {
-        assertEquals(3.0, aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L, StarTreeNumericType.LONG), 0.0);
+        assertEquals(3.0, aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L), 0.0);
     }
 
     public void testMergeAggregatedValues() {
@@ -53,6 +50,11 @@ public class MaxValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testToStarTreeNumericTypeValue() {
-        assertEquals(NumericUtils.sortableLongToDouble(3L), aggregator.toStarTreeNumericTypeValue(3L, StarTreeNumericType.DOUBLE), 0.0);
+        MaxValueAggregator aggregator = new MaxValueAggregator(StarTreeNumericType.DOUBLE);
+        assertEquals(NumericUtils.sortableLongToDouble(3L), aggregator.toStarTreeNumericTypeValue(3L), 0.0);
+    }
+
+    public void testIdentityMetricValue() {
+        assertNull(aggregator.getIdentityMetricValue());
     }
 }
