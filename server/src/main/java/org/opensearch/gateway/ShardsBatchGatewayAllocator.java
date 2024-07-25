@@ -73,9 +73,9 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     private final long maxBatchSize;
     private static final short DEFAULT_SHARD_BATCH_SIZE = 2000;
 
-    private static final String PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
+    public static final String PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
         "cluster.routing.allocation.shards_batch_gateway_allocator.primary_allocator_timeout";
-    private static final String REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
+    public static final String REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
         "cluster.routing.allocation.shards_batch_gateway_allocator.replica_allocator_timeout";
 
     private TimeValue primaryShardsBatchGatewayAllocatorTimeout;
@@ -92,16 +92,50 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Timeout for existing primary shards batch allocator.
+     * Values supported is > 20 seconds or -1 to effectively disable timeout
+     */
     public static final Setting<TimeValue> PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY,
         TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(TimeValue timeValue) {
+                if (timeValue.compareTo(TimeValue.timeValueSeconds(20)) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {
+                    throw new IllegalArgumentException(
+                        "Setting ["
+                            + PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey()
+                            + "] should be more than 20s or -1ms to disable timeout"
+                    );
+                }
+            }
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
+    /**
+     * Timeout for existing replica shards batch allocator.
+     * Values supported is > 20 seconds or -1 to effectively disable timeout
+     */
     public static final Setting<TimeValue> REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY,
         TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(TimeValue timeValue) {
+                if (timeValue.compareTo(TimeValue.timeValueSeconds(20)) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {
+                    throw new IllegalArgumentException(
+                        "Setting ["
+                            + REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey()
+                            + "] should be more than 20s or -1ms to disable timeout"
+                    );
+                }
+            }
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
