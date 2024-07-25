@@ -64,5 +64,5 @@ public class BatchRunnableExecutor implements Runnable {
         onComplete();
     }
 
-    public void onComplete(){}
+    public void onComplete() {}
 }

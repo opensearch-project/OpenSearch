@@ -41,7 +41,6 @@ import org.opensearch.test.IndexSettingsModule;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
