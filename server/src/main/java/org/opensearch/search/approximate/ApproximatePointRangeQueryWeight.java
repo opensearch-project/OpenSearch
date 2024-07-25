@@ -15,9 +15,12 @@ import org.apache.lucene.util.DocIdSetBuilder;
 
 import java.io.IOException;
 
-public abstract class ApproximateConstantScoreWeight extends ConstantScoreWeight {
+/**
+ * Abstract implementation of {@link ConstantScoreWeight} for {@link ApproximatePointRangeQuery}
+ */
+public abstract class ApproximatePointRangeQueryWeight extends ConstantScoreWeight {
 
-    protected ApproximateConstantScoreWeight(Query query, float score) {
+    protected ApproximatePointRangeQueryWeight(Query query, float score) {
         super(query, score);
     }
 

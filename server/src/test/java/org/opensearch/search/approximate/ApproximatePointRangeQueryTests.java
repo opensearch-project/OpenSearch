@@ -340,7 +340,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                             }
                         };
                         IndexSearcher searcher = new IndexSearcher(reader);
-                        ApproximateConstantScoreWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(
+                        ApproximatePointRangeQueryWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(
                             searcher,
                             ScoreMode.TOP_SCORES,
                             1.0F
@@ -394,7 +394,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                             }
                         };
                         IndexSearcher searcher = new IndexSearcher(reader);
-                        ApproximateConstantScoreWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(
+                        ApproximatePointRangeQueryWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(
                             searcher,
                             ScoreMode.TOP_SCORES,
                             1.0F

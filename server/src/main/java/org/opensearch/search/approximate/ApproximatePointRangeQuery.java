@@ -84,10 +84,11 @@ public abstract class ApproximatePointRangeQuery extends Query {
     }
 
     @Override
-    public final ApproximateConstantScoreWeight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+    public final ApproximatePointRangeQueryWeight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost)
+        throws IOException {
         Weight pointRangeQueryWeight = pointRangeQuery.createWeight(searcher, scoreMode, boost);
 
-        return new ApproximateConstantScoreWeight(this, boost) {
+        return new ApproximatePointRangeQueryWeight(this, boost) {
 
             private final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(pointRangeQuery.getBytesPerDim());
 
