@@ -61,6 +61,8 @@ public class BatchRunnableExecutor implements Runnable {
             "Time taken to execute timed runnables in this cycle:[{}ms]",
             TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime)
         );
+        onComplete();
     }
 
+    public void onComplete(){}
 }

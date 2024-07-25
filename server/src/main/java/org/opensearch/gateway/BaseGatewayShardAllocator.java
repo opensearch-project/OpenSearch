@@ -82,17 +82,12 @@ public abstract class BaseGatewayShardAllocator {
         executeDecision(shardRouting, allocateUnassignedDecision, allocation, unassignedAllocationHandler);
     }
 
-    protected void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation, boolean primary) {
-        Set<ShardId> shardIdsFromBatch = new HashSet<>();
-        for (ShardRouting shardRouting : shardRoutings) {
-            ShardId shardId = shardRouting.shardId();
-            shardIdsFromBatch.add(shardId);
-        }
+    protected void allocateUnassignedBatchOnTimeout(Set<ShardId> shardIds, RoutingAllocation allocation, boolean primary) {
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
             ShardRouting unassignedShard = iterator.next();
             AllocateUnassignedDecision allocationDecision;
-            if (unassignedShard.primary() == primary && shardIdsFromBatch.contains(unassignedShard.shardId())) {
+            if (unassignedShard.primary() == primary && shardIds.contains(unassignedShard.shardId())) {
                 allocationDecision = AllocateUnassignedDecision.throttle(null);
                 executeDecision(unassignedShard, allocationDecision, allocation, iterator);
             }
