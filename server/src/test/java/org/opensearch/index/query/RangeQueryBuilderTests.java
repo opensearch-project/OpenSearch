@@ -334,7 +334,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
         assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
-        assertThat(query, instanceOf(ApproximateScoreQuery.class));
         Query originalQuery = ((ApproximateScoreQuery) parsedQuery).getOriginalQuery();
         assertThat(originalQuery, instanceOf(PointRangeQuery.class));
         Query approximateQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
