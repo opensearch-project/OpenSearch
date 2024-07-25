@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.isPartialShard;
 import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
@@ -569,7 +570,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
             ShardRouting shardRouting = it.next();
 
-            if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+            if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))
+                && !isPartialShard(shardRouting, allocation)) {
                 continue;
             }
 
@@ -635,7 +637,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     MoveDecision decideMove(final ShardRouting shardRouting) {
-        if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+        if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))
+            && !isPartialShard(shardRouting, allocation)) {
             return MoveDecision.NOT_TAKEN;
         }
 
@@ -724,7 +727,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
             for (ShardRouting shard : rn) {
                 assert rn.nodeId().equals(shard.currentNodeId());
                 /* we skip relocating shards here since we expect an initializing shard with the same id coming in */
-                if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)) && shard.state() != RELOCATING) {
+                if ((RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)) || isPartialShard(shard, allocation))
+                    && shard.state() != RELOCATING) {
                     node.addShard(shard);
                     ++totalShardCount;
                     if (logger.isTraceEnabled()) {

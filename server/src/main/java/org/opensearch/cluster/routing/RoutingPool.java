@@ -12,6 +12,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.isPartialIndex;
+
 /**
  *  {@link RoutingPool} defines the different node types based on the assigned capabilities. The methods
  *  help decide the capabilities of a specific node as well as an index or shard based on the index configuration.
@@ -58,6 +60,6 @@ public enum RoutingPool {
      * @return {@link RoutingPool} for the given index.
      */
     public static RoutingPool getIndexPool(IndexMetadata indexMetadata) {
-        return indexMetadata.isRemoteSnapshot() ? REMOTE_CAPABLE : LOCAL_ONLY;
+        return indexMetadata.isRemoteSnapshot() || isPartialIndex(indexMetadata) ? REMOTE_CAPABLE : LOCAL_ONLY;
     }
 }

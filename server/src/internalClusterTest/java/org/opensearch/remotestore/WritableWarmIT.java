@@ -94,7 +94,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     public void testWritableWarmBasic() throws Exception {
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode();
-        internalTestCluster.startDataOnlyNode();
+        internalTestCluster.startDataAndSearchNodes(1);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
