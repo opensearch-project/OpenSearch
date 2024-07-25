@@ -7,6 +7,6 @@
  */
 
 /**
- * Base package for CRUD API of QueryGroup
+ * Base package for WorkloadManagementPlugin
  */
 package org.opensearch.plugin.wlm;

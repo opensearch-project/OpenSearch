@@ -155,10 +155,10 @@ public class QueryGroupPersistenceService {
      * @param resourceName - the resourceName we want to get the usage for
      * @param resourceLimits  - the resource limit from which to get the allocation value for resourceName
      */
-    private double getResourceLimitValue(String resourceName, final Map<ResourceType, Object> resourceLimits) {
+    private double getResourceLimitValue(String resourceName, final Map<ResourceType, Double> resourceLimits) {
         for (ResourceType resourceType : resourceLimits.keySet()) {
             if (resourceType.getName().equals(resourceName)) {
-                return (double) resourceLimits.get(resourceType);
+                return resourceLimits.get(resourceType);
             }
         }
         return 0.0;

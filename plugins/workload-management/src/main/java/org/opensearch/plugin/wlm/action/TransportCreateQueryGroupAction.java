@@ -10,15 +10,12 @@ package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-
-import static org.opensearch.cluster.metadata.QueryGroup.builder;
 
 /**
  * Transport action to create QueryGroup
@@ -54,13 +51,7 @@ public class TransportCreateQueryGroupAction extends HandledTransportAction<Crea
 
     @Override
     protected void doExecute(Task task, CreateQueryGroupRequest request, ActionListener<CreateQueryGroupResponse> listener) {
-        QueryGroup queryGroup = builder().name(request.getName())
-            ._id(request.get_id())
-            .mode(request.getResiliencyMode().getName())
-            .resourceLimits(request.getResourceLimits())
-            .updatedAt(request.getUpdatedAtInMillis())
-            .build();
         threadPool.executor(ThreadPool.Names.GENERIC)
-            .execute(() -> queryGroupPersistenceService.persistInClusterStateMetadata(queryGroup, listener));
+            .execute(() -> queryGroupPersistenceService.persistInClusterStateMetadata(request.getQueryGroup(), listener));
     }
 }

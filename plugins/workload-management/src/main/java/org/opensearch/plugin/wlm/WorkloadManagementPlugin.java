@@ -11,7 +11,6 @@ package org.opensearch.plugin.wlm;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -25,7 +24,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -55,10 +53,5 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new RestCreateQueryGroupAction());
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        return List.of(new WorkloadManagementPluginModule());
     }
 }

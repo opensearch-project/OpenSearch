@@ -7,6 +7,6 @@
  */
 
 /**
- * Package for the rest classes for QueryGroup CRUD operations
+ * Package for the rest classes of WorkloadManagementPlugin
  */
 package org.opensearch.plugin.wlm.rest;

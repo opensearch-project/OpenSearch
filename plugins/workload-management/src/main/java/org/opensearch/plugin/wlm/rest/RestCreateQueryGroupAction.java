@@ -55,18 +55,12 @@ public class RestCreateQueryGroupAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        CreateQueryGroupRequest createQueryGroupRequest = new CreateQueryGroupRequest();
-        request.applyContentParser((parser) -> parseRestRequest(createQueryGroupRequest, parser));
-        return channel -> client.execute(CreateQueryGroupAction.INSTANCE, createQueryGroupRequest, createQueryGroupResponse(channel));
-    }
-
-    private void parseRestRequest(CreateQueryGroupRequest request, XContentParser parser) throws IOException {
-        final CreateQueryGroupRequest createQueryGroupRequest = CreateQueryGroupRequest.fromXContent(parser);
-        request.setName(createQueryGroupRequest.getName());
-        request.set_id(createQueryGroupRequest.get_id());
-        request.setResiliencyMode(createQueryGroupRequest.getResiliencyMode());
-        request.setResourceLimits(createQueryGroupRequest.getResourceLimits());
-        request.setUpdatedAtInMillis(createQueryGroupRequest.getUpdatedAtInMillis());
+        XContentParser parser = request.contentParser();
+        return channel -> client.execute(
+            CreateQueryGroupAction.INSTANCE,
+            CreateQueryGroupRequest.fromXContent(parser),
+            createQueryGroupResponse(channel)
+        );
     }
 
     private RestResponseListener<CreateQueryGroupResponse> createQueryGroupResponse(final RestChannel channel) {
