@@ -90,4 +90,5 @@
 - Use circuit breaker in InternalHistogram when adding empty buckets ([#14754](https://github.com/opensearch-project/OpenSearch/pull/14754))
 - Create new IndexInput for multi part upload ([#14888](https://github.com/opensearch-project/OpenSearch/pull/14888))
 - Fix searchable snapshot failure with scripted fields ([#14411](https://github.com/opensearch-project/OpenSearch/pull/14411))
+- Fix the visit of inner query for NestedQueryBuilder ([#14739](https://github.com/opensearch-project/OpenSearch/pull/14739))
 - Fix constant_keyword field type used when creating index ([#14807](https://github.com/opensearch-project/OpenSearch/pull/14807))
