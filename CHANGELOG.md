@@ -97,6 +97,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Create new IndexInput for multi part upload ([#14888](https://github.com/opensearch-project/OpenSearch/pull/14888))
 - Fix searchable snapshot failure with scripted fields ([#14411](https://github.com/opensearch-project/OpenSearch/pull/14411))
 - Fix constant_keyword field type not working when creating index ([#14807](https://github.com/opensearch-project/OpenSearch/pull/14807))
+- Fix the visit of inner query for NestedQueryBuilder ([#14739](https://github.com/opensearch-project/OpenSearch/pull/14739))
 
 ### Security
 
