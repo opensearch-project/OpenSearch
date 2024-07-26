@@ -258,8 +258,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         new HashSet<>(
             Arrays.asList(
                 // changed: for performComputeIntensiveTask
-                IndicesRequestCache.COMPUTE_INTENSIVE_DURATION_SECONDS,
-                IndicesRequestCache.MEMORY_OVERHEAD_PER_ITERATION,
+                SearchService.COMPUTE_INTENSIVE_DURATION_SECONDS,
+                SearchService.MEMORY_OVERHEAD_PER_ITERATION,
 
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
