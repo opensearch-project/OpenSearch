@@ -80,6 +80,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     private TimeValue primaryShardsBatchGatewayAllocatorTimeout;
     private TimeValue replicaShardsBatchGatewayAllocatorTimeout;
+    public static final TimeValue MIN_ALLOCATOR_TIMEOUT = TimeValue.timeValueSeconds(20);
 
     /**
      * Number of shards we send in one batch to data nodes for fetching metadata
@@ -103,7 +104,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         new Setting.Validator<>() {
             @Override
             public void validate(TimeValue timeValue) {
-                if (timeValue.compareTo(TimeValue.timeValueSeconds(20)) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {
+                if (timeValue.compareTo(MIN_ALLOCATOR_TIMEOUT) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {
                     throw new IllegalArgumentException(
                         "Setting ["
                             + PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey()
@@ -127,7 +128,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         new Setting.Validator<>() {
             @Override
             public void validate(TimeValue timeValue) {
-                if (timeValue.compareTo(TimeValue.timeValueSeconds(20)) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {
+                if (timeValue.compareTo(MIN_ALLOCATOR_TIMEOUT) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {
                     throw new IllegalArgumentException(
                         "Setting ["
                             + REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey()
