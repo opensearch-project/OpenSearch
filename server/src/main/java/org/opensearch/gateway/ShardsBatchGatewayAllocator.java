@@ -95,7 +95,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     /**
      * Timeout for existing primary shards batch allocator.
-     * Values supported is > 20 seconds or -1 to effectively disable timeout
+     * Timeout value must be greater than or equal to 20s or -1ms to effectively disable timeout
      */
     public static final Setting<TimeValue> PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY,
@@ -119,7 +119,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     /**
      * Timeout for existing replica shards batch allocator.
-     * Values supported is > 20 seconds or -1 to effectively disable timeout
+     * Timeout value must be greater than or equal to 20s or -1ms to effectively disable timeout
      */
     public static final Setting<TimeValue> REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY,
