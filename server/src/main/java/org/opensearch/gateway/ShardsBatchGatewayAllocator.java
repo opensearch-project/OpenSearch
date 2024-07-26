@@ -583,6 +583,8 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
              * Allocation explain and manual reroute APIs try to append shard store information (matching bytes) to the allocation decision.
              * However, these APIs do not want to trigger a new asyncFetch for these ineligible shards, unless the data from nodes is already there.
              * This function is used to see if a fetch has happened to decide if it is possible to append shard store info without a new async fetch.
+             * In the case when shard has a batch but no fetch has happened before, it would be because it is a new batch.
+             * In the case when shard has a batch, and a fetch has happened before, and no fetch is ongoing, it would be because we have already completed fetch for all nodes.
              *
              * In order to check if a fetch has ever happened, we check 2 things:
              * 1. If the shard batch cache is empty, we know that fetch has never happened so we return false.
