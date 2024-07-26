@@ -37,6 +37,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.common.util.concurrent.OriginSettingClient;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;

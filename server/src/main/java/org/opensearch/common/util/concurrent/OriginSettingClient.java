@@ -30,12 +30,13 @@
  * GitHub history for details.
  */
 
-package org.opensearch.client;
+package org.opensearch.common.util.concurrent;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ContextPreservingActionListener;
-import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.client.Client;
+import org.opensearch.client.FilterClient;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 

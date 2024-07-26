@@ -34,7 +34,6 @@ package org.opensearch.common.util.concurrent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ContextPreservingActionListener;
-import org.opensearch.client.OriginSettingClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
@@ -206,7 +205,7 @@ public final class ThreadContext implements Writeable {
      * but the tasks API will perform a get on their behalf using this method
      * if it can't find the task in memory.
      */
-    public StoredContext stashWithOrigin(String origin) {
+    StoredContext stashWithOrigin(String origin) {
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
