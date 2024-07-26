@@ -408,14 +408,13 @@ import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.AdminClient;
 import org.opensearch.client.Client;
 import org.opensearch.client.ClusterAdminClient;
-import org.opensearch.client.FilterClient;
 import org.opensearch.client.IndicesAdminClient;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.StashAndMergeHeadersFilterClient;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -2140,18 +2139,6 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public Client filterWithHeader(Map<String, String> headers) {
-        return new FilterClient(this) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                ThreadContext threadContext = threadPool().getThreadContext();
-                try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(headers)) {
-                    super.doExecute(action, request, listener);
-                }
-            }
-        };
+        return new StashAndMergeHeadersFilterClient(this, headers);
     }
 }

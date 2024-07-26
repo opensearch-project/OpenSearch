@@ -217,7 +217,7 @@ public final class ThreadContext implements Writeable {
      * The removed context can be restored when closing the returned {@link StoredContext}. The merge strategy is that headers
      * that are already existing are preserved unless they are defaults.
      */
-    public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
+    StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);
