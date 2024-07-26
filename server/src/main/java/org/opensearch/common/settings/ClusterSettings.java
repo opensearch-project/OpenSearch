@@ -257,6 +257,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
     public static Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Collections.unmodifiableSet(
         new HashSet<>(
             Arrays.asList(
+                // changed: for performComputeIntensiveTask
+                IndicesRequestCache.COMPUTE_INTENSIVE_ITERATION_COUNT,
+                IndicesRequestCache.MEMORY_OVERHEAD_PER_ITERATION,
+
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
                 AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING,

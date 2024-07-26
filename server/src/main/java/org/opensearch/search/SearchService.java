@@ -91,6 +91,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.FieldScript;
@@ -170,6 +171,10 @@ import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
  */
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
+
+    // changed: new setting
+    private volatile int computeIntensiveIterationCount;
+    private volatile int memoryOverheadPerIteration;
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
@@ -374,6 +379,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         TaskResourceTrackingService taskResourceTrackingService
     ) {
         Settings settings = clusterService.getSettings();
+        // changed: new setting
+        this.computeIntensiveIterationCount = IndicesRequestCache.COMPUTE_INTENSIVE_ITERATION_COUNT.get(settings);
+        this.memoryOverheadPerIteration = IndicesRequestCache.MEMORY_OVERHEAD_PER_ITERATION.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(IndicesRequestCache.COMPUTE_INTENSIVE_ITERATION_COUNT, this::setComputeIntensiveIterationCount);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(IndicesRequestCache.MEMORY_OVERHEAD_PER_ITERATION, this::setMemoryOverheadPerIteration);
+
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -427,6 +438,34 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
     }
+
+    // changed: new setting to line 468
+    private void setComputeIntensiveIterationCount(int count) {
+        this.computeIntensiveIterationCount = count;
+    }
+
+    private void setMemoryOverheadPerIteration(int overhead) {
+        this.memoryOverheadPerIteration = overhead;
+    }
+
+    public void performComputeIntensiveTask() {
+        int iterations = 0;
+        logger.info("Starting compute-intensive task with {} iterations and {} bytes per iteration",
+            computeIntensiveIterationCount, memoryOverheadPerIteration);
+
+        while (iterations < computeIntensiveIterationCount) {
+            byte[] memoryHog = new byte[memoryOverheadPerIteration];
+            for (int j = 0; j < memoryOverheadPerIteration; j++) {
+                memoryHog[j] = (byte) (j % 256);
+            }
+            iterations++;
+            if (iterations % 1000 == 0) {
+                logger.info("Performed {} iterations", iterations);
+            }
+        }
+        logger.info("Completed compute-intensive task");
+    }
+
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
         if (defaultKeepAlive.millis() > maxKeepAlive.millis()) {
@@ -631,7 +670,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 }
                 // fork the execution in the search thread pool
-                runAsync(getExecutor(shard), () -> executeQueryPhase(orig, task, keepStatesInContext), listener);
+                runAsync(getExecutor(shard), () -> {
+                    // changed: Compute- and memory-intensive logic
+                    performComputeIntensiveTask();
+                    executeQueryPhase(orig, task, keepStatesInContext);
+                    return null;
+                }, listener);
             }
 
             @Override
@@ -640,6 +684,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         });
     }
+
 
     private IndexShard getShard(ShardSearchRequest request) {
         if (request.readerId() != null) {
