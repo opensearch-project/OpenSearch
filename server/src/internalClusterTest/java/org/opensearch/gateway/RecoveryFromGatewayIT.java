@@ -845,7 +845,9 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         );
         assertTrue(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(internalCluster().clusterService().getSettings()));
         assertEquals(1, gatewayAllocator.getNumberOfStartedShardBatches());
-        assertEquals(1, gatewayAllocator.getNumberOfStoreShardBatches());
+        // Replica shard would be marked ineligible since there are no data nodes.
+        // It would then be removed from any batch and batches would get deleted, so we would have 0 replica batches
+        assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
 
         // Now start both data nodes and ensure batch mode is working
         logger.info("--> restarting the stopped nodes");
@@ -910,7 +912,9 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         assertTrue(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(internalCluster().clusterService().getSettings()));
         assertEquals(10, gatewayAllocator.getNumberOfStartedShardBatches());
-        assertEquals(10, gatewayAllocator.getNumberOfStoreShardBatches());
+        // All replica shards would be marked ineligible since there are no data nodes.
+        // They would then be removed from any batch and batches would get deleted, so we would have 0 replica batches
+        assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
         health = client(internalCluster().getClusterManagerName()).admin().cluster().health(Requests.clusterHealthRequest()).actionGet();
         assertFalse(health.isTimedOut());
         assertEquals(RED, health.getStatus());
