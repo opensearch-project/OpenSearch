@@ -54,7 +54,7 @@ import java.util.stream.Stream;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DEFAULT_CACHE_SIZE_IN_BYTES;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
-import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.opensearch.indices.IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
@@ -100,9 +100,7 @@ public class EhcacheDiskCacheIT extends OpenSearchIntegTestCase {
                     true
                 )
                 .put(
-                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
-                        .get(DISK_MAX_SIZE_IN_BYTES_KEY)
-                        .getKey(),
+                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE).get(DISK_MAX_SIZE_KEY).getKey(),
                     new ByteSizeValue(sizeInBytes)
                 )
                 .put(

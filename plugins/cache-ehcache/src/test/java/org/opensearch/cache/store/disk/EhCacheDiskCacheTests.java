@@ -49,8 +49,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Phaser;
 import java.util.function.ToLongBiFunction;
 
+import org.ehcache.impl.serialization.StringSerializer;
+
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DEFAULT_CACHE_SIZE_IN_BYTES;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -128,7 +132,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                         Settings.builder()
                             .put(
                                 EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
-                                    .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                                    .get(DISK_MAX_SIZE_KEY)
                                     .getKey(),
                                 new ByteSizeValue(CACHE_SIZE_IN_BYTES)
                             )
@@ -895,15 +899,15 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 new ByteSizeValue(10, ByteSizeUnit.GB).getBytes(),
                 new ByteSizeValue(1, ByteSizeUnit.GB).getBytes(),
                 new ByteSizeValue(50000000, ByteSizeUnit.BYTES).getBytes(),
-                EhcacheDiskCacheSettings.DEFAULT_CACHE_SIZE_IN_BYTES
+                DEFAULT_CACHE_SIZE_IN_BYTES,
+                1_000_000L,
+                2_000_000L
             ); // The expected size of the cache produced by each of the settings in validSettings
 
             // Should be able to pass a ByteSizeValue directly
             validSettings.add(
                 getSettingsExceptSize(env).put(
-                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
-                        .get(DISK_MAX_SIZE_IN_BYTES_KEY)
-                        .getKey(),
+                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE).get(DISK_MAX_SIZE_KEY).getKey(),
                     new ByteSizeValue(CACHE_SIZE_IN_BYTES)
                 ).build()
             );
@@ -914,17 +918,44 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                 validSettings.add(
                     getSettingsExceptSize(env).put(
                         EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
-                            .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                            .get(DISK_MAX_SIZE_KEY)
                             .getKey(),
                         validString
                     ).build()
                 );
             }
 
-            // Passing in settings missing a size value should give us the default
+            // Passing in settings missing either size setting should give us the default
             validSettings.add(getSettingsExceptSize(env).build());
-            assertEquals(validSettings.size(), expectedCacheSizes.size());
 
+            // Deprecated setting present, correct setting absent
+            validSettings.add(
+                getSettingsExceptSize(env).put(
+                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                        .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                        .getKey(),
+                    1_000_000L
+                ).build()
+            );
+
+            // Both settings present, the correct one should be used
+            validSettings.add(
+                getSettingsExceptSize(env).put(
+                    EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                        .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                        .getKey(),
+                    1_000_000L
+                )
+                    .put(
+                        EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
+                            .get(DISK_MAX_SIZE_KEY)
+                            .getKey(),
+                        new ByteSizeValue(2_000_000L)
+                    )
+                    .build()
+            );
+
+            assertEquals(validSettings.size(), expectedCacheSizes.size());
             ICache.Factory ehcacheFactory = new EhcacheDiskCache.EhcacheDiskCacheFactory();
 
             for (int i = 0; i < validSettings.size(); i++) {
@@ -958,7 +989,7 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                         .setSettings(
                             getSettingsExceptSize(env).put(
                                 EhcacheDiskCacheSettings.getSettingListForCacheType(CacheType.INDICES_REQUEST_CACHE)
-                                    .get(DISK_MAX_SIZE_IN_BYTES_KEY)
+                                    .get(DISK_MAX_SIZE_KEY)
                                     .getKey(),
                                 "1000000"
                             ).build()
@@ -968,6 +999,9 @@ public class EhCacheDiskCacheTests extends OpenSearchSingleNodeTestCase {
                     Map.of()
                 );
             });
+            assertWarnings(
+                "[indices.requests.cache.ehcache_disk.max_size_in_bytes] setting was deprecated in OpenSearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+            );
         }
     }
 

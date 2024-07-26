@@ -83,6 +83,7 @@ import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_ALIAS_KEY
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_LISTENER_MODE_SYNC_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_IN_BYTES_KEY;
+import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_MAX_SIZE_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_SEGMENT_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_STORAGE_PATH_KEY;
 import static org.opensearch.cache.EhcacheDiskCacheSettings.DISK_WRITE_CONCURRENCY_KEY;
@@ -675,6 +676,22 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
          */
         public EhcacheDiskCacheFactory() {}
 
+        private long getMaxSizeInBytes(Map<String, Setting<?>> settingList, Settings settings) {
+            /*
+            Use DISK_CACHE_MAX_SIZE_SETTING. If absent, check for the deprecated DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING
+            to use as a fallback. If that's also absent, use the default value of DISK_CACHE_MAX_SIZE_SETTING.
+             */
+            if (settingList.get(DISK_MAX_SIZE_KEY).exists(settings)) {
+                return ((ByteSizeValue) settingList.get(DISK_MAX_SIZE_KEY).get(settings)).getBytes();
+            } else {
+                if (settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).exists(settings)) {
+                    return (long) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings);
+                } else {
+                    return ((ByteSizeValue) settingList.get(DISK_MAX_SIZE_KEY).get(settings)).getBytes();
+                }
+            }
+        }
+
         @Override
         @SuppressWarnings({ "unchecked" }) // Required to ensure the serializers output byte[]
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
@@ -707,7 +724,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
                 .setWeigher(config.getWeigher())
                 .setRemovalListener(config.getRemovalListener())
                 .setExpireAfterAccess((TimeValue) settingList.get(DISK_CACHE_EXPIRE_AFTER_ACCESS_KEY).get(settings))
-                .setMaximumWeightInBytes(((ByteSizeValue) settingList.get(DISK_MAX_SIZE_IN_BYTES_KEY).get(settings)).getBytes())
+                .setMaximumWeightInBytes(getMaxSizeInBytes(settingList, settings))
                 .setSettings(settings)
                 .build();
         }

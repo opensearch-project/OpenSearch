@@ -101,10 +101,18 @@ public class EhcacheDiskCacheSettings {
     );
 
     /**
-     * Disk cache max size setting.
+     * Deprecated: Disk cache max size setting, which takes a long.
      */
-    public static final Setting.AffixSetting<ByteSizeValue> DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING = Setting.suffixKeySetting(
+    public static final Setting.AffixSetting<Long> DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING = Setting.suffixKeySetting(
         EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".max_size_in_bytes",
+        (key) -> Setting.longSetting(key, DEFAULT_CACHE_SIZE_IN_BYTES, NodeScope, Setting.Property.Deprecated)
+    );
+
+    /**
+     * Disk cache max size setting, which takes a ByteSizeValue.
+     */
+    public static final Setting.AffixSetting<ByteSizeValue> DISK_CACHE_MAX_SIZE_SETTING = Setting.suffixKeySetting(
+        EhcacheDiskCache.EhcacheDiskCacheFactory.EHCACHE_DISK_CACHE_NAME + ".max_size",
         (key) -> Setting.memorySizeSetting(key, new ByteSizeValue(DEFAULT_CACHE_SIZE_IN_BYTES), NodeScope)
     );
 
@@ -121,9 +129,14 @@ public class EhcacheDiskCacheSettings {
      */
     public static final String DISK_SEGMENT_KEY = "disk_segment";
     /**
-     * Key for max size.
+     * Deprecated: Key for max size.
      */
     public static final String DISK_MAX_SIZE_IN_BYTES_KEY = "max_size_in_bytes";
+
+    /**
+     * Key for max size.
+     */
+    public static final String DISK_MAX_SIZE_KEY = "max_size";
     /**
      * Key for expire after access.
      */
@@ -177,6 +190,8 @@ public class EhcacheDiskCacheSettings {
         DISK_STORAGE_PATH_SETTING,
         DISK_MAX_SIZE_IN_BYTES_KEY,
         DISK_CACHE_MAX_SIZE_IN_BYTES_SETTING,
+        DISK_MAX_SIZE_KEY,
+        DISK_CACHE_MAX_SIZE_SETTING,
         DISK_LISTENER_MODE_SYNC_KEY,
         DISK_CACHE_LISTENER_MODE_SYNC_SETTING
     );
