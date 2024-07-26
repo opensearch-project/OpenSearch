@@ -769,7 +769,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         ensureGreen("test");
     }
 
-    public void testBatchModeEnabled() throws Exception {
+    public void testBatchModeEnabledWithoutTimeout() throws Exception {
         internalCluster().startClusterManagerOnlyNodes(
             1,
             Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true).build()
@@ -808,6 +808,132 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         assertEquals(0, gatewayAllocator.getNumberOfStartedShardBatches());
         assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
         assertEquals(0, gatewayAllocator.getNumberOfInFlightFetches());
+    }
+
+    public void testBatchModeEnabledWithSufficientTimeoutAndClusterGreen() throws Exception {
+        internalCluster().startClusterManagerOnlyNodes(
+            1,
+            Settings.builder()
+                .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true)
+                .put(ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey(), "20s")
+                .put(ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey(), "20s")
+                .build()
+        );
+        List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(2);
+        createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+        ensureGreen("test");
+        Settings node0DataPathSettings = internalCluster().dataPathSettings(dataOnlyNodes.get(0));
+        Settings node1DataPathSettings = internalCluster().dataPathSettings(dataOnlyNodes.get(1));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataOnlyNodes.get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataOnlyNodes.get(1)));
+        ensureRed("test");
+        ensureStableCluster(1);
+
+        logger.info("--> Now do a protective reroute");
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        assertTrue(clusterRerouteResponse.isAcknowledged());
+
+        ShardsBatchGatewayAllocator gatewayAllocator = internalCluster().getInstance(
+            ShardsBatchGatewayAllocator.class,
+            internalCluster().getClusterManagerName()
+        );
+        assertTrue(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(internalCluster().clusterService().getSettings()));
+        assertEquals(1, gatewayAllocator.getNumberOfStartedShardBatches());
+        assertEquals(1, gatewayAllocator.getNumberOfStoreShardBatches());
+
+        // Now start both data nodes and ensure batch mode is working
+        logger.info("--> restarting the stopped nodes");
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.name", dataOnlyNodes.get(0)).put(node0DataPathSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.name", dataOnlyNodes.get(1)).put(node1DataPathSettings).build());
+        ensureStableCluster(3);
+        ensureGreen("test");
+        assertEquals(0, gatewayAllocator.getNumberOfStartedShardBatches());
+        assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
+        assertEquals(0, gatewayAllocator.getNumberOfInFlightFetches());
+    }
+
+    public void testBatchModeEnabledWithInSufficientTimeoutButClusterGreen() throws Exception {
+
+        internalCluster().startClusterManagerOnlyNodes(
+            1,
+            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true).build()
+        );
+        List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(2);
+        createNIndices(50, "test"); // this will create 50p, 50r shards
+        ensureStableCluster(3);
+        IndicesStatsResponse indicesStats = dataNodeClient().admin().indices().prepareStats().get();
+        assertThat(indicesStats.getSuccessfulShards(), equalTo(100));
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .health(Requests.clusterHealthRequest().waitForGreenStatus().timeout("1m"))
+            .actionGet();
+        assertFalse(health.isTimedOut());
+        assertEquals(GREEN, health.getStatus());
+
+        String clusterManagerName = internalCluster().getClusterManagerName();
+        Settings clusterManagerDataPathSettings = internalCluster().dataPathSettings(clusterManagerName);
+        Settings node0DataPathSettings = internalCluster().dataPathSettings(dataOnlyNodes.get(0));
+        Settings node1DataPathSettings = internalCluster().dataPathSettings(dataOnlyNodes.get(1));
+
+        internalCluster().stopCurrentClusterManagerNode();
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataOnlyNodes.get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataOnlyNodes.get(1)));
+
+        // Now start cluster manager node and post that verify batches created
+        internalCluster().startClusterManagerOnlyNodes(
+            1,
+            Settings.builder()
+                .put("node.name", clusterManagerName)
+                .put(clusterManagerDataPathSettings)
+                .put(ShardsBatchGatewayAllocator.GATEWAY_ALLOCATOR_BATCH_SIZE.getKey(), 5)
+                .put(ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey(), "10ms")
+                .put(ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey(), "10ms")
+                .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true)
+                .build()
+        );
+        ensureStableCluster(1);
+
+        logger.info("--> Now do a protective reroute"); // to avoid any race condition in test
+        ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        assertTrue(clusterRerouteResponse.isAcknowledged());
+
+        ShardsBatchGatewayAllocator gatewayAllocator = internalCluster().getInstance(
+            ShardsBatchGatewayAllocator.class,
+            internalCluster().getClusterManagerName()
+        );
+
+        assertTrue(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(internalCluster().clusterService().getSettings()));
+        assertEquals(10, gatewayAllocator.getNumberOfStartedShardBatches());
+        assertEquals(10, gatewayAllocator.getNumberOfStoreShardBatches());
+        health = client(internalCluster().getClusterManagerName()).admin().cluster().health(Requests.clusterHealthRequest()).actionGet();
+        assertFalse(health.isTimedOut());
+        assertEquals(RED, health.getStatus());
+        assertEquals(100, health.getUnassignedShards());
+        assertEquals(0, health.getInitializingShards());
+        assertEquals(0, health.getActiveShards());
+        assertEquals(0, health.getRelocatingShards());
+        assertEquals(0, health.getNumberOfDataNodes());
+
+        // Now start both data nodes and ensure batch mode is working
+        logger.info("--> restarting the stopped nodes");
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.name", dataOnlyNodes.get(0)).put(node0DataPathSettings).build());
+        internalCluster().startDataOnlyNode(Settings.builder().put("node.name", dataOnlyNodes.get(1)).put(node1DataPathSettings).build());
+        ensureStableCluster(3);
+
+        // wait for cluster to turn green
+        health = client().admin().cluster().health(Requests.clusterHealthRequest().waitForGreenStatus().timeout("5m")).actionGet();
+        assertFalse(health.isTimedOut());
+        assertEquals(GREEN, health.getStatus());
+        assertEquals(0, health.getUnassignedShards());
+        assertEquals(0, health.getInitializingShards());
+        assertEquals(100, health.getActiveShards());
+        assertEquals(0, health.getRelocatingShards());
+        assertEquals(2, health.getNumberOfDataNodes());
+        assertEquals(0, gatewayAllocator.getNumberOfStartedShardBatches());
+        assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
     }
 
     public void testBatchModeDisabled() throws Exception {

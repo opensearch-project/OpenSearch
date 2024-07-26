@@ -36,6 +36,8 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
@@ -45,6 +47,8 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
@@ -53,6 +57,8 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
+import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
@@ -62,6 +68,7 @@ import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,10 +83,14 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
+import static org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader.TEMPLATE_LOADER_IDENTIFIER;
+import static org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata.fromComponentTemplateInfo;
 import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
 import static org.opensearch.env.Environment.PATH_HOME_SETTING;
 import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
@@ -654,6 +665,306 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 }
             )
         );
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextWithContextDisabled() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(
+            List.of("*"),
+            null,
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            new Context("any")
+        );
+        InvalidIndexTemplateException ex = expectThrows(
+            InvalidIndexTemplateException.class,
+            () -> metadataIndexTemplateService.putIndexTemplateV2(
+                "testing",
+                true,
+                "template-referencing-context-as-ct",
+                TimeValue.timeValueSeconds(30L),
+                globalIndexTemplate,
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse response) {
+                        fail("the listener should not be invoked as validation should fail");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("the listener should not be invoked as validation should fail");
+                    }
+                }
+            )
+        );
+        assertTrue(
+            "Invalid exception message." + ex.getMessage(),
+            ex.getMessage().contains("specifies a context which cannot be used without enabling")
+        );
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextNotPresentInState() throws Exception {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(
+            List.of("*"),
+            null,
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            new Context("any")
+        );
+        InvalidIndexTemplateException ex = expectThrows(
+            InvalidIndexTemplateException.class,
+            () -> metadataIndexTemplateService.putIndexTemplateV2(
+                "testing",
+                true,
+                "template-referencing-context-as-ct",
+                TimeValue.timeValueSeconds(30L),
+                globalIndexTemplate,
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse response) {
+                        fail("the listener should not be invoked as validation should fail");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("the listener should not be invoked as validation should fail");
+                    }
+                }
+            )
+        );
+        assertTrue(
+            "Invalid exception message." + ex.getMessage(),
+            ex.getMessage().contains("specifies a context which is not loaded on the cluster")
+        );
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextWithNonExistingVersion() throws Exception {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        Function<String, Template> templateApplier = codec -> new Template(
+            Settings.builder().put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec).build(),
+            null,
+            null
+        );
+        ComponentTemplate systemTemplate = new ComponentTemplate(
+            templateApplier.apply(CodecService.BEST_COMPRESSION_CODEC),
+            1L,
+            Map.of(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY, SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE, "_version", 1L)
+        );
+        SystemTemplateMetadata systemTemplateMetadata = fromComponentTemplateInfo("ct-best-compression-codec" + System.nanoTime(), 1);
+
+        CountDownLatch waitToCreateComponentTemplate = new CountDownLatch(1);
+        ActionListener<AcknowledgedResponse> createComponentTemplateListener = new ActionListener<AcknowledgedResponse>() {
+
+            @Override
+            public void onResponse(AcknowledgedResponse response) {
+                waitToCreateComponentTemplate.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("expecting the component template PUT to succeed but got: " + e.getMessage());
+            }
+        };
+
+        ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            getInstanceFromNode(ThreadPool.class).getThreadContext().putTransient(ACTION_ORIGIN_TRANSIENT_NAME, TEMPLATE_LOADER_IDENTIFIER);
+            metadataIndexTemplateService.putComponentTemplate(
+                "test",
+                true,
+                systemTemplateMetadata.fullyQualifiedName(),
+                TimeValue.timeValueSeconds(30L),
+                systemTemplate,
+                createComponentTemplateListener
+            );
+        }
+
+        assertTrue("Could not create component templates", waitToCreateComponentTemplate.await(10, TimeUnit.SECONDS));
+
+        Context context = new Context(systemTemplateMetadata.name(), Long.toString(2L), Map.of());
+        ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(
+            List.of("*"),
+            templateApplier.apply(CodecService.LZ4),
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            context
+        );
+
+        InvalidIndexTemplateException ex = expectThrows(
+            InvalidIndexTemplateException.class,
+            () -> metadataIndexTemplateService.putIndexTemplateV2(
+                "testing",
+                true,
+                "template-referencing-context-as-ct",
+                TimeValue.timeValueSeconds(30L),
+                globalIndexTemplate,
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse response) {
+                        fail("the listener should not be invoked as validation should fail");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("the listener should not be invoked as validation should fail");
+                    }
+                }
+            )
+        );
+        assertTrue(
+            "Invalid exception message." + ex.getMessage(),
+            ex.getMessage().contains("specifies a context which is not loaded on the cluster")
+        );
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextInComposedOfSection() throws Exception {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        Function<String, Template> templateApplier = codec -> new Template(
+            Settings.builder().put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec).build(),
+            null,
+            null
+        );
+        ComponentTemplate systemTemplate = new ComponentTemplate(
+            templateApplier.apply(CodecService.BEST_COMPRESSION_CODEC),
+            1L,
+            Map.of(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY, SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE, "_version", 1L)
+        );
+        SystemTemplateMetadata systemTemplateMetadata = fromComponentTemplateInfo("context-best-compression-codec" + System.nanoTime(), 1);
+
+        CountDownLatch waitToCreateComponentTemplate = new CountDownLatch(1);
+        ActionListener<AcknowledgedResponse> createComponentTemplateListener = new ActionListener<AcknowledgedResponse>() {
+
+            @Override
+            public void onResponse(AcknowledgedResponse response) {
+                waitToCreateComponentTemplate.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("expecting the component template PUT to succeed but got: " + e.getMessage());
+            }
+        };
+        ThreadContext context = getInstanceFromNode(ThreadPool.class).getThreadContext();
+        try (ThreadContext.StoredContext ignore = context.stashContext()) {
+            getInstanceFromNode(ThreadPool.class).getThreadContext().putTransient(ACTION_ORIGIN_TRANSIENT_NAME, TEMPLATE_LOADER_IDENTIFIER);
+            metadataIndexTemplateService.putComponentTemplate(
+                "test",
+                true,
+                systemTemplateMetadata.fullyQualifiedName(),
+                TimeValue.timeValueSeconds(30L),
+                systemTemplate,
+                createComponentTemplateListener
+            );
+        }
+        assertTrue("Could not create component templates", waitToCreateComponentTemplate.await(10, TimeUnit.SECONDS));
+
+        ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(
+            List.of("*"),
+            templateApplier.apply(CodecService.LZ4),
+            List.of(systemTemplateMetadata.fullyQualifiedName()),
+            null,
+            null,
+            null,
+            null
+        );
+        InvalidIndexTemplateException ex = expectThrows(
+            InvalidIndexTemplateException.class,
+            () -> metadataIndexTemplateService.putIndexTemplateV2(
+                "testing",
+                true,
+                "template-referencing-context-as-ct",
+                TimeValue.timeValueSeconds(30L),
+                globalIndexTemplate,
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse response) {
+                        fail("the listener should not be invoked as validation should fail");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("the listener should not be invoked as validation should fail");
+                    }
+                }
+            )
+        );
+        assertTrue(
+            "Invalid exception message." + ex.getMessage(),
+            ex.getMessage().contains("specifies a component templates which can only be used in context")
+        );
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextWithSpecificVersion() throws Exception {
+        verifyTemplateCreationUsingContext("1");
+    }
+
+    public void testPutGlobalV2TemplateWhichProvidesContextWithLatestVersion() throws Exception {
+        verifyTemplateCreationUsingContext("_latest");
+    }
+
+    public void testModifySystemTemplateViaUnknownSource() throws Exception {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        Function<String, Template> templateApplier = codec -> new Template(
+            Settings.builder().put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec).build(),
+            null,
+            null
+        );
+
+        ComponentTemplate systemTemplate = new ComponentTemplate(
+            templateApplier.apply(CodecService.BEST_COMPRESSION_CODEC),
+            1L,
+            Map.of(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY, SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE, "_version", 1L)
+        );
+        SystemTemplateMetadata systemTemplateMetadata = fromComponentTemplateInfo("ct-best-compression-codec" + System.nanoTime(), 1);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> metadataIndexTemplateService.putComponentTemplate(
+                "test",
+                true,
+                systemTemplateMetadata.fullyQualifiedName(),
+                TimeValue.timeValueSeconds(30L),
+                systemTemplate,
+                ActionListener.wrap(() -> {})
+            )
+        );
+        assertTrue(
+            "Invalid exception message." + ex.getMessage(),
+            ex.getMessage().contains("A system template can only be created/updated/deleted with a repository")
+        );
+    }
+
+    public void testResolveSettingsWithContextVersion() throws Exception {
+        ClusterService clusterService = node().injector().getInstance(ClusterService.class);
+        final String indexTemplateName = verifyTemplateCreationUsingContext("1");
+
+        Settings settings = MetadataIndexTemplateService.resolveSettings(clusterService.state().metadata(), indexTemplateName);
+        assertThat(settings.get("index.codec"), equalTo(CodecService.BEST_COMPRESSION_CODEC));
+    }
+
+    public void testResolveSettingsWithContextLatest() throws Exception {
+        ClusterService clusterService = node().injector().getInstance(ClusterService.class);
+        final String indexTemplateName = verifyTemplateCreationUsingContext(Context.LATEST_VERSION);
+
+        Settings settings = MetadataIndexTemplateService.resolveSettings(clusterService.state().metadata(), indexTemplateName);
+        assertThat(settings.get("index.codec"), equalTo(CodecService.ZLIB));
     }
 
     /**
@@ -1513,6 +1824,16 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         ComponentTemplate ct2 = new ComponentTemplate(new Template(null, null, a2), null, null);
         state = service.addComponentTemplate(state, true, "ct_high", ct1);
         state = service.addComponentTemplate(state, true, "ct_low", ct2);
+
+        Map<String, AliasMetadata> a4 = Map.of("sys", AliasMetadata.builder("sys").build());
+        ComponentTemplate sysTemplate = new ComponentTemplate(
+            new Template(null, null, a4),
+            1L,
+            Map.of(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY, SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE, "_version", 1)
+        );
+        SystemTemplateMetadata systemTemplateMetadata = SystemTemplateMetadata.fromComponentTemplateInfo("sys-template", 1L);
+        state = service.addComponentTemplate(state, true, systemTemplateMetadata.fullyQualifiedName(), sysTemplate);
+
         ComposableIndexTemplate it = new ComposableIndexTemplate(
             Collections.singletonList("i*"),
             new Template(null, null, a3),
@@ -1520,14 +1841,15 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             0L,
             1L,
             null,
-            null
+            null,
+            new Context(systemTemplateMetadata.name())
         );
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
 
-        // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
-        assertThat(resolvedAliases, equalTo(Arrays.asList(a3, a1, a2)));
+        // These should be order of precedence, so the context(a4), index template (a3), then ct_high (a1), then ct_low (a2)
+        assertThat(resolvedAliases, equalTo(Arrays.asList(a4, a3, a1, a2)));
     }
 
     public void testAddInvalidTemplate() throws Exception {
@@ -2067,7 +2389,8 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             new AliasValidator(),
             null,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
-            xContentRegistry
+            xContentRegistry,
+            null
         );
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -2189,5 +2512,133 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 assertThat(actualMappings, equalTo(expectedMappings));
             }
         }
+    }
+
+    private String verifyTemplateCreationUsingContext(String contextVersion) throws Exception {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+
+        Function<String, Template> templateApplier = codec -> new Template(
+            Settings.builder().put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec).build(),
+            null,
+            null
+        );
+
+        ComponentTemplate componentTemplate = new ComponentTemplate(templateApplier.apply(CodecService.DEFAULT_CODEC), 1L, new HashMap<>());
+
+        ComponentTemplate systemTemplate = new ComponentTemplate(
+            templateApplier.apply(CodecService.BEST_COMPRESSION_CODEC),
+            1L,
+            Map.of(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY, SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE, "_version", 1L)
+        );
+        SystemTemplateMetadata systemTemplateMetadata = fromComponentTemplateInfo("ct-best-compression-codec" + System.nanoTime(), 1);
+
+        ComponentTemplate systemTemplateV2 = new ComponentTemplate(
+            templateApplier.apply(CodecService.ZLIB),
+            2L,
+            Map.of(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY, SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE, "_version", 2L)
+        );
+        SystemTemplateMetadata systemTemplateV2Metadata = fromComponentTemplateInfo(systemTemplateMetadata.name(), 2);
+
+        CountDownLatch waitToCreateComponentTemplate = new CountDownLatch(3);
+        ActionListener<AcknowledgedResponse> createComponentTemplateListener = new ActionListener<AcknowledgedResponse>() {
+
+            @Override
+            public void onResponse(AcknowledgedResponse response) {
+                waitToCreateComponentTemplate.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("expecting the component template PUT to succeed but got: " + e.getMessage());
+            }
+        };
+
+        String componentTemplateName = "ct-default-codec" + System.nanoTime();
+        metadataIndexTemplateService.putComponentTemplate(
+            "test",
+            true,
+            componentTemplateName,
+            TimeValue.timeValueSeconds(30L),
+            componentTemplate,
+            createComponentTemplateListener
+        );
+
+        ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            getInstanceFromNode(ThreadPool.class).getThreadContext().putTransient(ACTION_ORIGIN_TRANSIENT_NAME, TEMPLATE_LOADER_IDENTIFIER);
+            metadataIndexTemplateService.putComponentTemplate(
+                "test",
+                true,
+                systemTemplateMetadata.fullyQualifiedName(),
+                TimeValue.timeValueSeconds(30L),
+                systemTemplate,
+                createComponentTemplateListener
+            );
+
+            metadataIndexTemplateService.putComponentTemplate(
+                "test",
+                true,
+                systemTemplateV2Metadata.fullyQualifiedName(),
+                TimeValue.timeValueSeconds(30L),
+                systemTemplateV2,
+                createComponentTemplateListener
+            );
+        }
+
+        assertTrue("Could not create component templates", waitToCreateComponentTemplate.await(10, TimeUnit.SECONDS));
+
+        Context context = new Context(systemTemplateMetadata.name(), contextVersion, Map.of());
+        ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(
+            List.of("*"),
+            templateApplier.apply(CodecService.LZ4),
+            List.of(componentTemplateName),
+            null,
+            null,
+            null,
+            null,
+            context
+        );
+
+        String indexTemplateName = "template-referencing-ct-and-context";
+        CountDownLatch waitForIndexTemplate = new CountDownLatch(1);
+        metadataIndexTemplateService.putIndexTemplateV2(
+            "testing",
+            true,
+            indexTemplateName,
+            TimeValue.timeValueSeconds(30L),
+            globalIndexTemplate,
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    waitForIndexTemplate.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("the listener should not be invoked as the template should succeed");
+                }
+            }
+        );
+        assertTrue("Expected index template to have been created.", waitForIndexTemplate.await(10, TimeUnit.SECONDS));
+        assertTemplatesEqual(
+            node().injector().getInstance(ClusterService.class).state().metadata().templatesV2().get(indexTemplateName),
+            globalIndexTemplate
+        );
+
+        return indexTemplateName;
+    }
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder()
+            .put(super.featureFlagSettings())
+            .put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, false)
+            .build();
     }
 }

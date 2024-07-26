@@ -61,7 +61,6 @@ import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 
 import org.ehcache.Cache;
-import org.ehcache.CachePersistenceException;
 import org.ehcache.PersistentCacheManager;
 import org.ehcache.config.builders.CacheConfigurationBuilder;
 import org.ehcache.config.builders.CacheEventListenerConfigurationBuilder;
@@ -106,8 +105,6 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     // Unique id associated with this cache.
     private final static String UNIQUE_ID = UUID.randomUUID().toString();
     private final static String THREAD_POOL_ALIAS_PREFIX = "ehcachePool";
-    private final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
-
     // A Cache manager can create many caches.
     private final PersistentCacheManager cacheManager;
 
@@ -129,13 +126,18 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     private final Serializer<K, byte[]> keySerializer;
     private final Serializer<V, byte[]> valueSerializer;
 
+    final static int MINIMUM_MAX_SIZE_IN_BYTES = 1024 * 100; // 100KB
+    final static String CACHE_DATA_CLEANUP_DURING_INITIALIZATION_EXCEPTION = "Failed to delete ehcache disk cache under "
+        + "path: %s during initialization. Please clean this up manually and restart the process";
+
     /**
      * Used in computeIfAbsent to synchronize loading of a given key. This is needed as ehcache doesn't provide a
      * computeIfAbsent method.
      */
     Map<ICacheKey<K>, CompletableFuture<Tuple<ICacheKey<K>, V>>> completableFutureMap = new ConcurrentHashMap<>();
 
-    private EhcacheDiskCache(Builder<K, V> builder) {
+    @SuppressForbidden(reason = "Ehcache uses File.io")
+    EhcacheDiskCache(Builder<K, V> builder) {
         this.keyType = Objects.requireNonNull(builder.keyType, "Key type shouldn't be null");
         this.valueType = Objects.requireNonNull(builder.valueType, "Value type shouldn't be null");
         this.expireAfterAccess = Objects.requireNonNull(builder.getExpireAfterAcess(), "ExpireAfterAccess value shouldn't " + "be null");
@@ -152,6 +154,18 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         this.storagePath = builder.storagePath;
         if (this.storagePath == null || this.storagePath.isBlank()) {
             throw new IllegalArgumentException("Storage path shouldn't be null or empty");
+        }
+        // Delete all the previous disk cache related files/data. We don't persist data between process restart for
+        // now which is why need to do this. Clean up in case there was a non graceful restart and we had older disk
+        // cache data still lying around.
+        Path ehcacheDirectory = Paths.get(this.storagePath);
+        if (Files.exists(ehcacheDirectory)) {
+            try {
+                logger.info("Found older disk cache data lying around during initialization under path: {}", this.storagePath);
+                IOUtils.rm(ehcacheDirectory);
+            } catch (IOException e) {
+                throw new OpenSearchException(String.format(CACHE_DATA_CLEANUP_DURING_INITIALIZATION_EXCEPTION, this.storagePath), e);
+            }
         }
         if (builder.threadPoolAlias == null || builder.threadPoolAlias.isBlank()) {
             this.threadPoolAlias = THREAD_POOL_ALIAS_PREFIX + "DiskWrite#" + UNIQUE_ID;
@@ -175,6 +189,11 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
         } else {
             this.cacheStatsHolder = NoopCacheStatsHolder.getInstance();
         }
+    }
+
+    // Package private for testing
+    PersistentCacheManager getCacheManager() {
+        return this.cacheManager;
     }
 
     @SuppressWarnings({ "rawtypes" })
@@ -257,7 +276,7 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     }
 
     @SuppressForbidden(reason = "Ehcache uses File.io")
-    private PersistentCacheManager buildCacheManager() {
+    PersistentCacheManager buildCacheManager() {
         // In case we use multiple ehCaches, we can define this cache manager at a global level.
         // Creating the cache manager also requires permissions specified in plugin-security.policy
         return AccessController.doPrivileged((PrivilegedAction<PersistentCacheManager>) () -> {
@@ -446,20 +465,21 @@ public class EhcacheDiskCache<K, V> implements ICache<K, V> {
     @Override
     @SuppressForbidden(reason = "Ehcache uses File.io")
     public void close() {
-        cacheManager.removeCache(this.diskCacheAlias);
-        cacheManager.close();
         try {
-            cacheManager.destroyCache(this.diskCacheAlias);
-            // Delete all the disk cache related files/data
-            Path ehcacheDirectory = Paths.get(this.storagePath);
-            if (Files.exists(ehcacheDirectory)) {
-                IOUtils.rm(ehcacheDirectory);
-            }
-        } catch (CachePersistenceException e) {
-            throw new OpenSearchException("Exception occurred while destroying ehcache and associated data", e);
-        } catch (IOException e) {
-            logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath));
+            cacheManager.close();
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Exception occurred while trying to close ehcache manager"), e);
         }
+        // Delete all the disk cache related files/data in case it is present
+        Path ehcacheDirectory = Paths.get(this.storagePath);
+        if (Files.exists(ehcacheDirectory)) {
+            try {
+                IOUtils.rm(ehcacheDirectory);
+            } catch (IOException e) {
+                logger.error(() -> new ParameterizedMessage("Failed to delete ehcache disk cache data under path: {}", this.storagePath));
+            }
+        }
+
     }
 
     /**

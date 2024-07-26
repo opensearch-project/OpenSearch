@@ -176,8 +176,8 @@ teardown:
 ---
 "Test bulk upsert honors default_pipeline and final_pipeline when the auto-created index matches with the index template":
   - skip:
-      version: " - 2.99.99"
-      reason: "fixed in 3.0.0"
+      version: " - 2.15.99"
+      reason: "fixed in 2.16.0"
   - do:
       indices.put_index_template:
         name: test_for_bulk_upsert_index_template
@@ -207,7 +207,7 @@ teardown:
   - match: { _source: {"f1": "v2", "f2": 47, "field1": "value1", "field2": "value2"}}
 
 ---
-"Test bulk API with batch enabled happy case":
+"Test bulk API with default batch size":
   - skip:
       version: " - 2.13.99"
       reason: "Added in 2.14.0"
@@ -215,7 +215,6 @@ teardown:
   - do:
       bulk:
         refresh: true
-        batch_size: 2
         pipeline: "pipeline1"
         body:
           - '{"index": {"_index": "test_index", "_id": "test_id1"}}'
@@ -244,36 +243,6 @@ teardown:
         index: test_index
         id: test_id3
   - match: { _source: { "text": "text3", "field1": "value1" } }
-
----
-"Test bulk API with batch_size missing":
-  - skip:
-      version: " - 2.13.99"
-      reason: "Added in 2.14.0"
-
-  - do:
-      bulk:
-        refresh: true
-        pipeline: "pipeline1"
-        body:
-          - '{"index": {"_index": "test_index", "_id": "test_id1"}}'
-          - '{"text": "text1"}'
-          - '{"index": {"_index": "test_index", "_id": "test_id2"}}'
-          - '{"text": "text2"}'
-
-  - match: { errors: false }
-
-  - do:
-      get:
-        index: test_index
-        id: test_id1
-  - match: { _source: { "text": "text1", "field1": "value1" } }
-
-  - do:
-      get:
-        index: test_index
-        id: test_id2
-  - match: { _source: { "text": "text2", "field1": "value1" } }
 
 ---
 "Test bulk API with invalid batch_size":

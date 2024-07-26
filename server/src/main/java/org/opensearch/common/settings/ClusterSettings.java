@@ -78,7 +78,6 @@ import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocation
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.opensearch.cluster.routing.remote.InternalRemoteRoutingTableService;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
@@ -108,6 +107,7 @@ import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.gateway.remote.RemoteClusterStateCleanupManager;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -343,6 +343,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 GatewayService.RECOVER_AFTER_NODES_SETTING,
                 GatewayService.RECOVER_AFTER_TIME_SETTING,
                 ShardsBatchGatewayAllocator.GATEWAY_ALLOCATOR_BATCH_SIZE,
+                ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING,
+                ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING,
                 PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
                 NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                 NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
@@ -730,8 +732,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING,
                 IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING,
                 IndicesService.CLUSTER_INDEX_RESTRICT_REPLICATION_TYPE_SETTING,
-                InternalRemoteRoutingTableService.REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING,
-                InternalRemoteRoutingTableService.REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING,
+                RemoteRoutingTableBlobStore.REMOTE_ROUTING_TABLE_PATH_TYPE_SETTING,
+                RemoteRoutingTableBlobStore.REMOTE_ROUTING_TABLE_PATH_HASH_ALGO_SETTING,
 
                 // Admission Control Settings
                 AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE,
