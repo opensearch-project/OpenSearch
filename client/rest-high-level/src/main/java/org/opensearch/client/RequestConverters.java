@@ -154,6 +154,9 @@ final class RequestConverters {
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
         parameters.withRouting(bulkRequest.routing());
+        if (bulkRequest.requireAlias() != null) {
+            parameters.withRequireAlias(bulkRequest.requireAlias());
+        }
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -231,6 +234,10 @@ final class RequestConverters {
                         if (updateRequest.fetchSource() != null) {
                             metadata.field("_source", updateRequest.fetchSource());
                         }
+                    }
+
+                    if (action.isRequireAlias()) {
+                        metadata.field("require_alias", action.isRequireAlias());
                     }
                     metadata.endObject();
                 }
@@ -533,7 +540,7 @@ final class RequestConverters {
         Request request;
 
         if (searchTemplateRequest.isSimulate()) {
-            request = new Request(HttpGet.METHOD_NAME, "_render/template");
+            request = new Request(HttpGet.METHOD_NAME, "/_render/template");
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
             String endpoint = endpoint(searchRequest.indices(), "_search/template");
@@ -796,8 +803,7 @@ final class RequestConverters {
     }
 
     static Request mtermVectors(MultiTermVectorsRequest mtvrequest) throws IOException {
-        String endpoint = "_mtermvectors";
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Request request = new Request(HttpGet.METHOD_NAME, "/_mtermvectors");
         request.setEntity(createEntity(mtvrequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

@@ -87,6 +87,7 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
@@ -142,13 +143,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> SEARCH_QUERY_METRICS_ENABLED_SETTING = Setting.boolSetting(
-        "search.query.metrics.enabled",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     // cluster level setting for timeout based search cancellation. If search request level parameter is present then that will take
     // precedence over the cluster setting value
     public static final String SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY = "search.cancel_after_time_interval";
@@ -181,11 +175,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
     private final Tracer tracer;
 
-    private volatile boolean searchQueryMetricsEnabled;
-
     private final MetricsRegistry metricsRegistry;
 
-    private SearchQueryCategorizer searchQueryCategorizer;
+    private TaskResourceTrackingService taskResourceTrackingService;
 
     @Inject
     public TransportSearchAction(
@@ -203,7 +195,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchPipelineService searchPipelineService,
         MetricsRegistry metricsRegistry,
         SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory,
-        Tracer tracer
+        Tracer tracer,
+        TaskResourceTrackingService taskResourceTrackingService
     ) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.client = client;
@@ -219,18 +212,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.searchPipelineService = searchPipelineService;
         this.metricsRegistry = metricsRegistry;
-        this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
         this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
         this.tracer = tracer;
-    }
-
-    private void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
-        this.searchQueryMetricsEnabled = searchQueryMetricsEnabled;
-        if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
-            this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
-        }
+        this.taskResourceTrackingService = taskResourceTrackingService;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -451,7 +435,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 logger,
                 TraceableSearchRequestOperationsListener.create(tracer, requestSpan)
             );
-            SearchRequestContext searchRequestContext = new SearchRequestContext(requestOperationsListeners, originalSearchRequest);
+            SearchRequestContext searchRequestContext = new SearchRequestContext(
+                requestOperationsListeners,
+                originalSearchRequest,
+                taskResourceTrackingService::getTaskResourceUsageFromThreadContext
+            );
             searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
             PipelinedRequest searchRequest;
@@ -465,13 +453,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
 
             ActionListener<SearchRequest> requestTransformListener = ActionListener.wrap(sr -> {
-                if (searchQueryMetricsEnabled) {
-                    try {
-                        searchQueryCategorizer.categorize(sr.source());
-                    } catch (Exception e) {
-                        logger.error("Error while trying to categorize the query.", e);
-                    }
-                }
 
                 ActionListener<SearchSourceBuilder> rewriteListener = buildRewriteListener(
                     sr,

@@ -164,7 +164,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
      */
     public static class NodeStatsRequest extends TransportRequest {
 
-        NodesStatsRequest request;
+        protected NodesStatsRequest request;
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);

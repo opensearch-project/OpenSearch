@@ -70,13 +70,13 @@ dependencies {
   api 'com.google.code.gson:gson:2.11.0'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api 'commons-cli:commons-cli:1.7.0'
+  api 'commons-cli:commons-cli:1.8.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api 'commons-collections:commons-collections:3.2.2'
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
-  api 'org.apache.commons:commons-configuration2:2.10.1'
+  api 'org.apache.commons:commons-configuration2:2.11.0'
   api "commons-io:commons-io:${versions.commonsio}"
-  api 'org.apache.commons:commons-lang3:3.14.0'
+  api 'org.apache.commons:commons-lang3:3.15.0'
   implementation 'com.google.re2j:re2j:1.7'
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"

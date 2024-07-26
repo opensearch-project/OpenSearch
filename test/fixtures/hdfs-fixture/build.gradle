@@ -33,7 +33,7 @@ apply plugin: 'opensearch.java'
 group = 'hdfs'
 
 versions << [
-  'jetty': '9.4.53.v20231009'
+  'jetty': '9.4.55.v20240627'
 ]
 
 dependencies {
@@ -52,13 +52,15 @@ dependencies {
     exclude module: "logback-classic"
     exclude module: "avro"
     exclude group: 'org.apache.kerby'
+    exclude group: 'com.nimbusds'
+    exclude module: "commons-configuration2"
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api "io.netty:netty-all:${versions.netty}"
-  api 'com.google.code.gson:gson:2.10.1'
+  api 'com.google.code.gson:gson:2.11.0'
   api "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
@@ -70,10 +72,17 @@ dependencies {
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
   api 'org.apache.zookeeper:zookeeper:3.9.2'
   api "org.apache.commons:commons-text:1.12.0"
-  api "commons-net:commons-net:3.10.0"
+  api "commons-net:commons-net:3.11.1"
   api "ch.qos.logback:logback-core:1.5.6"
   api "ch.qos.logback:logback-classic:1.2.13"
-  api 'org.apache.kerby:kerb-admin:2.0.3'
+  api "org.jboss.xnio:xnio-nio:3.8.16.Final"
+  api 'org.jline:jline:3.26.3'
+  api 'org.apache.commons:commons-configuration2:2.11.0'
+  api 'com.nimbusds:nimbus-jose-jwt:9.40'
+  api ('org.apache.kerby:kerb-admin:2.0.3') {
+    exclude group: "org.jboss.xnio"
+    exclude group: "org.jline"
+  }
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   runtimeOnly("com.squareup.okhttp3:okhttp:4.12.0") {
     exclude group: "com.squareup.okio"

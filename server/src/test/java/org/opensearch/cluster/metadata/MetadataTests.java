@@ -1482,6 +1482,33 @@ public class MetadataTests extends OpenSearchTestCase {
         assertFalse(metadata.isSegmentReplicationEnabled(indexName));
     }
 
+    public void testTemplatesMetadata() {
+        TemplatesMetadata templatesMetadata1 = TemplatesMetadata.builder()
+            .put(
+                IndexTemplateMetadata.builder("template_1")
+                    .patterns(Arrays.asList("bar-*", "foo-*"))
+                    .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
+                    .build()
+            )
+            .build();
+        Metadata metadata1 = Metadata.builder().templates(templatesMetadata1).build();
+        assertThat(metadata1.templates(), is(templatesMetadata1.getTemplates()));
+
+        TemplatesMetadata templatesMetadata2 = TemplatesMetadata.builder()
+            .put(
+                IndexTemplateMetadata.builder("template_2")
+                    .patterns(Arrays.asList("bar-*", "foo-*"))
+                    .settings(Settings.builder().put("random_index_setting_" + randomAlphaOfLength(3), randomAlphaOfLength(5)).build())
+                    .build()
+            )
+            .build();
+
+        Metadata metadata2 = Metadata.builder(metadata1).templates(templatesMetadata2).build();
+
+        assertThat(metadata2.templates(), is(templatesMetadata2.getTemplates()));
+
+    }
+
     public static Metadata randomMetadata() {
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())

@@ -48,6 +48,7 @@ import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
+import org.opensearch.gateway.remote.model.RemoteClusterStateManifestInfo;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.EqualsHashCodeTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -944,7 +945,8 @@ public class CoordinationStateTests extends OpenSearchTestCase {
             .previousClusterUUID(randomAlphaOfLength(10))
             .clusterUUIDCommitted(true)
             .build();
-        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID)).thenReturn(manifest);
+        Mockito.when(remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
 
         final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
         persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, ps1);
@@ -977,6 +979,8 @@ public class CoordinationStateTests extends OpenSearchTestCase {
         Mockito.verify(remoteClusterStateService, Mockito.times(1)).writeFullMetadata(clusterState, previousClusterUUID);
         assertThat(persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).getLastAcceptedState(), equalTo(clusterState));
 
+        Mockito.when(remoteClusterStateService.markLastStateAsCommitted(any(), any()))
+            .thenReturn(new RemoteClusterStateManifestInfo(manifest, "path/to/manifest"));
         coordinationState.handlePreCommit();
         ClusterState committedClusterState = ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata()).clusterUUIDCommitted(true).build())

@@ -380,7 +380,7 @@ public class NodeTests extends OpenSearchTestCase {
         List<Class<? extends Plugin>> plugins = basePlugins();
         ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
         Settings searchRoleSettingsWithConfig = baseSettings().put(searchRoleSettings)
-            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .build();
         Settings onlySearchRoleSettings = Settings.builder()
             .put(searchRoleSettingsWithConfig)

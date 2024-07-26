@@ -1594,7 +1594,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test-index", "test-index");
 
         Settings indexSettings = aggregateIndexSettings(
             clusterState,
@@ -1675,7 +1675,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 finalClusterSettings
             );
         });
-
+        assertEquals(error.getMessage(), "failed to create index [test-index]");
         assertThat(
             error.getCause().getMessage(),
             containsString("Cluster is migrating to remote store but no remote node found, failing index creation")
@@ -2149,6 +2149,33 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             "index setting [index.translog.durability=async] is not allowed as cluster setting [cluster.remote_store.index.restrict.async-durability=true]",
             exception.getMessage()
         );
+    }
+
+    public void testAggregateIndexSettingsIndexReplicaIsSetToNull() {
+        // This checks that aggregateIndexSettings works for the case when the index setting `index.number_of_replicas` is set to null
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        request.settings(Settings.builder().putNull(SETTING_NUMBER_OF_REPLICAS).build());
+        Integer clusterDefaultReplicaNumber = 5;
+        Metadata metadata = new Metadata.Builder().persistentSettings(
+            Settings.builder().put("cluster.default_number_of_replicas", clusterDefaultReplicaNumber).build()
+        ).build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        Settings settings = Settings.builder().put(CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey(), true).build();
+        clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Settings aggregatedSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            Settings.EMPTY,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet(),
+            clusterSettings
+        );
+        assertEquals(clusterDefaultReplicaNumber.toString(), aggregatedSettings.get(SETTING_NUMBER_OF_REPLICAS));
     }
 
     public void testRequestDurabilityWhenRestrictSettingTrue() {
