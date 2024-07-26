@@ -57,6 +57,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.AllocationDecision;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.service.ClusterService;
@@ -1080,20 +1081,19 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         logger.info("--> calling allocation explain API");
         // shard should have decision NO because there is no valid node for the extra replica to go to
-        assertEquals(
-            AllocationDecision.NO,
-            client().admin()
-                .cluster()
-                .prepareAllocationExplain()
-                .setIndex("test")
-                .setShard(0)
-                .setPrimary(false)
-                .get()
-                .getExplanation()
-                .getShardAllocationDecision()
-                .getAllocateDecision()
-                .getAllocationDecision()
-        );
+        AllocateUnassignedDecision aud = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("test")
+            .setShard(0)
+            .setPrimary(false)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision();
+
+        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
 
         // Now creating a new index with too many replicas and trying again
         createIndex(
@@ -1105,20 +1105,19 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         logger.info("--> calling allocation explain API again");
         // shard should have decision NO because there are 6 replicas and 4 data nodes
-        assertEquals(
-            AllocationDecision.NO,
-            client().admin()
-                .cluster()
-                .prepareAllocationExplain()
-                .setIndex("test2")
-                .setShard(0)
-                .setPrimary(false)
-                .get()
-                .getExplanation()
-                .getShardAllocationDecision()
-                .getAllocateDecision()
-                .getAllocationDecision()
-        );
+        aud = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("test2")
+            .setShard(0)
+            .setPrimary(false)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision();
+
+        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
 
         logger.info("--> restarting the stopped node");
         internalCluster().startDataOnlyNode(
@@ -1130,20 +1129,19 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         logger.info("--> calling allocation explain API 3rd time");
         // shard should still have decision NO because there are 6 replicas and 5 data nodes
-        assertEquals(
-            AllocationDecision.NO,
-            client().admin()
-                .cluster()
-                .prepareAllocationExplain()
-                .setIndex("test2")
-                .setShard(0)
-                .setPrimary(false)
-                .get()
-                .getExplanation()
-                .getShardAllocationDecision()
-                .getAllocateDecision()
-                .getAllocationDecision()
-        );
+        aud = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("test2")
+            .setShard(0)
+            .setPrimary(false)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision();
+
+        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
 
         internalCluster().startDataOnlyNodes(1);
 
@@ -1178,20 +1176,19 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         logger.info("--> calling allocation explain API");
         // shard should have decision NO because there is no valid node for the extra replica to go to
-        assertEquals(
-            AllocationDecision.NO,
-            client().admin()
-                .cluster()
-                .prepareAllocationExplain()
-                .setIndex("test")
-                .setShard(0)
-                .setPrimary(false)
-                .get()
-                .getExplanation()
-                .getShardAllocationDecision()
-                .getAllocateDecision()
-                .getAllocationDecision()
-        );
+        AllocateUnassignedDecision aud = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("test")
+            .setShard(0)
+            .setPrimary(false)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision();
+
+        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
 
         // Now creating a new index with too many replicas and trying again
         createIndex(
@@ -1203,20 +1200,19 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         logger.info("--> calling allocation explain API again");
         // shard should have decision NO because there are 6 replicas and 4 data nodes
-        assertEquals(
-            AllocationDecision.NO,
-            client().admin()
-                .cluster()
-                .prepareAllocationExplain()
-                .setIndex("test2")
-                .setShard(0)
-                .setPrimary(false)
-                .get()
-                .getExplanation()
-                .getShardAllocationDecision()
-                .getAllocateDecision()
-                .getAllocationDecision()
-        );
+        aud = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("test2")
+            .setShard(0)
+            .setPrimary(false)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision();
+
+        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
 
         logger.info("--> restarting the stopped node");
         internalCluster().startDataOnlyNode(
@@ -1228,20 +1224,19 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
 
         logger.info("--> calling allocation explain API 3rd time");
         // shard should still have decision NO because there are 6 replicas and 5 data nodes
-        assertEquals(
-            AllocationDecision.NO,
-            client().admin()
-                .cluster()
-                .prepareAllocationExplain()
-                .setIndex("test2")
-                .setShard(0)
-                .setPrimary(false)
-                .get()
-                .getExplanation()
-                .getShardAllocationDecision()
-                .getAllocateDecision()
-                .getAllocationDecision()
-        );
+        aud = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("test2")
+            .setShard(0)
+            .setPrimary(false)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision();
+
+        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
 
         internalCluster().startDataOnlyNodes(1);
 
