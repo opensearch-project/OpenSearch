@@ -82,6 +82,9 @@ public abstract class BaseGatewayShardAllocator {
     }
 
     protected void allocateUnassignedBatchOnTimeout(Set<ShardId> shardIds, RoutingAllocation allocation, boolean primary) {
+        if (shardIds.isEmpty()) {
+            return;
+        }
         RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
         while (iterator.hasNext()) {
             ShardRouting unassignedShard = iterator.next();
