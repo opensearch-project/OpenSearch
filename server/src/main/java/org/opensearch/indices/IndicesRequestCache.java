@@ -146,12 +146,6 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Property.NodeScope
     );
 
-    // changed: for performComputeIntensiveTask
-    public static final Setting<Integer> COMPUTE_INTENSIVE_DURATION_SECONDS =
-        Setting.intSetting("indices.request.cache.compute_intensive.duration_seconds", 30, Setting.Property.Dynamic, Setting.Property.NodeScope);
-
-    public static final Setting<Integer> MEMORY_OVERHEAD_PER_ITERATION =
-        Setting.intSetting("indices.request.cache.memory_overhead.per_iteration", 1024, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
 
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);

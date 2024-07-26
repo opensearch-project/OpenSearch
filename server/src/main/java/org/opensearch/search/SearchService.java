@@ -172,6 +172,13 @@ import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
 
+    // changed: for performComputeIntensiveTask
+    public static final Setting<Integer> COMPUTE_INTENSIVE_DURATION_SECONDS =
+        Setting.intSetting("indices.request.cache.compute_intensive.duration_seconds", 30, Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    public static final Setting<Integer> MEMORY_OVERHEAD_PER_ITERATION =
+        Setting.intSetting("indices.request.cache.memory_overhead.per_iteration", 1024, Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     // changed: new setting
     private volatile int computeIntensiveDurationSeconds;
     private volatile int memoryOverheadPerIteration;
@@ -380,10 +387,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     ) {
         Settings settings = clusterService.getSettings();
         // changed: new setting
-        this.computeIntensiveDurationSeconds = IndicesRequestCache.COMPUTE_INTENSIVE_DURATION_SECONDS.get(settings);
-        this.memoryOverheadPerIteration = IndicesRequestCache.MEMORY_OVERHEAD_PER_ITERATION.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(IndicesRequestCache.COMPUTE_INTENSIVE_DURATION_SECONDS, this::setComputeIntensiveDurationSeconds);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(IndicesRequestCache.MEMORY_OVERHEAD_PER_ITERATION, this::setMemoryOverheadPerIteration);
+        this.computeIntensiveDurationSeconds = SearchService.COMPUTE_INTENSIVE_DURATION_SECONDS.get(settings);
+        this.memoryOverheadPerIteration = SearchService.MEMORY_OVERHEAD_PER_ITERATION.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SearchService.COMPUTE_INTENSIVE_DURATION_SECONDS, this::setComputeIntensiveDurationSeconds);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SearchService.MEMORY_OVERHEAD_PER_ITERATION, this::setMemoryOverheadPerIteration);
+
 
         this.threadPool = threadPool;
         this.clusterService = clusterService;
