@@ -63,6 +63,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.concurrent.FutureUtils;
+import org.opensearch.common.util.concurrent.InternalThreadContextWrapper;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -134,6 +135,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile TimeValue slowTaskLoggingThreshold;
 
     protected final ThreadPool threadPool;
+    protected final InternalThreadContextWrapper tcWrapper;
 
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
@@ -169,6 +171,7 @@ public class MasterService extends AbstractLifecycleComponent {
         );
         this.stateStats = new ClusterStateStats();
         this.threadPool = threadPool;
+        this.tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
         this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
@@ -1022,7 +1025,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+            tcWrapper.markAsSystemContext();
 
             List<Batcher.UpdateTask> safeTasks = tasks.entrySet()
                 .stream()

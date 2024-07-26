@@ -58,6 +58,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.InternalThreadContextWrapper;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -104,6 +105,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final ClusterSettings clusterSettings;
     protected final ThreadPool threadPool;
+    protected final InternalThreadContextWrapper tcWrapper;
 
     private volatile TimeValue slowTaskLoggingThreshold;
 
@@ -139,6 +141,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     ) {
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
+        this.tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
         this.state = new AtomicReference<>();
         this.nodeName = nodeName;
 
@@ -396,7 +399,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+            tcWrapper.markAsSystemContext();
             final UpdateTask updateTask = new UpdateTask(
                 config.priority(),
                 source,

@@ -43,6 +43,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.InternalThreadContextWrapper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -160,6 +161,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
+    protected final InternalThreadContextWrapper tcWrapper;
     protected final String clusterAlias;
 
     RemoteConnectionStrategy(
@@ -170,6 +172,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     ) {
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
+        this.tcWrapper = InternalThreadContextWrapper.from(transportService.threadPool.getThreadContext());
         this.connectionManager = connectionManager;
         this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
         connectionManager.addListener(this);

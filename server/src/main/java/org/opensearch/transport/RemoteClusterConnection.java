@@ -39,6 +39,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.InternalThreadContextWrapper;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
@@ -71,6 +72,7 @@ final class RemoteClusterConnection implements Closeable {
     private final RemoteConnectionStrategy connectionStrategy;
     private final String clusterAlias;
     private final ThreadPool threadPool;
+    private final InternalThreadContextWrapper tcWrapper;
     private volatile boolean skipUnavailable;
     private final TimeValue initialConnectionTimeout;
 
@@ -91,6 +93,7 @@ final class RemoteClusterConnection implements Closeable {
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(clusterAlias)
             .get(settings);
         this.threadPool = transportService.threadPool;
+        this.tcWrapper = InternalThreadContextWrapper.from(transportService.threadPool.getThreadContext());
         initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
     }
 
@@ -136,7 +139,7 @@ final class RemoteClusterConnection implements Closeable {
                 new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 // we stash any context here since this is an internal execution and should not leak any existing context information
-                threadContext.markAsSystemContext();
+                tcWrapper.markAsSystemContext();
 
                 final ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();

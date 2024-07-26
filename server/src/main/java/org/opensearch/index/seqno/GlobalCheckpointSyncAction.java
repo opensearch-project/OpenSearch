@@ -98,7 +98,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     public void updateGlobalCheckpointForShard(final ShardId shardId) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+            tcWrapper.markAsSystemContext();
             execute(new Request(shardId), ActionListener.wrap(r -> {}, e -> {
                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                     logger.info(new ParameterizedMessage("{} global checkpoint sync failed", shardId), e);

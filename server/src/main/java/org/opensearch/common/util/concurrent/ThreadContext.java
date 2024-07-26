@@ -555,7 +555,7 @@ public final class ThreadContext implements Writeable {
      * Marks this thread context as an internal system context. This signals that actions in this context are issued
      * by the system itself rather than by a user action.
      */
-    public void markAsSystemContext() {
+    void markAsSystemContext() {
         threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
 

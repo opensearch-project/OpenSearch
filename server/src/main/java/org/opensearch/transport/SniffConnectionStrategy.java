@@ -349,7 +349,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     // we stash any context here since this is an internal execution and should not leak any
                     // existing context information.
-                    threadContext.markAsSystemContext();
+                    tcWrapper.markAsSystemContext();
                     transportService.sendRequest(
                         connection,
                         ClusterStateAction.NAME,

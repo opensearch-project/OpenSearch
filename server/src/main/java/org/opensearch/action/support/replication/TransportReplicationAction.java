@@ -63,6 +63,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.util.concurrent.InternalThreadContextWrapper;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -142,6 +143,7 @@ public abstract class TransportReplicationAction<
     public static final String REPLICA_ACTION_SUFFIX = "[r]";
 
     protected final ThreadPool threadPool;
+    protected final InternalThreadContextWrapper tcWrapper;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ShardStateAction shardStateAction;
@@ -239,6 +241,7 @@ public abstract class TransportReplicationAction<
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
+        this.tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;

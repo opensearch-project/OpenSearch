@@ -10,6 +10,7 @@ package org.opensearch.telemetry.tracing;
 
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.InternalThreadContextWrapper;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.opensearch.telemetry.Telemetry;
@@ -256,11 +257,12 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
     public void testSpanNotPropagatedToChildSystemThreadContext() {
         final Span span = tracer.startSpan(SpanCreationContext.internal().name("test"));
 
+        final InternalThreadContextWrapper tcWrapper = InternalThreadContextWrapper.from(threadContext);
         try (SpanScope scope = tracer.withSpanInScope(span)) {
             try (StoredContext ignored = threadContext.stashContext()) {
                 assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
                 assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(span));
-                threadContext.markAsSystemContext();
+                tcWrapper.markAsSystemContext();
                 assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
             }
         }

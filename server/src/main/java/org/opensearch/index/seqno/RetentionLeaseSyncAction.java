@@ -137,7 +137,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
-            threadContext.markAsSystemContext();
+            tcWrapper.markAsSystemContext();
             final Request request = new Request(shardId, retentionLeases);
             final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_sync", request);
             transportService.sendChildRequest(
