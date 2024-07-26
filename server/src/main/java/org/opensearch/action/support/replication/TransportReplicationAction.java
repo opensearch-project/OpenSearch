@@ -241,7 +241,9 @@ public abstract class TransportReplicationAction<
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
-        this.tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
+        if (threadPool != null) {
+            this.tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
+        }
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
