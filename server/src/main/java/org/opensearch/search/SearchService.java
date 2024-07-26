@@ -174,10 +174,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     // changed: for performComputeIntensiveTask
     public static final Setting<Integer> COMPUTE_INTENSIVE_DURATION_SECONDS =
-        Setting.intSetting("indices.request.cache.compute_intensive.duration_seconds", 30, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        Setting.intSetting("search.service.experimental.compute_intensive.duration_seconds", 0, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     public static final Setting<Integer> MEMORY_OVERHEAD_PER_ITERATION =
-        Setting.intSetting("indices.request.cache.memory_overhead.per_iteration", 1024, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        Setting.intSetting("search.service.experimental.memory_overhead.per_iteration", 0, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     // changed: new setting
     private volatile int computeIntensiveDurationSeconds;
