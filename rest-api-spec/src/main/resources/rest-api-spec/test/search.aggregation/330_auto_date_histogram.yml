@@ -158,3 +158,75 @@ setup:
   - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
   - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 1 }
   - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }
+
+---
+"Range aggregation with auto_date_histogram sub-aggregation":
+  - do:
+      indices.create:
+        index: sub_agg_profile
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metrics.size:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        index: sub_agg_profile
+        body:
+          - '{"index": {}}'
+          - '{"date": "2020-03-01", "v": 1}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-02", "v": 2}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-03", "v": 3}'
+          - '{"index": {}}'
+          - '{"date": "2020-04-09", "v": 4}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-08", "v": 13}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-09", "v": 14}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-09", "v": 15}'
+          - '{"index": {}}'
+          - '{"date": "2020-04-11", "v": 19}'
+
+  - do:
+      search:
+        index: sub_agg_profile
+        body:
+          size: 0
+          aggs:
+            range_histo:
+              range:
+                field: v
+                ranges:
+                  - to: 0
+                  - from: 0
+                    to: 10
+                  - from: 10
+              aggs:
+                date:
+                  auto_date_histogram:
+                    field: "date"
+                    buckets: 3
+
+  - match: { hits.total.value: 8 }
+  - length: { aggregations.range_histo.buckets: 3 }
+
+  - match: { aggregations.range_histo.buckets.0.key: "*-0.0" }
+  - match: { aggregations.range_histo.buckets.1.key: "0.0-10.0" }
+  - match: { aggregations.range_histo.buckets.2.key: "10.0-*" }
+
+  - match: { aggregations.range_histo.buckets.0.doc_count: 0 }
+  - match: { aggregations.range_histo.buckets.1.doc_count: 4 }
+  - match: { aggregations.range_histo.buckets.2.doc_count: 4 }
+
+  - match: { aggregations.range_histo.buckets.1.date.buckets.0.doc_count: 3 }
+  - match: { aggregations.range_histo.buckets.1.date.buckets.1.doc_count: 1 }
+
+  - match: { aggregations.range_histo.buckets.2.date.buckets.0.doc_count: 3 }
+  - match: { aggregations.range_histo.buckets.2.date.buckets.1.doc_count: 1 }
