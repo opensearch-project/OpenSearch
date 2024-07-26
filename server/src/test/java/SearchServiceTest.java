@@ -39,7 +39,6 @@ public class SearchServiceTest {
             .build();
 
         Mockito.when(clusterService.getSettings()).thenReturn(settings);
-
         // Initialize SearchService with mocked dependencies
         SearchService searchService = new SearchService(
             clusterService,

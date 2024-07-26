@@ -173,7 +173,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private static final Logger logger = LogManager.getLogger(SearchService.class);
 
     // changed: new setting
-    private volatile int computeIntensiveIterationCount;
+    private volatile int computeIntensiveDurationSeconds;
     private volatile int memoryOverheadPerIteration;
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
@@ -380,9 +380,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     ) {
         Settings settings = clusterService.getSettings();
         // changed: new setting
-        this.computeIntensiveIterationCount = IndicesRequestCache.COMPUTE_INTENSIVE_ITERATION_COUNT.get(settings);
+        this.computeIntensiveDurationSeconds = IndicesRequestCache.COMPUTE_INTENSIVE_DURATION_SECONDS.get(settings);
         this.memoryOverheadPerIteration = IndicesRequestCache.MEMORY_OVERHEAD_PER_ITERATION.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(IndicesRequestCache.COMPUTE_INTENSIVE_ITERATION_COUNT, this::setComputeIntensiveIterationCount);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(IndicesRequestCache.COMPUTE_INTENSIVE_DURATION_SECONDS, this::setComputeIntensiveDurationSeconds);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(IndicesRequestCache.MEMORY_OVERHEAD_PER_ITERATION, this::setMemoryOverheadPerIteration);
 
         this.threadPool = threadPool;
@@ -440,8 +440,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     // changed: new setting to line 468
-    private void setComputeIntensiveIterationCount(int count) {
-        this.computeIntensiveIterationCount = count;
+    private void setComputeIntensiveDurationSeconds(int time) {
+        this.computeIntensiveDurationSeconds = time;
     }
 
     private void setMemoryOverheadPerIteration(int overhead) {
@@ -449,11 +449,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void performComputeIntensiveTask() {
-        int iterations = 0;
-        logger.info("Starting compute-intensive task with {} iterations and {} bytes per iteration",
-            computeIntensiveIterationCount, memoryOverheadPerIteration);
+        long endTime = System.currentTimeMillis() + computeIntensiveDurationSeconds * 1000;
+        logger.info("Starting compute-intensive task for {} seconds and {} bytes per iteration",
+            computeIntensiveDurationSeconds, memoryOverheadPerIteration);
 
-        while (iterations < computeIntensiveIterationCount) {
+        int iterations = 0;
+        while (System.currentTimeMillis() < endTime) {
             byte[] memoryHog = new byte[memoryOverheadPerIteration];
             for (int j = 0; j < memoryOverheadPerIteration; j++) {
                 memoryHog[j] = (byte) (j % 256);

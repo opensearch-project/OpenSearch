@@ -147,8 +147,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     );
 
     // changed: for performComputeIntensiveTask
-    public static final Setting<Integer> COMPUTE_INTENSIVE_ITERATION_COUNT =
-        Setting.intSetting("indices.request.cache.compute_intensive.iteration_count", 1000000, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Integer> COMPUTE_INTENSIVE_DURATION_SECONDS =
+        Setting.intSetting("indices.request.cache.compute_intensive.duration_seconds", 30, Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     public static final Setting<Integer> MEMORY_OVERHEAD_PER_ITERATION =
         Setting.intSetting("indices.request.cache.memory_overhead.per_iteration", 1024, Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -169,10 +169,6 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     // These values determine the valid names for levels in the cache stats API
     public static final String SHARD_ID_DIMENSION_NAME = "shards";
     public static final String INDEX_DIMENSION_NAME = "indices";
-
-    // changed: Instance variables for new settings
-    private volatile int computeIntensiveIterationCount;
-    private volatile int memoryOverheadPerIteration;
 
 
     IndicesRequestCache(
@@ -195,14 +191,6 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         this.clusterService = clusterService;
         this.clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING, this::setStalenessThreshold);
-
-        // changed: Initialize new settings
-        this.computeIntensiveIterationCount = COMPUTE_INTENSIVE_ITERATION_COUNT.get(settings);
-        this.memoryOverheadPerIteration = MEMORY_OVERHEAD_PER_ITERATION.get(settings);
-
-        // changed: Register listeners for the new settings
-        this.clusterService.getClusterSettings().addSettingsUpdateConsumer(COMPUTE_INTENSIVE_ITERATION_COUNT, this::setComputeIntensiveIterationCount);
-        this.clusterService.getClusterSettings().addSettingsUpdateConsumer(MEMORY_OVERHEAD_PER_ITERATION, this::setMemoryOverheadPerIteration);
 
         this.cache = cacheService.createCache(
             new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
@@ -227,15 +215,6 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
                 .build(),
             CacheType.INDICES_REQUEST_CACHE
         );
-    }
-
-    // changed: for new settings
-    private void setComputeIntensiveIterationCount(int count) {
-        this.computeIntensiveIterationCount = count;
-    }
-
-    private void setMemoryOverheadPerIteration(int overhead) {
-        this.memoryOverheadPerIteration = overhead;
     }
 
     // package private for testing
