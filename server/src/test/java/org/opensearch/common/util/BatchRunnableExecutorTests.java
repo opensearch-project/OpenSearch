@@ -15,6 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.atMost;
@@ -42,7 +43,13 @@ public class BatchRunnableExecutorTests extends OpenSearchTestCase {
     public void testRunWithoutTimeout() {
         setupRunnables();
         timeoutSupplier = () -> TimeValue.timeValueSeconds(1);
-        BatchRunnableExecutor executor = new BatchRunnableExecutor(runnableList, timeoutSupplier);
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        BatchRunnableExecutor executor = new BatchRunnableExecutor(runnableList, timeoutSupplier) {
+            @Override
+            public void onComplete() {
+                countDownLatch.countDown();
+            }
+        };
         executor.run();
         verify(runnable1, times(1)).run();
         verify(runnable2, times(1)).run();
@@ -50,12 +57,19 @@ public class BatchRunnableExecutorTests extends OpenSearchTestCase {
         verify(runnable1, never()).onTimeout();
         verify(runnable2, never()).onTimeout();
         verify(runnable3, never()).onTimeout();
+        assertEquals(0, countDownLatch.getCount());
     }
 
     public void testRunWithTimeout() {
         setupRunnables();
         timeoutSupplier = () -> TimeValue.timeValueNanos(1);
-        BatchRunnableExecutor executor = new BatchRunnableExecutor(runnableList, timeoutSupplier);
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        BatchRunnableExecutor executor = new BatchRunnableExecutor(runnableList, timeoutSupplier) {
+            @Override
+            public void onComplete() {
+                countDownLatch.countDown();
+            }
+        };
         executor.run();
         verify(runnable1, times(1)).onTimeout();
         verify(runnable2, times(1)).onTimeout();
@@ -63,12 +77,19 @@ public class BatchRunnableExecutorTests extends OpenSearchTestCase {
         verify(runnable1, never()).run();
         verify(runnable2, never()).run();
         verify(runnable3, never()).run();
+        assertEquals(0, countDownLatch.getCount());
     }
 
     public void testRunWithPartialTimeout() {
         setupRunnables();
         timeoutSupplier = () -> TimeValue.timeValueMillis(50);
-        BatchRunnableExecutor executor = new BatchRunnableExecutor(runnableList, timeoutSupplier);
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        BatchRunnableExecutor executor = new BatchRunnableExecutor(runnableList, timeoutSupplier) {
+            @Override
+            public void onComplete() {
+                countDownLatch.countDown();
+            }
+        };
         doAnswer(invocation -> {
             Thread.sleep(100);
             return null;
@@ -81,11 +102,18 @@ public class BatchRunnableExecutorTests extends OpenSearchTestCase {
         verify(runnable3, atMost(1)).onTimeout();
         verify(runnable2, atMost(1)).onTimeout();
         verify(runnable3, atMost(1)).onTimeout();
+        assertEquals(0, countDownLatch.getCount());
     }
 
     public void testRunWithEmptyRunnableList() {
         setupRunnables();
-        BatchRunnableExecutor executor = new BatchRunnableExecutor(Collections.emptyList(), timeoutSupplier);
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        BatchRunnableExecutor executor = new BatchRunnableExecutor(Collections.emptyList(), timeoutSupplier) {
+            @Override
+            public void onComplete() {
+                countDownLatch.countDown();
+            }
+        };
         executor.run();
         verify(runnable1, never()).onTimeout();
         verify(runnable2, never()).onTimeout();
@@ -93,5 +121,6 @@ public class BatchRunnableExecutorTests extends OpenSearchTestCase {
         verify(runnable1, never()).run();
         verify(runnable2, never()).run();
         verify(runnable3, never()).run();
+        assertEquals(1, countDownLatch.getCount());
     }
 }
