@@ -105,7 +105,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final ClusterSettings clusterSettings;
     protected final ThreadPool threadPool;
-    protected final InternalThreadContextWrapper tcWrapper;
+    protected volatile InternalThreadContextWrapper tcWrapper;
 
     private volatile TimeValue slowTaskLoggingThreshold;
 
@@ -141,7 +141,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     ) {
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
-        this.tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
         this.state = new AtomicReference<>();
         this.nodeName = nodeName;
 
@@ -176,6 +175,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         Objects.requireNonNull(state.get(), "please set initial state before starting");
         threadPoolExecutor = createThreadPoolExecutor();
+        tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
     }
 
     protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {

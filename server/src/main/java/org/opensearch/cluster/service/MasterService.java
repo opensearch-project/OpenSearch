@@ -135,7 +135,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile TimeValue slowTaskLoggingThreshold;
 
     protected final ThreadPool threadPool;
-    protected final InternalThreadContextWrapper tcWrapper;
+    protected volatile InternalThreadContextWrapper tcWrapper;
 
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
@@ -171,7 +171,6 @@ public class MasterService extends AbstractLifecycleComponent {
         );
         this.stateStats = new ClusterStateStats();
         this.threadPool = threadPool;
-        this.tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
         this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
@@ -193,6 +192,7 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
         taskBatcher = new Batcher(logger, threadPoolExecutor, clusterManagerTaskThrottler);
+        tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
     }
 
     protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
