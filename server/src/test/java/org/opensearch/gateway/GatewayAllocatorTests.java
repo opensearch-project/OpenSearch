@@ -32,6 +32,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
@@ -59,6 +60,13 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
     public void setUp() throws Exception {
         super.setUp();
         testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator();
+    }
+
+    public void testExecutorNotNull() {
+        createIndexAndUpdateClusterState(1, 3, 1);
+        createBatchesAndAssert(1);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        assertNotNull(executor);
     }
 
     public void testSingleBatchCreation() {
@@ -334,6 +342,30 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
             .flatMap(List::stream)
             .collect(Collectors.toList());
         allShardRoutings.forEach(shard -> assertNull(testShardsBatchGatewayAllocator.getBatchId(shard, shard.primary())));
+    }
+
+    public void testCreatePrimaryAndReplicaExecutorOfSizeOne() {
+        createIndexAndUpdateClusterState(1, 3, 2);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 1);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 1);
+    }
+
+    public void testCreatePrimaryExecutorOfSizeOneAndReplicaExecutorOfSizeZero() {
+        createIndexAndUpdateClusterState(1, 3, 0);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 1);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        assertNull(executor);
+    }
+
+    public void testCreatePrimaryAndReplicaExecutorOfSizeTwo() {
+        createIndexAndUpdateClusterState(2, 1001, 1);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 2);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 2);
     }
 
     private void createIndexAndUpdateClusterState(int count, int numberOfShards, int numberOfReplicas) {
