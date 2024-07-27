@@ -244,7 +244,7 @@ public abstract class TransportReplicationAction<
         if (threadPool != null) {
             this.tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
         } else {
-            this.tcWrapper = InternalThreadContextWrapper.from(transportSeervice.threadPool.getThreadContext());
+            this.tcWrapper = InternalThreadContextWrapper.from(transportService.getThreadPool().getThreadContext());
         }
         this.transportService = transportService;
         this.clusterService = clusterService;
