@@ -36,17 +36,21 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RemoteConnectionStrategyTests extends OpenSearchTestCase {
 
     public void testStrategyChangeMeansThatStrategyMustBeRebuilt() {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
+        TransportService mockTransportService = mock(TransportService.class);
+        when(mockTransportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         FakeConnectionStrategy first = new FakeConnectionStrategy(
             "cluster-alias",
-            mock(TransportService.class),
+            mockTransportService,
             remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY
         );
@@ -60,9 +64,11 @@ public class RemoteConnectionStrategyTests extends OpenSearchTestCase {
     public void testSameStrategyChangeMeansThatStrategyDoesNotNeedToBeRebuilt() {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(Settings.EMPTY, mock(Transport.class));
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
+        TransportService mockTransportService = mock(TransportService.class);
+        when(mockTransportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         FakeConnectionStrategy first = new FakeConnectionStrategy(
             "cluster-alias",
-            mock(TransportService.class),
+            mockTransportService,
             remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY
         );
@@ -78,9 +84,11 @@ public class RemoteConnectionStrategyTests extends OpenSearchTestCase {
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
         assertEquals(false, connectionManager.getConnectionProfile().getCompressionEnabled());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
+        TransportService mockTransportService = mock(TransportService.class);
+        when(mockTransportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         FakeConnectionStrategy first = new FakeConnectionStrategy(
             "cluster-alias",
-            mock(TransportService.class),
+            mockTransportService,
             remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY
         );

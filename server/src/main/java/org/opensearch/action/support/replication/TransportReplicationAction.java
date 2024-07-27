@@ -143,7 +143,7 @@ public abstract class TransportReplicationAction<
     public static final String REPLICA_ACTION_SUFFIX = "[r]";
 
     protected final ThreadPool threadPool;
-    protected final InternalThreadContextWrapper tcWrapper;
+    protected volatile InternalThreadContextWrapper tcWrapper;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ShardStateAction shardStateAction;
@@ -243,8 +243,6 @@ public abstract class TransportReplicationAction<
         this.threadPool = threadPool;
         if (threadPool != null) {
             this.tcWrapper = InternalThreadContextWrapper.from(threadPool.getThreadContext());
-        } else {
-            this.tcWrapper = InternalThreadContextWrapper.from(transportService.getThreadPool().getThreadContext());
         }
         this.transportService = transportService;
         this.clusterService = clusterService;

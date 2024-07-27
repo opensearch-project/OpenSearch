@@ -172,7 +172,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     ) {
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
-        this.tcWrapper = InternalThreadContextWrapper.from(transportService.threadPool.getThreadContext());
+        this.tcWrapper = InternalThreadContextWrapper.from(transportService.getThreadPool().getThreadContext());
         this.connectionManager = connectionManager;
         this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
         connectionManager.addListener(this);
