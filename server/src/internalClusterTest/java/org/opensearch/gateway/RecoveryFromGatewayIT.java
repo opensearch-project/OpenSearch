@@ -855,7 +855,7 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         assertEquals(0, gatewayAllocator.getNumberOfInFlightFetches());
     }
 
-    public void testBatchModeEnabledWithInSufficientTimeoutButClusterGreen() throws Exception {
+    public void testBatchModeEnabledWithDisabledTimeoutAndClusterGreen() throws Exception {
 
         internalCluster().startClusterManagerOnlyNodes(
             1,
@@ -889,8 +889,8 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
                 .put("node.name", clusterManagerName)
                 .put(clusterManagerDataPathSettings)
                 .put(ShardsBatchGatewayAllocator.GATEWAY_ALLOCATOR_BATCH_SIZE.getKey(), 5)
-                .put(ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey(), "10ms")
-                .put(ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey(), "10ms")
+                .put(ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey(), "-1")
+                .put(ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey(), "-1")
                 .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true)
                 .build()
         );
