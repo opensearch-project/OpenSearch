@@ -45,6 +45,8 @@ public class SumValueAggregator implements ValueAggregator<Double> {
         kahanSummation.reset(0, 0);
         if (segmentDocValue != null) {
             kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
+        } else {
+            kahanSummation.add(getIdentityMetricValue());
         }
         compensation = kahanSummation.delta();
         sum = kahanSummation.value();
@@ -53,10 +55,12 @@ public class SumValueAggregator implements ValueAggregator<Double> {
 
     @Override
     public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue) {
-        assert kahanSummation.value() == value;
+        assert value == null || kahanSummation.value() == value;
         kahanSummation.reset(sum, compensation);
         if (segmentDocValue != null) {
             kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
+        } else {
+            kahanSummation.add(getIdentityMetricValue());
         }
         compensation = kahanSummation.delta();
         sum = kahanSummation.value();
@@ -65,10 +69,12 @@ public class SumValueAggregator implements ValueAggregator<Double> {
 
     @Override
     public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
-        assert kahanSummation.value() == aggregatedValue;
+        assert aggregatedValue == null || kahanSummation.value() == aggregatedValue;
         kahanSummation.reset(sum, compensation);
         if (value != null) {
             kahanSummation.add(value);
+        } else {
+            kahanSummation.add(getIdentityMetricValue());
         }
         compensation = kahanSummation.delta();
         sum = kahanSummation.value();
@@ -80,6 +86,8 @@ public class SumValueAggregator implements ValueAggregator<Double> {
         kahanSummation.reset(0, 0);
         if (value != null) {
             kahanSummation.add(value);
+        } else {
+            kahanSummation.add(getIdentityMetricValue());
         }
         compensation = kahanSummation.delta();
         sum = kahanSummation.value();

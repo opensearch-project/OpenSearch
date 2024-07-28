@@ -36,34 +36,38 @@ public class CountValueAggregator implements ValueAggregator<Long> {
 
     @Override
     public Long getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue) {
+
+        if (segmentDocValue == null) {
+            return getIdentityMetricValue();
+        }
+
         return DEFAULT_INITIAL_VALUE;
     }
 
     @Override
     public Long mergeAggregatedValueAndSegmentValue(Long value, Long segmentDocValue) {
-        long totalCount = getIdentityMetricValue();
-        if (value != null) {
-            totalCount += value;
+        if (value == null) {
+            return getIdentityMetricValue();
         }
-        return totalCount + 1;
+        return value + 1;
     }
 
     @Override
     public Long mergeAggregatedValues(Long value, Long aggregatedValue) {
-        long totalCount = getIdentityMetricValue();
-        if (value != null) {
-            totalCount += value;
+        if (value == null) {
+            value = getIdentityMetricValue();
         }
-
-        if (aggregatedValue != null) {
-            totalCount += aggregatedValue;
+        if (aggregatedValue == null) {
+            aggregatedValue = getIdentityMetricValue();
         }
-
-        return totalCount;
+        return value + aggregatedValue;
     }
 
     @Override
     public Long getInitialAggregatedValue(Long value) {
+        if (value == null) {
+            return getIdentityMetricValue();
+        }
         return value;
     }
 

@@ -10,33 +10,27 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
-import org.opensearch.test.OpenSearchTestCase;
 
-public class CountValueAggregatorTests extends OpenSearchTestCase {
+public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
+
     private final CountValueAggregator aggregator = new CountValueAggregator(StarTreeNumericType.LONG);
 
-    public void testGetAggregationType() {
-        assertEquals(MetricStat.COUNT.getTypeName(), aggregator.getAggregationType().getTypeName());
-    }
-
-    public void testGetAggregatedValueType() {
-        assertEquals(CountValueAggregator.VALUE_AGGREGATOR_TYPE, aggregator.getAggregatedValueType());
-    }
-
-    public void testGetInitialAggregatedValueForSegmentDocValue() {
-        assertEquals(1L, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong()), 0.0);
-    }
-
     public void testMergeAggregatedValueAndSegmentValue() {
-        assertEquals(3L, aggregator.mergeAggregatedValueAndSegmentValue(2L, 3L), 0.0);
+        long randomLong = randomLong();
+        assertEquals(randomLong + 1, aggregator.mergeAggregatedValueAndSegmentValue(randomLong, 3L), 0.0);
     }
 
     public void testMergeAggregatedValues() {
-        assertEquals(5L, aggregator.mergeAggregatedValues(2L, 3L), 0.0);
+        long randomLong1 = randomLong();
+        long randomLong2 = randomLong();
+        assertEquals(randomLong1 + randomLong2, aggregator.mergeAggregatedValues(randomLong1, randomLong2), 0.0);
+        assertEquals(randomLong1, aggregator.mergeAggregatedValues(randomLong1, null), 0.0);
+        assertEquals(randomLong2, aggregator.mergeAggregatedValues(null, randomLong2), 0.0);
     }
 
     public void testGetInitialAggregatedValue() {
-        assertEquals(3L, aggregator.getInitialAggregatedValue(3L), 0.0);
+        long randomLong = randomLong();
+        assertEquals(randomLong, aggregator.getInitialAggregatedValue(randomLong), 0.0);
     }
 
     public void testGetMaxAggregatedValueByteSize() {
@@ -44,14 +38,33 @@ public class CountValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testToLongValue() {
-        assertEquals(3L, aggregator.toLongValue(3L), 0.0);
+        long randomLong = randomLong();
+        assertEquals(randomLong, aggregator.toLongValue(randomLong), 0.0);
+        assertNull(aggregator.toLongValue(null));
     }
 
     public void testToStarTreeNumericTypeValue() {
-        assertEquals(3L, aggregator.toStarTreeNumericTypeValue(3L), 0.0);
+        long randomLong = randomLong();
+        assertEquals(randomLong, aggregator.toStarTreeNumericTypeValue(randomLong), 0.0);
+        assertNull(aggregator.toStarTreeNumericTypeValue(null));
     }
 
     public void testIdentityMetricValue() {
         assertEquals(0L, aggregator.getIdentityMetricValue(), 0);
+    }
+
+    @Override
+    public ValueAggregator getValueAggregator() {
+        return aggregator;
+    }
+
+    @Override
+    public MetricStat getMetricStat() {
+        return MetricStat.COUNT;
+    }
+
+    @Override
+    public StarTreeNumericType getValueAggregatorType() {
+        return StarTreeNumericType.LONG;
     }
 }

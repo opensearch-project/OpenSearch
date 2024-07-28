@@ -47,6 +47,8 @@ public class MinValueAggregator implements ValueAggregator<Double> {
     public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue) {
         if (segmentDocValue == null && value != null) {
             return value;
+        } else if (segmentDocValue != null && value == null) {
+            return starTreeNumericType.getDoubleValue(segmentDocValue);
         } else if (segmentDocValue == null) {
             return getIdentityMetricValue();
         }
@@ -57,6 +59,8 @@ public class MinValueAggregator implements ValueAggregator<Double> {
     public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
         if (value == null && aggregatedValue != null) {
             return aggregatedValue;
+        } else if (value != null && aggregatedValue == null) {
+            return value;
         } else if (value == null) {
             return getIdentityMetricValue();
         }
