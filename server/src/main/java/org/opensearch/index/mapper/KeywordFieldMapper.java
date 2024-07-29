@@ -388,28 +388,50 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, QueryShardContext context) {
+        public Query termsQuery(List<?> values, QueryShardContext context, RewriteOverride rewriteOverride) {
             failIfNotIndexedAndNoDocValues();
-            // has index and doc_values enabled
-            if (isSearchable() && hasDocValues()) {
-                BytesRef[] bytesRefs = new BytesRef[values.size()];
-                for (int i = 0; i < bytesRefs.length; i++) {
-                    bytesRefs[i] = indexedValueForSearch(values.get(i));
-                }
-                Query indexQuery = new TermInSetQuery(name(), bytesRefs);
-                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            if (rewriteOverride == null) {
+                rewriteOverride = RewriteOverride.DEFAULT;
             }
-            // if we only have doc_values enabled, we construct a new query with doc_values re-written
-            if (hasDocValues()) {
-                BytesRef[] bytesRefs = new BytesRef[values.size()];
-                for (int i = 0; i < bytesRefs.length; i++) {
-                    bytesRefs[i] = indexedValueForSearch(values.get(i));
-                }
-                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
+            Query query = null;
+            switch (rewriteOverride) {
+                case DEFAULT:
+                    // has index and doc_values enabled
+                    if (isSearchable() && hasDocValues()) {
+                        BytesRef[] bytesRefs = new BytesRef[values.size()];
+                        for (int i = 0; i < bytesRefs.length; i++) {
+                            bytesRefs[i] = indexedValueForSearch(values.get(i));
+                        }
+                        Query indexQuery = new TermInSetQuery(name(), bytesRefs);
+                        Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
+                        query = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                    }
+                    // if we only have doc_values enabled, we construct a new query with doc_values re-written
+                    else if (hasDocValues()) {
+                        BytesRef[] bytesRefs = new BytesRef[values.size()];
+                        for (int i = 0; i < bytesRefs.length; i++) {
+                            bytesRefs[i] = indexedValueForSearch(values.get(i));
+                        }
+                        query = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
+                    } else {
+                        query = super.termsQuery(values, context);
+                    }
+                    break;
+                case INDEX_ONLY:
+                    failIfNotIndexed();
+                    query = super.termsQuery(values, context);
+                    break;
+                case DOC_VALUES_ONLY:
+                    failIfNoDocValues();
+                    BytesRef[] bytesRefs = new BytesRef[values.size()];
+                    for (int i = 0; i < bytesRefs.length; i++) {
+                        bytesRefs[i] = indexedValueForSearch(values.get(i));
+                    }
+                    query = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
+                    break;
             }
-            // has index enabled, we're going to return the query as is
-            return super.termsQuery(values, context);
+
+            return query;
         }
 
         @Override

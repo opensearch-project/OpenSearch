@@ -230,6 +230,14 @@ public abstract class MappedFieldType {
         );
     }
 
+    public Query termsQuery(List<?> values, @Nullable QueryShardContext context, @Nullable RewriteOverride rewriteOverride) {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (Object value : values) {
+            builder.add(termQuery(value, context), Occur.SHOULD);
+        }
+        return new ConstantScoreQuery(builder.build());
+    }
+
     /** Build a constant-scoring query that matches all values. The default implementation uses a
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */

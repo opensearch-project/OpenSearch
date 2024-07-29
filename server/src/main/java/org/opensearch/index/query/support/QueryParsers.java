@@ -36,6 +36,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.index.mapper.RewriteOverride;
 
 /**
  * Utility class for Query Parsers
@@ -51,6 +52,10 @@ public final class QueryParsers {
     public static final ParseField TOP_TERMS_BOOST = new ParseField("top_terms_boost_");
     public static final ParseField TOP_TERMS_BLENDED_FREQS = new ParseField("top_terms_blended_freqs_");
 
+    public static final ParseField DEFAULT = new ParseField("default");
+    public static final ParseField INDEX_ONLY = new ParseField("index_only");
+    public static final ParseField DOC_VALUES_ONLY = new ParseField("doc_values_only");
+
     private QueryParsers() {
 
     }
@@ -64,6 +69,27 @@ public final class QueryParsers {
 
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod, DeprecationHandler deprecationHandler) {
         return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE, deprecationHandler);
+    }
+
+    public static RewriteOverride parseRewriteOverride(
+        @Nullable String rewrite_override,
+        @Nullable RewriteOverride defaultRewriteOverride,
+        DeprecationHandler deprecationHandler
+    ) {
+        if (rewrite_override == null) {
+            return defaultRewriteOverride;
+        }
+        if (DEFAULT.match(rewrite_override, deprecationHandler)) {
+            return RewriteOverride.DEFAULT;
+        }
+        if (INDEX_ONLY.match(rewrite_override, deprecationHandler)) {
+            return RewriteOverride.INDEX_ONLY;
+        }
+        if (DOC_VALUES_ONLY.match(rewrite_override, deprecationHandler)) {
+            return RewriteOverride.DOC_VALUES_ONLY;
+        }
+        throw new IllegalArgumentException("Failed to parse rewrite_override [" + rewrite_override + "]");
+
     }
 
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(

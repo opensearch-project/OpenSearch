@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `actions/github-script` from 6 to 7 ([#14997](https://github.com/opensearch-project/OpenSearch/pull/14997))
 
 ### Changed
+- Updated `termsQuery` in `KeywordField` to set custom rewrite_override before executing query
 
 ### Deprecated
 
