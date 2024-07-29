@@ -469,7 +469,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             iterations++;
             if (iterations % 1000 == 0) {
-                logger.info("Performed {} iterations", iterations);
+                logger.info("[ CPU_AND_MEMORY_INTENSIVE ] Performed {} iterations", iterations);
             }
         }
         logger.info("Completed compute-intensive task");
