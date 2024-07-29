@@ -55,7 +55,11 @@ public class RestStatusTests extends OpenSearchTestCase {
             heapOfFailures.add(failure);
         }
 
-        assertEquals(heapOfFailures.peek().status(), RestStatus.status(successfulShards, totalShards, failures));
+        final RestStatus status = heapOfFailures.peek().status();
+        // RestStatus.status will return RestStatus.OK when the highest failure code is 100 level.
+        final RestStatus expected = status.getStatusFamilyCode() == 1 ? RestStatus.OK : status;
+
+        assertEquals(expected, RestStatus.status(successfulShards, totalShards, failures));
     }
 
     public void testSerialization() throws IOException {
