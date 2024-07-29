@@ -673,3 +673,71 @@ setup:
   - match: { aggregations.my_range.buckets.3.from: 1.5 }
   - is_false:  aggregations.my_range.buckets.3.to
   - match: { aggregations.my_range.buckets.3.doc_count: 2 }
+
+---
+"range with auto date sub aggregation":
+  - do:
+      indices.create:
+        index: test_range_auto_date
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date:
+                type: date
+  - do:
+      bulk:
+        refresh: true
+        index: test_range_auto_date
+        body:
+          - '{"index": {}}'
+          - '{"date": "2020-03-01", "v": 1}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-01", "v": 11}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-02", "v": 12}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-08", "v": 23}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-08", "v": 28}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-08", "v": 28}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-08", "v": 39}'
+          - '{"index": {}}'
+          - '{"date": "2020-03-09", "v": 4}'
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            my_range:
+              range:
+                field: v
+                ranges:
+                  - to: 10
+                  - from: 10
+                    to: 20
+                  - from: 20
+              aggs:
+                histo:
+                  date_histogram:
+                    field: date
+                    calendar_interval: day
+
+  - match: { hits.total.value: 8 }
+  - length: { aggregations.my_range.buckets: 3 }
+
+  - match: { aggregations.my_range.buckets.0.key: "*-10.0" }
+  - match: { aggregations.my_range.buckets.1.key: "10.0-20.0" }
+  - match: { aggregations.my_range.buckets.2.key: "20.0-*" }
+
+  - match: { aggregations.my_range.buckets.0.doc_count: 2 }
+  - match: { aggregations.my_range.buckets.1.doc_count: 2 }
+  - match: { aggregations.my_range.buckets.2.doc_count: 4 }
+
+  - match: { aggregations.my_range.buckets.0.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.my_range.buckets.0.histo.buckets.1.doc_count: 0 }
+  - match: { aggregations.my_range.buckets.2.histo.buckets.0.doc_count: 4 }

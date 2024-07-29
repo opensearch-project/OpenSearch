@@ -723,7 +723,7 @@ setup:
   - do:
       bulk:
         refresh: true
-        index: test
+        index: test_date_hist_range_sub_agg
         body:
           - '{"index": {}}'
           - '{"date": "2020-03-01", "v": 1}'
