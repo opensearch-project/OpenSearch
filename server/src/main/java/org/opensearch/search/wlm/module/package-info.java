@@ -10,4 +10,4 @@
  * Guice Module
  */
 
-package org.opensearch.search.querygroup.module;
+package org.opensearch.search.wlm.module;

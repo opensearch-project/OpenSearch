@@ -127,11 +127,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             .orElse(false);
     }
 
-    public Map<String, QueryGroup> queryGroups() {
-        // stub
-        return Collections.emptyMap();
-    }
-
     /**
      * Context of the XContent.
      *
@@ -1396,7 +1391,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return queryGroups(existing);
         }
 
-        private Map<String, QueryGroup> getQueryGroups() {
+        public Map<String, QueryGroup> getQueryGroups() {
             return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
                 .map(o -> (QueryGroupMetadata) o)
                 .map(QueryGroupMetadata::queryGroups)

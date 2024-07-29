@@ -6,16 +6,16 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.querygroup;
+package org.opensearch.search.wlm;
 
-import org.opensearch.search.resourcetypes.ResourceType;
+import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.search.querygroup.QueryGroupTestHelpers.getRandomTask;
+import static org.opensearch.search.wlm.QueryGroupTestHelpers.getRandomTask;
 
 public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
     Map<ResourceType, Long> resourceUsage;
@@ -23,7 +23,7 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        resourceUsage = Map.of(ResourceType.fromName("Memory"), 34L, ResourceType.fromName("CPU"), 12L);
+        resourceUsage = Map.of(ResourceType.fromName("memory"), 34L, ResourceType.fromName("cpu"), 12L);
         activeTasks = List.of(getRandomTask(4321));
     }
 
@@ -61,6 +61,6 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
     }
 
     private boolean assertResourceUsageData(Map<ResourceType, Long> resourceUsageData) {
-        return resourceUsageData.get(ResourceType.fromName("Memory")) == 34L && resourceUsageData.get(ResourceType.fromName("CPU")) == 12L;
+        return resourceUsageData.get(ResourceType.fromName("memory")) == 34L && resourceUsageData.get(ResourceType.fromName("cpu")) == 12L;
     }
 }

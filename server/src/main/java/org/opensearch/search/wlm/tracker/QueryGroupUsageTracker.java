@@ -6,18 +6,18 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.querygroup.tracker;
+package org.opensearch.search.wlm.tracker;
 
-import org.opensearch.search.querygroup.QueryGroupLevelResourceUsageView;
+import org.opensearch.search.wlm.QueryGroupLevelResourceUsageView;
 
 import java.util.Map;
 
 /**
- * This interface is mainly for tracking the resourceLimitGroup level resource usages
+ * This interface is mainly for tracking the queryGroup level resource usages
  */
 public interface QueryGroupUsageTracker {
     /**
-     * updates the current resource usage of resourceLimitGroups
+     * updates the current resource usage of queryGroup
      */
 
     Map<String, QueryGroupLevelResourceUsageView> constructQueryGroupLevelUsageViews();
