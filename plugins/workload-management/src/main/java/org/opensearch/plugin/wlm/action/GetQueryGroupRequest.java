@@ -12,17 +12,16 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
- * A request for get QueryGroup
+ * Request for get QueryGroup
  *
  * @opensearch.experimental
  */
-public class GetQueryGroupRequest extends ActionRequest implements Writeable.Reader<GetQueryGroupRequest> {
-    String name;
+public class GetQueryGroupRequest extends ActionRequest {
+    final String name;
 
     /**
      * Default constructor for GetQueryGroupRequest
@@ -42,13 +41,14 @@ public class GetQueryGroupRequest extends ActionRequest implements Writeable.Rea
     }
 
     @Override
-    public GetQueryGroupRequest read(StreamInput in) throws IOException {
-        return new GetQueryGroupRequest(in);
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeOptionalString(name);
     }
 
     /**
@@ -56,11 +56,5 @@ public class GetQueryGroupRequest extends ActionRequest implements Writeable.Rea
      */
     public String getName() {
         return name;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalString(name);
     }
 }

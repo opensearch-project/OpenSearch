@@ -18,7 +18,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 /**
- * Transport action for get QueryGroup
+ * Transport action to get QueryGroup
  *
  * @opensearch.experimental
  */
@@ -51,8 +51,7 @@ public class TransportGetQueryGroupAction extends HandledTransportAction<GetQuer
 
     @Override
     protected void doExecute(Task task, GetQueryGroupRequest request, ActionListener<GetQueryGroupResponse> listener) {
-        String name = request.getName();
         threadPool.executor(ThreadPool.Names.GENERIC)
-            .execute(() -> queryGroupPersistenceService.getFromClusterStateMetadata(name, listener));
+            .execute(() -> queryGroupPersistenceService.getFromClusterStateMetadata(request.getName(), listener));
     }
 }

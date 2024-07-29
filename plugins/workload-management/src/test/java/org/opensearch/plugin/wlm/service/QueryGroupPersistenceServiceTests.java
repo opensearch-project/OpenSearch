@@ -10,8 +10,6 @@ package org.opensearch.plugin.wlm.service;
 
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.plugin.wlm.action.GetQueryGroupResponse;
@@ -22,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterSettings;
 import static org.mockito.Mockito.mock;
 
 public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
@@ -50,12 +49,12 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testGetZeroQueryGroups() {
-        Settings settings = Settings.builder().build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        // Settings settings = Settings.builder().build();
+        // ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
             mock(ClusterService.class),
-            settings,
-            clusterSettings
+            QueryGroupTestUtils.settings(),
+            clusterSettings()
         );
         List<QueryGroup> res = queryGroupPersistenceService.getQueryGroupsFromClusterState(
             QueryGroupTestUtils.NAME_NONE_EXISTED,

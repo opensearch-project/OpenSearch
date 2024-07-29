@@ -18,7 +18,6 @@ import org.opensearch.action.ActionType;
 public class GetQueryGroupAction extends ActionType<GetQueryGroupResponse> {
 
     /**
-     /**
      * An instance of GetQueryGroupAction
      */
     public static final GetQueryGroupAction INSTANCE = new GetQueryGroupAction();
