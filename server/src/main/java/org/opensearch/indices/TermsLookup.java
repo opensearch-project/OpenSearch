@@ -87,6 +87,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         path = in.readString();
         index = in.readString();
         routing = in.readOptionalString();
+        if (in.getVersion().after(Version.V_2_16_0)) {
+            store = in.readBoolean();
+        }
     }
 
     @Override
@@ -98,6 +101,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         out.writeString(path);
         out.writeString(index);
         out.writeOptionalString(routing);
+        if (out.getVersion().after(Version.V_2_16_0)) {
+            out.writeBoolean(store);
+        }
     }
 
     public String index() {
@@ -122,7 +128,11 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     }
 
     private boolean store;
-    public boolean store() { return store; }
+
+    public boolean store() {
+        return store;
+    }
+
     public TermsLookup store(boolean store) {
         this.store = store;
         return this;

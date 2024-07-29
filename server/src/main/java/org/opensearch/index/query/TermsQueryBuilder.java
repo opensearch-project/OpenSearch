@@ -37,6 +37,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
@@ -80,7 +81,6 @@ import java.util.stream.IntStream;
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
-
     private final String fieldName;
     private final List<?> values;
     private final TermsLookup termsLookup;
@@ -88,6 +88,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
     private String valueType;
+
     public final TermsQueryBuilder valueType(String valueType) {
         this.valueType = valueType;
         return this;
@@ -199,8 +200,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     private TermsQueryBuilder(String fieldName, Iterable<?> values, String valueType) {
-       this(fieldName, values);
-       this.valueType = valueType;
+        this(fieldName, values);
+        this.valueType = valueType;
     }
 
     private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier) {
@@ -224,6 +225,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         termsLookup = in.readOptionalWriteable(TermsLookup::new);
         values = (List<?>) in.readGenericValue();
         this.supplier = null;
+        if (in.getVersion().after(Version.V_2_16_0)) {
+            valueType = in.readOptionalString();
+        }
     }
 
     @Override
@@ -234,6 +238,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
         out.writeGenericValue(values);
+        if (out.getVersion().after(Version.V_2_16_0)) {
+            out.writeOptionalString(valueType);
+        }
     }
 
     public String fieldName() {
