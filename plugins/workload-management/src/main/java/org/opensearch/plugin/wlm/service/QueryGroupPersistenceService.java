@@ -201,30 +201,28 @@ public class QueryGroupPersistenceService {
      * @param listener - ActionListener for GetQueryGroupResponse
      */
     public void getFromClusterStateMetadata(String name, ActionListener<GetQueryGroupResponse> listener) {
-        ClusterState currentState = clusterService.state();
-        List<QueryGroup> resultGroups = getQueryGroupsFromClusterState(name, currentState);
+        List<QueryGroup> resultGroups = getQueryGroupsFromClusterState(name, clusterService.state());
         if (resultGroups.isEmpty() && name != null && !name.isEmpty()) {
             logger.warn("No QueryGroup exists with the provided name: {}", name);
-            Exception e = new RuntimeException("No QueryGroup exists with the provided name: " + name);
+            Exception e = new IllegalArgumentException("No QueryGroup exists with the provided name: " + name);
             listener.onFailure(e);
             return;
         }
-        GetQueryGroupResponse response = new GetQueryGroupResponse(resultGroups, RestStatus.OK);
-        listener.onResponse(response);
+        listener.onResponse(new GetQueryGroupResponse(resultGroups, RestStatus.OK));
     }
 
+    /**
+     * Get the QueryGroups with the specified name from cluster state
+     * @param name - the QueryGroup name we are getting
+     * @param currentState - current cluster state
+     */
     List<QueryGroup> getQueryGroupsFromClusterState(String name, ClusterState currentState) {
         Map<String, QueryGroup> currentGroups = currentState.getMetadata().queryGroups();
         if (name == null || name.isEmpty()) {
             return new ArrayList<>(currentGroups.values());
         }
         List<QueryGroup> resultGroups = new ArrayList<>();
-        for (QueryGroup group : currentGroups.values()) {
-            if (group.getName().equals(name)) {
-                resultGroups.add(group);
-                break;
-            }
-        }
+        currentGroups.values().stream().filter(group -> group.getName().equals(name)).findFirst().ifPresent(resultGroups::add);
         return resultGroups;
     }
 

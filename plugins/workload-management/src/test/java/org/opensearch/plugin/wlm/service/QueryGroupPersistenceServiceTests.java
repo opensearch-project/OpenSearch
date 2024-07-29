@@ -6,6 +6,14 @@
  * compatible open source license.
  */
 
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.plugin.wlm.service;
 
 import org.opensearch.cluster.ClusterName;
@@ -32,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 
 import org.mockito.ArgumentCaptor;
 
@@ -273,12 +280,12 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testGetZeroQueryGroups() {
-        Settings settings = Settings.builder().build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        // Settings settings = Settings.builder().build();
+        // ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
             mock(ClusterService.class),
-            settings,
-            clusterSettings
+            QueryGroupTestUtils.settings(),
+            clusterSettings()
         );
         List<QueryGroup> res = queryGroupPersistenceService.getQueryGroupsFromClusterState(
             QueryGroupTestUtils.NAME_NONE_EXISTED,

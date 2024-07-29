@@ -27,7 +27,7 @@ import java.util.List;
  */
 public class GetQueryGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final List<QueryGroup> queryGroups;
-    private RestStatus restStatus;
+    private final RestStatus restStatus;
 
     /**
      * Constructor for GetQueryGroupResponse
