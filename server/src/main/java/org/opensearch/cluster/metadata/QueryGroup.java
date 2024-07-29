@@ -148,56 +148,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     }
 
     public static QueryGroup fromXContent(final XContentParser parser) throws IOException {
-        if (parser.currentToken() == null) { // fresh parser? move to the first token
-            parser.nextToken();
-        }
-
-        Builder builder = builder();
-
-        XContentParser.Token token = parser.currentToken();
-
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException("Expected START_OBJECT token but found [" + parser.currentName() + "]");
-        }
-
-        String fieldName = "";
-        // Map to hold resources
-        final Map<ResourceType, Double> resourceLimits = new HashMap<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                fieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (fieldName.equals(_ID_STRING)) {
-                    builder._id(parser.text());
-                } else if (fieldName.equals(NAME_STRING)) {
-                    builder.name(parser.text());
-                } else if (fieldName.equals(RESILIENCY_MODE_STRING)) {
-                    builder.mode(parser.text());
-                } else if (fieldName.equals(UPDATED_AT_STRING)) {
-                    builder.updatedAt(parser.longValue());
-                } else {
-                    throw new IllegalArgumentException(fieldName + " is not a valid field in QueryGroup");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-
-                if (!fieldName.equals(RESOURCE_LIMITS_STRING)) {
-                    throw new IllegalArgumentException(
-                        "QueryGroup.resourceLimits is an object and expected token was { " + " but found " + token
-                    );
-                }
-
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        fieldName = parser.currentName();
-                    } else {
-                        resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
-                    }
-                }
-
-            }
-        }
-        builder.resourceLimits(resourceLimits);
-        return builder.build();
+        return Builder.fromXContent(parser).build();
     }
 
     public static Diff<QueryGroup> readDiff(final StreamInput in) throws IOException {
@@ -293,6 +244,58 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
 
         private Builder() {}
 
+        public static Builder fromXContent(XContentParser parser) throws IOException {
+            if (parser.currentToken() == null) { // fresh parser? move to the first token
+                parser.nextToken();
+            }
+
+            Builder builder = builder();
+
+            XContentParser.Token token = parser.currentToken();
+
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("Expected START_OBJECT token but found [" + parser.currentName() + "]");
+            }
+
+            String fieldName = "";
+            // Map to hold resources
+            final Map<ResourceType, Double> resourceLimits = new HashMap<>();
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    fieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (fieldName.equals(_ID_STRING)) {
+                        builder._id(parser.text());
+                    } else if (fieldName.equals(NAME_STRING)) {
+                        builder.name(parser.text());
+                    } else if (fieldName.equals(RESILIENCY_MODE_STRING)) {
+                        builder.mode(parser.text());
+                    } else if (fieldName.equals(UPDATED_AT_STRING)) {
+                        builder.updatedAt(parser.longValue());
+                    } else {
+                        throw new IllegalArgumentException(fieldName + " is not a valid field in QueryGroup");
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+
+                    if (!fieldName.equals(RESOURCE_LIMITS_STRING)) {
+                        throw new IllegalArgumentException(
+                            "QueryGroup.resourceLimits is an object and expected token was { " + " but found " + token
+                        );
+                    }
+
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        } else {
+                            resourceLimits.put(ResourceType.fromName(fieldName), parser.doubleValue());
+                        }
+                    }
+
+                }
+            }
+            return builder.resourceLimits(resourceLimits);
+        }
+
         public Builder name(String name) {
             this.name = name;
             return this;
@@ -319,11 +322,7 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         }
 
         public QueryGroup build() {
-            if (_id == null && updatedAt == 0L) {
-                return new QueryGroup(name, resiliencyMode, resourceLimits);
-            } else {
-                return new QueryGroup(name, _id, resiliencyMode, resourceLimits, updatedAt);
-            }
+            return new QueryGroup(name, _id, resiliencyMode, resourceLimits, updatedAt);
         }
     }
 }

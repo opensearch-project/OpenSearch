@@ -22,6 +22,9 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
 
 public class CreateQueryGroupRequestTests extends OpenSearchTestCase {
 
+    /**
+     * Test case to verify the serialization and deserialization of CreateQueryGroupRequest.
+     */
     public void testSerialization() throws IOException {
         CreateQueryGroupRequest request = new CreateQueryGroupRequest(queryGroupOne);
         BytesStreamOutput out = new BytesStreamOutput();

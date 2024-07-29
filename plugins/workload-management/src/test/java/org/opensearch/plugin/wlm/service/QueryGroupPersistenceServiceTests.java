@@ -43,6 +43,9 @@ import static org.mockito.Mockito.mock;
 
 public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
 
+    /**
+     * Test case to validate the creation logic of a single QueryGroup
+     */
     public void testCreateQueryGroup() {
         List<Object> setup = preparePersistenceServiceSetup(new HashMap<>());
         QueryGroupPersistenceService queryGroupPersistenceService1 = (QueryGroupPersistenceService) setup.get(0);
@@ -58,6 +61,10 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         compareQueryGroups(listOne, listTwo);
     }
 
+    /**
+     * Test case to validate the logic for adding a new QueryGroup to a cluster state that already contains
+     * an existing QueryGroup
+     */
     public void testCreateAnotherQueryGroup() {
         List<Object> setup = preparePersistenceServiceSetup(Map.of(_ID_ONE, queryGroupOne));
         QueryGroupPersistenceService queryGroupPersistenceService1 = (QueryGroupPersistenceService) setup.get(0);
@@ -70,6 +77,9 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         compareQueryGroups(queryGroupList(), new ArrayList<>(values));
     }
 
+    /**
+     * Test case to ensure the error is thrown when we try to create another QueryGroup with duplicate name
+     */
     public void testCreateQueryGroupDuplicateName() {
         List<Object> setup = preparePersistenceServiceSetup(Map.of(_ID_ONE, queryGroupOne));
         QueryGroupPersistenceService queryGroupPersistenceService1 = (QueryGroupPersistenceService) setup.get(0);
@@ -83,6 +93,10 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveQueryGroupInClusterState(toCreate, clusterState));
     }
 
+    /**
+     * Test case to ensure the error is thrown when we try to create another QueryGroup that will make
+     * the total resource limits go above 1
+     */
     public void testCreateQueryGroupOverflowAllocation() {
         List<Object> setup = preparePersistenceServiceSetup(Map.of(_ID_TWO, queryGroupTwo));
         QueryGroup toCreate = builder().name(NAME_ONE)
@@ -96,6 +110,10 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveQueryGroupInClusterState(toCreate, clusterState));
     }
 
+    /**
+     * Test case to ensure the error is thrown when we already have the max allowed number of QueryGroups, but
+     * we try to create another one
+     */
     public void testCreateQueryGroupOverflowCount() {
         QueryGroup toCreate = builder().name(NAME_NONE_EXISTED)
             ._id("W5iIqHyhgi4K1qIAAAAIHw==")

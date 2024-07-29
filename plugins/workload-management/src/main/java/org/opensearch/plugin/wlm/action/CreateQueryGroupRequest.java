@@ -11,9 +11,11 @@ package org.opensearch.plugin.wlm.action;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.metadata.QueryGroup;
+import org.opensearch.common.UUIDs;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentParser;
+import org.joda.time.Instant;
 
 import java.io.IOException;
 
@@ -56,10 +58,8 @@ public class CreateQueryGroupRequest extends ActionRequest {
      * @param parser - A {@link XContentParser} object
      */
     public static CreateQueryGroupRequest fromXContent(XContentParser parser) throws IOException {
-        QueryGroup queryGroup1 = QueryGroup.fromXContent(parser);
-        // creating this queryGroup to ensure forceful creation of _id and updatedAt
-        QueryGroup queryGroup = new QueryGroup(queryGroup1.getName(), queryGroup1.getResiliencyMode(), queryGroup1.getResourceLimits());
-        return new CreateQueryGroupRequest(queryGroup);
+        QueryGroup.Builder builder = QueryGroup.Builder.fromXContent(parser);
+        return new CreateQueryGroupRequest(builder._id(UUIDs.randomBase64UUID()).updatedAt(Instant.now().getMillis()).build());
     }
 
     @Override

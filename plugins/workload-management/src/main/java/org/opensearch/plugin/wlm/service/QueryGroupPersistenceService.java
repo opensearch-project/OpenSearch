@@ -138,7 +138,7 @@ public class QueryGroupPersistenceService {
      * @param queryGroup - the QueryGroup we're currently creating
      * @param currentClusterState - the cluster state before the update
      */
-    public ClusterState saveQueryGroupInClusterState(final QueryGroup queryGroup, final ClusterState currentClusterState) {
+    ClusterState saveQueryGroupInClusterState(final QueryGroup queryGroup, final ClusterState currentClusterState) {
         final Map<String, QueryGroup> existingQueryGroups = currentClusterState.metadata().queryGroups();
         String groupName = queryGroup.getName();
 
