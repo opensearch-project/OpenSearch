@@ -18,6 +18,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
+import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -33,7 +34,6 @@ import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuress
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
-import org.opensearch.search.resourcetypes.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.SearchBackpressureTask;
 import org.opensearch.tasks.Task;
@@ -47,6 +47,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,9 +69,9 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
     private static final Map<TaskResourceUsageTrackerType, Function<NodeDuressTrackers, Boolean>> trackerApplyConditions = Map.of(
         TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
-        (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.fromName("cpu")),
+        (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.CPU),
         TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
-        (nodeDuressTrackers) -> isHeapTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.fromName("memory")),
+        (nodeDuressTrackers) -> isHeapTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.MEMORY),
         TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER,
         (nodeDuressTrackers) -> true
     );
@@ -93,26 +94,26 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         ThreadPool threadPool,
         TaskManager taskManager
     ) {
-        this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new HashMap<>() {
-            {
-                put(
-                    ResourceType.fromName("cpu"),
-                    new NodeDuressTracker(
-                        () -> ProcessProbe.getInstance().getProcessCpuPercent() / 100.0 >= settings.getNodeDuressSettings()
-                            .getCpuThreshold(),
-                        () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
-                    )
-                );
-                put(
-                    ResourceType.fromName("memory"),
-                    new NodeDuressTracker(
-                        () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings()
-                            .getHeapThreshold(),
-                        () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
-                    )
-                );
-            }
-        }),
+        this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {
+                {
+                    put(
+                        ResourceType.CPU,
+                        new NodeDuressTracker(
+                            () -> ProcessProbe.getInstance().getProcessCpuPercent() / 100.0 >= settings.getNodeDuressSettings()
+                                .getCpuThreshold(),
+                            () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
+                        )
+                    );
+                    put(
+                        ResourceType.MEMORY,
+                        new NodeDuressTracker(
+                            () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings()
+                                .getHeapThreshold(),
+                            () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
+                        )
+                    );
+                }
+            }),
             getTrackers(
                 settings.getSearchTaskSettings()::getCpuTimeNanosThreshold,
                 settings.getSearchTaskSettings()::getHeapVarianceThreshold,
@@ -255,6 +256,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     /**
      * Had to define this method to help mock this static method to test the scenario where SearchTraffic should not be
      * penalised when not breaching the threshold
+     *
      * @param searchTasks inFlight co-ordinator requests
      * @param threshold   miniumum  jvm allocated bytes ratio w.r.t. available heap
      * @return a boolean value based on whether the threshold is breached
@@ -298,6 +300,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
     /**
      * Method to reduce the taskCancellations into unique bunch
+     *
      * @param taskCancellations all task cancellations
      * @return unique task cancellations
      */
@@ -439,7 +442,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     }
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() throws IOException {
+    }
 
     public SearchBackpressureStats nodeStats() {
         List<CancellableTask> searchTasks = getTaskByType(SearchTask.class);

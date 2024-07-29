@@ -8,19 +8,19 @@
 
 package org.opensearch.search.backpressure.trackers;
 
+import org.opensearch.search.ResourceType;
 import org.opensearch.search.backpressure.trackers.NodeDuressTrackers.NodeDuressTracker;
-import org.opensearch.search.resourcetypes.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.HashMap;
+import java.util.EnumMap;
 
 public class NodeDuressTrackersTests extends OpenSearchTestCase {
 
     public void testNodeNotInDuress() {
-        HashMap<ResourceType, NodeDuressTracker> map = new HashMap<>() {
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> false, () -> 2));
-                put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> false, () -> 2));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> false, () -> 2));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 2));
             }
         };
 
@@ -32,10 +32,10 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     }
 
     public void testNodeInDuressWhenHeapInDuress() {
-        HashMap<ResourceType, NodeDuressTracker> map = new HashMap<>() {
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> true, () -> 3));
-                put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> false, () -> 1));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 1));
             }
         };
 
@@ -49,10 +49,10 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     }
 
     public void testNodeInDuressWhenCPUInDuress() {
-        HashMap<ResourceType, NodeDuressTracker> map = new HashMap<>() {
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> false, () -> 1));
-                put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> false, () -> 1));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> true, () -> 3));
             }
         };
 
@@ -66,10 +66,10 @@ public class NodeDuressTrackersTests extends OpenSearchTestCase {
     }
 
     public void testNodeInDuressWhenCPUAndHeapInDuress() {
-        HashMap<ResourceType, NodeDuressTracker> map = new HashMap<>() {
+        EnumMap<ResourceType, NodeDuressTracker> map = new EnumMap<>(ResourceType.class) {
             {
-                put(ResourceType.fromName("memory"), new NodeDuressTracker(() -> true, () -> 3));
-                put(ResourceType.fromName("cpu"), new NodeDuressTracker(() -> false, () -> 3));
+                put(ResourceType.MEMORY, new NodeDuressTracker(() -> true, () -> 3));
+                put(ResourceType.CPU, new NodeDuressTracker(() -> false, () -> 3));
             }
         };
 

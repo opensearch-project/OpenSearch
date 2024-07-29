@@ -14,7 +14,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.search.resourcetypes.ResourceType;
+import org.opensearch.search.ResourceType;
 import org.opensearch.test.AbstractSerializingTestCase;
 import org.joda.time.Instant;
 
@@ -35,7 +35,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
     static QueryGroup createRandomQueryGroup(String _id) {
         String name = randomAlphaOfLength(10);
         Map<ResourceType, Object> resourceLimit = new HashMap<>();
-        resourceLimit.put(ResourceType.fromName("memory"), randomDoubleBetween(0.0, 0.80, false));
+        resourceLimit.put(ResourceType.MEMORY, randomDoubleBetween(0.0, 0.80, false));
         return new QueryGroup(name, _id, randomMode(), resourceLimit, Instant.now().getMillis());
     }
 
@@ -99,7 +99,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
     public void testIllegalQueryGroupMode() {
         assertThrows(
             NullPointerException.class,
-            () -> new QueryGroup("analytics", "_id", null, Map.of(ResourceType.fromName("memory"), (Object) 0.4), Instant.now().getMillis())
+            () -> new QueryGroup("analytics", "_id", null, Map.of(ResourceType.MEMORY, (Object) 0.4), Instant.now().getMillis())
         );
     }
 
@@ -110,7 +110,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
                 "analytics",
                 "_id",
                 randomMode(),
-                Map.of(ResourceType.fromName("memory"), (Object) randomDoubleBetween(1.1, 1.8, false)),
+                Map.of(ResourceType.MEMORY, (Object) randomDoubleBetween(1.1, 1.8, false)),
                 Instant.now().getMillis()
             )
         );
@@ -121,7 +121,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
             "analytics",
             "_id",
             randomMode(),
-            Map.of(ResourceType.fromName("memory"), randomDoubleBetween(0.01, 0.8, false)),
+            Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false)),
             Instant.ofEpochMilli(1717187289).getMillis()
         );
 
@@ -141,7 +141,7 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
             "TestQueryGroup",
             queryGroupId,
             QueryGroup.ResiliencyMode.ENFORCED,
-            Map.of(ResourceType.fromName("cpu"), 0.30, ResourceType.fromName("memory"), 0.40),
+            Map.of(ResourceType.CPU, 0.30, ResourceType.MEMORY, 0.40),
             currentTimeInMillis
         );
         XContentBuilder builder = JsonXContent.contentBuilder();
