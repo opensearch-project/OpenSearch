@@ -94,25 +94,24 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         ThreadPool threadPool,
         TaskManager taskManager
     ) {
-        this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {
-                {
-                    put(
-                        ResourceType.CPU,
-                        new NodeDuressTracker(
-                            () -> ProcessProbe.getInstance().getProcessCpuPercent() / 100.0 >= settings.getNodeDuressSettings()
-                                .getCpuThreshold(),
-                            () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
-                        )
-                    );
-                    put(
-                        ResourceType.MEMORY,
-                        new NodeDuressTracker(
-                            () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings()
-                                .getHeapThreshold(),
-                            () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
-                        )
-                    );
-                }
+        this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {            {
+                put(
+                    ResourceType.CPU,
+                    new NodeDuressTracker(
+                        () -> ProcessProbe.getInstance().getProcessCpuPercent() / 100.0 >= settings.getNodeDuressSettings()
+                            .getCpuThreshold(),
+                        () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
+                    )
+                );
+                put(
+                    ResourceType.MEMORY,
+                    new NodeDuressTracker(
+                        () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings()
+                            .getHeapThreshold(),
+                        () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()
+                    )
+                );
+            }
             }),
             getTrackers(
                 settings.getSearchTaskSettings()::getCpuTimeNanosThreshold,
@@ -256,7 +255,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     /**
      * Had to define this method to help mock this static method to test the scenario where SearchTraffic should not be
      * penalised when not breaching the threshold
-     *
      * @param searchTasks inFlight co-ordinator requests
      * @param threshold   miniumum  jvm allocated bytes ratio w.r.t. available heap
      * @return a boolean value based on whether the threshold is breached
@@ -300,7 +298,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
     /**
      * Method to reduce the taskCancellations into unique bunch
-     *
      * @param taskCancellations all task cancellations
      * @return unique task cancellations
      */
@@ -442,8 +439,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     }
 
     @Override
-    protected void doClose() throws IOException {
-    }
+    protected void doClose() throws IOException {}
 
     public SearchBackpressureStats nodeStats() {
         List<CancellableTask> searchTasks = getTaskByType(SearchTask.class);
