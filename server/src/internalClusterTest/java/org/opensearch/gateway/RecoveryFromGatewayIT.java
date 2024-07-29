@@ -802,9 +802,22 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         // It would then be removed from any batch and batches would get deleted, so we would have 0 replica batches
         assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
 
-        // Now start both data nodes and ensure batch mode is working
-        logger.info("--> restarting the stopped nodes");
+        // Now start one data node
+        logger.info("--> restarting the first stopped node");
         internalCluster().startDataOnlyNode(Settings.builder().put("node.name", dataOnlyNodes.get(0)).put(node0DataPathSettings).build());
+        ensureStableCluster(2);
+        ensureYellow("test");
+        assertEquals(0, gatewayAllocator.getNumberOfStartedShardBatches());
+        assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
+        assertEquals(0, gatewayAllocator.getNumberOfInFlightFetches());
+
+        // calling reroute and asserting on reroute response
+        logger.info("--> calling reroute while cluster is yellow");
+        clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        assertTrue(clusterRerouteResponse.isAcknowledged());
+
+        // Now start last data node and ensure batch mode is working and cluster goes green
+        logger.info("--> restarting the second stopped node");
         internalCluster().startDataOnlyNode(Settings.builder().put("node.name", dataOnlyNodes.get(1)).put(node1DataPathSettings).build());
         ensureStableCluster(3);
         ensureGreen("test");
@@ -849,9 +862,22 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
         // It would then be removed from any batch and batches would get deleted, so we would have 0 replica batches
         assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
 
-        // Now start both data nodes and ensure batch mode is working
-        logger.info("--> restarting the stopped nodes");
+        // Now start one data nodes and ensure batch mode is working
+        logger.info("--> restarting the first stopped node");
         internalCluster().startDataOnlyNode(Settings.builder().put("node.name", dataOnlyNodes.get(0)).put(node0DataPathSettings).build());
+        ensureStableCluster(2);
+        ensureYellow("test");
+        assertEquals(0, gatewayAllocator.getNumberOfStartedShardBatches());
+        assertEquals(0, gatewayAllocator.getNumberOfStoreShardBatches());
+        assertEquals(0, gatewayAllocator.getNumberOfInFlightFetches());
+
+        // calling reroute and asserting on reroute response
+        logger.info("--> calling reroute while cluster is yellow");
+        clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        assertTrue(clusterRerouteResponse.isAcknowledged());
+
+        // Now start last data node and ensure batch mode is working and cluster goes green
+        logger.info("--> restarting the second stopped node");
         internalCluster().startDataOnlyNode(Settings.builder().put("node.name", dataOnlyNodes.get(1)).put(node1DataPathSettings).build());
         ensureStableCluster(3);
         ensureGreen("test");
@@ -1061,191 +1087,13 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
     public void testAllocationExplainReturnsNoWhenExtraReplicaShardInNonBatchMode() throws Exception {
         // Non batch mode - This test is to validate that we don't return AWAITING_INFO in allocation explain API when the deciders are
         // returning NO
-        internalCluster().startClusterManagerOnlyNodes(
-            1,
-            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), false).build()
-        );
-        internalCluster().startDataOnlyNodes(5);
-        createIndex(
-            "test",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 4).build()
-        );
-        ensureGreen("test");
-        ensureStableCluster(6);
-
-        // Stop one of the nodes to make the cluster yellow
-        // We cannot directly create an index with replica = data node count because then the whole flow will get skipped due to
-        // INDEX_CREATED
-        List<String> nodesWithReplicaShards = findNodesWithShard(false);
-        Settings replicaNodeDataPathSettings = internalCluster().dataPathSettings(nodesWithReplicaShards.get(0));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesWithReplicaShards.get(0)));
-
-        ensureStableCluster(5);
-        ensureYellow("test");
-
-        logger.info("--> calling allocation explain API");
-        // shard should have decision NO because there is no valid node for the extra replica to go to
-        AllocateUnassignedDecision aud = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex("test")
-            .setShard(0)
-            .setPrimary(false)
-            .get()
-            .getExplanation()
-            .getShardAllocationDecision()
-            .getAllocateDecision();
-
-        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
-        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
-
-        // Now creating a new index with too many replicas and trying again
-        createIndex(
-            "test2",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 5).build()
-        );
-
-        ensureYellowAndNoInitializingShards("test2");
-
-        logger.info("--> calling allocation explain API again");
-        // shard should have decision NO because there are 6 replicas and 4 data nodes
-        aud = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex("test2")
-            .setShard(0)
-            .setPrimary(false)
-            .get()
-            .getExplanation()
-            .getShardAllocationDecision()
-            .getAllocateDecision();
-
-        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
-        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
-
-        logger.info("--> restarting the stopped node");
-        internalCluster().startDataOnlyNode(
-            Settings.builder().put("node.name", nodesWithReplicaShards.get(0)).put(replicaNodeDataPathSettings).build()
-        );
-
-        ensureStableCluster(6);
-        ensureGreen("test");
-
-        logger.info("--> calling allocation explain API 3rd time");
-        // shard should still have decision NO because there are 6 replicas and 5 data nodes
-        aud = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex("test2")
-            .setShard(0)
-            .setPrimary(false)
-            .get()
-            .getExplanation()
-            .getShardAllocationDecision()
-            .getAllocateDecision();
-
-        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
-        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
-
-        internalCluster().startDataOnlyNodes(1);
-
-        ensureStableCluster(7);
-        ensureGreen("test2");
+        this.allocationExplainReturnsNoWhenExtraReplicaShard(false);
     }
 
     public void testAllocationExplainReturnsNoWhenExtraReplicaShardInBatchMode() throws Exception {
         // Batch mode - This test is to validate that we don't return AWAITING_INFO in allocation explain API when the deciders are
         // returning NO
-        internalCluster().startClusterManagerOnlyNodes(
-            1,
-            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), true).build()
-        );
-        internalCluster().startDataOnlyNodes(5);
-        createIndex(
-            "test",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 4).build()
-        );
-        ensureGreen("test");
-        ensureStableCluster(6);
-
-        // Stop one of the nodes to make the cluster yellow
-        // We cannot directly create an index with replica = data node count because then the whole flow will get skipped due to
-        // INDEX_CREATED
-        List<String> nodesWithReplicaShards = findNodesWithShard(false);
-        Settings replicaNodeDataPathSettings = internalCluster().dataPathSettings(nodesWithReplicaShards.get(0));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesWithReplicaShards.get(0)));
-
-        ensureStableCluster(5);
-        ensureYellow("test");
-
-        logger.info("--> calling allocation explain API");
-        // shard should have decision NO because there is no valid node for the extra replica to go to
-        AllocateUnassignedDecision aud = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex("test")
-            .setShard(0)
-            .setPrimary(false)
-            .get()
-            .getExplanation()
-            .getShardAllocationDecision()
-            .getAllocateDecision();
-
-        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
-        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
-
-        // Now creating a new index with too many replicas and trying again
-        createIndex(
-            "test2",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 5).build()
-        );
-
-        ensureYellowAndNoInitializingShards("test2");
-
-        logger.info("--> calling allocation explain API again");
-        // shard should have decision NO because there are 6 replicas and 4 data nodes
-        aud = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex("test2")
-            .setShard(0)
-            .setPrimary(false)
-            .get()
-            .getExplanation()
-            .getShardAllocationDecision()
-            .getAllocateDecision();
-
-        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
-        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
-
-        logger.info("--> restarting the stopped node");
-        internalCluster().startDataOnlyNode(
-            Settings.builder().put("node.name", nodesWithReplicaShards.get(0)).put(replicaNodeDataPathSettings).build()
-        );
-
-        ensureStableCluster(6);
-        ensureGreen("test");
-
-        logger.info("--> calling allocation explain API 3rd time");
-        // shard should still have decision NO because there are 6 replicas and 5 data nodes
-        aud = client().admin()
-            .cluster()
-            .prepareAllocationExplain()
-            .setIndex("test2")
-            .setShard(0)
-            .setPrimary(false)
-            .get()
-            .getExplanation()
-            .getShardAllocationDecision()
-            .getAllocateDecision();
-
-        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
-        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
-
-        internalCluster().startDataOnlyNodes(1);
-
-        ensureStableCluster(7);
-        ensureGreen("test2");
+        this.allocationExplainReturnsNoWhenExtraReplicaShard(true);
     }
 
     public void testNBatchesCreationAndAssignment() throws Exception {
@@ -1711,5 +1559,98 @@ public class RecoveryFromGatewayIT extends OpenSearchIntegTestCase {
             .collect(Collectors.toList());
         Collections.shuffle(requiredStartedShards, random());
         return requiredStartedShards.stream().map(shard -> state.nodes().get(shard.currentNodeId()).getName()).collect(Collectors.toList());
+    }
+
+    private void allocationExplainReturnsNoWhenExtraReplicaShard(boolean batchModeEnabled) throws Exception {
+        internalCluster().startClusterManagerOnlyNodes(
+            1,
+            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), batchModeEnabled).build()
+        );
+        internalCluster().startDataOnlyNodes(5);
+        createIndex(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 4).build()
+        );
+        ensureGreen("test");
+        ensureStableCluster(6);
+
+        // Stop one of the nodes to make the cluster yellow
+        // We cannot directly create an index with replica = data node count because then the whole flow will get skipped due to
+        // INDEX_CREATED
+        List<String> nodesWithReplicaShards = findNodesWithShard(false);
+        Settings replicaNodeDataPathSettings = internalCluster().dataPathSettings(nodesWithReplicaShards.get(0));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodesWithReplicaShards.get(0)));
+
+        ensureStableCluster(5);
+        ensureYellow("test");
+
+        logger.info("--> calling allocation explain API");
+        // shard should have decision NO because there is no valid node for the extra replica to go to
+        AllocateUnassignedDecision aud = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("test")
+            .setShard(0)
+            .setPrimary(false)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision();
+
+        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
+
+        // Now creating a new index with too many replicas and trying again
+        createIndex(
+            "test2",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 5).build()
+        );
+
+        ensureYellowAndNoInitializingShards("test2");
+
+        logger.info("--> calling allocation explain API again");
+        // shard should have decision NO because there are 6 replicas and 4 data nodes
+        aud = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("test2")
+            .setShard(0)
+            .setPrimary(false)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision();
+
+        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
+
+        logger.info("--> restarting the stopped node");
+        internalCluster().startDataOnlyNode(
+            Settings.builder().put("node.name", nodesWithReplicaShards.get(0)).put(replicaNodeDataPathSettings).build()
+        );
+
+        ensureStableCluster(6);
+        ensureGreen("test");
+
+        logger.info("--> calling allocation explain API 3rd time");
+        // shard should still have decision NO because there are 6 replicas and 5 data nodes
+        aud = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex("test2")
+            .setShard(0)
+            .setPrimary(false)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getAllocateDecision();
+
+        assertEquals(AllocationDecision.NO, aud.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", aud.getExplanation());
+
+        internalCluster().startDataOnlyNodes(1);
+
+        ensureStableCluster(7);
+        ensureGreen("test2");
     }
 }
