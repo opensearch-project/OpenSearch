@@ -46,6 +46,7 @@ ext {
 
 testClusters.all {
   module ':modules:mapper-extras'
+  module ':modules:aggs-matrix-stats'
   systemProperty 'opensearch.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'opensearch.transport.cname_in_publish_address', 'true'
