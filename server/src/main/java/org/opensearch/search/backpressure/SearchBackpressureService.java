@@ -94,7 +94,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         ThreadPool threadPool,
         TaskManager taskManager
     ) {
-        this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {            {
+        this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {
+            {
                 put(
                     ResourceType.CPU,
                     new NodeDuressTracker(
@@ -112,7 +113,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                     )
                 );
             }
-            }),
+        }),
             getTrackers(
                 settings.getSearchTaskSettings()::getCpuTimeNanosThreshold,
                 settings.getSearchTaskSettings()::getHeapVarianceThreshold,
