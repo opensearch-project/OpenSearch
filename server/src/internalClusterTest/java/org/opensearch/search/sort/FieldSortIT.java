@@ -1080,11 +1080,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch()
             .setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("u_value").order(SortOrder.ASC).missing(randomBoolean() ? -1 : "-1"));
-        assertFailures(
-            searchRequestBuilder,
-            RestStatus.BAD_REQUEST,
-            containsString("missing value of type [unsigned_long] must not be negative")
-        );
+        assertFailures(searchRequestBuilder, RestStatus.BAD_REQUEST, containsString("Value [-1] is out of range for an unsigned long"));
     }
 
     public void testSortMissingNumbersMinMax() throws Exception {

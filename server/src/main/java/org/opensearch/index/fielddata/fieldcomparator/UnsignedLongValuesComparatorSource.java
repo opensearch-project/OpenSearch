@@ -81,15 +81,11 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
             return min ? Numbers.MIN_UNSIGNED_LONG_VALUE : Numbers.MAX_UNSIGNED_LONG_VALUE;
         } else {
             if (missingValue instanceof Number) {
-                long ul = ((Number) missingValue).longValue();
-                if (ul < 0) {
-                    throw new IllegalArgumentException("missing value of type [unsigned_long] must not be negative");
-                }
-                return BigInteger.valueOf(ul);
+                return Numbers.toUnsignedLongExact((Number) missingValue);
             } else {
                 BigInteger missing = new BigInteger(missingValue.toString());
                 if (missing.signum() < 0) {
-                    throw new IllegalArgumentException("missing value of type [unsigned_long] must not be negative");
+                    throw new IllegalArgumentException("Value [" + missingValue + "] is out of range for an unsigned long");
                 }
                 return missing;
             }
