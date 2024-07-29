@@ -8,7 +8,6 @@
 
 package org.opensearch.search.wlm.tracker;
 
-import org.opensearch.common.inject.Inject;
 import org.opensearch.search.ResourceType;
 import org.opensearch.search.wlm.QueryGroupHelper;
 import org.opensearch.search.wlm.QueryGroupLevelResourceUsageView;
@@ -39,7 +38,6 @@ public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTra
      * @param taskManager Task Manager service for keeping track of currently running tasks on the nodes
      * @param taskResourceTrackingService Service that helps track resource usage of tasks running on a node.
      */
-    @Inject
     public QueryGroupResourceUsageTrackerService(
         final TaskManager taskManager,
         final TaskResourceTrackingService taskResourceTrackingService
