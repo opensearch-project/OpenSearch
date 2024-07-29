@@ -27,7 +27,6 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
         activeTasks = List.of(getRandomTask(4321));
     }
 
-
     public void testGetResourceUsageData() {
         QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
             "1234",
