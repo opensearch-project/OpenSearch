@@ -43,6 +43,7 @@ import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.node.DiscoveryNodeFilters;
 import org.opensearch.cluster.routing.allocation.IndexMetadataUpdater;
+import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
@@ -688,6 +689,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isSystem;
     private final boolean isRemoteSnapshot;
 
+    private final int indexTotalShardsPerNodeLimit;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -713,7 +716,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int routingPartitionSize,
         final ActiveShardCount waitForActiveShards,
         final Map<String, RolloverInfo> rolloverInfos,
-        final boolean isSystem
+        final boolean isSystem,
+        final int indexTotalShardsPerNodeLimit
     ) {
 
         this.index = index;
@@ -748,6 +752,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.rolloverInfos = Collections.unmodifiableMap(rolloverInfos);
         this.isSystem = isSystem;
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
+        this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -899,6 +904,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public Set<String> inSyncAllocationIds(int shardId) {
         assert shardId >= 0 && shardId < numberOfShards;
         return inSyncAllocationIds.get(shardId);
+    }
+
+    public int getIndexTotalShardsPerNodeLimit() {
+        return this.indexTotalShardsPerNodeLimit;
     }
 
     @Nullable
@@ -1607,6 +1616,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 );
             }
 
+            final int indexTotalShardsPerNodeLimit = ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
+
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
             return new IndexMetadata(
@@ -1634,7 +1645,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 routingPartitionSize,
                 waitForActiveShards,
                 rolloverInfos,
-                isSystem
+                isSystem,
+                indexTotalShardsPerNodeLimit
             );
         }
 
