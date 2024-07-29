@@ -459,6 +459,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public static class ModelNode implements Iterable<ModelIndex> {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
+        private int numPrimaryShards = 0;
         private final RoutingNode routingNode;
 
         ModelNode(RoutingNode routingNode) {
@@ -492,7 +493,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public int numPrimaryShards() {
-            return indices.values().stream().mapToInt(index -> index.numPrimaryShards()).sum();
+            return numPrimaryShards;
         }
 
         public int highestPrimary(String index) {
@@ -510,6 +511,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 indices.put(index.getIndexId(), index);
             }
             index.addShard(shard);
+            if (shard.primary()) {
+                numPrimaryShards++;
+            }
+
             numShards++;
         }
 
@@ -521,6 +526,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     indices.remove(shard.getIndexName());
                 }
             }
+
+            if (shard.primary()) {
+                numPrimaryShards--;
+            }
+
             numShards--;
         }
 
