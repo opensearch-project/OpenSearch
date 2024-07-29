@@ -184,7 +184,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
             this.context = in.readOptionalWriteable(Context::new);
         } else {
             this.context = null;
@@ -248,7 +248,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         out.writeOptionalVLong(this.version);
         out.writeMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
             out.writeOptionalWriteable(context);
         }
     }
