@@ -7,6 +7,6 @@
  */
 
 /**
- * Query Sandboxing related artifacts
+ * This package contains workload management constructs
  */
 package org.opensearch.search.wlm;
