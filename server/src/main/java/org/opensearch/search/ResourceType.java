@@ -18,34 +18,34 @@ import java.io.IOException;
  */
 @PublicApi(since = "2.x")
 public enum ResourceType {
-  CPU("cpu"),
-  MEMORY("memory");
+    CPU("cpu"),
+    MEMORY("memory");
 
-  private final String name;
+    private final String name;
 
-  ResourceType(String name) {
-    this.name = name;
-  }
-
-  /**
-   * The string match here is case-sensitive
-   * @param s name matching the resource type name
-   * @return a {@link ResourceType}
-   */
-  public static ResourceType fromName(String s) {
-    for (ResourceType resourceType : values()) {
-      if (resourceType.getName().equals(s)) {
-        return resourceType;
-      }
+    ResourceType(String name) {
+        this.name = name;
     }
-    throw new IllegalArgumentException("Unknown resource type: [" + s + "]");
-  }
 
-  public static void writeTo(StreamOutput out, ResourceType resourceType) throws IOException {
-    out.writeString(resourceType.getName());
-  }
+    /**
+     * The string match here is case-sensitive
+     * @param s name matching the resource type name
+     * @return a {@link ResourceType}
+     */
+    public static ResourceType fromName(String s) {
+        for (ResourceType resourceType : values()) {
+            if (resourceType.getName().equals(s)) {
+                return resourceType;
+            }
+        }
+        throw new IllegalArgumentException("Unknown resource type: [" + s + "]");
+    }
 
-  public String getName() {
-    return name;
-  }
+    public static void writeTo(StreamOutput out, ResourceType resourceType) throws IOException {
+        out.writeString(resourceType.getName());
+    }
+
+    public String getName() {
+        return name;
+    }
 }
