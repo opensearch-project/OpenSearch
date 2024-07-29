@@ -6,15 +6,16 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.querygroup;
+package org.opensearch.search.wlm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
-import org.opensearch.search.querygroup.tracker.QueryGroupUsageTracker;
+import org.opensearch.search.wlm.tracker.QueryGroupUsageTracker;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -57,7 +58,8 @@ public class QueryGroupService extends AbstractLifecycleComponent {
     }
 
     private Set<QueryGroup> getActiveQueryGroups() {
-        return new HashSet<>(clusterService.state().metadata().queryGroups().values());
+        Map<String, QueryGroup> queryGroups = Metadata.builder(clusterService.state().metadata()).getQueryGroups();
+        return new HashSet<>(queryGroups.values());
     }
 
     /**

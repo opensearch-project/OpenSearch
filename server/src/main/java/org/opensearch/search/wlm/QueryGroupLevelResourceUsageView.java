@@ -6,10 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.querygroup;
+package org.opensearch.search.wlm;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.search.resourcetypes.ResourceType;
+import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
 
 import java.util.ArrayList;

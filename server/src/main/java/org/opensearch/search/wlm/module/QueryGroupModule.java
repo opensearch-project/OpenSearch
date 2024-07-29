@@ -6,11 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.querygroup.module;
+package org.opensearch.search.wlm.module;
 
 import org.opensearch.common.inject.AbstractModule;
-import org.opensearch.search.querygroup.tracker.QueryGroupResourceUsageTrackerService;
-import org.opensearch.search.querygroup.tracker.QueryGroupUsageTracker;
+import org.opensearch.search.wlm.tracker.QueryGroupResourceUsageTrackerService;
+import org.opensearch.search.wlm.tracker.QueryGroupUsageTracker;
 
 /**
  * Module class for resource usage limiting  related artifacts

@@ -6,29 +6,30 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.querygroup.tracker;
+package org.opensearch.search.wlm.tracker;
 
 import org.opensearch.common.inject.Inject;
-import org.opensearch.search.querygroup.QueryGroupLevelResourceUsageView;
-import org.opensearch.search.querygroup.QueryGroupTask;
-import org.opensearch.search.resourcetypes.ResourceType;
+import org.opensearch.search.ResourceType;
+import org.opensearch.search.wlm.QueryGroupHelper;
+import org.opensearch.search.wlm.QueryGroupLevelResourceUsageView;
+import org.opensearch.search.wlm.QueryGroupTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * This class tracks requests per QueryGroup
+ * This class tracks resource usage per QueryGroup
  */
 // @ExperimentalApi
 public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTracker, TaskManager.TaskEventListeners {
 
-    public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.fromName("Memory"), ResourceType.fromName("CPU"));
-
+    public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.fromName("memory"), ResourceType.fromName("cpu"));
     private final TaskManager taskManager;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
@@ -57,7 +58,7 @@ public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTra
         Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = new HashMap<>();
 
         Map<String, List<Task>> tasksByQueryGroup = getTasksGroupedByQueryGroup();
-        Map<String, Map<ResourceType, Long>> queryGroupResourceUsage = getResourceUsageOfQueryGroups(tasksByQueryGroup);
+        Map<String, EnumMap<ResourceType, Long>> queryGroupResourceUsage = getResourceUsageOfQueryGroups(tasksByQueryGroup);
 
         for (String queryGroupId : tasksByQueryGroup.keySet()) {
             QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
@@ -90,8 +91,8 @@ public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTra
      * @param tasksByQueryGroup Map of tasks grouped by QueryGroup
      * @return Map of resource usage for each QueryGroup
      */
-    private Map<String, Map<ResourceType, Long>> getResourceUsageOfQueryGroups(Map<String, List<Task>> tasksByQueryGroup) {
-        Map<String, Map<ResourceType, Long>> resourceUsageOfQueryGroups = new HashMap<>();
+    private Map<String, EnumMap<ResourceType, Long>> getResourceUsageOfQueryGroups(Map<String, List<Task>> tasksByQueryGroup) {
+        Map<String, EnumMap<ResourceType, Long>> resourceUsageOfQueryGroups = new HashMap<>();
 
         // Iterate over each QueryGroup entry
         for (Map.Entry<String, List<Task>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
@@ -99,13 +100,16 @@ public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTra
             List<Task> tasks = queryGroupEntry.getValue();
 
             // Prepare a usage map for the current QueryGroup, or retrieve the existing one
-            Map<ResourceType, Long> queryGroupUsage = resourceUsageOfQueryGroups.computeIfAbsent(queryGroupId, k -> new HashMap<>());
+            EnumMap<ResourceType, Long> queryGroupUsage = resourceUsageOfQueryGroups.computeIfAbsent(
+                queryGroupId,
+                k -> new EnumMap<>(ResourceType.class)
+            );
 
             // Accumulate resource usage for each task in the QueryGroup
             for (Task task : tasks) {
                 for (ResourceType resourceType : TRACKED_RESOURCES) {
                     long currentUsage = queryGroupUsage.getOrDefault(resourceType, 0L);
-                    long taskUsage = resourceType.getResourceUsage(task);
+                    long taskUsage = QueryGroupHelper.getResourceUsage(resourceType, task);
                     queryGroupUsage.put(resourceType, currentUsage + taskUsage);
                 }
             }

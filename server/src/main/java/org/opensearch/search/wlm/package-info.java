@@ -9,4 +9,4 @@
 /**
  * Query Sandboxing related artifacts
  */
-package org.opensearch.search.querygroup;
+package org.opensearch.search.wlm;

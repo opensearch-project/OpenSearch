@@ -7,6 +7,6 @@
  */
 
 /**
- * ResourceLimitGroup resource tracking artifacts
+ * QueryGroup resource tracking artifacts
  */
-package org.opensearch.search.querygroup.tracker;
+package org.opensearch.search.wlm.tracker;
