@@ -6,6 +6,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 ### Dependencies
+- OpenJDK Update (July 2024 Patch releases) ([#15002](https://github.com/opensearch-project/OpenSearch/pull/15002))
+
 ### Changed
 ### Deprecated
 ### Removed
