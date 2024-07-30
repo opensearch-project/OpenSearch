@@ -120,7 +120,7 @@ public final class ThreadContext implements Writeable {
     private final long maxWarningHeaderSize;
     private final List<ThreadContextStatePropagator> propagators;
 
-    public static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new RuntimePermission("markAsSystemContext");
+    private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new RuntimePermission("markAsSystemContext");
 
     /**
      * Creates a new ThreadContext instance
