@@ -82,7 +82,7 @@ setup:
         body: {
           "query": {
             "terms": {
-              "student_id": "OjAAAAEAAAAAAAEAEAAAAG8A3gA=",
+              "student_id": ["OjAAAAEAAAAAAAEAEAAAAG8A3gA="],
               "value_type": "bitmap"
             }
           }
@@ -171,9 +171,9 @@ setup:
           }
         }
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._source.name: Jane Doe }
-  - match: { hits.hits.0._source.student_id: 111 }
   - match: { hits.hits.0._source.name: Mary Major }
   - match: { hits.hits.0._source.student_id: 222 }
-  - match: { hits.hits.0._source.name: John Doe }
-  - match: { hits.hits.0._source.student_id: 333 }
+  - match: { hits.hits.1._source.name: Jane Doe }
+  - match: { hits.hits.1._source.student_id: 111 }
+  - match: { hits.hits.2._source.name: John Doe }
+  - match: { hits.hits.2._source.student_id: 333 }
