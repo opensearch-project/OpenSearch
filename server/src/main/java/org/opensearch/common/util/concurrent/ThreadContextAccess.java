@@ -9,6 +9,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.SpecialPermission;
+import org.opensearch.common.annotation.InternalApi;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -16,8 +17,11 @@ import java.security.PrivilegedAction;
 /**
  * This class wraps the {@link ThreadContext} operations requiring access in
  * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
+ *
+ * @opensearch.internal
  */
 @SuppressWarnings("removal")
+@InternalApi
 public final class ThreadContextAccess {
 
     private ThreadContextAccess() {}

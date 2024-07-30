@@ -10,5 +10,4 @@ grant {
   // allow to test Security policy and codebases
   permission java.util.PropertyPermission "*", "read,write";
   permission java.security.SecurityPermission "createPolicy.JavaPolicy";
-  permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
 };
