@@ -73,13 +73,14 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     private final long maxBatchSize;
     private static final short DEFAULT_SHARD_BATCH_SIZE = 2000;
 
-    private static final String PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
+    public static final String PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
         "cluster.routing.allocation.shards_batch_gateway_allocator.primary_allocator_timeout";
-    private static final String REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
+    public static final String REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY =
         "cluster.routing.allocation.shards_batch_gateway_allocator.replica_allocator_timeout";
 
     private TimeValue primaryShardsBatchGatewayAllocatorTimeout;
     private TimeValue replicaShardsBatchGatewayAllocatorTimeout;
+    public static final TimeValue MIN_ALLOCATOR_TIMEOUT = TimeValue.timeValueSeconds(20);
 
     /**
      * Number of shards we send in one batch to data nodes for fetching metadata
@@ -92,16 +93,50 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Timeout for existing primary shards batch allocator.
+     * Timeout value must be greater than or equal to 20s or -1ms to effectively disable timeout
+     */
     public static final Setting<TimeValue> PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY,
         TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(TimeValue timeValue) {
+                if (timeValue.compareTo(MIN_ALLOCATOR_TIMEOUT) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {
+                    throw new IllegalArgumentException(
+                        "Setting ["
+                            + PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey()
+                            + "] should be more than 20s or -1ms to disable timeout"
+                    );
+                }
+            }
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
+    /**
+     * Timeout for existing replica shards batch allocator.
+     * Timeout value must be greater than or equal to 20s or -1ms to effectively disable timeout
+     */
     public static final Setting<TimeValue> REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY,
         TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(TimeValue timeValue) {
+                if (timeValue.compareTo(MIN_ALLOCATOR_TIMEOUT) < 0 && timeValue.compareTo(TimeValue.MINUS_ONE) != 0) {
+                    throw new IllegalArgumentException(
+                        "Setting ["
+                            + REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey()
+                            + "] should be more than 20s or -1ms to disable timeout"
+                    );
+                }
+            }
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -588,8 +623,37 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
         @Override
         protected boolean hasInitiatedFetching(ShardRouting shard) {
+            /**
+             * This function is to check if asyncFetch has happened before for this shard batch, or is ongoing.
+             * It should return false if there has never been a fetch for this batch.
+             * This function is currently only used in the case of replica shards when all deciders returned NO/THROTTLE, and explain mode is ON.
+             * Allocation explain and manual reroute APIs try to append shard store information (matching bytes) to the allocation decision.
+             * However, these APIs do not want to trigger a new asyncFetch for these ineligible shards, unless the data from nodes is already there.
+             * This function is used to see if a fetch has happened to decide if it is possible to append shard store info without a new async fetch.
+             * In the case when shard has a batch but no fetch has happened before, it would be because it is a new batch.
+             * In the case when shard has a batch, and a fetch has happened before, and no fetch is ongoing, it would be because we have already completed fetch for all nodes.
+             *
+             * In order to check if a fetch has ever happened, we check 2 things:
+             * 1. If the shard batch cache is empty, we know that fetch has never happened so we return false.
+             * 2. If we see that the list of nodes to fetch from is empty, we know that all nodes have data or are ongoing a fetch. So we return true.
+             * 3. Otherwise we return false.
+             *
+             * see {@link AsyncShardFetchCache#findNodesToFetch()}
+             */
             String batchId = getBatchId(shard, shard.primary());
-            return batchId != null;
+            if (batchId == null) {
+                return false;
+            }
+            logger.trace("Checking if fetching done for batch id {}", batchId);
+            ShardsBatch shardsBatch = shard.primary() ? batchIdToStartedShardBatch.get(batchId) : batchIdToStoreShardBatch.get(batchId);
+            // if fetchData has never been called, the per node cache will be empty and have no nodes
+            // this is because cache.fillShardCacheWithDataNodes(nodes) initialises this map and is called in AsyncShardFetch.fetchData
+            if (shardsBatch == null || shardsBatch.getAsyncFetcher().hasEmptyCache()) {
+                logger.trace("Batch cache is empty for batch {} ", batchId);
+                return false;
+            }
+            // this check below is to make sure we already have all the data and that we wouldn't create a new async fetchData call
+            return shardsBatch.getAsyncFetcher().getCache().findNodesToFetch().isEmpty();
         }
     }
 
