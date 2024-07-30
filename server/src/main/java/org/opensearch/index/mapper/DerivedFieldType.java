@@ -9,38 +9,50 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.ShapeRelation;
+import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.query.DerivedFieldQuery;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.script.AggregationScript;
 import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.Script;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.lookup.LeafSearchLookup;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * MappedFieldType for Derived Fields
  * Contains logic to execute different type of queries on a derived field of given type.
+ *
  * @opensearch.internal
  */
 
@@ -48,6 +60,11 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
     final DerivedField derivedField;
     final FieldMapper typeFieldMapper;
     final Function<Object, IndexableField> indexableFieldGenerator;
+
+    @Override
+    public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+        return typeFieldMapper.mappedFieldType.docValueFormat(format, timeZone);
+    }
 
     public DerivedFieldType(
         DerivedField derivedField,
@@ -132,6 +149,11 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
             getDerivedFieldLeafFactory(derivedField.getScript(), context, searchLookup == null ? context.lookup() : searchLookup),
             valueForDisplay
         );
+    }
+
+    @Override
+    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        return getFieldMapper().mappedFieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
     }
 
     @Override
@@ -503,7 +525,7 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
 
     @Override
     public boolean isAggregatable() {
-        return false;
+        return true;
     }
 
     private Query createConjuctionQuery(Query filterQuery, DerivedFieldQuery derivedFieldQuery) {
@@ -528,5 +550,56 @@ public class DerivedFieldType extends MappedFieldType implements GeoShapeQueryab
         }
         DerivedFieldScript.Factory factory = context.compile(script, DerivedFieldScript.CONTEXT);
         return factory.newFactory(script.getParams(), searchLookup);
+    }
+
+    public AggregationScript.LeafFactory getAggregationScript(QueryShardContext context) {
+        return new AggregationScript.LeafFactory() {
+            @Override
+            public AggregationScript newInstance(LeafReaderContext ctx) throws IOException {
+                final DerivedFieldValueFetcher derivedFieldValueFetcher = valueFetcher(context, context.lookup(), null);
+                derivedFieldValueFetcher.setNextReader(ctx);
+                final LeafSearchLookup leafSearchLookup = context.lookup().getLeafSearchLookup(ctx);
+
+                return new AggregationScript(derivedField.getScript().getParams(), context.lookup(), ctx) {
+                    @Override
+                    public Object execute() {
+                        return formatValues(derivedFieldValueFetcher.fetchValuesInternal(leafSearchLookup.source()));
+                    }
+
+                    @Override
+                    public void setDocument(int docid) {
+                        super.setDocument(docid);
+                        leafSearchLookup.source().setSegmentAndDocument(ctx, docid);
+                    }
+                };
+            }
+
+            @Override
+            public boolean needs_score() {
+                return false;
+            }
+        };
+    }
+
+    // perform any formatting on the returned Object before passing to
+    // any values source.
+    private Object formatValues(List<Object> objects) {
+        // ips are returned as raw strings, format them as BytesRefs
+        // This ensures that ip_range aggs compare the bytesRef against ranges computed in the
+        // same way.
+        if (typeFieldMapper instanceof IpFieldMapper) {
+            return objects.stream().map(o -> (String) o).map(this::toBytesRef).collect(Collectors.toList());
+        }
+        return objects;
+    }
+
+    // format the ip string as BytesRef.
+    private BytesRef toBytesRef(String ip) {
+        if (ip == null) {
+            return null;
+        }
+        InetAddress address = InetAddresses.forString(ip);
+        byte[] bytes = InetAddressPoint.encode(address);
+        return new BytesRef(bytes);
     }
 }
