@@ -45,7 +45,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREA
 import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.IGNORE_THROTTLE_FOR_REMOTE_RESTORE;
 
 public class DecideAllocateUnassignedTests extends OpenSearchAllocationTestCase {
-    public void testSingleShardBalanceProducesSameResultsAsBalanceStep_IgnoreThrottle() {
+    public void testAllocateUnassignedRemoteRestore_IgnoreThrottle() {
         final String[] indices = { "idx1" };
         // Create a cluster state with 1 indices, each with 1 started primary shard, and only
         // one node initially so that all primary shards get allocated to the same node.
@@ -55,35 +55,18 @@ public class DecideAllocateUnassignedTests extends OpenSearchAllocationTestCase 
         ClusterState clusterState = ClusterStateCreationUtils.state(1, indices, 1);
         clusterState = addNodesToClusterState(clusterState, 1);
         clusterState = addRestoringIndexToClusterState(clusterState, "idx2");
-        final Set<String> throttleNodes = new HashSet<>();
-        throttleNodes.add("node_1");
-        AllocationDecider allocationDecider = new AllocationDecider() {
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                if (throttleNodes.contains(node.nodeId())) {
-                    return Decision.THROTTLE;
-                }
-                return Decision.YES;
-            }
-        };
-        AllocationDecider rebalanceDecider = new AllocationDecider() {
-            @Override
-            public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-                return Decision.YES;
-            }
-        };
-        List<AllocationDecider> allocationDeciders = Arrays.asList(rebalanceDecider, allocationDecider);
+        List<AllocationDecider> allocationDeciders = getAllocationDecidersThrottleOnNode1();
         RoutingAllocation routingAllocation = newRoutingAllocation(new AllocationDeciders(allocationDeciders), clusterState);
         // allocate and get the node that is now relocating
         Settings build = Settings.builder().put(IGNORE_THROTTLE_FOR_REMOTE_RESTORE.getKey(), true).build();
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(build);
         allocator.allocate(routingAllocation);
         assertEquals(routingAllocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), "node_0");
-        ;
+        assertEquals(routingAllocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).getIndexName(), "idx2");
         assertFalse(routingAllocation.routingNodes().hasUnassignedPrimaries());
     }
 
-    public void testSingleShardBalanceProducesSameResultsAsBalanceStep_Current() {
+    public void testAllocateUnassignedRemoteRestore() {
         final String[] indices = { "idx1" };
         // Create a cluster state with 1 indices, each with 1 started primary shard, and only
         // one node initially so that all primary shards get allocated to the same node.
@@ -93,6 +76,18 @@ public class DecideAllocateUnassignedTests extends OpenSearchAllocationTestCase 
         ClusterState clusterState = ClusterStateCreationUtils.state(1, indices, 1);
         clusterState = addNodesToClusterState(clusterState, 1);
         clusterState = addRestoringIndexToClusterState(clusterState, "idx2");
+        List<AllocationDecider> allocationDeciders = getAllocationDecidersThrottleOnNode1();
+        RoutingAllocation routingAllocation = newRoutingAllocation(new AllocationDeciders(allocationDeciders), clusterState);
+        // allocate and get the node that is now relocating
+        Settings build = Settings.builder().put(IGNORE_THROTTLE_FOR_REMOTE_RESTORE.getKey(), false).build();
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(build);
+        allocator.allocate(routingAllocation);
+        assertEquals(routingAllocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), 0);
+        assertTrue(routingAllocation.routingNodes().hasUnassignedPrimaries());
+    }
+
+    private static List<AllocationDecider> getAllocationDecidersThrottleOnNode1() {
+        // Allocation Deciders to throttle on `node_1`
         final Set<String> throttleNodes = new HashSet<>();
         throttleNodes.add("node_1");
         AllocationDecider allocationDecider = new AllocationDecider() {
@@ -104,21 +99,8 @@ public class DecideAllocateUnassignedTests extends OpenSearchAllocationTestCase 
                 return Decision.YES;
             }
         };
-        AllocationDecider rebalanceDecider = new AllocationDecider() {
-            @Override
-            public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-                return Decision.YES;
-            }
-        };
-        List<AllocationDecider> allocationDeciders = Arrays.asList(rebalanceDecider, allocationDecider);
-        RoutingAllocation routingAllocation = newRoutingAllocation(new AllocationDeciders(allocationDeciders), clusterState);
-        // allocate and get the node that is now relocating
-        Settings build = Settings.builder().put(IGNORE_THROTTLE_FOR_REMOTE_RESTORE.getKey(), false).build();
-        BalancedShardsAllocator allocator = new BalancedShardsAllocator(build);
-        allocator.allocate(routingAllocation);
-        assertEquals(routingAllocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), 0);
-        ;
-        assertTrue(routingAllocation.routingNodes().hasUnassignedPrimaries());
+        List<AllocationDecider> allocationDeciders = Arrays.asList(allocationDecider);
+        return allocationDeciders;
     }
 
     private ClusterState addNodesToClusterState(ClusterState clusterState, int nodeId) {
@@ -144,19 +126,9 @@ public class DecideAllocateUnassignedTests extends OpenSearchAllocationTestCase 
             .build();
 
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
-        String primaryNode = null;
-        String relocatingNode = null;
         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, null);
         indexShardRoutingBuilder.addShard(
-            TestShardRouting.newShardRoutingRemoteRestore(
-                index,
-                shardId,
-                primaryNode,
-                relocatingNode,
-                true,
-                ShardRoutingState.UNASSIGNED,
-                unassignedInfo
-            )
+            TestShardRouting.newShardRoutingRemoteRestore(index, shardId, null, null, true, ShardRoutingState.UNASSIGNED, unassignedInfo)
         );
         final IndexShardRoutingTable indexShardRoutingTable = indexShardRoutingBuilder.build();
 

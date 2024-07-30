@@ -155,7 +155,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     );
 
     public static final Setting<Boolean> IGNORE_THROTTLE_FOR_REMOTE_RESTORE = Setting.boolSetting(
-        "cluster.routing.allocation.ignore_throttle_for_restore",
+        "cluster.routing.allocation.remote_primary.ignore_throttle",
         true,
         Property.Dynamic,
         Property.NodeScope
