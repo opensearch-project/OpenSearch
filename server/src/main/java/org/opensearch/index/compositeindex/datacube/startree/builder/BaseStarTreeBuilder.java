@@ -361,8 +361,13 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @return converted metric value to long
      */
     private static long getLong(Object metric) {
-
         Long metricValue = null;
+        // TODO : remove this after we merge identity changes
+        if (metric instanceof Double) {
+            if (0D == (double) metric) {
+                return 0L;
+            }
+        }
         try {
             if (metric instanceof Long) {
                 metricValue = (long) metric;
