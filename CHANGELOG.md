@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
+- [Workload Management] Add QueryGroupServiceSettings ([#15028](https://github.com/opensearch-project/OpenSearch/pull/15028))
 
 ### Dependencies
 - Bump `org.apache.commons:commons-lang3` from 3.14.0 to 3.15.0 ([#14861](https://github.com/opensearch-project/OpenSearch/pull/14861))
