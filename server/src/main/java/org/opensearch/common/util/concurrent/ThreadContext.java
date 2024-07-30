@@ -50,6 +50,7 @@ import org.opensearch.tasks.TaskThreadContextStatePropagator;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -118,6 +119,8 @@ public final class ThreadContext implements Writeable {
     private final int maxWarningHeaderCount;
     private final long maxWarningHeaderSize;
     private final List<ThreadContextStatePropagator> propagators;
+
+    public static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new RuntimePermission("markAsSystemContext");
 
     /**
      * Creates a new ThreadContext instance
@@ -556,6 +559,10 @@ public final class ThreadContext implements Writeable {
      * by the system itself rather than by a user action.
      */
     public void markAsSystemContext() {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION);
+        }
         threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
 

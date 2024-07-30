@@ -48,6 +48,7 @@ grant codeBase "${codebase.opensearch}" {
   permission java.lang.RuntimePermission "setContextClassLoader";
   // needed for SPI class loading
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "markAsSystemContext";
 };
 
 //// Very special jar permissions:
