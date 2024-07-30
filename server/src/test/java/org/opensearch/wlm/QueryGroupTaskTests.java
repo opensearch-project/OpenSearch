@@ -14,6 +14,9 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 
+import static org.opensearch.wlm.QueryGroupTask.DEFAULT_QUERY_GROUP_ID_SUPPLIER;
+import static org.opensearch.wlm.QueryGroupTask.QUERY_GROUP_ID_HEADER;
+
 public class QueryGroupTaskTests extends OpenSearchTestCase {
     private ThreadPool threadPool;
     private QueryGroupTask sut;
@@ -31,9 +34,9 @@ public class QueryGroupTaskTests extends OpenSearchTestCase {
 
     public void testSuccessfulSetQueryGroupId() {
         sut.setQueryGroupId(threadPool.getThreadContext());
-        assertEquals(QueryGroupConstants.DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(), sut.getQueryGroupId());
+        assertEquals(DEFAULT_QUERY_GROUP_ID_SUPPLIER.get(), sut.getQueryGroupId());
 
-        threadPool.getThreadContext().putHeader(QueryGroupConstants.QUERY_GROUP_ID_HEADER, "akfanglkaglknag2332");
+        threadPool.getThreadContext().putHeader(QUERY_GROUP_ID_HEADER, "akfanglkaglknag2332");
 
         sut.setQueryGroupId(threadPool.getThreadContext());
         assertEquals("akfanglkaglknag2332", sut.getQueryGroupId());
