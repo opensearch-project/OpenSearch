@@ -97,7 +97,7 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
     public void test_getStarTreeBuilder() throws IOException {
         when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
         StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService);
-        StarTreeBuilder starTreeBuilder = starTreesBuilder.getSingleTreeBuilder(starTreeField, segmentWriteState, mapperService);
+        StarTreeBuilder starTreeBuilder = starTreesBuilder.getStarTreeBuilder(starTreeField, segmentWriteState, mapperService);
         assertTrue(starTreeBuilder instanceof OnHeapStarTreeBuilder);
     }
 

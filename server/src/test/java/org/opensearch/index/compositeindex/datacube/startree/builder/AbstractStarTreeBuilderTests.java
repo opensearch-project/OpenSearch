@@ -1526,14 +1526,13 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
          [5, 5] | [5]
          [6, 6] | [6]
          [8, 8] | [8]
-         [null, null] | [12]
          [null, 7] | [7]
+         [null, null] | [12]
          */
         int count = 0;
         while (starTreeDocumentIterator.hasNext()) {
             count++;
             StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
-            System.out.println(starTreeDocument);
             if (starTreeDocument.dimensions[0] == null && starTreeDocument.dimensions[1] == null) {
                 assertEquals(12L, (long) starTreeDocument.metrics[0]);
             } else if (starTreeDocument.dimensions[0] == null) {
@@ -1545,6 +1544,71 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             }
         }
         assertEquals(6, count);
+    }
+
+    public void testMergeFlowWithMissingDocsWithZeroComplexCase() throws IOException {
+        List<Long> dimList = List.of(0L, 0L, 0L, 0L, 0L);
+        List<Integer> docsWithField = List.of(0, 1, 2, 6, 8);
+        List<Long> dimList2 = List.of(0L, 0L, 0L, 0L);
+        List<Integer> docsWithField2 = List.of(0, 1, 2, 6);
+
+        List<Long> metricsList = List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L);
+        List<Integer> metricsWithField = List.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+
+        List<Long> dimList3 = List.of(5L, 6L, 8L, -1L);
+        List<Integer> docsWithField3 = List.of(0, 1, 3, 4);
+        List<Long> dimList4 = List.of(5L, 6L, 7L, 8L, -1L);
+        List<Integer> docsWithField4 = List.of(0, 1, 2, 3, 4);
+
+        List<Long> metricsList2 = List.of(5L, 6L, 7L, 8L, 9L);
+        List<Integer> metricsWithField2 = List.of(0, 1, 2, 3, 4);
+
+        StarTreeField sf = getStarTreeField(MetricStat.COUNT);
+        StarTreeValues starTreeValues = getStarTreeValues(
+            getSortedNumericMock(dimList, docsWithField),
+            getSortedNumericMock(dimList2, docsWithField2),
+            getSortedNumericMock(metricsList, metricsWithField),
+            sf,
+            "9"
+        );
+
+        StarTreeValues starTreeValues2 = getStarTreeValues(
+            getSortedNumericMock(dimList3, docsWithField3),
+            getSortedNumericMock(dimList4, docsWithField4),
+            getSortedNumericMock(metricsList2, metricsWithField2),
+            sf,
+            "4"
+        );
+        builder = getStarTreeBuilder(sf, getWriteState(4), mapperService);
+        Iterator<StarTreeDocument> starTreeDocumentIterator = builder.mergeStarTrees(List.of(starTreeValues, starTreeValues2));
+        /**
+         * Asserting following dim / metrics [ dim1, dim2 / Count [ metric] ]
+         [0, 0] | [9]
+         [0, null] | [8]
+         [5, 5] | [5]
+         [6, 6] | [6]
+         [8, 8] | [8]
+         [null, 7] | [7]
+         [null, null] | [19]
+         */
+        int count = 0;
+        while (starTreeDocumentIterator.hasNext()) {
+            count++;
+            StarTreeDocument starTreeDocument = starTreeDocumentIterator.next();
+            if (starTreeDocument.dimensions[0] == null && starTreeDocument.dimensions[1] == null) {
+                assertEquals(19L, (long) starTreeDocument.metrics[0]);
+                assertEquals(7, count);
+            } else if (starTreeDocument.dimensions[0] == null) {
+                assertEquals(7L, starTreeDocument.metrics[0]);
+            } else if (starTreeDocument.dimensions[1] == null) {
+                assertEquals(8L, starTreeDocument.metrics[0]);
+            } else if (starTreeDocument.dimensions[0] == 0) {
+                assertEquals(9L, starTreeDocument.metrics[0]);
+            } else {
+                assertEquals(starTreeDocument.dimensions[1], starTreeDocument.metrics[0]);
+            }
+        }
+        assertEquals(7, count);
     }
 
     public void testMergeFlowWithMissingDocsInSecondDim() throws IOException {

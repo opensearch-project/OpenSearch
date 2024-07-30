@@ -75,7 +75,7 @@ public class StarTreesBuilder implements Closeable {
 
         // Build all star-trees
         for (StarTreeField starTreeField : starTreeFields) {
-            try (StarTreeBuilder starTreeBuilder = getSingleTreeBuilder(starTreeField, state, mapperService)) {
+            try (StarTreeBuilder starTreeBuilder = getStarTreeBuilder(starTreeField, state, mapperService)) {
                 starTreeBuilder.build(fieldProducerMap);
             }
         }
@@ -102,7 +102,7 @@ public class StarTreesBuilder implements Closeable {
                 continue;
             }
             StarTreeField starTreeField = starTreeValuesList.get(0).getStarTreeField();
-            try (StarTreeBuilder builder = getSingleTreeBuilder(starTreeField, state, mapperService)) {
+            try (StarTreeBuilder builder = getStarTreeBuilder(starTreeField, state, mapperService)) {
                 builder.build(starTreeValuesList);
             }
         }
@@ -116,7 +116,7 @@ public class StarTreesBuilder implements Closeable {
     /**
      * Get star-tree builder based on build mode.
      */
-    StarTreeBuilder getSingleTreeBuilder(StarTreeField starTreeField, SegmentWriteState state, MapperService mapperService)
+    StarTreeBuilder getStarTreeBuilder(StarTreeField starTreeField, SegmentWriteState state, MapperService mapperService)
         throws IOException {
         switch (starTreeField.getStarTreeConfig().getBuildMode()) {
             case ON_HEAP:

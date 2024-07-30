@@ -84,7 +84,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     private final SegmentWriteState state;
     private final LinkedHashMap<String, Integer> fileToEndDocIdMap;// maintain order
     private int starTreeFileCount = -1;
-    private int prevStartDocId = Integer.MAX_VALUE;
+    private int currentDocStartId = Integer.MAX_VALUE;
     private int currBytes = 0;
     private int docSizeInBytes = -1;
     private final TrackingDirectoryWrapper tmpDirectory;
@@ -139,10 +139,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     @Override
     public void appendStarTreeDocument(StarTreeDocument starTreeDocument) throws IOException {
         int bytes = writeStarTreeDocument(starTreeDocument, starTreeDocsFileOutput, true);
-        if (docSizeInBytes == -1) {
-            docSizeInBytes = bytes;
-        }
-        assert docSizeInBytes == bytes;
         starTreeDocumentOffsets.add(currBytes);
         currBytes += bytes;
     }
@@ -160,10 +156,42 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
             for (String file : tmpDirectory.getCreatedFiles()) {
                 try {
                     tmpDirectory.deleteFile(file);
-                } catch (final IOException ignored) {}
+                } catch (final IOException ignored) {
+                    logDeleteFileError(file);
+                }
             }
-
         }
+    }
+
+    /**
+     * Sorts and aggregates all the documents of the segment based on dimension and metrics configuration
+     *
+     * @param dimensionReaders List of docValues readers to read dimensions from the segment
+     * @param metricReaders    List of docValues readers to read metrics from the segment
+     * @return Iterator of star-tree documents
+     */
+    @Override
+    public Iterator<StarTreeDocument> sortAndAggregateSegmentDocuments(
+        SequentialDocValuesIterator[] dimensionReaders,
+        List<SequentialDocValuesIterator> metricReaders
+    ) throws IOException {
+        // Write all dimensions for segment documents into the buffer,
+        // and sort all documents using an int array
+        int documentBytesLength = 0;
+        int[] sortedDocIds = new int[totalSegmentDocs];
+        for (int i = 0; i < totalSegmentDocs; i++) {
+            sortedDocIds[i] = i;
+        }
+        try {
+            for (int i = 0; i < totalSegmentDocs; i++) {
+                StarTreeDocument document = getSegmentStarTreeDocument(i, dimensionReaders, metricReaders);
+                documentBytesLength = writeStarTreeDocument(document, segmentDocsFileOutput, false);
+            }
+        } finally {
+            segmentDocsFileOutput.close();
+        }
+        // Create an iterator for aggregated documents
+        return sortAndReduceDocuments(sortedDocIds, totalSegmentDocs, documentBytesLength);
     }
 
     /**
@@ -176,7 +204,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValuesSubs) throws IOException {
         int docBytesLength = 0;
         int numDocs = 0;
-        int[] sortedDocIds;
+        int[] docIds;
         try {
             for (StarTreeValues starTreeValues : starTreeValuesSubs) {
                 List<Dimension> dimensionsSplitOrder = starTreeValues.getStarTreeField().getDimensionsOrder();
@@ -203,9 +231,9 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                     currentDocId++;
                 }
             }
-            sortedDocIds = new int[numDocs];
+            docIds = new int[numDocs];
             for (int i = 0; i < numDocs; i++) {
-                sortedDocIds[i] = i;
+                docIds[i] = i;
             }
         } finally {
             segmentDocsFileOutput.close();
@@ -215,14 +243,14 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
             return Collections.emptyIterator();
         }
 
-        return sortAndReduceDocuments(sortedDocIds, numDocs, docBytesLength, true);
+        return sortAndReduceDocuments(docIds, numDocs, docBytesLength, true);
     }
 
     /**
      * Sorts and reduces the star tree documents based on the dimensions during flush flow
      */
-    private Iterator<StarTreeDocument> sortAndReduceDocuments(int[] sortedDocIds, int numDocs, int docBytesLength) throws IOException {
-        return sortAndReduceDocuments(sortedDocIds, numDocs, docBytesLength, false);
+    private Iterator<StarTreeDocument> sortAndReduceDocuments(int[] docIds, int numDocs, int docBytesLength) throws IOException {
+        return sortAndReduceDocuments(docIds, numDocs, docBytesLength, false);
     }
 
     /**
@@ -238,7 +266,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 logger.debug("Sorted doc ids array is null");
                 return Collections.emptyIterator();
             }
-            sortDocuments(sortedDocIds, (index) -> (sortedDocIds[index] * documentBytes), -1, numDocs, segmentRandomInput);
+            sortDocumentsOffHeap(sortedDocIds, (index) -> (sortedDocIds[index] * documentBytes), -1, numDocs, segmentRandomInput);
 
             // Create an iterator for aggregated documents
             IndexInput finalSegmentDocsFileInput = segmentDocsFileInput;
@@ -274,7 +302,9 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                     IOUtils.closeWhileHandlingException(finalSegmentDocsFileInput);
                     try {
                         tmpDirectory.deleteFile(segmentDocsFileOutput.getName());
-                    } catch (final IOException ignored) {}
+                    } catch (final IOException ignored) {
+                        logDeleteFileError(segmentDocsFileOutput.getName());
+                    }
                     return next;
                 }
             };
@@ -292,7 +322,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     }
 
     /**
-     * Get star tree document for the given docId from the star-tree documents file
+     * Get star tree document for the given docId from the star-tree.documents file
      */
     @Override
     public StarTreeDocument getStarTreeDocument(int docId) throws IOException {
@@ -314,39 +344,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     public Long getDimensionValue(int docId, int dimensionId) throws IOException {
         ensureDocumentReadable(docId);
         return starTreeDocsFileRandomInput.readLong((starTreeDocumentOffsets.get(docId) + ((long) dimensionId * Long.BYTES)));
-    }
-
-    /**
-     * Sorts and aggregates all the documents of the segment based on dimension and metrics configuration
-     *
-     * @param dimensionReaders List of docValues readers to read dimensions from the segment
-     * @param metricReaders    List of docValues readers to read metrics from the segment
-     * @return Iterator of star-tree documents
-     */
-    @Override
-    public Iterator<StarTreeDocument> sortAndAggregateSegmentDocuments(
-        SequentialDocValuesIterator[] dimensionReaders,
-        List<SequentialDocValuesIterator> metricReaders
-    ) throws IOException {
-        // Write all dimensions for segment documents into the buffer, and sort all documents using an int
-        // array
-        int documentBytesLength = 0;
-        int[] sortedDocIds = new int[totalSegmentDocs];
-        for (int i = 0; i < totalSegmentDocs; i++) {
-            sortedDocIds[i] = i;
-        }
-
-        try {
-            for (int i = 0; i < totalSegmentDocs; i++) {
-                StarTreeDocument document = getSegmentStarTreeDocument(i, dimensionReaders, metricReaders);
-                documentBytesLength = writeStarTreeDocument(document, segmentDocsFileOutput, false);
-            }
-        } finally {
-            segmentDocsFileOutput.close();
-        }
-
-        // Create an iterator for aggregated documents
-        return sortAndReduceDocuments(sortedDocIds, totalSegmentDocs, documentBytesLength);
     }
 
     /**
@@ -372,7 +369,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
             sortedDocIds[i] = startDocId + i;
         }
 
-        sortDocuments(
+        sortDocumentsOffHeap(
             sortedDocIds,
             (index) -> Long.valueOf(starTreeDocumentOffsets.get(sortedDocIds[index])),
             dimensionId,
@@ -424,7 +421,10 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         };
     }
 
-    private void sortDocuments(
+    /**
+     * Sort documents based on the dimension values off heap using intro sorter.
+     */
+    private void sortDocumentsOffHeap(
         int[] sortedDocIds,
         Function<Integer, Long> offsetSupplier,
         int dimensionId,
@@ -443,7 +443,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
 
             @Override
             protected void setPivot(int i) {
-
                 long offset = offsetSupplier.apply(i);
                 dimensions = new Long[starTreeField.getDimensionsOrder().size()];
                 try {
@@ -464,16 +463,16 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 }
                 for (int i = dimensionId + 1; i < dimensions.length; i++) {
                     Long dimension = dimensionsFromOutput[i];
-                    if (dimensions[i] == null && dimension == null) {
-                        return 0;
-                    }
-                    if (dimension == null) {
-                        return -1;
-                    }
-                    if (dimensions[i] == null) {
-                        return 1;
-                    }
                     if (!Objects.equals(dimensions[i], dimension)) {
+                        if (dimensions[i] == null && dimension == null) {
+                            return 0;
+                        }
+                        if (dimension == null) {
+                            return -1;
+                        }
+                        if (dimensions[i] == null) {
+                            return 1;
+                        }
                         return Long.compare(dimensions[i], dimension);
                     }
                 }
@@ -488,6 +487,10 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     int writeStarTreeDocument(StarTreeDocument starTreeDocument, IndexOutput output, boolean isAggregatedDoc) throws IOException {
         int numBytes = writeDimensions(starTreeDocument, output);
         numBytes += writeMetrics(starTreeDocument, output, isAggregatedDoc);
+        if (docSizeInBytes == -1) {
+            docSizeInBytes = numBytes;
+        }
+        assert docSizeInBytes == numBytes;
         return numBytes;
     }
 
@@ -547,11 +550,12 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         throws IOException {
         int dimSize = starTreeField.getDimensionsOrder().size();
         Long[] dimensions = new Long[dimSize];
+        long initialOffset = offset;
         offset = readDimensions(dimensions, input, offset);
 
         Object[] metrics = new Object[numMetrics];
         offset = readMetrics(input, offset, numMetrics, metrics, shouldReadAggregatedDocs);
-
+        assert (offset - initialOffset) == docSizeInBytes;
         return new StarTreeDocument(dimensions, metrics);
     }
 
@@ -620,13 +624,11 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
      */
     private void ensureDocumentReadable(int docId, boolean shouldCreateFileOutput) throws IOException {
         try {
-            if (docId >= prevStartDocId && docId < numReadableStarTreeDocuments) {
+            if (docId >= currentDocStartId && docId < numReadableStarTreeDocuments) {
                 return;
             }
-
             IOUtils.closeWhileHandlingException(starTreeDocsFileInput);
             starTreeDocsFileInput = null;
-
             if (docId < numStarTreeDocs) {
                 loadPreviousStarTreeDocumentFile(docId);
             }
@@ -634,7 +636,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 return;
             }
             closeAndMaybeCreateNewFile(shouldCreateFileOutput);
-
             int prevStartDocId = 0;
             for (Map.Entry<String, Integer> fileToEndDocId : fileToEndDocIdMap.entrySet()) {
                 if (docId <= fileToEndDocId.getValue() - 1) {
@@ -643,7 +644,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 }
                 prevStartDocId = fileToEndDocId.getValue();
             }
-            this.prevStartDocId = prevStartDocId;
+            this.currentDocStartId = prevStartDocId;
         } catch (IOException ex) {
             IOUtils.close(this);
             throw ex;
@@ -653,8 +654,8 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     /**
      * If docId is less then the numDocs , then we need to find a previous file associated with doc id
      * The fileToByteSizeMap is in the following format
-     * file1 -> 521
-     * file2 -> 780
+     * file1 == 521
+     * file2 == 780
      * which represents that file1 contains all docs till "520".
      * <p>
      * "prevStartDocId" tracks the "start doc id" of the range in the present 'star-tree.documents' file
@@ -671,7 +672,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
             }
             prevStartDocId = entry.getValue();
         }
-        this.prevStartDocId = prevStartDocId;
+        this.currentDocStartId = prevStartDocId;
     }
 
     /**
@@ -702,14 +703,12 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         if (starTreeDocsFileOutput != null) {
             fileToEndDocIdMap.put(starTreeDocsFileOutput.getName(), numStarTreeDocs);
         }
-
         if (shouldCreateFileForAppend) {
             starTreeDocsFileOutput = createStarTreeDocumentsFileOutput();
             if (fileToEndDocIdMap.size() >= fileCountMergeThreshold) {
                 mergeFiles();
             }
         }
-
         if (starTreeDocsFileRandomInput != null) {
             starTreeDocsFileRandomInput = null;
         }
@@ -753,11 +752,13 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     /**
      * Delete the old startree.documents files
      */
-    private void deleteOldFiles() throws IOException {
+    private void deleteOldFiles() {
         for (String fileName : fileToEndDocIdMap.keySet()) {
             try {
                 tmpDirectory.deleteFile(fileName);
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+                logDeleteFileError(fileName);
+            }
         }
     }
 
@@ -805,5 +806,9 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
             } catch (IOException ignored) {}
         }
         super.close();
+    }
+
+    private void logDeleteFileError(String file) {
+        logger.error("Error deleting file {}", file);
     }
 }
