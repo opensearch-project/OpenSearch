@@ -16,28 +16,8 @@ import static org.opensearch.search.query_group.QueryGroupServiceSettings.NODE_C
 import static org.opensearch.search.query_group.QueryGroupServiceSettings.NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME;
 import static org.opensearch.search.query_group.QueryGroupServiceSettings.NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME;
 import static org.opensearch.search.query_group.QueryGroupServiceSettings.NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME;
-import static org.opensearch.search.query_group.QueryGroupServiceSettings.QUERY_GROUP_COUNT_SETTING_NAME;
 
 public class QueryGroupServiceSettingsTests extends OpenSearchTestCase {
-
-    /**
-     * Tests the valid value of {@code node.query_group.max_count}
-     */
-    public void testValidMaxSandboxCountSetting() {
-        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 100).build();
-        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        QueryGroupServiceSettings queryGroupServiceSettings = new QueryGroupServiceSettings(settings, cs);
-        assertEquals(100, queryGroupServiceSettings.getMaxQueryGroupCount());
-    }
-
-    /**
-     * test the invalid value of {@code node.query_group.max_count}
-     */
-    public void testInValidMaxSandboxCountSetting() {
-        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, -100).build();
-        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        assertThrows(IllegalArgumentException.class, () -> new QueryGroupServiceSettings(settings, cs));
-    }
 
     /**
      * Tests the valid value for {@code query_group.node.memory_rejection_threshold}
