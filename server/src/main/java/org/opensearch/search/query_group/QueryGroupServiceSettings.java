@@ -22,11 +22,6 @@ public class QueryGroupServiceSettings {
     private static final Double DEFAULT_NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = 0.9;
     private static final Double DEFAULT_NODE_LEVEL_CPU_REJECTION_THRESHOLD = 0.8;
     private static final Double DEFAULT_NODE_LEVEL_CPU_CANCELLATION_THRESHOLD = 0.9;
-    /**
-     * default max queryGroup count on any node at any given point in time
-     */
-    public static final int DEFAULT_MAX_QUERY_GROUP_COUNT_VALUE = 100;
-    public static final String QUERY_GROUP_COUNT_SETTING_NAME = "node.query_group.max_count";
     public static final double NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD_MAX_VALUE = 0.95;
     public static final double NODE_LEVEL_MEMORY_REJECTION_THRESHOLD_MAX_VALUE = 0.90;
     public static final double NODE_LEVEL_CPU_CANCELLATION_THRESHOLD_MAX_VALUE = 0.95;
@@ -37,28 +32,12 @@ public class QueryGroupServiceSettings {
     private Double nodeLevelMemoryRejectionThreshold;
     private Double nodeLevelCpuCancellationThreshold;
     private Double nodeLevelCpuRejectionThreshold;
-    private volatile int maxQueryGroupCount;
     /**
-     *  max QueryGroup count setting
-     */
-    public static final Setting<Integer> MAX_QUERY_GROUP_COUNT = Setting.intSetting(
-        QUERY_GROUP_COUNT_SETTING_NAME,
-        DEFAULT_MAX_QUERY_GROUP_COUNT_VALUE,
-        0,
-        (newVal) -> {
-            if (newVal > 100 || newVal < 1) throw new IllegalArgumentException(
-                QUERY_GROUP_COUNT_SETTING_NAME + " should be in range [1-100]"
-            );
-        },
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-    /**
-     * Setting name for default QueryGroup count
+     * Setting name for the run interval of QueryGroup service
      */
     public static final String SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME = "query_group.service.run_interval_millis";
     /**
-     * Setting to control the run interval of QSB service
+     * Setting to control the run interval of QueryGroup service
      */
     private static final Setting<Long> QUERY_GROUP_RUN_INTERVAL_SETTING = Setting.longSetting(
         SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME,
@@ -69,7 +48,7 @@ public class QueryGroupServiceSettings {
     );
 
     /**
-     * Setting name for node level memory rejection threshold for QSB
+     * Setting name for node level memory rejection threshold for QueryGroup service
      */
     public static final String NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME = "query_group.node.memory_rejection_threshold";
     /**
@@ -82,7 +61,7 @@ public class QueryGroupServiceSettings {
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level cpu rejection threshold for QSB
+     * Setting name for node level cpu rejection threshold for QueryGroup service
      */
     public static final String NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME = "query_group.node.cpu_rejection_threshold";
     /**
@@ -95,11 +74,11 @@ public class QueryGroupServiceSettings {
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level memory cancellation threshold
+     * Setting name for node level memory cancellation threshold for QueryGroup service
      */
     public static final String NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME = "query_group.node.memory_cancellation_threshold";
     /**
-     * Setting name for node level memory cancellation threshold
+     * Setting to control the memory cancellation threshold
      */
     public static final Setting<Double> NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = Setting.doubleSetting(
         NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME,
@@ -108,11 +87,11 @@ public class QueryGroupServiceSettings {
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level cpu cancellation threshold
+     * Setting name for node level cpu cancellation threshold for QueryGroup service
      */
     public static final String NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME = "query_group.node.cpu_cancellation_threshold";
     /**
-     * Setting name for node level cpu cancellation threshold
+     * Setting to control the cpu cancellation threshold
      */
     public static final Setting<Double> NODE_LEVEL_CPU_CANCELLATION_THRESHOLD = Setting.doubleSetting(
         NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME,
@@ -132,7 +111,6 @@ public class QueryGroupServiceSettings {
         nodeLevelMemoryRejectionThreshold = NODE_LEVEL_MEMORY_REJECTION_THRESHOLD.get(settings);
         nodeLevelCpuCancellationThreshold = NODE_LEVEL_CPU_CANCELLATION_THRESHOLD.get(settings);
         nodeLevelCpuRejectionThreshold = NODE_LEVEL_CPU_REJECTION_THRESHOLD.get(settings);
-        maxQueryGroupCount = MAX_QUERY_GROUP_COUNT.get(settings);
 
         ensureRejectionThresholdIsLessThanCancellation(
             nodeLevelMemoryRejectionThreshold,
@@ -147,7 +125,6 @@ public class QueryGroupServiceSettings {
             NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME
         );
 
-        clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxQueryGroupCount);
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD, this::setNodeLevelMemoryCancellationThreshold);
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_MEMORY_REJECTION_THRESHOLD, this::setNodeLevelMemoryRejectionThreshold);
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CPU_CANCELLATION_THRESHOLD, this::setNodeLevelCpuCancellationThreshold);
@@ -155,22 +132,11 @@ public class QueryGroupServiceSettings {
     }
 
     /**
-     * Method to get runInterval for QSB
-     * @return runInterval in milliseconds for QSB Service
+     * Method to get runInterval for QueryGroup service
+     * @return runInterval in milliseconds for QueryGroup service
      */
     public TimeValue getRunIntervalMillis() {
         return runIntervalMillis;
-    }
-
-    /**
-     * Method to set the new QueryGroup count
-     * @param newMaxQueryGroupCount is the new maxQueryGroupCount per node
-     */
-    public void setMaxQueryGroupCount(int newMaxQueryGroupCount) {
-        if (newMaxQueryGroupCount < 0) {
-            throw new IllegalArgumentException("node.node.query_group.max_count can't be negative");
-        }
-        this.maxQueryGroupCount = newMaxQueryGroupCount;
     }
 
     /**
@@ -293,6 +259,14 @@ public class QueryGroupServiceSettings {
         this.nodeLevelCpuRejectionThreshold = nodeLevelCpuRejectionThreshold;
     }
 
+    /**
+     * Method to validate that the cancellation threshold is greater than or equal to rejection threshold
+     * @param nodeLevelRejectionThreshold rejection threshold to be compared
+     * @param nodeLevelCancellationThreshold cancellation threshold to be compared
+     * @param rejectionThresholdSettingName name of the rejection threshold setting
+     * @param cancellationThresholdSettingName name of the cancellation threshold setting
+     * @throws IllegalArgumentException if cancellation threshold is less than rejection threshold
+     */
     private void ensureRejectionThresholdIsLessThanCancellation(
         Double nodeLevelRejectionThreshold,
         Double nodeLevelCancellationThreshold,
@@ -304,13 +278,5 @@ public class QueryGroupServiceSettings {
                 cancellationThresholdSettingName + " value should not be less than " + rejectionThresholdSettingName
             );
         }
-    }
-
-    /**
-     * Method to get the current QueryGroup count
-     * @return the current max QueryGroup count
-     */
-    public int getMaxQueryGroupCount() {
-        return maxQueryGroupCount;
     }
 }

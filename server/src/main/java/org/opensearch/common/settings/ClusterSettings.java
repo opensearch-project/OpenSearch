@@ -770,7 +770,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
 
                 // QueryGroup settings
-                QueryGroupServiceSettings.MAX_QUERY_GROUP_COUNT,
                 QueryGroupServiceSettings.NODE_LEVEL_CPU_REJECTION_THRESHOLD,
                 QueryGroupServiceSettings.NODE_LEVEL_CPU_CANCELLATION_THRESHOLD,
                 QueryGroupServiceSettings.NODE_LEVEL_MEMORY_REJECTION_THRESHOLD,
