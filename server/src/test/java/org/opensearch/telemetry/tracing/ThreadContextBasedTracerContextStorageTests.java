@@ -21,6 +21,8 @@ import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
 import org.junit.After;
 import org.junit.Before;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -260,7 +262,10 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
             try (StoredContext ignored = threadContext.stashContext()) {
                 assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(not(nullValue())));
                 assertThat(threadContextStorage.get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(span));
-                threadContext.markAsSystemContext();
+                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                    threadContext.markAsSystemContext();
+                    return null;
+                });
                 assertThat(threadContext.getTransient(ThreadContextBasedTracerContextStorage.CURRENT_SPAN), is(nullValue()));
             }
         }

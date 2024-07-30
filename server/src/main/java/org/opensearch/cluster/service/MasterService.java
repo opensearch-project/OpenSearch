@@ -76,6 +76,8 @@ import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -1022,7 +1024,10 @@ public class MasterService extends AbstractLifecycleComponent {
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                threadContext.markAsSystemContext();
+                return null;
+            });
 
             List<Batcher.UpdateTask> safeTasks = tasks.entrySet()
                 .stream()

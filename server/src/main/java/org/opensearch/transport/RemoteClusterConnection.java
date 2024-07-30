@@ -47,6 +47,8 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.function.Function;
 
 /**
@@ -136,7 +138,10 @@ final class RemoteClusterConnection implements Closeable {
                 new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 // we stash any context here since this is an internal execution and should not leak any existing context information
-                threadContext.markAsSystemContext();
+                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                    threadContext.markAsSystemContext();
+                    return null;
+                });
 
                 final ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();

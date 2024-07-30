@@ -41,6 +41,8 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Objects;
 
 /**
@@ -113,7 +115,10 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
-            threadContext.markAsSystemContext();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                threadContext.markAsSystemContext();
+                return null;
+            });
             PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
             final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "segrep_publish_checkpoint", request);
             final ReplicationTimer timer = new ReplicationTimer();

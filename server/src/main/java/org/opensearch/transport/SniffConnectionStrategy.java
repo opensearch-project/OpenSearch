@@ -59,6 +59,8 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -349,7 +351,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     // we stash any context here since this is an internal execution and should not leak any
                     // existing context information.
-                    threadContext.markAsSystemContext();
+                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                        threadContext.markAsSystemContext();
+                        return null;
+                    });
                     transportService.sendRequest(
                         connection,
                         ClusterStateAction.NAME,

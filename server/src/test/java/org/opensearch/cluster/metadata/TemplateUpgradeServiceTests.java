@@ -56,6 +56,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -225,7 +227,10 @@ public class TemplateUpgradeServiceTests extends OpenSearchTestCase {
         service.upgradesInProgress.set(additionsCount + deletionsCount + 2); // +2 to skip tryFinishUpgrade
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                threadContext.markAsSystemContext();
+                return null;
+            });
             service.upgradeTemplates(additions, deletions);
         }
 

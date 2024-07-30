@@ -49,6 +49,8 @@ import org.opensearch.node.Node;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -134,7 +136,10 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
                     scheduledNextTask = false;
                     final ThreadContext threadContext = threadPool.getThreadContext();
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                        threadContext.markAsSystemContext();
+                        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                            threadContext.markAsSystemContext();
+                            return null;
+                        });
                         task.run();
                     }
                     if (waitForPublish == false) {
