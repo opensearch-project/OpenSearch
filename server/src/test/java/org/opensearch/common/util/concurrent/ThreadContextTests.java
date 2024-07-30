@@ -37,8 +37,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -567,10 +565,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
             threadContext.putHeader("foo", "bar");
             boolean systemContext = randomBoolean();
             if (systemContext) {
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    threadContext.markAsSystemContext();
-                    return null;
-                });
+                ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             }
             threadContext.putTransient("foo", "bar_transient");
             withContext = threadContext.preserveContext(new AbstractRunnable() {
@@ -741,10 +736,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertFalse(threadContext.isSystemContext());
         try (ThreadContext.StoredContext context = threadContext.stashContext()) {
             assertFalse(threadContext.isSystemContext());
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                threadContext.markAsSystemContext();
-                return null;
-            });
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             assertTrue(threadContext.isSystemContext());
         }
         assertFalse(threadContext.isSystemContext());
@@ -769,10 +761,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
         assertEquals("bar", threadContext.getHeader("foo"));
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                threadContext.markAsSystemContext();
-                return null;
-            });
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("test_transient_propagation_key"));
             assertEquals("1", threadContext.getHeader("default"));
@@ -804,10 +793,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         threadContext.writeTo(out);
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                threadContext.markAsSystemContext();
-                return null;
-            });
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             threadContext.writeTo(outFromSystemContext);
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("test_transient_propagation_key"));

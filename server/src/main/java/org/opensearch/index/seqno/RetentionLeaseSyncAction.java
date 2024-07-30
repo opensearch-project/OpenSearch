@@ -50,6 +50,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -69,8 +70,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.Objects;
 
@@ -139,10 +138,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                threadContext.markAsSystemContext();
-                return null;
-            });
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             final Request request = new Request(shardId, retentionLeases);
             final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_sync", request);
             transportService.sendChildRequest(

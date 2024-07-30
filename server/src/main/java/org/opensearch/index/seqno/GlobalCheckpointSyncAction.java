@@ -44,6 +44,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
@@ -55,8 +56,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 /**
  * Background global checkpoint sync action initiated when a shard goes inactive. This is needed because while we send the global checkpoint
@@ -100,10 +99,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     public void updateGlobalCheckpointForShard(final ShardId shardId) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                threadContext.markAsSystemContext();
-                return null;
-            });
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             execute(new Request(shardId), ActionListener.wrap(r -> {}, e -> {
                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                     logger.info(new ParameterizedMessage("{} global checkpoint sync failed", shardId), e);

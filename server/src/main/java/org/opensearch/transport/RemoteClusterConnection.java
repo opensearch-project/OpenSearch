@@ -40,6 +40,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -47,8 +48,6 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.function.Function;
 
 /**
@@ -138,10 +137,7 @@ final class RemoteClusterConnection implements Closeable {
                 new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 // we stash any context here since this is an internal execution and should not leak any existing context information
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    threadContext.markAsSystemContext();
-                    return null;
-                });
+                ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
 
                 final ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();
