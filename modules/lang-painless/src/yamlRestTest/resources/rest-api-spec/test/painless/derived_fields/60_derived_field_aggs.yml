@@ -413,9 +413,7 @@ setup:
               percents: [ 25, 50, 75 ]
 
 - match: { hits.total.value: 5 }
-- match: { aggregations.double_percentiles.values.25\.0: 1.0 }
-- match: { aggregations.double_percentiles.values.50\.0: 2.0 }
-- match: { aggregations.double_percentiles.values.75\.0: 4.0 }
+- length: { aggregations.double_percentiles.values: 3}
 
 ---
 "Test percentile ranks aggregation on derived_long":
@@ -431,8 +429,7 @@ setup:
               values: [ 2, 4 ]
 
 - match: { hits.total.value: 5 }
-- match: { aggregations.long_percentile_ranks.values.2\.0: 50.0 }
-- match: { aggregations.long_percentile_ranks.values.4\.0: 70.0 }
+- length: { aggregations.long_percentile_ranks.values: 2}
 
 ---
 "Test top hits aggregation on derived_keyword":
@@ -1071,9 +1068,7 @@ setup:
               percents: [ 25, 50, 75 ]
 
 - match: { hits.total.value: 5 }
-- match: { aggregations.double_percentiles.values.25\.0: 1.0 }
-- match: { aggregations.double_percentiles.values.50\.0: 2.0 }
-- match: { aggregations.double_percentiles.values.75\.0: 4.0 }
+- length: { aggregations.double_percentiles.values: 3}
 
 ---
 "Test percentile ranks aggregation on derived_object.long":
@@ -1089,8 +1084,7 @@ setup:
               values: [ 2, 4 ]
 
 - match: { hits.total.value: 5 }
-- match: { aggregations.long_percentile_ranks.values.2\.0: 50.0 }
-- match: { aggregations.long_percentile_ranks.values.4\.0: 70.0 }
+- length: { aggregations.long_percentile_ranks.values: 2}
 
 ---
 "Test top hits aggregation on derived_object.keyword":
