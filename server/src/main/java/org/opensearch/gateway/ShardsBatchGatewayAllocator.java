@@ -794,11 +794,20 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         return batchIdToStoreShardBatch.size();
     }
 
-    private void setPrimaryBatchAllocatorTimeout(TimeValue primaryShardsBatchGatewayAllocatorTimeout) {
+    protected void setPrimaryBatchAllocatorTimeout(TimeValue primaryShardsBatchGatewayAllocatorTimeout) {
         this.primaryShardsBatchGatewayAllocatorTimeout = primaryShardsBatchGatewayAllocatorTimeout;
     }
 
-    private void setReplicaBatchAllocatorTimeout(TimeValue replicaShardsBatchGatewayAllocatorTimeout) {
+    protected void setReplicaBatchAllocatorTimeout(TimeValue replicaShardsBatchGatewayAllocatorTimeout) {
         this.replicaShardsBatchGatewayAllocatorTimeout = replicaShardsBatchGatewayAllocatorTimeout;
+    }
+
+    // for tests
+    public Set<ShardId> getTimedOutPrimaryShardIds() {
+        return timedOutPrimaryShardIds;
+    }
+
+    public Set<ShardId> getTimedOutReplicaShardIds() {
+        return timedOutReplicaShardIds;
     }
 }

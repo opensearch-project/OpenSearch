@@ -32,6 +32,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.shard.ShardId;
@@ -366,6 +367,18 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         assertEquals(executor.getTimeoutAwareRunnables().size(), 2);
         executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
         assertEquals(executor.getTimeoutAwareRunnables().size(), 2);
+    }
+
+    public void testCollectTimedOutShards() {
+        createIndexAndUpdateClusterState(2, 50, 2);
+        testShardsBatchGatewayAllocator.setPrimaryBatchAllocatorTimeout(TimeValue.ZERO);
+        testShardsBatchGatewayAllocator.setReplicaBatchAllocatorTimeout(TimeValue.ZERO);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        executor.run();
+        assertEquals(100, testShardsBatchGatewayAllocator.getTimedOutPrimaryShardIds().size());
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        executor.run();
+        assertEquals(100, testShardsBatchGatewayAllocator.getTimedOutReplicaShardIds().size());
     }
 
     private void createIndexAndUpdateClusterState(int count, int numberOfShards, int numberOfReplicas) {
