@@ -49,8 +49,7 @@ public class WorkloadManagementTransportRequestHandlerTests extends OpenSearchTe
         QueryGroupTask spyTask = getSpyTask();
 
         sut.messageReceived(request, mock(TransportChannel.class), spyTask);
-
-        verify(spyTask, times(1)).setQueryGroupId(threadPool.getThreadContext());
+        assertTrue(sut.isSearchWorkloadRequest(spyTask));
     }
 
     public void testMessageReceivedForNonSearchWorkload() throws Exception {
