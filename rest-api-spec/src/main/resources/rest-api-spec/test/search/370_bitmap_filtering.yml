@@ -1,0 +1,179 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: students
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              student_id:
+                type: integer
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "students", "_id": "1" } }
+          - { "name": "Jane Doe", "student_id": 111 }
+          - { "index": { "_index": "students", "_id": "2" } }
+          - { "name": "Mary Major", "student_id": 222 }
+          - { "index": { "_index": "students", "_id": "3" } }
+          - { "name": "John Doe", "student_id": 333 }
+  - do:
+      indices.create:
+        index: classes
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              enrolled:
+                type: binary
+                store: true
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "classes", "_id": "101" } }
+          -  { "enrolled": "OjAAAAEAAAAAAAEAEAAAAG8A3gA=" } # 111,222
+          -  { "index": { "_index": "classes", "_id": "102" } }
+          -  { "enrolled": "OjAAAAEAAAAAAAAAEAAAAG8A" }     # 111
+          -  { "index": { "_index": "classes", "_id": "103" } }
+          -  { "enrolled": "OjAAAAEAAAAAAAAAEAAAAE0B" }     # 333
+          -  { "index": { "_index": "classes", "_id": "104" } }
+          -  { "enrolled": "OjAAAAEAAAAAAAEAEAAAAN4ATQE=" } # 222,333
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"Terms lookup on a binary field with bitmap":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: students
+        body: {
+          "query": {
+            "terms": {
+              "student_id": {
+                "index": "classes",
+                "id": "101",
+                "path": "enrolled",
+                "store": true
+              },
+              "value_type": "bitmap"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.name: Jane Doe }
+  - match: { hits.hits.0._source.student_id: 111 }
+  - match: { hits.hits.1._source.name: Mary Major }
+  - match: { hits.hits.1._source.student_id: 222 }
+---
+"Terms query accepting bitmap as value":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: students
+        body: {
+          "query": {
+            "terms": {
+              "student_id": "OjAAAAEAAAAAAAEAEAAAAG8A3gA=",
+              "value_type": "bitmap"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.name: Jane Doe }
+  - match: { hits.hits.0._source.student_id: 111 }
+  - match: { hits.hits.1._source.name: Mary Major }
+  - match: { hits.hits.1._source.student_id: 222 }
+---
+"Boolean must bitmap filtering":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: students
+        body: {
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "terms": {
+                    "student_id": {
+                      "index": "classes",
+                      "id": "101",
+                      "path": "enrolled",
+                      "store": true
+                    },
+                    "value_type": "bitmap"
+                  }
+                }
+              ],
+              "must_not": [
+                {
+                  "terms": {
+                    "student_id": {
+                      "index": "classes",
+                      "id": "104",
+                      "path": "enrolled",
+                      "store": true
+                    },
+                    "value_type": "bitmap"
+                  }
+                }
+              ]
+            }
+          }
+        }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.name: Jane Doe }
+  - match: { hits.hits.0._source.student_id: 111 }
+
+---
+"Boolean should bitmap filtering":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: students
+        body: {
+          "query": {
+            "bool": {
+              "should": [
+                {
+                  "terms": {
+                    "student_id": {
+                      "index": "classes",
+                      "id": "101",
+                      "path": "enrolled",
+                      "store": true
+                    },
+                    "value_type": "bitmap"
+                  }
+                },
+                {
+                  "terms": {
+                    "student_id": {
+                      "index": "classes",
+                      "id": "104",
+                      "path": "enrolled",
+                      "store": true
+                    },
+                    "value_type": "bitmap"
+                  }
+                }
+              ]
+            }
+          }
+        }
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._source.name: Jane Doe }
+  - match: { hits.hits.0._source.student_id: 111 }
+  - match: { hits.hits.0._source.name: Mary Major }
+  - match: { hits.hits.0._source.student_id: 222 }
+  - match: { hits.hits.0._source.name: John Doe }
+  - match: { hits.hits.0._source.student_id: 333 }

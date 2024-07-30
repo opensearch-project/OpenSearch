@@ -64,6 +64,7 @@ import java.nio.CharBuffer;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -460,6 +461,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     + "] query requires a field name, "
                     + "followed by array of terms or a document lookup specification"
             );
+        }
+
+        // if value_type is not empty, and values is a BytesRef,
+        // we parse the bytes to the corresponding structure here
+        if (valueType != null && values != null && values.size() == 1 && values.get(0) instanceof BytesRef) {
+            values.set(0, new BytesArray(Base64.getDecoder().decode(((BytesRef) values.get(0)).utf8ToString())));
         }
 
         return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
