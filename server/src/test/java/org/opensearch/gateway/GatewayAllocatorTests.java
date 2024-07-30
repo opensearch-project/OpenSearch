@@ -385,6 +385,7 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         executor.run();
         assertEquals(100, testShardsBatchGatewayAllocator.getTimedOutReplicaShardIds().size());
     }
+
     public void testPrimaryAllocatorTimeout() {
         // Valid setting with timeout = 20s
         Settings build = Settings.builder().put(PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "20s").build();
