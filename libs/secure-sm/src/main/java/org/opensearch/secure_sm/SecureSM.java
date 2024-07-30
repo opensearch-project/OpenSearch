@@ -208,10 +208,6 @@ public class SecureSM extends SecurityManager {
         System.err.println("access: target group=" + target);
     }
 
-    // thread context permissions
-
-    public static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("markAsSystemContext");
-
     // thread permission logic
 
     private static final Permission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
