@@ -33,10 +33,15 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.tests.util.TestUtil;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -46,6 +51,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
+import org.mockito.Mockito;
 
 public class InternalHistogramTests extends InternalMultiBucketAggregationTestCase<InternalHistogram> {
 
@@ -121,6 +128,42 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             Arrays.asList(newHistogram, histogram2),
             InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction()
         );
+    }
+
+    public void testCircuitBreakerWhenAddEmptyBuckets() {
+        String name = randomAlphaOfLength(5);
+        double interval = 1;
+        double lowerBound = 1;
+        double upperBound = 1026;
+        List<InternalHistogram.Bucket> bucket1 = List.of(
+            new InternalHistogram.Bucket(lowerBound, 1, false, format, InternalAggregations.EMPTY)
+        );
+        List<InternalHistogram.Bucket> bucket2 = List.of(
+            new InternalHistogram.Bucket(upperBound, 1, false, format, InternalAggregations.EMPTY)
+        );
+        BucketOrder order = BucketOrder.key(true);
+        InternalHistogram.EmptyBucketInfo emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(
+            interval,
+            0,
+            lowerBound,
+            upperBound,
+            InternalAggregations.EMPTY
+        );
+        InternalHistogram histogram1 = new InternalHistogram(name, bucket1, order, 0, emptyBucketInfo, format, false, null);
+        InternalHistogram histogram2 = new InternalHistogram(name, bucket2, order, 0, emptyBucketInfo, format, false, null);
+
+        CircuitBreaker breaker = Mockito.mock(CircuitBreaker.class);
+        Mockito.when(breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets")).thenThrow(CircuitBreakingException.class);
+
+        MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(0, breaker);
+        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+            null,
+            null,
+            bucketConsumer,
+            PipelineAggregator.PipelineTree.EMPTY
+        );
+        expectThrows(CircuitBreakingException.class, () -> histogram1.reduce(List.of(histogram1, histogram2), reduceContext));
+        Mockito.verify(breaker, Mockito.times(1)).addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
     }
 
     @Override

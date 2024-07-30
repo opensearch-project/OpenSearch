@@ -158,6 +158,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("brazilianstem", BrazilianStemTokenFilterFactory.class);
         filters.put("czechstem", CzechStemTokenFilterFactory.class);
         filters.put("germanstem", GermanStemTokenFilterFactory.class);
+        filters.put("persianstem", PersianStemTokenFilterFactory.class);
         filters.put("telugunormalization", TeluguNormalizationFilterFactory.class);
         filters.put("telugustem", TeluguStemFilterFactory.class);
         // this filter is not exposed and should only be used internally
@@ -220,6 +221,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("ngram", null);
         filters.put("nGram", null);
         filters.put("persian_normalization", null);
+        filters.put("persian_stem", null);
         filters.put("porter_stem", null);
         filters.put("reverse", ReverseStringFilterFactory.class);
         filters.put("russian_stem", SnowballPorterFilterFactory.class);

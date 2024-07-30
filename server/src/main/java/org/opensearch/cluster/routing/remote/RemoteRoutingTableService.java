@@ -9,19 +9,19 @@
 package org.opensearch.cluster.routing.remote;
 
 import org.opensearch.action.LatchedActionListener;
-import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.index.Index;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -31,25 +31,51 @@ import java.util.Map;
  * @opensearch.internal
  */
 public interface RemoteRoutingTableService extends LifecycleComponent {
-    public static final DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_VALUE_SERIALIZER =
-        new DiffableUtils.NonDiffableValueSerializer<String, IndexRoutingTable>() {
+
+    public static final DiffableUtils.DiffableValueSerializer<String, IndexRoutingTable> CUSTOM_ROUTING_TABLE_DIFFABLE_VALUE_SERIALIZER =
+        new DiffableUtils.DiffableValueSerializer<String, IndexRoutingTable>() {
+            @Override
+            public IndexRoutingTable read(StreamInput in, String key) throws IOException {
+                return IndexRoutingTable.readFrom(in);
+            }
+
             @Override
             public void write(IndexRoutingTable value, StreamOutput out) throws IOException {
                 value.writeTo(out);
             }
 
             @Override
-            public IndexRoutingTable read(StreamInput in, String key) throws IOException {
-                return IndexRoutingTable.readFrom(in);
+            public Diff<IndexRoutingTable> readDiff(StreamInput in, String key) throws IOException {
+                return IndexRoutingTable.readDiffFrom(in);
+            }
+
+            @Override
+            public Diff<IndexRoutingTable> diff(IndexRoutingTable currentState, IndexRoutingTable previousState) {
+                List<IndexShardRoutingTable> diffs = new ArrayList<>();
+                for (Map.Entry<Integer, IndexShardRoutingTable> entry : currentState.getShards().entrySet()) {
+                    Integer index = entry.getKey();
+                    IndexShardRoutingTable currentShardRoutingTable = entry.getValue();
+                    IndexShardRoutingTable previousShardRoutingTable = previousState.shard(index);
+                    if (previousShardRoutingTable == null || !previousShardRoutingTable.equals(currentShardRoutingTable)) {
+                        diffs.add(currentShardRoutingTable);
+                    }
+                }
+                return new RoutingTableIncrementalDiff.IndexRoutingTableIncrementalDiff(diffs);
             }
         };
 
     List<IndexRoutingTable> getIndicesRouting(RoutingTable routingTable);
 
-    CheckedRunnable<IOException> getAsyncIndexRoutingReadAction(
+    void getAsyncIndexRoutingReadAction(
+        String clusterUUID,
         String uploadedFilename,
-        Index index,
         LatchedActionListener<IndexRoutingTable> latchedActionListener
+    );
+
+    void getAsyncIndexRoutingTableDiffReadAction(
+        String clusterUUID,
+        String uploadedFilename,
+        LatchedActionListener<RoutingTableIncrementalDiff> latchedActionListener
     );
 
     List<ClusterMetadataManifest.UploadedIndexMetadata> getUpdatedIndexRoutingTableMetadata(
@@ -62,11 +88,20 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         RoutingTable after
     );
 
-    CheckedRunnable<IOException> getIndexRoutingAsyncAction(
-        ClusterState clusterState,
+    void getAsyncIndexRoutingWriteAction(
+        String clusterUUID,
+        long term,
+        long version,
         IndexRoutingTable indexRouting,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener,
-        BlobPath clusterBasePath
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+    );
+
+    void getAsyncIndexRoutingDiffWriteAction(
+        String clusterUUID,
+        long term,
+        long version,
+        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff,
+        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     );
 
     List<ClusterMetadataManifest.UploadedIndexMetadata> getAllUploadedIndicesRouting(
@@ -76,5 +111,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
     );
 
     public void deleteStaleIndexRoutingPaths(List<String> stalePaths) throws IOException;
+
+    public void deleteStaleIndexRoutingDiffPaths(List<String> stalePaths) throws IOException;
 
 }
