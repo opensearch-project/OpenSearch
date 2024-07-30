@@ -50,7 +50,6 @@ import org.opensearch.tasks.TaskThreadContextStatePropagator;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -71,6 +70,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
+import static org.opensearch.secure_sm.SecureSM.ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION;
 
 /**
  * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
@@ -119,8 +119,6 @@ public final class ThreadContext implements Writeable {
     private final int maxWarningHeaderCount;
     private final long maxWarningHeaderSize;
     private final List<ThreadContextStatePropagator> propagators;
-
-    private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new RuntimePermission("markAsSystemContext");
 
     /**
      * Creates a new ThreadContext instance
