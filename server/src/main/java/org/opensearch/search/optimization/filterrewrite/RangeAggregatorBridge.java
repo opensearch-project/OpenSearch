@@ -77,7 +77,7 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
 
     @Override
     public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, final LeafBucketCollector sub) throws IOException {
-        int size = Integer.MAX_VALUE;
+
 
         BiConsumer<Integer, List<Integer>> collectRangeIDs = (activeIndex, docIDs) -> {
             long ord = bucketOrdProducer().apply(activeIndex);
@@ -92,7 +92,7 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             }
         };
 
-        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), collectRangeIDs, size));
+        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), collectRangeIDs, Integer.MAX_VALUE));
     }
 
     /**

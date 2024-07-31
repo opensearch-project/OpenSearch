@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.opensearch.common.CheckedRunnable;
 
 import java.io.IOException;
 import java.util.ArrayList;
