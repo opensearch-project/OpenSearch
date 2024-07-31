@@ -8,8 +8,8 @@
 
 "Mappings and Supported queries":
   - skip:
-      version: " - 2.99.99"
-      reason: "fixed in 3.0.0"
+      version: " - 2.15.99"
+      reason: "fixed in 2.16.0"
 
   # Create index with constant_keyword field type
   - do:

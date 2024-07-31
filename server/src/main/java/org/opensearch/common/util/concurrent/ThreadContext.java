@@ -45,11 +45,13 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.secure_sm.ThreadContextPermission;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskThreadContextStatePropagator;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -110,6 +112,12 @@ public final class ThreadContext implements Writeable {
      * Name for the {@link #stashWithOrigin origin} attribute.
      */
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+
+    // thread context permissions
+
+    private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("markAsSystemContext");
+    private static final Permission STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashAndMergeHeaders");
+    private static final Permission STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashWithOrigin");
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
@@ -207,6 +215,10 @@ public final class ThreadContext implements Writeable {
      * if it can't find the task in memory.
      */
     public StoredContext stashWithOrigin(String origin) {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION);
+        }
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
@@ -218,6 +230,10 @@ public final class ThreadContext implements Writeable {
      * that are already existing are preserved unless they are defaults.
      */
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION);
+        }
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);
@@ -554,8 +570,19 @@ public final class ThreadContext implements Writeable {
     /**
      * Marks this thread context as an internal system context. This signals that actions in this context are issued
      * by the system itself rather than by a user action.
+     *
+     * Usage of markAsSystemContext is guarded by a ThreadContextPermission. In order to use
+     * markAsSystemContext, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
      */
     public void markAsSystemContext() {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION);
+        }
         threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
 

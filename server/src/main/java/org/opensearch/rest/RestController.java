@@ -748,8 +748,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
             // over so we need to populate those **before** that, if possible.
             if (subscribed.get() == false) {
                 prepareResponse(response.status(), Map.of("Content-Type", List.of(response.contentType())));
-                Mono.ignoreElements(this).then(Mono.just(response)).subscribe(delegate::sendResponse);
             }
+
+            Mono.ignoreElements(this).then(Mono.just(response)).subscribe(delegate::sendResponse);
         }
 
         @Override
