@@ -30,6 +30,7 @@ setup:
               }
             ]
           }
+
 ---
 teardown:
   - do:
@@ -39,6 +40,10 @@ teardown:
   - do:
       ingest.delete_pipeline:
         id: "pipeline2"
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: test_index_template_for_bulk
         ignore: 404
 
 ---
