@@ -34,9 +34,6 @@ package org.opensearch.benchmark.search.aggregations;
 import org.openjdk.jmh.annotations.*;
 
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.index.DirectoryReader;
@@ -52,6 +49,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.NumericPointEncoder;
@@ -99,6 +97,7 @@ public class BKDTreeMultiRangesTraverseBenchmark {
 
         @Setup
         public void setup() throws IOException {
+            LogConfigurator.setNodeName("sample-name");
             random = new Random(seed);
             tmpDir = Files.createTempDirectory("tree-test");
             directory = FSDirectory.open(tmpDir);
