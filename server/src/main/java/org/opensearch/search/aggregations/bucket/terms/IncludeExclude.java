@@ -480,7 +480,12 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         @Override
         public LongBitSet acceptedGlobalOrdinals(SortedSetDocValues globalOrdinals) throws IOException {
             LongBitSet accept = new LongBitSet(globalOrdinals.getValueCount());
-            process(globalOrdinals, accept.length(), includePrefixes, accept::set);
+            if (includePrefixes.isEmpty()) {
+                // Exclude-only
+                accept.set(0, accept.length());
+            } else {
+                process(globalOrdinals, accept.length(), includePrefixes, accept::set);
+            }
             process(globalOrdinals, accept.length(), excludePrefixes, accept::clear);
             return accept;
         }
@@ -872,7 +877,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         }
     }
 
-    private static SortedSet<BytesRef> extractPrefixes(String pattern, int maxRegexLength) {
+    static SortedSet<BytesRef> extractPrefixes(String pattern, int maxRegexLength) {
         if (pattern == null) {
             return Collections.emptySortedSet();
         }
