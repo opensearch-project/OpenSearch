@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.wlm;
+package org.opensearch.wlm;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.ResourceType;

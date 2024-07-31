@@ -6,15 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.wlm.tracker;
+package org.opensearch.wlm.tracker;
 
 import org.opensearch.search.ResourceType;
-import org.opensearch.search.wlm.QueryGroupHelper;
-import org.opensearch.search.wlm.QueryGroupLevelResourceUsageView;
-import org.opensearch.search.wlm.QueryGroupTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.wlm.QueryGroupHelper;
+import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
+import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.EnumMap;
 import java.util.HashMap;

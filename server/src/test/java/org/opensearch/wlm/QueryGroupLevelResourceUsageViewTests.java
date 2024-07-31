@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.wlm;
+package org.opensearch.wlm;
 
 import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
@@ -15,7 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.search.wlm.QueryGroupTestHelpers.getRandomTask;
+import static org.opensearch.wlm.QueryGroupTestHelpers.getRandomTask;
 
 public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
     Map<ResourceType, Long> resourceUsage;

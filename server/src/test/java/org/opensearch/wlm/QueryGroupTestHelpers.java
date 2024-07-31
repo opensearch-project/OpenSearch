@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.wlm;
+package org.opensearch.wlm;
 
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.core.tasks.TaskId;

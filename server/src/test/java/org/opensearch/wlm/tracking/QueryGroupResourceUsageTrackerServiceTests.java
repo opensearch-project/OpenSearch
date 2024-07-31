@@ -6,16 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.wlm.tracking;
+package org.opensearch.wlm.tracking;
 
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.search.ResourceType;
-import org.opensearch.search.wlm.QueryGroupLevelResourceUsageView;
-import org.opensearch.search.wlm.QueryGroupTask;
-import org.opensearch.search.wlm.tracker.QueryGroupResourceUsageTrackerService;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
@@ -23,6 +21,9 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
+import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.tracker.QueryGroupResourceUsageTrackerService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.opensearch.wlm.QueryGroupTask.QUERY_GROUP_ID_HEADER;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -107,7 +109,12 @@ public class QueryGroupResourceUsageTrackerServiceTests extends OpenSearchTestCa
     private <T extends CancellableTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage, String queryGroupId) {
         T task = mock(type);
         if (task instanceof SearchTask || task instanceof SearchShardTask) {
-            when(((QueryGroupTask) task).getQueryGroupId()).thenReturn(queryGroupId);
+            // Stash the current thread context to ensure that any existing context is preserved and restored after setting the query group
+            // ID.
+            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader(QUERY_GROUP_ID_HEADER, queryGroupId);
+                ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
+            }
         }
         when(task.getTotalResourceStats()).thenReturn(new TaskResourceUsage(cpuUsage, heapUsage));
         when(task.getStartTimeNanos()).thenReturn((long) 0);
