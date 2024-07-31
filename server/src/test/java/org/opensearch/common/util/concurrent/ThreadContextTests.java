@@ -206,7 +206,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         }
 
         assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
-        try (ThreadContext.StoredContext storedContext = threadContext.stashWithOrigin(origin)) {
+        try (ThreadContext.StoredContext storedContext = ThreadContextAccess.doPrivileged(() -> threadContext.stashWithOrigin(origin))) {
             assertEquals(origin, threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getTransient("foo"));
             assertNull(threadContext.getTransient("bar"));
@@ -231,7 +231,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         HashMap<String, String> toMerge = new HashMap<>();
         toMerge.put("foo", "baz");
         toMerge.put("simon", "says");
-        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+        try (ThreadContext.StoredContext ctx = ThreadContextAccess.doPrivileged(() -> threadContext.stashAndMergeHeaders(toMerge))) {
             assertEquals("bar", threadContext.getHeader("foo"));
             assertEquals("says", threadContext.getHeader("simon"));
             assertNull(threadContext.getTransient("ctx.foo"));
@@ -493,7 +493,13 @@ public class ThreadContextTests extends OpenSearchTestCase {
         ThreadContext threadContext = new ThreadContext(build);
         HashMap<String, String> toMerge = new HashMap<>();
         toMerge.put("default", "2");
-        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+        ThreadContext finalThreadContext1 = threadContext;
+        HashMap<String, String> finalToMerge1 = toMerge;
+        try (
+            ThreadContext.StoredContext ctx = ThreadContextAccess.doPrivileged(
+                () -> finalThreadContext1.stashAndMergeHeaders(finalToMerge1)
+            )
+        ) {
             assertEquals("2", threadContext.getHeader("default"));
         }
 
@@ -502,7 +508,13 @@ public class ThreadContextTests extends OpenSearchTestCase {
         threadContext.putHeader("default", "4");
         toMerge = new HashMap<>();
         toMerge.put("default", "2");
-        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+        ThreadContext finalThreadContext2 = threadContext;
+        HashMap<String, String> finalToMerge2 = toMerge;
+        try (
+            ThreadContext.StoredContext ctx = ThreadContextAccess.doPrivileged(
+                () -> finalThreadContext2.stashAndMergeHeaders(finalToMerge2)
+            )
+        ) {
             assertEquals("4", threadContext.getHeader("default"));
         }
     }

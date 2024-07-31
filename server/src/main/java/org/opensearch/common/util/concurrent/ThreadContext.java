@@ -116,6 +116,8 @@ public final class ThreadContext implements Writeable {
     // thread context permissions
 
     private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("markAsSystemContext");
+    private static final Permission STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashAndMergeHeaders");
+    private static final Permission STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashWithOrigin");
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
@@ -213,6 +215,10 @@ public final class ThreadContext implements Writeable {
      * if it can't find the task in memory.
      */
     public StoredContext stashWithOrigin(String origin) {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION);
+        }
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
@@ -224,6 +230,10 @@ public final class ThreadContext implements Writeable {
      * that are already existing are preserved unless they are defaults.
      */
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION);
+        }
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);

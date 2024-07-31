@@ -49,6 +49,7 @@ grant codeBase "${codebase.opensearch}" {
   // needed for SPI class loading
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
+  permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
 };
 
 //// Very special jar permissions:
