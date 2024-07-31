@@ -91,21 +91,22 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
             derivedField.getFormat() != null ? DateFormatter.forPattern(derivedField.getFormat()) : null
         );
 
-        Function<Object, Object> valueForDisplayUpdated = derivedField.getType().equals(DerivedFieldSupportedTypes.DATE.getName()) ? (o -> {
+        Function<Object, Object> dateFormatter = derivedField.getType().equals(DerivedFieldSupportedTypes.DATE.getName()) ? (o -> {
             // this is needed to support date type for nested fields as they are required to be converted to long
             if (o instanceof String) {
-                return valueForDisplay.apply(((DateFieldMapper) typeFieldMapper).fieldType().parse((String) o));
+                return ((DateFieldMapper) typeFieldMapper).fieldType().parse((String) o);
             } else {
-                return valueForDisplay.apply(o);
+                return o;
             }
-        }) : valueForDisplay;
+        }) : null;
 
         String subFieldName = name().substring(name().indexOf(".") + 1);
         return new ObjectDerivedFieldValueFetcher(
             subFieldName,
             getDerivedFieldLeafFactory(derivedField.getScript(), context, searchLookup == null ? context.lookup() : searchLookup),
-            valueForDisplayUpdated,
-            derivedField.getIgnoreMalformed()
+            valueForDisplay,
+            derivedField.getIgnoreMalformed(),
+            dateFormatter
         );
     }
 
@@ -114,6 +115,8 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
 
         // TODO add it as part of index setting?
         private final boolean ignoreOnMalFormed;
+
+        private final Function<Object, Object> dateFormatter;
 
         ObjectDerivedFieldValueFetcher(
             String subField,
@@ -124,6 +127,20 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
             super(derivedFieldScriptFactory, valueForDisplay);
             this.subField = subField;
             this.ignoreOnMalFormed = ignoreOnMalFormed;
+            this.dateFormatter = null;
+        }
+
+        ObjectDerivedFieldValueFetcher(
+            String subField,
+            DerivedFieldScript.LeafFactory derivedFieldScriptFactory,
+            Function<Object, Object> valueForDisplay,
+            boolean ignoreOnMalFormed,
+            Function<Object, Object> dateFormatter
+        ) {
+            super(derivedFieldScriptFactory, valueForDisplay);
+            this.subField = subField;
+            this.ignoreOnMalFormed = ignoreOnMalFormed;
+            this.dateFormatter = dateFormatter;
         }
 
         @Override
@@ -140,7 +157,7 @@ public class ObjectDerivedFieldType extends DerivedFieldType {
                     if (nestedFieldObj instanceof List) {
                         result.addAll((List<?>) nestedFieldObj);
                     } else {
-                        result.add(nestedFieldObj);
+                        result.add(dateFormatter != null ? dateFormatter.apply(nestedFieldObj) : nestedFieldObj);
                     }
                 } catch (OpenSearchParseException e) {
                     if (!ignoreOnMalFormed) {
