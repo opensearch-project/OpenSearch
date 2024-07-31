@@ -23,8 +23,6 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
-import java.util.concurrent.CountDownLatch;
-
 /**
  * Perform cat shards action
  *
@@ -66,39 +64,31 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
             );
         }
         CatShardsResponse catShardsResponse = new CatShardsResponse();
-
-        CountDownLatch waitForClusterState = new CountDownLatch(1);
-
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
-            @Override
-            public void onResponse(ClusterStateResponse clusterStateResponse) {
-                catShardsResponse.setClusterStateResponse(clusterStateResponse);
-                waitForClusterState.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                waitForClusterState.countDown();
-                listener.onFailure(e);
-            }
-        });
-
         try {
-            // Ensures that cluster state transport action completed.
-            waitForClusterState.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        if (catShardsResponse.getClusterStateResponse() != null) {
-            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-            indicesStatsRequest.all();
-            indicesStatsRequest.indices(shardsRequest.getIndices());
-            indicesStatsRequest.setParentTask(client.getLocalNodeId(), task.getId());
-            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+            client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
                 @Override
-                public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                    catShardsResponse.setIndicesStatsResponse(indicesStatsResponse);
-                    listener.onResponse(catShardsResponse);
+                public void onResponse(ClusterStateResponse clusterStateResponse) {
+                    catShardsResponse.setClusterStateResponse(clusterStateResponse);
+                    IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+                    indicesStatsRequest.all();
+                    indicesStatsRequest.indices(shardsRequest.getIndices());
+                    indicesStatsRequest.setParentTask(client.getLocalNodeId(), task.getId());
+                    try {
+                        client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+                            @Override
+                            public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                                catShardsResponse.setIndicesStatsResponse(indicesStatsResponse);
+                                listener.onResponse(catShardsResponse);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        });
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
 
                 @Override
@@ -106,6 +96,8 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                     listener.onFailure(e);
                 }
             });
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
 
     }

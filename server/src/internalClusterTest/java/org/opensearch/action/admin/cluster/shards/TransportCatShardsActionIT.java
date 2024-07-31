@@ -21,6 +21,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
@@ -30,7 +31,7 @@ import static org.junit.Assert.fail;
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
 public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
 
-    public void testCatShardsWithSuccessResponse() {
+    public void testCatShardsWithSuccessResponse() throws InterruptedException {
         internalCluster().startClusterManagerOnlyNodes(1);
         List<String> nodes = internalCluster().startDataOnlyNodes(3);
         createIndex(
@@ -46,6 +47,7 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
         final CatShardsRequest shardsRequest = new CatShardsRequest();
         shardsRequest.setCancelAfterTimeInterval(NO_TIMEOUT);
         shardsRequest.setIndices(Strings.EMPTY_ARRAY);
+        CountDownLatch latch = new CountDownLatch(1);
         client().execute(CatShardsAction.INSTANCE, shardsRequest, new ActionListener<CatShardsResponse>() {
             @Override
             public void onResponse(CatShardsResponse catShardsResponse) {
@@ -55,14 +57,19 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
                     assertEquals("test", shard.getIndexName());
                     assertNotNull(indicesStatsResponse.asMap().get(shard));
                 }
+                latch.countDown();
             }
 
             @Override
-            public void onFailure(Exception e) {}
+            public void onFailure(Exception e) {
+                fail();
+                latch.countDown();
+            }
         });
+        latch.await();
     }
 
-    public void testCatShardsWithTimeoutException() throws IOException {
+    public void testCatShardsWithTimeoutException() throws IOException, AssertionError, InterruptedException {
         List<String> masterNodes = internalCluster().startClusterManagerOnlyNodes(1);
         List<String> nodes = internalCluster().startDataOnlyNodes(3);
         createIndex(
@@ -95,11 +102,13 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
         final CatShardsRequest shardsRequest = new CatShardsRequest();
         shardsRequest.setCancelAfterTimeInterval(timeValueMillis(1000));
         shardsRequest.setIndices(Strings.EMPTY_ARRAY);
+        CountDownLatch latch = new CountDownLatch(1);
         client().execute(CatShardsAction.INSTANCE, shardsRequest, new ActionListener<CatShardsResponse>() {
             @Override
             public void onResponse(CatShardsResponse catShardsResponse) {
                 // onResponse should not be called.
                 fail();
+                latch.countDown();
             }
 
             @Override
@@ -107,11 +116,13 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
                 boolean timeoutException = (e.getClass() == TaskCancelledException.class);
                 if (e.getCause() != null) {
                     timeoutException = timeoutException
-                        || (e.getCause().getMessage().equals("The parent task was cancelled, shouldn't start any child tasks"));
+                        || (e.getCause().getMessage().contains("The parent task was cancelled, shouldn't start any child tasks"));
                 }
                 assertTrue(timeoutException);
+                latch.countDown();
             }
         });
+        latch.await();
     }
 
 }
