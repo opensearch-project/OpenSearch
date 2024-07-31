@@ -63,7 +63,7 @@ public final class TreeTraversal {
         RangeCollectorForPointTree collector = new RangeCollectorForPointTree(collectRangeIDs, maxNumNonZeroRanges, ranges, activeIndex);
         PointValues.IntersectVisitor visitor = getIntersectVisitor(collector);
         try {
-            intersectWithRanges(visitor, tree, collector, debugInfo);
+            intersectWithRanges(visitor, tree, debugInfo);
         } catch (CollectionTerminatedException e) {
             logger.debug("Early terminate since no more range to collect");
         }
@@ -75,7 +75,6 @@ public final class TreeTraversal {
     private static void intersectWithRanges(
         PointValues.IntersectVisitor visitor,
         PointValues.PointTree pointTree,
-        RangeCollectorForPointTree collector,
         OptimizationContext.DebugInfo debug
     ) throws IOException {
         PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
@@ -88,7 +87,7 @@ public final class TreeTraversal {
             case CELL_CROSSES_QUERY:
                 if (pointTree.moveToChild()) {
                     do {
-                        intersectWithRanges(visitor, pointTree, collector, debug);
+                        intersectWithRanges(visitor, pointTree, debug);
                     } while (pointTree.moveToSibling());
                     pointTree.moveToParent();
                 } else {
