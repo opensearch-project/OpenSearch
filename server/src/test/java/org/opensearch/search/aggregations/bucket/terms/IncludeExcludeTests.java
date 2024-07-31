@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.search.aggregations.support;
+package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -44,12 +44,12 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
 import org.opensearch.search.DocValueFormat;
-import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -407,5 +407,50 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
 
         // But the full regexp requires more lookups
         assertTrue(regexpLookupCount > prefixLookupCount);
+    }
+
+    public void testExtractPrefixes() {
+        // Positive tests
+        assertEquals(bytesRefs("a"), IncludeExclude.extractPrefixes("a.*", 1000));
+        assertEquals(bytesRefs("a", "b"), IncludeExclude.extractPrefixes("(a|b).*", 1000));
+        assertEquals(bytesRefs("ab"), IncludeExclude.extractPrefixes("a(b).*", 1000));
+        assertEquals(bytesRefs("ab", "ac"), IncludeExclude.extractPrefixes("a(b|c).*", 1000));
+        assertEquals(bytesRefs("aabb", "aacc"), IncludeExclude.extractPrefixes("aa(bb|cc).*", 1000));
+
+        // No regex means no prefixes
+        assertEquals(bytesRefs(), IncludeExclude.extractPrefixes(null, 1000));
+
+        // Negative tests
+        assertNull(IncludeExclude.extractPrefixes(".*", 1000)); // Literal match-all has no prefixes
+        assertNull(IncludeExclude.extractPrefixes("ab?.*", 1000)); // Don't support optionals ye
+        // The following cover various cases involving infinite possible prefixes
+        assertNull(IncludeExclude.extractPrefixes("ab*.*", 1000));
+        assertNull(IncludeExclude.extractPrefixes("a*(b|c).*", 1000));
+        assertNull(IncludeExclude.extractPrefixes("a(b*|c)d.*", 1000));
+        assertNull(IncludeExclude.extractPrefixes("a(b|c*)d.*", 1000));
+        assertNull(IncludeExclude.extractPrefixes("a(b|c*)d*.*", 1000));
+
+        // Test with too many possible prefixes -- 10 * 10 * 10 + 1 > 1000
+        assertNull(
+            IncludeExclude.extractPrefixes(
+                "((a1|a2|a3|a4|a5|a6|a7|a8|a9|a10)" + "(b1|b2|b3|b4|b5|b6|b7|b8|b9|b10)" + "(c1|c2|c3|c4|c5|c6|c7|c8|c9|c10)|x).*",
+                1000
+            )
+        );
+        // Test with too many possible prefixes -- 10 * 10 * 11 > 1000
+        assertNull(
+            IncludeExclude.extractPrefixes(
+                "((a1|a2|a3|a4|a5|a6|a7|a8|a9|a10)" + "(b1|b2|b3|b4|b5|b6|b7|b8|b9|b10)" + "(c1|c2|c3|c4|c5|c6|c7|c8|c9|c10|c11)).*",
+                1000
+            )
+        );
+    }
+
+    private static SortedSet<BytesRef> bytesRefs(String... strings) {
+        SortedSet<BytesRef> bytesRefs = new TreeSet<>();
+        for (String string : strings) {
+            bytesRefs.add(new BytesRef(string));
+        }
+        return bytesRefs;
     }
 }
