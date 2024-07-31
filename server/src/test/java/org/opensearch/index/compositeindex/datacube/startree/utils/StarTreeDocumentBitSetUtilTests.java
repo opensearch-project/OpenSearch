@@ -52,18 +52,19 @@ public class StarTreeDocumentBitSetUtilTests extends OpenSearchTestCase {
         // test null value on read
         IndexInput in = fsDirectory.openInput(TEST_FILE, IOContext.DEFAULT);
         RandomAccessInput randomAccessInput = in.randomAccessSlice(0, in.length());
-        StarTreeDocumentBitSetUtil.readAndSetNullBasedOnBitSet(randomAccessInput, 0, dims1);
+        Function<Integer, Object> identityValueSupplier = i -> null;
+        StarTreeDocumentBitSetUtil.readBitSet(randomAccessInput, 0, dims1, identityValueSupplier);
         assertNull(dims1[randomNullIndex1]);
         assertNull(dims1[randomNullIndex2]);
         in.close();
 
         // test identity value on read
         long randomLong = randomLong();
-        Function<Integer, Object> identityValueSupplier = i -> randomLong;
+        identityValueSupplier = i -> randomLong;
         in = fsDirectory.openInput(TEST_FILE, IOContext.DEFAULT);
 
         randomAccessInput = in.randomAccessSlice(0, in.length());
-        StarTreeDocumentBitSetUtil.readAndSetIdentityValueBasedOnBitSet(randomAccessInput, 0, dims1, identityValueSupplier);
+        StarTreeDocumentBitSetUtil.readBitSet(randomAccessInput, 0, dims1, identityValueSupplier);
         assertEquals(randomLong, (long) dims1[randomNullIndex1]);
         assertEquals(randomLong, (long) dims1[randomNullIndex2]);
         in.close();
