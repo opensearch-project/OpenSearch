@@ -24,9 +24,9 @@ public abstract class ApproximatePointRangeQueryWeight extends ConstantScoreWeig
         super(query, score);
     }
 
-    protected abstract long intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree) throws IOException;
+    protected abstract void intersectLeft(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree) throws IOException;
 
-    protected abstract long intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree) throws IOException;
+    protected abstract void intersectRight(PointValues.IntersectVisitor visitor, PointValues.PointTree pointTree) throws IOException;
 
     protected abstract PointValues.IntersectVisitor getIntersectVisitor(DocIdSetBuilder result) throws IOException;
 

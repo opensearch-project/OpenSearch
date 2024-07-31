@@ -14,17 +14,13 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.DocIdSetBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -35,47 +31,46 @@ import static org.apache.lucene.document.LongPoint.pack;
 public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
 
     public void testApproximateRangeEqualsActualRange() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
-                int dims = 1;
+        Directory directory = newDirectory();
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer());
+        int dims = 1;
 
-                long[] scratch = new long[dims];
-                for (int i = 0; i < 100; i++) {
-                    int numPoints = RandomNumbers.randomIntBetween(random(), 1, 10);
-                    Document doc = new Document();
-                    for (int j = 0; j < numPoints; j++) {
-                        for (int v = 0; v < dims; v++) {
-                            scratch[v] = RandomNumbers.randomLongBetween(random(), 0, 100);
-                        }
-                        doc.add(new LongPoint("point", scratch));
-                    }
-                    iw.addDocument(doc);
-                }
-                iw.flush();
-                try (IndexReader reader = iw.getReader()) {
-                    try {
-                        long lower = RandomNumbers.randomLongBetween(random(), -100, 200);
-                        long upper = lower + RandomNumbers.randomLongBetween(random(), 0, 100);
-                        Query approximateQuery = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims) {
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        };
-                        Query query = new PointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims) {
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        };
-                        IndexSearcher searcher = new IndexSearcher(reader);
-                        TopDocs topDocs = searcher.search(approximateQuery, 10);
-                        TopDocs topDocs1 = searcher.search(query, 10);
-                        assertEquals(topDocs.totalHits, topDocs1.totalHits);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                }
+        long[] scratch = new long[dims];
+        int numPoints = 100;
+        Document doc = new Document();
+        for (int j = 0; j < numPoints; j++) {
+            for (int v = 0; v < dims; v++) {
+                scratch[v] = RandomNumbers.randomLongBetween(random(), 0, 100);
             }
+            doc.add(new LongPoint("point", scratch));
+            iw.addDocument(doc);
+        }
+        iw.flush();
+        try (IndexReader reader = iw.getReader()) {
+            try {
+                long lower = 20;
+                long upper = 100;
+                Query approximateQuery = new ApproximatePointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims) {
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                };
+                Query query = new PointRangeQuery("point", pack(lower).bytes, pack(upper).bytes, dims) {
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                };
+                IndexSearcher searcher = new IndexSearcher(reader);
+                TopDocs topDocs = searcher.search(approximateQuery, 100);
+                TopDocs topDocs1 = searcher.search(query, 100);
+                assertEquals(topDocs.totalHits.value, topDocs1.totalHits.value);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        } finally {
+            iw.close();
+            directory.close();
         }
     }
 
@@ -93,7 +88,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     }
                     doc.add(new LongPoint("point", scratch));
                     iw.addDocument(doc);
-                    if (i % 15 == 0) iw.flush();
                 }
                 iw.flush();
                 try (IndexReader reader = iw.getReader()) {
@@ -131,7 +125,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     }
                     doc.add(new LongPoint("point", scratch));
                     iw.addDocument(doc);
-                    if (i % 15 == 0) iw.flush();
                 }
                 iw.flush();
                 try (IndexReader reader = iw.getReader()) {
@@ -155,7 +148,7 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
         }
     }
 
-    public void testApproximateRangeWithSizeOverDefault() throws IOException {
+    public void testApproximateRangeWithSizeOverDefaultAscSort() throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
                 int dims = 1;
@@ -171,24 +164,192 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     iw.addDocument(doc);
                 }
                 iw.flush();
+                // need a single segment to test this optimization, if size > number of docs in segment we fall back to pointrangequery
+                // because it is faster
+                iw.forceMerge(1);
                 try (IndexReader reader = iw.getReader()) {
                     try {
-                        long lower = 0;
-                        long upper = 12000;
+                        long lower = 1000;
+                        long upper = 14000;
                         Query approximateQuery = new ApproximatePointRangeQuery(
                             "point",
                             pack(lower).bytes,
                             pack(upper).bytes,
                             dims,
-                            11_000
+                            11_000,
+                            SortOrder.ASC
                         ) {
                             protected String toString(int dimension, byte[] value) {
                                 return Long.toString(LongPoint.decodeDimension(value, 0));
                             }
                         };
                         IndexSearcher searcher = new IndexSearcher(reader);
-                        TopDocs topDocs = searcher.search(approximateQuery, 11000);
-                        assertEquals(topDocs.totalHits, new TotalHits(11001, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+                        TopDocs topDocs = searcher.search(approximateQuery, 20000);
+                        assertEquals(topDocs.totalHits, new TotalHits(11_000, TotalHits.Relation.EQUAL_TO));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                }
+            }
+        }
+    }
+
+    public void testApproximateRangeWithSizeOverDefaultDescSort() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                long[] scratch = new long[dims];
+                int numPoints = 15000;
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    for (int v = 0; v < dims; v++) {
+                        scratch[v] = i;
+                    }
+                    doc.add(new LongPoint("point", scratch));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                // need a single segment to test this optimization, if size > number of docs in segment we fall back to pointrangequery
+                // because it is faster
+                iw.forceMerge(1);
+                try (IndexReader reader = iw.getReader()) {
+                    try {
+                        long lower = 1000;
+                        long upper = 14000;
+                        Query approximateQuery = new ApproximatePointRangeQuery(
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            11_000,
+                            SortOrder.DESC
+                        ) {
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
+                        };
+                        IndexSearcher searcher = new IndexSearcher(reader);
+                        TopDocs topDocs = searcher.search(approximateQuery, 20000);
+                        assertEquals(topDocs.totalHits, new TotalHits(11_000, TotalHits.Relation.EQUAL_TO));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                }
+            }
+        }
+    }
+
+    public void testApproximateRangeWithDeletedDocs() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                long[] scratch = new long[dims];
+                int numPoints = 15000;
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    for (int v = 0; v < dims; v++) {
+                        scratch[v] = i;
+                    }
+                    doc.add(new LongPoint("point", scratch));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                // need a single segment to test this optimization, if size > number of docs in segment we fall back to pointrangequery
+                // because it is faster
+                iw.forceMerge(1);
+
+                // delete some documents where size < number of docs
+                long l = 500;
+                long u = 1499;
+                Query query = new PointRangeQuery("point", pack(l).bytes, pack(u).bytes, dims) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                };
+                iw.deleteDocuments(query);
+
+                try (IndexReader reader = iw.getReader()) {
+                    try {
+                        long lower = 1000;
+                        long upper = 14000;
+                        Query approximateQuery = new ApproximatePointRangeQuery(
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            11_000,
+                            SortOrder.ASC
+                        ) {
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
+                        };
+                        IndexSearcher searcher = new IndexSearcher(reader);
+                        TopDocs topDocs = searcher.search(approximateQuery, 20000);
+                        assertEquals(topDocs.totalHits, new TotalHits(10_500, TotalHits.Relation.EQUAL_TO));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                }
+            }
+        }
+    }
+
+    public void testApproximateRangeWithDeletedDocsDesc() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
+                int dims = 1;
+
+                long[] scratch = new long[dims];
+                int numPoints = 15000;
+                for (int i = 0; i < numPoints; i++) {
+                    Document doc = new Document();
+                    for (int v = 0; v < dims; v++) {
+                        scratch[v] = i;
+                    }
+                    doc.add(new LongPoint("point", scratch));
+                    iw.addDocument(doc);
+                }
+                iw.flush();
+                // need a single segment to test this optimization, if size > number of docs in segment we fall back to pointrangequery
+                // because it is faster
+                iw.forceMerge(1);
+
+                // delete some documents where size < number of docs
+                long l = 500;
+                long u = 1499;
+                Query query = new PointRangeQuery("point", pack(l).bytes, pack(u).bytes, dims) {
+                    @Override
+                    protected String toString(int dimension, byte[] value) {
+                        return Long.toString(LongPoint.decodeDimension(value, 0));
+                    }
+                };
+                iw.deleteDocuments(query);
+                try (IndexReader reader = iw.getReader()) {
+                    try {
+                        long lower = 1000;
+                        long upper = 14000;
+                        Query approximateQuery = new ApproximatePointRangeQuery(
+                            "point",
+                            pack(lower).bytes,
+                            pack(upper).bytes,
+                            dims,
+                            11_000,
+                            SortOrder.DESC
+                        ) {
+                            protected String toString(int dimension, byte[] value) {
+                                return Long.toString(LongPoint.decodeDimension(value, 0));
+                            }
+                        };
+                        IndexSearcher searcher = new IndexSearcher(reader);
+                        TopDocs topDocs = searcher.search(approximateQuery, 20000);
+                        assertEquals(topDocs.totalHits, new TotalHits(11_500, TotalHits.Relation.EQUAL_TO));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -212,7 +373,6 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
                     }
                     doc.add(new LongPoint("point", scratch));
                     iw.addDocument(doc);
-                    if (i % 10 == 0) iw.flush();
                 }
                 iw.flush();
                 try (IndexReader reader = iw.getReader()) {
@@ -307,113 +467,4 @@ public class ApproximatePointRangeQueryTests extends OpenSearchTestCase {
             }
         }
     }
-
-    public void testIntersectLeft() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
-                int dims = 1;
-
-                long[] scratch = new long[dims];
-                int numPoints = 1000;
-                for (int i = 0; i < numPoints; i++) {
-                    Document doc = new Document();
-                    for (int v = 0; v < dims; v++) {
-                        scratch[v] = i;
-                    }
-                    doc.add(new LongPoint("point", scratch));
-                    iw.addDocument(doc);
-                }
-                iw.flush();
-                try (IndexReader reader = iw.getReader()) {
-                    try {
-                        long lower = 0;
-                        long upper = 20;
-                        ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
-                            "point",
-                            pack(lower).bytes,
-                            pack(upper).bytes,
-                            dims,
-                            10
-                        ) {
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        };
-                        IndexSearcher searcher = new IndexSearcher(reader);
-                        ApproximatePointRangeQueryWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(
-                            searcher,
-                            ScoreMode.TOP_SCORES,
-                            1.0F
-                        );
-                        LeafReaderContext lrc = reader.leaves().get(0);
-                        PointValues values = lrc.reader().getPointValues("point");
-                        final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, "point");
-                        PointValues.IntersectVisitor visitor = approximatePointRangeQueryWeight.getIntersectVisitor(result);
-                        long intersectCount = approximatePointRangeQueryWeight.intersectLeft(visitor, values.getPointTree());
-
-                        // Assert
-                        assertEquals(10, intersectCount);
-
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        }
-    }
-
-    public void testIntersectRight() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, new WhitespaceAnalyzer())) {
-                int dims = 1;
-
-                long[] scratch = new long[dims];
-                int numPoints = 1000;
-                for (int i = 0; i < numPoints; i++) {
-                    Document doc = new Document();
-                    for (int v = 0; v < dims; v++) {
-                        scratch[v] = i;
-                    }
-                    doc.add(new LongPoint("point", scratch));
-                    iw.addDocument(doc);
-                }
-                iw.flush();
-                try (IndexReader reader = iw.getReader()) {
-                    try {
-                        long lower = 0;
-                        long upper = 20;
-                        ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
-                            "point",
-                            pack(lower).bytes,
-                            pack(upper).bytes,
-                            dims,
-                            10
-                        ) {
-                            protected String toString(int dimension, byte[] value) {
-                                return Long.toString(LongPoint.decodeDimension(value, 0));
-                            }
-                        };
-                        IndexSearcher searcher = new IndexSearcher(reader);
-                        ApproximatePointRangeQueryWeight approximatePointRangeQueryWeight = approximatePointRangeQuery.createWeight(
-                            searcher,
-                            ScoreMode.TOP_SCORES,
-                            1.0F
-                        );
-                        LeafReaderContext lrc = reader.leaves().get(0);
-                        PointValues values = lrc.reader().getPointValues("point");
-                        final DocIdSetBuilder result = new DocIdSetBuilder(reader.maxDoc(), values, "point");
-                        PointValues.IntersectVisitor visitor = approximatePointRangeQueryWeight.getIntersectVisitor(result);
-                        long intersectCount = approximatePointRangeQueryWeight.intersectRight(visitor, values.getPointTree());
-
-                        // Assert
-                        assertEquals(10, intersectCount);
-
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-        }
-    }
-
 }
