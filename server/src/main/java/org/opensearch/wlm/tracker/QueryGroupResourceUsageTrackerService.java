@@ -70,7 +70,7 @@ public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTra
             // Add to the QueryGroup View
             queryGroupViews.put(
                 queryGroupEntry.getKey(),
-                new QueryGroupLevelResourceUsageView(queryGroupEntry.getKey(), queryGroupUsage, queryGroupEntry.getValue())
+                new QueryGroupLevelResourceUsageView(queryGroupUsage, queryGroupEntry.getValue())
             );
         }
         return queryGroupViews;
