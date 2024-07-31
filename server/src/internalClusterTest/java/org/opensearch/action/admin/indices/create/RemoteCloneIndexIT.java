@@ -79,7 +79,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
 
     @Before
     public void setup() {
-        asyncUploadMockFsRepo = true;
+        asyncUploadMockFsRepo = false;
     }
 
     public void testCreateCloneIndex() {
@@ -280,7 +280,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
             throw new RuntimeException(e);
         } finally {
             setFailRate(REPOSITORY_NAME, 0);
-            ensureGreen();
+            ensureGreen(TimeValue.timeValueSeconds(40));
             // clean up
             client().admin()
                 .cluster()
