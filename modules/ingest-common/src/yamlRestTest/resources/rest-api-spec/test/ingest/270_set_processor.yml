@@ -1,8 +1,68 @@
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline1"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_op_type",
+                  "value": "create"
+                }
+              }
+            ]
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline2"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_op_type",
+                  "value": "invalidOpType"
+                }
+              }
+            ]
+          }
+  - do:
+      indices.put_index_template:
+        name: test_index_template_for_data_stream
+        body:
+          index_patterns: test_data_stream1*
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+  - do:
+      indices.create_data_stream:
+        name: test_data_stream1
 ---
 teardown:
   - do:
       ingest.delete_pipeline:
         id: "1"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline1"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline2"
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: test_index_template_for_data_stream
+        ignore: 404
+  - do:
+      indices.delete:
+        name: test_data_stream1
         ignore: 404
 
 ---
@@ -101,3 +161,35 @@ teardown:
         pipeline: 1
         require_alias: true
         body:    { foo: bar }
+
+---
+"Test modifying op_type by set processor":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0"
+
+  - do:
+      index:
+        index:    test_data_stream1
+        id:       1
+        op_type:  index
+        pipeline: pipeline1
+        body:   { "foo": "bar", "@timestamp": "2099-03-08T11:04:05.000Z" }
+  - match: { result: "created" }
+
+  - do:
+      get:
+        index: test_data_stream1
+        id: 1
+  - match: { _source: {"foo": "bar", "@timestamp": "2099-03-08T11:04:05.000Z"} }
+
+  - do:
+      index:
+        index:    test_data_stream1
+        id:       1
+        op_type:  index
+        pipeline: pipeline2
+        body:   { "foo": "bar", "@timestamp": "2099-03-08T11:04:05.000Z" }
+  - match: { items.0.status: 400  }
+  - match: { items.0.error.type: "illegal_argument_exception"  }
+  - match: { items.0.error.reason: "opType must be 'create' or 'index', found: [invalidOpType]"  }

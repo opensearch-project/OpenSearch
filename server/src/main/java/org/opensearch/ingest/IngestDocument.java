@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest;
 
+import org.opensearch.action.DocWriteRequest;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.index.VersionType;
@@ -79,6 +80,18 @@ public final class IngestDocument {
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
     public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
+        this(index, id, routing, version, versionType, null, source);
+    }
+
+    public IngestDocument(
+        String index,
+        String id,
+        String routing,
+        Long version,
+        VersionType versionType,
+        DocWriteRequest.OpType opType,
+        Map<String, Object> source
+    ) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(Metadata.INDEX.getFieldName(), index);
@@ -91,6 +104,9 @@ public final class IngestDocument {
         }
         if (versionType != null) {
             sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
+        }
+        if (opType != null) {
+            sourceAndMetadata.put(Metadata.OP_TYPE.getFieldName(), opType.getLowercase());
         }
 
         this.ingestMetadata = new HashMap<>();
@@ -862,7 +878,8 @@ public final class IngestDocument {
         VERSION(VersionFieldMapper.NAME),
         VERSION_TYPE("_version_type"),
         IF_SEQ_NO("_if_seq_no"),
-        IF_PRIMARY_TERM("_if_primary_term");
+        IF_PRIMARY_TERM("_if_primary_term"),
+        OP_TYPE("_op_type");
 
         private final String fieldName;
 

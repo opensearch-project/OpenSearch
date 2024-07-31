@@ -911,6 +911,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         final String versionType = randomFrom("internal", "external", "external_gt", "external_gte");
         final long ifSeqNo = randomNonNegativeLong();
         final long ifPrimaryTerm = randomNonNegativeLong();
+        final String opType = randomFrom("create", "index");
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.Metadata metadata : IngestDocument.Metadata.values()) {
@@ -922,6 +923,8 @@ public class IngestServiceTests extends OpenSearchTestCase {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifSeqNo);
                 } else if (metadata == IngestDocument.Metadata.IF_PRIMARY_TERM) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
+                } else if (metadata == IngestDocument.Metadata.OP_TYPE) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), opType);
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }
@@ -959,6 +962,7 @@ public class IngestServiceTests extends OpenSearchTestCase {
         assertThat(indexRequest.versionType(), equalTo(VersionType.fromString(versionType)));
         assertThat(indexRequest.ifSeqNo(), equalTo(ifSeqNo));
         assertThat(indexRequest.ifPrimaryTerm(), equalTo(ifPrimaryTerm));
+        assertThat(indexRequest.opType().getLowercase(), equalTo(opType));
     }
 
     public void testExecuteFailure() throws Exception {
@@ -2028,11 +2032,13 @@ public class IngestServiceTests extends OpenSearchTestCase {
     }
 
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {
-        return argThat(new IngestDocumentMatcher("_index", "_type", "_id", -3L, VersionType.INTERNAL, source));
+        return argThat(
+            new IngestDocumentMatcher("_index", "_type", "_id", -3L, VersionType.INTERNAL, DocWriteRequest.OpType.INDEX, source)
+        );
     }
 
     private IngestDocument eqIndexTypeId(final Long version, final VersionType versionType, final Map<String, Object> source) {
-        return argThat(new IngestDocumentMatcher("_index", "_type", "_id", version, versionType, source));
+        return argThat(new IngestDocumentMatcher("_index", "_type", "_id", version, versionType, DocWriteRequest.OpType.INDEX, source));
     }
 
     private static IngestService createWithProcessors() {
@@ -2091,8 +2097,16 @@ public class IngestServiceTests extends OpenSearchTestCase {
             this.ingestDocument = new IngestDocument(index, id, null, null, null, source);
         }
 
-        IngestDocumentMatcher(String index, String type, String id, Long version, VersionType versionType, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, id, null, version, versionType, source);
+        IngestDocumentMatcher(
+            String index,
+            String type,
+            String id,
+            Long version,
+            VersionType versionType,
+            DocWriteRequest.OpType opType,
+            Map<String, Object> source
+        ) {
+            this.ingestDocument = new IngestDocument(index, id, null, version, versionType, opType, source);
         }
 
         @Override
