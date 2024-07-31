@@ -112,7 +112,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
 
     /**
      * Test case to ensure the error is thrown when we already have the max allowed number of QueryGroups, but
-     * we try to create another one
+     * we want to create another one
      */
     public void testCreateQueryGroupOverflowCount() {
         QueryGroup toCreate = builder().name(NAME_NONE_EXISTED)
@@ -132,5 +132,17 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
             clusterSettings
         );
         assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveQueryGroupInClusterState(toCreate, clusterState));
+    }
+
+    public void testInvalidMaxQueryGroupCount() {
+        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 2).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
+        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
+            clusterService,
+            settings,
+            clusterSettings
+        );
+        assertThrows(IllegalArgumentException.class, () -> queryGroupPersistenceService.setMaxQueryGroupCount(-1));
     }
 }
