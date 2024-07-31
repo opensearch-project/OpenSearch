@@ -1,0 +1,38 @@
+---
+"Index documents with field name containing only dot fail with an IllegalArgumentException":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0"
+
+  - do:
+      indices.create:
+        index:    test_1
+
+  - do:
+      catch: /field name cannot contain only dot/
+      index:
+        index:   test_1
+        id:      1
+        body:    {
+          .: bar
+        }
+
+  - do:
+      catch: /field name cannot contain only dot/
+      index:
+        index:   test_1
+        id:      1
+        body:    {
+          ..: bar
+        }
+
+  - do:
+      catch: /field name cannot contain only dot/
+      index:
+        index:   test_1
+        id:      1
+        body:    {
+          foo: {
+            .: bar
+          }
+        }
