@@ -29,7 +29,6 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
 
     public void testGetResourceUsageData() {
         QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
-            "1234",
             resourceUsage,
             activeTasks
         );
@@ -37,27 +36,14 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
         assertTrue(assertResourceUsageData(resourceUsageData));
     }
 
-    public void testGetResourceUsageDataDefault() {
-        QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView("1234");
-        Map<ResourceType, Long> resourceUsageData = queryGroupLevelResourceUsageView.getResourceUsageData();
-        assertTrue(resourceUsageData.isEmpty());
-    }
-
     public void testGetActiveTasks() {
         QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
-            "1234",
             resourceUsage,
             activeTasks
         );
         List<Task> activeTasks = queryGroupLevelResourceUsageView.getActiveTasks();
         assertEquals(1, activeTasks.size());
         assertEquals(4321, activeTasks.get(0).getId());
-    }
-
-    public void testGetActiveTasksDefault() {
-        QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView("1234");
-        List<Task> activeTasks = queryGroupLevelResourceUsageView.getActiveTasks();
-        assertTrue(activeTasks.isEmpty());
     }
 
     private boolean assertResourceUsageData(Map<ResourceType, Long> resourceUsageData) {
