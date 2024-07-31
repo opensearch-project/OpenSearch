@@ -219,7 +219,14 @@ public final class ThreadContext implements Writeable {
     public StoredContext stashWithOrigin(String origin) {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION);
+            try {
+                sm.checkPermission(STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION);
+            } catch (SecurityException ex) {
+                deprecationLogger.deprecate(
+                    "stashWithOrigin",
+                    "Default access to stashWithOrigin will be removed in a future release. Permission to use stashWithOrigin must be explicitly granted."
+                );
+            }
         }
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
@@ -234,7 +241,14 @@ public final class ThreadContext implements Writeable {
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION);
+            try {
+                sm.checkPermission(STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION);
+            } catch (SecurityException ex) {
+                deprecationLogger.deprecate(
+                    "stashAndMergeHeaders",
+                    "Default access to stashAndMergeHeaders will be removed in a future release. Permission to use stashAndMergeHeaders must be explicitly granted."
+                );
+            }
         }
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
