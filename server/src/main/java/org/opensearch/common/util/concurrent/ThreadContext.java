@@ -38,6 +38,7 @@ import org.opensearch.client.OriginSettingClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -104,6 +105,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING
  */
 @PublicApi(since = "1.0.0")
 public final class ThreadContext implements Writeable {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ThreadContext.class);
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
@@ -571,7 +573,14 @@ public final class ThreadContext implements Writeable {
     public void markAsSystemContext() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            sm.checkPermission(ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION);
+            try {
+                sm.checkPermission(ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION);
+            } catch (SecurityException ex) {
+                deprecationLogger.deprecate(
+                    "markAsSystemContext",
+                    "Default access to markAsSystemContext will be removed in a future release. Permission to use markAsSystemContext must be explicitly granted."
+                );
+            }
         }
         threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
