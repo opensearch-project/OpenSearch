@@ -332,6 +332,9 @@ public abstract class ApproximatePointRangeQuery extends Query {
                 LeafReader reader = context.reader();
 
                 PointValues values = reader.getPointValues(pointRangeQuery.getField());
+                if (checkValidPointValues(values) == false) {
+                    return null;
+                }
                 final Weight weight = this;
                 if (size > values.size()) {
                     return pointRangeQueryWeight.scorerSupplier(context);
