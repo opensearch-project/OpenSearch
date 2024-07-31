@@ -43,7 +43,7 @@ dependencies {
   providedCompile('jakarta.enterprise:jakarta.enterprise.cdi-api:4.1.0') {
     exclude module: 'jakarta.annotation-api'
   }
-  providedCompile 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
+  providedCompile 'jakarta.ws.rs:jakarta.ws.rs-api:4.0.0'
   providedCompile "org.jboss.resteasy:resteasy-core:${versions.resteasy}"
   providedCompile "org.jboss.resteasy:resteasy-core-spi:${versions.resteasy}"
   api("org.jboss.resteasy:resteasy-jackson2-provider:${versions.resteasy}") {
