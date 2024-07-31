@@ -147,4 +147,5 @@ grant {
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
 };

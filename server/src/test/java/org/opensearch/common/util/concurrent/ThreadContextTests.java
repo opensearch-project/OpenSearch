@@ -565,7 +565,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
             threadContext.putHeader("foo", "bar");
             boolean systemContext = randomBoolean();
             if (systemContext) {
-                threadContext.markAsSystemContext();
+                ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             }
             threadContext.putTransient("foo", "bar_transient");
             withContext = threadContext.preserveContext(new AbstractRunnable() {
@@ -736,7 +736,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertFalse(threadContext.isSystemContext());
         try (ThreadContext.StoredContext context = threadContext.stashContext()) {
             assertFalse(threadContext.isSystemContext());
-            threadContext.markAsSystemContext();
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             assertTrue(threadContext.isSystemContext());
         }
         assertFalse(threadContext.isSystemContext());
@@ -761,7 +761,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
         assertEquals("bar", threadContext.getHeader("foo"));
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("test_transient_propagation_key"));
             assertEquals("1", threadContext.getHeader("default"));
@@ -793,7 +793,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         threadContext.writeTo(out);
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
-            threadContext.markAsSystemContext();
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             threadContext.writeTo(outFromSystemContext);
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("test_transient_propagation_key"));
