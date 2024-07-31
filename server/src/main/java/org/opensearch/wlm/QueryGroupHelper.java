@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Helper class for calculating resource usage for different resource types.
+ * Helper class for containing static utility methods related to QueryGroups.
  */
 public class QueryGroupHelper {
 
