@@ -104,10 +104,7 @@ final class TreeTraversal {
         return new PointValues.IntersectVisitor() {
             @Override
             public void visit(int docID) {
-                // this branch should be unreachable
-                throw new UnsupportedOperationException(
-                    "This IntersectVisitor does not perform any actions on a " + "docID=" + docID + " node being visited"
-                );
+                 collector.count(docID);
             }
 
             @Override
