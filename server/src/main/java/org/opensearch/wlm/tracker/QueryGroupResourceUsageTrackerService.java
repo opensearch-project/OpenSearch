@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 /**
  * This class tracks resource usage per QueryGroup
  */
-// @ExperimentalApi
 public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTracker, TaskManager.TaskEventListeners {
 
     public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.MEMORY, ResourceType.CPU);

@@ -23,7 +23,6 @@ import java.util.Objects;
  * has a 1:1 relation with a QueryGroup.
  * This class holds the QueryGroup ID, the resource usage data, and the list of active tasks.
  */
-@ExperimentalApi
 public class QueryGroupLevelResourceUsageView {
 
     private final String queryGroupId;
