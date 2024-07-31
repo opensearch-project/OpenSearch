@@ -13,14 +13,14 @@ import org.apache.lucene.util.ArrayUtil;
 /**
  * Internal ranges representation for the filter rewrite optimization
  */
-final class Ranges {
+public final class Ranges {
     byte[][] lowers; // inclusive
     byte[][] uppers; // exclusive
     int size;
     int byteLen;
     static ArrayUtil.ByteArrayComparator comparator;
 
-    Ranges(byte[][] lowers, byte[][] uppers) {
+    public Ranges(byte[][] lowers, byte[][] uppers) {
         this.lowers = lowers;
         this.uppers = uppers;
         assert lowers.length == uppers.length;

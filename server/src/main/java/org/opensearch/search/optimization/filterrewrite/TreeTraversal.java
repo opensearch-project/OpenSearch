@@ -34,7 +34,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * PointValues.IntersectVisitor} implementation is responsible for the actual visitation and
  * document count collection.
  */
-final class TreeTraversal {
+public final class TreeTraversal {
     private TreeTraversal() {}
 
     private static final Logger logger = LogManager.getLogger(loggerName);
@@ -48,7 +48,7 @@ final class TreeTraversal {
      * @param maxNumNonZeroRanges  the maximum number of non-zero ranges to collect
      * @return a {@link OptimizationContext.DebugInfo} object containing debug information about the traversal
      */
-    static OptimizationContext.DebugInfo multiRangesTraverse(
+    public static OptimizationContext.DebugInfo multiRangesTraverse(
         final PointValues.PointTree tree,
         final Ranges ranges,
         final BiConsumer<Integer, List<Integer>> collectRangeIDs,
