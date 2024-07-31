@@ -15,6 +15,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -22,13 +23,17 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.roaringbitmap.RoaringBitmap;
 
 /**
  * Filter with bitmap
+ * <p>
+ * Similar to Lucene SortedNumericDocValuesSetQuery
  */
 public class BitMapFilterQuery extends Query implements Accountable {
 
@@ -58,7 +63,7 @@ public class BitMapFilterQuery extends Query implements Accountable {
 
                         @Override
                         public float matchCost() {
-                            return 5; // 2 comparisions, possible lookup in the set
+                            return 2;
                         }
                     };
                 } else {
@@ -77,7 +82,7 @@ public class BitMapFilterQuery extends Query implements Accountable {
 
                         @Override
                         public float matchCost() {
-                            return 5; // 2 comparisons, possible lookup in the set
+                            return 2 * values.docValueCount();
                         }
                     };
                 }
@@ -86,33 +91,48 @@ public class BitMapFilterQuery extends Query implements Accountable {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return false;
+                return DocValues.isCacheable(ctx, field);
             }
         };
     }
 
     @Override
     public String toString(String field) {
-        return "";
+        return field + ": " + bitmap.toString();
     }
 
     @Override
-    public void visit(QueryVisitor visitor) {
-
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (bitmap.getLongCardinality() == 0) {
+            return new MatchNoDocsQuery();
+        }
+        return super.rewrite(indexSearcher);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return false;
+    public boolean equals(Object other) {
+        if (sameClassAs(other) == false) {
+            return false;
+        }
+        BitMapFilterQuery that = (BitMapFilterQuery) other;
+        return field.equals(that.field) && bitmap.equals(that.bitmap);
     }
 
     @Override
     public int hashCode() {
-        return 0;
+        return Objects.hash(classHash(), field, bitmap);
     }
 
     @Override
     public long ramBytesUsed() {
-        return 0;
+        return RamUsageEstimator.shallowSizeOfInstance(BitMapFilterQuery.class) + RamUsageEstimator.sizeOfObject(field) + RamUsageEstimator
+            .sizeOfObject(bitmap);
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(field)) {
+            visitor.visitLeaf(this);
+        }
     }
 }
