@@ -38,6 +38,7 @@ import org.opensearch.client.OriginSettingClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -45,11 +46,13 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.secure_sm.ThreadContextPermission;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskThreadContextStatePropagator;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -102,6 +105,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING
  */
 @PublicApi(since = "1.0.0")
 public final class ThreadContext implements Writeable {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ThreadContext.class);
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
@@ -110,6 +114,10 @@ public final class ThreadContext implements Writeable {
      * Name for the {@link #stashWithOrigin origin} attribute.
      */
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
+
+    // thread context permissions
+
+    private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("markAsSystemContext");
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
@@ -554,8 +562,26 @@ public final class ThreadContext implements Writeable {
     /**
      * Marks this thread context as an internal system context. This signals that actions in this context are issued
      * by the system itself rather than by a user action.
+     *
+     * Usage of markAsSystemContext is guarded by a ThreadContextPermission. In order to use
+     * markAsSystemContext, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
      */
     public void markAsSystemContext() {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            try {
+                sm.checkPermission(ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION);
+            } catch (SecurityException ex) {
+                deprecationLogger.deprecate(
+                    "markAsSystemContext",
+                    "Default access to markAsSystemContext will be removed in a future release. Permission to use markAsSystemContext must be explicitly granted."
+                );
+            }
+        }
         threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
 
