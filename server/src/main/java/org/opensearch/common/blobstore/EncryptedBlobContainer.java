@@ -9,6 +9,7 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.common.CheckedBiConsumer;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.common.crypto.DecryptedRangedStreamProvider;
 import org.opensearch.common.crypto.EncryptedHeaderContentSupplier;
@@ -48,6 +49,14 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
     public InputStream readBlob(String blobName) throws IOException {
         InputStream inputStream = blobContainer.readBlob(blobName);
         return cryptoHandler.createDecryptingStream(inputStream);
+    }
+
+    @ExperimentalApi
+    @Override
+    public InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
+        InputStreamWithMetadata inputStreamWithMetadata = blobContainer.readBlobWithMetadata(blobName);
+        InputStream decryptInputStream = cryptoHandler.createDecryptingStream(inputStreamWithMetadata.getInputStream());
+        return new InputStreamWithMetadata(decryptInputStream, inputStreamWithMetadata.getMetadata());
     }
 
     EncryptedHeaderContentSupplier getEncryptedHeaderContentSupplier(String blobName) {

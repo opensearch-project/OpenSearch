@@ -1148,7 +1148,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             startingSeqNo
         );
         long fileChunkSizeInBytes = randomBoolean()
-            ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes()
+            ? RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes()
             : randomIntBetween(1, 10 * 1024 * 1024);
         final Settings settings = Settings.builder()
             .put("indices.recovery.max_concurrent_file_chunks", Integer.toString(between(1, 4)))

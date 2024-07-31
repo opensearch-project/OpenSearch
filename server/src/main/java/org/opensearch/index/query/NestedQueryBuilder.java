@@ -34,6 +34,7 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
@@ -401,16 +402,32 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             }
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
-            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
-            NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
-                name,
-                parentSearchContext,
-                parentObjectMapper,
-                nestedObjectMapper
-            );
-            setupInnerHitsContext(queryShardContext, nestedInnerHits);
-            queryShardContext.nestedScope().previousLevel();
-            innerHitsContext.addInnerHitDefinition(nestedInnerHits);
+            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().getObjectMapper();
+            BitSetProducer parentFilter;
+            if (parentObjectMapper == null) {
+                parentFilter = queryShardContext.bitsetFilter(Queries.newNonNestedFilter());
+            } else {
+                parentFilter = queryShardContext.bitsetFilter(parentObjectMapper.nestedTypeFilter());
+            }
+            BitSetProducer previousParentFilter = queryShardContext.getParentFilter();
+            try {
+                queryShardContext.setParentFilter(parentFilter);
+                queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
+                try {
+                    NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
+                        name,
+                        parentSearchContext,
+                        parentObjectMapper,
+                        nestedObjectMapper
+                    );
+                    setupInnerHitsContext(queryShardContext, nestedInnerHits);
+                    innerHitsContext.addInnerHitDefinition(nestedInnerHits);
+                } finally {
+                    queryShardContext.nestedScope().previousLevel();
+                }
+            } finally {
+                queryShardContext.setParentFilter(previousParentFilter);
+            }
         }
     }
 
@@ -487,6 +504,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
                 return new TopDocsAndMaxScore(td, maxScore);
             }
+        }
+    }
+
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        if (query != null) {
+            visitor.getChildVisitor(BooleanClause.Occur.MUST).accept(query);
         }
     }
 }

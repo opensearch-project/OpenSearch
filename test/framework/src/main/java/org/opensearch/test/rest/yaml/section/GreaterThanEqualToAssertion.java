@@ -72,6 +72,7 @@ public class GreaterThanEqualToAssertion extends Assertion {
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is greater than or equal to [{}] (field: [{}])", actualValue, expectedValue, getField());
+        actualValue = convertActualValue(actualValue, expectedValue);
         assertThat(
             "value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",
             actualValue,

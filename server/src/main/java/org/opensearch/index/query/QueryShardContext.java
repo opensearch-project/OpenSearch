@@ -45,7 +45,6 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.Queries;
-import org.opensearch.common.regex.Regex;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
@@ -59,6 +58,9 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.ContentPath;
+import org.opensearch.index.mapper.DerivedFieldResolver;
+import org.opensearch.index.mapper.DerivedFieldResolverFactory;
+import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.Mapper;
@@ -88,6 +90,8 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -120,8 +124,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private BitSetProducer parentFilter;
-
-    private Map<String, MappedFieldType> derivedFieldTypeMap = new HashMap<>();
+    private DerivedFieldResolver derivedFieldResolver;
 
     public QueryShardContext(
         int shardId,
@@ -268,6 +271,12 @@ public class QueryShardContext extends QueryRewriteContext {
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
+        this.derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+            this,
+            emptyMap(),
+            emptyList(),
+            indexSettings.isDerivedFieldAllowed()
+        );
     }
 
     private void reset() {
@@ -333,17 +342,9 @@ public class QueryShardContext extends QueryRewriteContext {
      * type then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToIndexNames(String pattern) {
-        Set<String> matchingFields = mapperService.simpleMatchToFullName(pattern);
-        if (derivedFieldTypeMap != null && !derivedFieldTypeMap.isEmpty()) {
-            Set<String> matchingDerivedFields = new HashSet<>(matchingFields);
-            for (String fieldName : derivedFieldTypeMap.keySet()) {
-                if (!matchingDerivedFields.contains(fieldName) && Regex.simpleMatch(pattern, fieldName)) {
-                    matchingDerivedFields.add(fieldName);
-                }
-            }
-            return matchingDerivedFields;
-        }
-        return matchingFields;
+        Set<String> allMatchingFields = new HashSet<>(mapperService.simpleMatchToFullName(pattern));
+        allMatchingFields.addAll(derivedFieldResolver.resolvePattern(pattern));
+        return allMatchingFields;
     }
 
     /**
@@ -409,12 +410,8 @@ public class QueryShardContext extends QueryRewriteContext {
         return valuesSourceRegistry;
     }
 
-    public void setDerivedFieldTypes(Map<String, MappedFieldType> derivedFieldTypeMap) {
-        this.derivedFieldTypeMap = derivedFieldTypeMap;
-    }
-
-    public MappedFieldType getDerivedFieldType(String fieldName) {
-        return derivedFieldTypeMap == null ? null : derivedFieldTypeMap.get(fieldName);
+    public void setDerivedFieldResolver(DerivedFieldResolver derivedFieldResolver) {
+        this.derivedFieldResolver = derivedFieldResolver;
     }
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
@@ -427,9 +424,14 @@ public class QueryShardContext extends QueryRewriteContext {
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null) {
+            if (fieldMapping instanceof DerivedFieldType) {
+                // resolveDerivedFieldType() will give precedence to search time definitions over index mapping, thus
+                // calling it instead of directly returning. It also ensures the feature flags are honoured.
+                return resolveDerivedFieldType(name);
+            }
             return fieldMapping;
-        } else if (getDerivedFieldType(name) != null) {
-            return getDerivedFieldType(name);
+        } else if ((fieldMapping = resolveDerivedFieldType(name)) != null) {
+            return fieldMapping;
         } else if (allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
@@ -438,6 +440,10 @@ public class QueryShardContext extends QueryRewriteContext {
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
+    }
+
+    public MappedFieldType resolveDerivedFieldType(String name) {
+        return derivedFieldResolver.resolve(name);
     }
 
     private SearchLookup lookup = null;

@@ -141,6 +141,10 @@ public class MockDiskCache<K, V> implements ICache<K, V> {
         @Override
         @SuppressWarnings({ "unchecked" })
         public <K, V> ICache<K, V> create(CacheConfig<K, V> config, CacheType cacheType, Map<String, Factory> cacheFactories) {
+            // As we can't directly IT with the tiered cache and ehcache, check that we receive non-null serializers, as an ehcache disk
+            // cache would require.
+            assert config.getKeySerializer() != null;
+            assert config.getValueSerializer() != null;
             return new Builder<K, V>().setKeySerializer((Serializer<K, byte[]>) config.getKeySerializer())
                 .setValueSerializer((Serializer<V, byte[]>) config.getValueSerializer())
                 .setMaxSize(maxSize)

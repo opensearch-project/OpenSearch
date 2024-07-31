@@ -522,4 +522,8 @@ public abstract class SearchContext implements Releasable {
     public int maxAggRewriteFilters() {
         return 0;
     }
+
+    public int cardinalityAggregationPruningThreshold() {
+        return 0;
+    }
 }

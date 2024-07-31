@@ -61,7 +61,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
@@ -124,6 +126,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private NodeConnectionsService nodeConnectionsService;
     private final ClusterManagerMetrics clusterManagerMetrics;
+
+    public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(nodeName, settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
+    }
 
     public ClusterApplierService(
         String nodeName,
@@ -391,7 +397,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             final UpdateTask updateTask = new UpdateTask(
                 config.priority(),
                 source,

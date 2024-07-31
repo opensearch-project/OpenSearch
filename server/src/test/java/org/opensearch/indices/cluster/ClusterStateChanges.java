@@ -314,7 +314,8 @@ public class ClusterStateChanges {
             systemIndices,
             true,
             awarenessReplicaBalance,
-            DefaultRemoteStoreSettings.INSTANCE
+            DefaultRemoteStoreSettings.INSTANCE,
+            null
         );
 
         transportCloseIndexAction = new TransportCloseIndexAction(

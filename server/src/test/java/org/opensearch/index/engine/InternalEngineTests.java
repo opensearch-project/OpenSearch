@@ -1872,7 +1872,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (
             Store store = createStore();
             InternalEngine engine = createEngine(
-                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+                config(indexSettings, store, createTempDir(), newMergePolicy(random(), false), null, null, globalCheckpoint::get)
             )
         ) {
             int numDocs = scaledRandomIntBetween(10, 100);

@@ -18,14 +18,22 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.BatchRunnableExecutor;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 import org.opensearch.test.gateway.TestShardBatchGatewayAllocator;
@@ -38,6 +46,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.opensearch.gateway.ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING;
+import static org.opensearch.gateway.ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY;
+import static org.opensearch.gateway.ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING;
+import static org.opensearch.gateway.ShardsBatchGatewayAllocator.REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY;
 
 public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
 
@@ -52,6 +65,13 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
     public void setUp() throws Exception {
         super.setUp();
         testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator();
+    }
+
+    public void testExecutorNotNull() {
+        createIndexAndUpdateClusterState(1, 3, 1);
+        createBatchesAndAssert(1);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        assertNotNull(executor);
     }
 
     public void testSingleBatchCreation() {
@@ -222,6 +242,21 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         assertEquals(0, testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch().size());
     }
 
+    public void testDeDuplicationOfReplicaShardsAcrossBatch() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final DiscoveryNode node = newNode("node1");
+        // number of replicas is greater than batch size - to ensure shardRouting gets de-duped across batch
+        createRoutingWithDifferentUnAssignedInfo(shardId, node, 50);
+        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(10);
+
+        // only replica shard should be in the batch
+        Set<String> replicaBatches = testShardsBatchGatewayAllocator.createAndUpdateBatches(testAllocation, false);
+        assertEquals(1, replicaBatches.size());
+        ShardsBatchGatewayAllocator.ShardsBatch shardsBatch = testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch()
+            .get(replicaBatches.iterator().next());
+        assertEquals(1, shardsBatch.getBatchedShards().size());
+    }
+
     public void testGetBatchIdExisting() {
         createIndexAndUpdateClusterState(2, 1020, 1);
         // get all shardsRoutings for test index
@@ -314,6 +349,80 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         allShardRoutings.forEach(shard -> assertNull(testShardsBatchGatewayAllocator.getBatchId(shard, shard.primary())));
     }
 
+    public void testCreatePrimaryAndReplicaExecutorOfSizeOne() {
+        createIndexAndUpdateClusterState(1, 3, 2);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 1);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 1);
+    }
+
+    public void testCreatePrimaryExecutorOfSizeOneAndReplicaExecutorOfSizeZero() {
+        createIndexAndUpdateClusterState(1, 3, 0);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 1);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        assertNull(executor);
+    }
+
+    public void testCreatePrimaryAndReplicaExecutorOfSizeTwo() {
+        createIndexAndUpdateClusterState(2, 1001, 1);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 2);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        assertEquals(executor.getTimeoutAwareRunnables().size(), 2);
+    }
+
+    public void testPrimaryAllocatorTimeout() {
+        // Valid setting with timeout = 20s
+        Settings build = Settings.builder().put(PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "20s").build();
+        assertEquals(20, PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(build).getSeconds());
+
+        // Valid setting with timeout > 20s
+        build = Settings.builder().put(PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "30000ms").build();
+        assertEquals(30, PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(build).getSeconds());
+
+        // Invalid setting with timeout < 20s
+        Settings lessThan20sSetting = Settings.builder().put(PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "10s").build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(lessThan20sSetting)
+        );
+        assertEquals(
+            "Setting [" + PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey() + "] should be more than 20s or -1ms to disable timeout",
+            iae.getMessage()
+        );
+
+        // Valid setting with timeout = -1
+        build = Settings.builder().put(PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "-1").build();
+        assertEquals(-1, PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(build).getMillis());
+    }
+
+    public void testReplicaAllocatorTimeout() {
+        // Valid setting with timeout = 20s
+        Settings build = Settings.builder().put(REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "20s").build();
+        assertEquals(20, REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(build).getSeconds());
+
+        // Valid setting with timeout > 20s
+        build = Settings.builder().put(REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "30000ms").build();
+        assertEquals(30, REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(build).getSeconds());
+
+        // Invalid setting with timeout < 20s
+        Settings lessThan20sSetting = Settings.builder().put(REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "10s").build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(lessThan20sSetting)
+        );
+        assertEquals(
+            "Setting [" + REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.getKey() + "] should be more than 20s or -1ms to disable timeout",
+            iae.getMessage()
+        );
+
+        // Valid setting with timeout = -1
+        build = Settings.builder().put(REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "-1").build();
+        assertEquals(-1, REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(build).getMillis());
+    }
+
     private void createIndexAndUpdateClusterState(int count, int numberOfShards, int numberOfReplicas) {
         if (count == 0) return;
         Metadata.Builder metadata = Metadata.builder();
@@ -343,6 +452,59 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime()
         );
+    }
+
+    private void createRoutingWithDifferentUnAssignedInfo(ShardId primaryShardId, DiscoveryNode node, int numberOfReplicas) {
+
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(primaryShardId, node.getId(), true, ShardRoutingState.STARTED);
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(primaryShardId.getIndexName())
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(numberOfReplicas)
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId()))
+            )
+            .build();
+
+        IndexRoutingTable.Builder isd = IndexRoutingTable.builder(primaryShardId.getIndex())
+            .addIndexShard(new IndexShardRoutingTable.Builder(primaryShardId).addShard(primaryShard).build());
+
+        for (int i = 0; i < numberOfReplicas; i++) {
+            isd.addShard(
+                ShardRouting.newUnassigned(
+                    primaryShardId,
+                    false,
+                    RecoverySource.PeerRecoverySource.INSTANCE,
+                    new UnassignedInfo(
+                        UnassignedInfo.Reason.REPLICA_ADDED,
+                        "message for replica-copy " + i,
+                        null,
+                        0,
+                        System.nanoTime(),
+                        System.currentTimeMillis(),
+                        false,
+                        UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                        Collections.emptySet()
+                    )
+                )
+            );
+        }
+
+        RoutingTable routingTable = RoutingTable.builder().add(isd).build();
+        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+        testAllocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.emptyList()),
+            new RoutingNodes(clusterState, false),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+
     }
 
     // call this after index creation and update cluster state
