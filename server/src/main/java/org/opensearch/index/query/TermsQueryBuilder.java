@@ -42,7 +42,6 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
@@ -56,8 +55,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.RewriteOverride;
-import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.indices.TermsLookup;
 
 import java.io.IOException;
@@ -203,19 +200,15 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.supplier = supplier;
     }
 
-
     private TermsQueryBuilder(String fieldName, Iterable<?> values, String rewrite_override) {
         this(fieldName, values);
         this.rewrite_override = rewrite_override;
     }
 
-
     private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, String rewrite_override) {
         this(fieldName, supplier);
         this.rewrite_override = rewrite_override;
     }
-
-
 
     /**
      * Read from a stream.
@@ -226,7 +219,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         termsLookup = in.readOptionalWriteable(TermsLookup::new);
         values = (List<?>) in.readGenericValue();
         this.supplier = null;
-        if (in.getVersion().after(Version.V_2_16_0)){
+        if (in.getVersion().after(Version.V_2_16_0)) {
             rewrite_override = in.readOptionalString();
         }
     }
@@ -239,7 +232,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
         out.writeGenericValue(values);
-        if (out.getVersion().after(Version.V_2_16_0)){
+        if (out.getVersion().after(Version.V_2_16_0)) {
             out.writeOptionalString(rewrite_override);
         }
     }
