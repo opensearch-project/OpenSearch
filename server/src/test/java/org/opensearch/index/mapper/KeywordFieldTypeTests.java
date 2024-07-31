@@ -136,20 +136,20 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             new TermInSetQuery("field", terms),
             new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms)
         );
-        assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), null));
+        assertEquals(expected, ft.termsQuery(Arrays.asList("foo", "bar"), null, RewriteOverride.DEFAULT));
 
         MappedFieldType onlyIndexed = new KeywordFieldType("field", true, false, Collections.emptyMap());
         Query expectedIndex = new TermInSetQuery("field", terms);
-        assertEquals(expectedIndex, onlyIndexed.termsQuery(Arrays.asList("foo", "bar"), null));
+        assertEquals(expectedIndex, onlyIndexed.termsQuery(Arrays.asList("foo", "bar"), null, RewriteOverride.DEFAULT));
 
         MappedFieldType onlyDocValues = new KeywordFieldType("field", false, true, Collections.emptyMap());
         Query expectedDocValues = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, "field", terms);
-        assertEquals(expectedDocValues, onlyDocValues.termsQuery(Arrays.asList("foo", "bar"), null));
+        assertEquals(expectedDocValues, onlyDocValues.termsQuery(Arrays.asList("foo", "bar"), null, RewriteOverride.DEFAULT));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null)
+            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null, RewriteOverride.DEFAULT)
         );
         assertEquals(
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",

@@ -37,6 +37,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
@@ -202,6 +203,20 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.supplier = supplier;
     }
 
+
+    private TermsQueryBuilder(String fieldName, Iterable<?> values, String rewrite_override) {
+        this(fieldName, values);
+        this.rewrite_override = rewrite_override;
+    }
+
+
+    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, String rewrite_override) {
+        this(fieldName, supplier);
+        this.rewrite_override = rewrite_override;
+    }
+
+
+
     /**
      * Read from a stream.
      */
@@ -209,9 +224,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         super(in);
         fieldName = in.readString();
         termsLookup = in.readOptionalWriteable(TermsLookup::new);
-        rewrite_override = in.readOptionalString();
         values = (List<?>) in.readGenericValue();
         this.supplier = null;
+        if (in.getVersion().after(Version.V_2_16_0)){
+            rewrite_override = in.readOptionalString();
+        }
     }
 
     @Override
@@ -221,8 +238,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
-        out.writeOptionalString(rewrite_override);
         out.writeGenericValue(values);
+        if (out.getVersion().after(Version.V_2_16_0)){
+            out.writeOptionalString(rewrite_override);
+        }
     }
 
     public String fieldName() {
@@ -499,12 +518,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
-            rewrite_override,
-            RewriteOverride.DEFAULT,
-            LoggingDeprecationHandler.INSTANCE
-        );
-        return fieldType.termsQuery(values, context, rewriteOverride);
+        return fieldType.termsQuery(values, context);
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
@@ -537,14 +551,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (supplier != null) {
-            return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
+            return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get(), rewrite_override);
         } else if (this.termsLookup != null) {
             SetOnce<List<?>> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, ActionListener.map(listener, list -> {
                 supplier.set(list);
                 return null;
             })));
-            return new TermsQueryBuilder(this.fieldName, supplier::get);
+            return new TermsQueryBuilder(this.fieldName, supplier::get, rewrite_override);
         }
 
         if (values == null || values.isEmpty()) {
@@ -560,7 +574,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
-                Query query = fieldType.termsQuery(values, context, null);
+                Query query = fieldType.termsQuery(values, context);
                 if (query instanceof MatchAllDocsQuery) {
                     return new MatchAllQueryBuilder();
                 } else if (query instanceof MatchNoDocsQuery) {
