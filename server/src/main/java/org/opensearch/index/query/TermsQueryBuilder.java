@@ -110,6 +110,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.fieldName = fieldName;
         this.values = values == null ? null : convert(values);
         this.termsLookup = termsLookup;
+        this.rewrite_override = rewrite_override;
         this.supplier = null;
     }
 
@@ -425,18 +426,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 }
                 fieldName = currentFieldName;
                 termsLookup = TermsLookup.parseTermsLookup(parser);
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        rewrite_override = parser.textOrNull();
-                    }
-                }
             } else if (token.isValue()) {
                 if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
+                } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    rewrite_override = parser.textOrNull();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
