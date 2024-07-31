@@ -20,7 +20,6 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -29,7 +28,7 @@ import java.util.stream.Collectors;
 // @ExperimentalApi
 public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTracker, TaskManager.TaskEventListeners {
 
-    public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.fromName("memory"), ResourceType.fromName("cpu"));
+    public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.MEMORY, ResourceType.CPU);
     private final TaskManager taskManager;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
@@ -54,18 +53,26 @@ public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTra
      */
     @Override
     public Map<String, QueryGroupLevelResourceUsageView> constructQueryGroupLevelUsageViews() {
-        Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = new HashMap<>();
+        final Map<String, List<Task>> tasksByQueryGroup = getTasksGroupedByQueryGroup();
+        final Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = new HashMap<>();
 
-        Map<String, List<Task>> tasksByQueryGroup = getTasksGroupedByQueryGroup();
-        Map<String, EnumMap<ResourceType, Long>> queryGroupResourceUsage = getResourceUsageOfQueryGroups(tasksByQueryGroup);
+        // Iterate over each QueryGroup entry
+        for (Map.Entry<String, List<Task>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
+            // Compute the QueryGroup usage
+            final EnumMap<ResourceType, Long> queryGroupUsage = new EnumMap<>(ResourceType.class);
+            for (ResourceType resourceType : TRACKED_RESOURCES) {
+                long queryGroupResourceUsage = 0;
+                for (Task task : queryGroupEntry.getValue()) {
+                    queryGroupResourceUsage += QueryGroupHelper.getResourceUsage(resourceType, task);
+                }
+                queryGroupUsage.put(resourceType, queryGroupResourceUsage);
+            }
 
-        for (String queryGroupId : tasksByQueryGroup.keySet()) {
-            QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
-                queryGroupId,
-                queryGroupResourceUsage.get(queryGroupId),
-                tasksByQueryGroup.get(queryGroupId)
+            // Add to the QueryGroup View
+            queryGroupViews.put(
+                queryGroupEntry.getKey(),
+                new QueryGroupLevelResourceUsageView(queryGroupEntry.getKey(), queryGroupUsage, queryGroupEntry.getValue())
             );
-            queryGroupViews.put(queryGroupId, queryGroupLevelResourceUsageView);
         }
         return queryGroupViews;
     }
@@ -82,33 +89,6 @@ public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTra
             .filter(QueryGroupTask.class::isInstance)
             .map(QueryGroupTask.class::cast)
             .collect(Collectors.groupingBy(QueryGroupTask::getQueryGroupId, Collectors.mapping(task -> (Task) task, Collectors.toList())));
-    }
-
-    /**
-     * Calculates the resource usage of each QueryGroup.
-     *
-     * @param tasksByQueryGroup Map of tasks grouped by QueryGroup
-     * @return Map of resource usage for each QueryGroup
-     */
-    private Map<String, EnumMap<ResourceType, Long>> getResourceUsageOfQueryGroups(Map<String, List<Task>> tasksByQueryGroup) {
-        // Prepare a usage map for the QueryGroups
-        Map<String, EnumMap<ResourceType, Long>> resourceUsageOfQueryGroups = tasksByQueryGroup.keySet()
-            .stream()
-            .collect(Collectors.toMap(Function.identity(), k -> new EnumMap<>(ResourceType.class)));
-
-        // Iterate over each QueryGroup entry
-        for (Map.Entry<String, List<Task>> queryGroupEntry : tasksByQueryGroup.entrySet()) {
-            EnumMap<ResourceType, Long> queryGroupUsage = resourceUsageOfQueryGroups.get(queryGroupEntry.getKey());
-            for (ResourceType resourceType : TRACKED_RESOURCES) {
-                long queryGroupResourceUsage = 0;
-                for (Task task : queryGroupEntry.getValue()) {
-                    queryGroupResourceUsage += QueryGroupHelper.getResourceUsage(resourceType, task);
-                }
-                queryGroupUsage.put(resourceType, queryGroupResourceUsage);
-            }
-        }
-
-        return resourceUsageOfQueryGroups;
     }
 
     /**
