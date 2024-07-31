@@ -110,7 +110,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.fieldName = fieldName;
         this.values = values == null ? null : convert(values);
         this.termsLookup = termsLookup;
-        this.rewrite_override = rewrite_override;
         this.supplier = null;
     }
 
