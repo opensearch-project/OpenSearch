@@ -9,4 +9,4 @@
 /**
  * QueryGroup resource tracking artifacts
  */
-package org.opensearch.search.wlm.tracker;
+package org.opensearch.wlm.tracker;

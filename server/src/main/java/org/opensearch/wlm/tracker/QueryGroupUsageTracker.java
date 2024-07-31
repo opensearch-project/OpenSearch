@@ -6,9 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.wlm.tracker;
+package org.opensearch.wlm.tracker;
 
-import org.opensearch.search.wlm.QueryGroupLevelResourceUsageView;
+import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 
 import java.util.Map;
 
