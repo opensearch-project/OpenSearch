@@ -30,34 +30,6 @@ setup:
               }
             ]
           }
-  - do:
-      ingest.put_pipeline:
-        id: "pipeline3"
-        body:  >
-          {
-            "description": "_description",
-            "processors": [
-              {
-                "set" : {
-                  "field" : "_op_type",
-                  "value": "create"
-                }
-              }
-            ]
-          }
-  - do:
-      indices.put_index_template:
-        name: test_index_template_for_data_stream
-        body:
-          index_patterns: test_data_stream1*
-          data_stream: {}
-          template:
-            settings:
-              number_of_shards:   1
-              number_of_replicas: 0
-  - do:
-    indices.create_data_stream:
-      name: test_data_stream1
 ---
 teardown:
   - do:
@@ -67,22 +39,6 @@ teardown:
   - do:
       ingest.delete_pipeline:
         id: "pipeline2"
-        ignore: 404
-  - do:
-      ingest.delete_pipeline:
-        id: "pipeline3"
-        ignore: 404
-  - do:
-      indices.delete_index_template:
-        name: test_index_template_for_bulk
-        ignore: 404
-  - do:
-      indices.delete_index_template:
-        name: test_index_template_for_data_stream
-        ignore: 404
-  - do:
-      indices.delete:
-        name: test_data_stream1
         ignore: 404
 
 ---
@@ -308,6 +264,35 @@ teardown:
       reason: "introduced in 3.0.0"
 
   - do:
+      ingest.put_pipeline:
+        id: "pipeline3"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_op_type",
+                  "value": "create"
+                }
+              }
+            ]
+          }
+  - do:
+      indices.put_index_template:
+        name: test_index_template_for_data_stream
+        body:
+          index_patterns: test_data_stream1*
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+  - do:
+      indices.create_data_stream:
+        name: test_data_stream1
+
+  - do:
       bulk:
         refresh: true
         body:
@@ -317,13 +302,14 @@ teardown:
   - match: { items.0.create.result: created }
 
   - do:
-      search:
-        index: test_data_stream1
-        body: {
-          query: {
-            match_all: {}
-          }
-        }
-
-  - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._source: {"foo": "bar", "@timestamp": "2099-03-08T11:04:05.000Z"} }
+      ingest.delete_pipeline:
+        id: "pipeline3"
+        ignore: 404
+  - do:
+      indices.delete_data_stream:
+        name: test_data_stream1
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: test_index_template_for_data_stream
+        ignore: 404
