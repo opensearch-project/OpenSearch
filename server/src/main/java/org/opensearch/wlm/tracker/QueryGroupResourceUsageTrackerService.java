@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 /**
  * This class tracks resource usage per QueryGroup
  */
-public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTracker, TaskManager.TaskEventListeners {
+public class QueryGroupResourceUsageTrackerService implements TaskManager.TaskEventListeners {
 
     public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.MEMORY, ResourceType.CPU);
     private final TaskManager taskManager;
@@ -50,7 +50,6 @@ public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTra
      *
      * @return Map of QueryGroup views
      */
-    @Override
     public Map<String, QueryGroupLevelResourceUsageView> constructQueryGroupLevelUsageViews() {
         final Map<String, List<Task>> tasksByQueryGroup = getTasksGroupedByQueryGroup();
         final Map<String, QueryGroupLevelResourceUsageView> queryGroupViews = new HashMap<>();
