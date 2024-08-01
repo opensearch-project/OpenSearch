@@ -2011,25 +2011,24 @@ public class IngestServiceTests extends OpenSearchTestCase {
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest2);
-        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_none").setFinalPipeline("_id");
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest3);
         IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
         bulkRequest.add(indexRequest4);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        bulkRequest.batchSize(4);
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
         ingestService.executeBulkRequest(
             4,
             bulkRequest.requests(),
-            failureHandler,
-            completionHandler,
+            failureHandler::put,
+            completionHandler::put,
             indexReq -> {},
             Names.WRITE,
-            mockBulkRequest
+            bulkRequest
         );
-        verify(failureHandler, never()).accept(any(), any());
-        verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        assertTrue(failureHandler.isEmpty());
+        assertEquals(Set.of(Thread.currentThread()), completionHandler.keySet());
     }
 
     public void testPrepareBatches_same_index_pipeline() {
