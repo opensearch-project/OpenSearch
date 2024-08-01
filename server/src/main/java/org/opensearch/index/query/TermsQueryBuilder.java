@@ -88,10 +88,33 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private final Supplier<List<?>> supplier;
 
     private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
-    private String valueType;
+    private ValueType valueType;
+
+    private enum ValueType {
+        BITMAP("bitmap");
+
+        private final String type;
+
+        ValueType(String type) {
+            this.type = type;
+        }
+
+        String get() {
+            return type;
+        }
+
+        static ValueType fromString(String type) {
+            for (ValueType valueType : ValueType.values()) {
+                if (valueType.get().equalsIgnoreCase(type)) {
+                    return valueType;
+                }
+            }
+            throw new IllegalArgumentException(type + " is not valid " + VALUE_TYPE_FIELD);
+        }
+    }
 
     public final TermsQueryBuilder valueType(String valueType) {
-        this.valueType = valueType;
+        this.valueType = ValueType.fromString(valueType);
         return this;
     }
 
@@ -200,7 +223,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.supplier = null;
     }
 
-    private TermsQueryBuilder(String fieldName, Iterable<?> values, String valueType) {
+    private TermsQueryBuilder(String fieldName, Iterable<?> values, ValueType valueType) {
         this(fieldName, values);
         this.valueType = valueType;
     }
@@ -212,7 +235,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.supplier = supplier;
     }
 
-    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, String valueType) {
+    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, ValueType valueType) {
         this(fieldName, supplier);
         this.valueType = valueType;
     }
@@ -226,8 +249,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         termsLookup = in.readOptionalWriteable(TermsLookup::new);
         values = (List<?>) in.readGenericValue();
         this.supplier = null;
-        if (in.getVersion().after(Version.V_2_16_0)) {
-            valueType = in.readOptionalString();
+        // TODO change all V_2_16_0 to V_2_17_0
+        if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
+            valueType = in.readEnum(ValueType.class);
         }
     }
 
@@ -239,8 +263,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
         out.writeGenericValue(values);
-        if (out.getVersion().after(Version.V_2_16_0)) {
-            out.writeOptionalString(valueType);
+        if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
+            out.writeEnum(valueType);
         }
     }
 
@@ -463,10 +487,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             );
         }
 
-        // if value_type is not empty, and values is a BytesRef,
-        // we parse the bytes to the corresponding structure here
-        if (valueType != null && values != null && values.size() == 1 && values.get(0) instanceof BytesRef) {
-            values.set(0, new BytesArray(Base64.getDecoder().decode(((BytesRef) values.get(0)).utf8ToString())));
+        if (Objects.equals(valueType, ValueType.BITMAP.get())) {
+            if (values != null && values.size() == 1 && values.get(0) instanceof BytesRef) {
+                values.set(0, new BytesArray(Base64.getDecoder().decode(((BytesRef) values.get(0)).utf8ToString())));
+            } else if (termsLookup == null) {
+                throw new IllegalArgumentException(
+                    "Invalid value for bitmap type: Expected a single-element array with a base64 encoded serialized bitmap."
+                );
+            }
         }
 
         return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
@@ -512,7 +540,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        if (valueType != null && valueType.equals("bitmap")) {
+        if (valueType == ValueType.BITMAP) {
             if (values.size() == 1 && values.get(0) instanceof BytesArray) {
                 if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
                     return ((NumberFieldMapper.NumberFieldType) fieldType).bitmapQuery((BytesArray) values.get(0));
@@ -531,7 +559,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
             if (termsLookup.store()) {
-                terms.addAll(getResponse.getField(termsLookup.path()).getValues());
+                List<Object> values = getResponse.getField(termsLookup.path()).getValues();
+                if (values.size() != 1 && valueType == ValueType.BITMAP) {
+                    throw new IllegalArgumentException(
+                        "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
+                    );
+                }
+                terms.addAll(values);
             } else {
                 if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
                     List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());

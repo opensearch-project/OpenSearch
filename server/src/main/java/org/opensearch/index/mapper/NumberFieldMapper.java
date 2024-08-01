@@ -70,6 +70,7 @@ import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.query.BitmapDocValuesQuery;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -828,37 +829,42 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query bitmapQuery(String field, BytesArray bitmapArray) {
+            public Query bitmapQuery(String field, BytesArray bitmapArray, boolean isSearchable) {
                 RoaringBitmap bitmap = new RoaringBitmap();
                 try {
                     bitmap.deserialize(ByteBuffer.wrap(bitmapArray.array()));
-                    // return new BitMapFilterQuery(field, bitmap);
-
-                    final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
-                    return new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
-
-                        long upto;
-
-                        @Override
-                        public BytesRef next() {
-                            upto = bitmap.nextValue((int) upto);
-                            if (upto == -1) {
-                                return null;
-                            }
-                            IntPoint.encodeDimension((int) upto, encoded.bytes, 0);
-                            upto++;
-                            return encoded;
-                        }
-                    }) {
-                        @Override
-                        protected String toString(byte[] value) {
-                            return "";
-                        }
-                    };
-
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
+
+                if (isSearchable) {
+                    return new IndexOrDocValuesQuery(generateBitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
+                }
+                return new BitmapDocValuesQuery(field, bitmap);
+            }
+
+            PointInSetQuery generateBitmapIndexQuery(String field, RoaringBitmap bitmap) {
+                final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
+                return new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
+
+                    long upto;
+
+                    @Override
+                    public BytesRef next() {
+                        upto = bitmap.nextValue((int) upto);
+                        if (upto == -1) {
+                            return null;
+                        }
+                        IntPoint.encodeDimension((int) upto, encoded.bytes, 0);
+                        upto++;
+                        return encoded;
+                    }
+                }) {
+                    @Override
+                    protected String toString(byte[] value) {
+                        return "";
+                    }
+                };
             }
 
             @Override
@@ -1213,7 +1219,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public abstract Query termsQuery(String field, List<Object> values, boolean hasDocValues, boolean isSearchable);
 
-        public Query bitmapQuery(String field, BytesArray bitmap) {
+        public Query bitmapQuery(String field, BytesArray bitmap, boolean isSearchable) {
             throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support bitmap queries");
         }
 
@@ -1539,7 +1545,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         public Query bitmapQuery(BytesArray bitmap) {
-            return type.bitmapQuery(name(), bitmap);
+            return type.bitmapQuery(name(), bitmap, isSearchable());
         }
 
         @Override

@@ -35,12 +35,12 @@ import org.roaringbitmap.RoaringBitmap;
  * <p>
  * Similar to Lucene SortedNumericDocValuesSetQuery
  */
-public class BitMapFilterQuery extends Query implements Accountable {
+public class BitmapDocValuesQuery extends Query implements Accountable {
 
     final String field;
     final RoaringBitmap bitmap;
 
-    public BitMapFilterQuery(String field, RoaringBitmap bitmap) {
+    public BitmapDocValuesQuery(String field, RoaringBitmap bitmap) {
         this.field = field;
         this.bitmap = bitmap;
     }
@@ -114,7 +114,7 @@ public class BitMapFilterQuery extends Query implements Accountable {
         if (sameClassAs(other) == false) {
             return false;
         }
-        BitMapFilterQuery that = (BitMapFilterQuery) other;
+        BitmapDocValuesQuery that = (BitmapDocValuesQuery) other;
         return field.equals(that.field) && bitmap.equals(that.bitmap);
     }
 
@@ -125,8 +125,8 @@ public class BitMapFilterQuery extends Query implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOfInstance(BitMapFilterQuery.class) + RamUsageEstimator.sizeOfObject(field) + RamUsageEstimator
-            .sizeOfObject(bitmap);
+        return RamUsageEstimator.shallowSizeOfInstance(BitmapDocValuesQuery.class) + RamUsageEstimator.sizeOfObject(field)
+            + RamUsageEstimator.sizeOfObject(bitmap);
     }
 
     @Override
