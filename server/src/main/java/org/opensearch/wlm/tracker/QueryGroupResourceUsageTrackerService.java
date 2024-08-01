@@ -28,20 +28,14 @@ import java.util.stream.Collectors;
 public class QueryGroupResourceUsageTrackerService implements TaskManager.TaskEventListeners {
 
     public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.MEMORY, ResourceType.CPU);
-    private final TaskManager taskManager;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
     /**
      * QueryGroupResourceTrackerService constructor
      *
-     * @param taskManager Task Manager service for keeping track of currently running tasks on the nodes
      * @param taskResourceTrackingService Service that helps track resource usage of tasks running on a node.
      */
-    public QueryGroupResourceUsageTrackerService(
-        final TaskManager taskManager,
-        final TaskResourceTrackingService taskResourceTrackingService
-    ) {
-        this.taskManager = taskManager;
+    public QueryGroupResourceUsageTrackerService(TaskResourceTrackingService taskResourceTrackingService) {
         this.taskResourceTrackingService = taskResourceTrackingService;
     }
 
