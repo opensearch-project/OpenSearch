@@ -91,6 +91,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private ValueType valueType;
 
     private enum ValueType {
+        DEFAULT("default"),
         BITMAP("bitmap");
 
         private final String type;
@@ -99,13 +100,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             this.type = type;
         }
 
-        String get() {
-            return type;
-        }
-
         static ValueType fromString(String type) {
             for (ValueType valueType : ValueType.values()) {
-                if (valueType.get().equalsIgnoreCase(type)) {
+                if (valueType.type.equalsIgnoreCase(type)) {
                     return valueType;
                 }
             }
@@ -113,8 +110,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
     }
 
-    public final TermsQueryBuilder valueType(String valueType) {
-        this.valueType = ValueType.fromString(valueType);
+    public final TermsQueryBuilder valueType(ValueType valueType) {
+        this.valueType = valueType;
         return this;
     }
 
@@ -424,7 +421,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
-        String valueType = null;
+        String valueTypeStr = ValueType.DEFAULT.type;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -462,7 +459,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else if (VALUE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    valueType = parser.text();
+                    valueTypeStr = parser.text();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -487,7 +484,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             );
         }
 
-        if (Objects.equals(valueType, ValueType.BITMAP.get())) {
+        ValueType valueType = ValueType.fromString(valueTypeStr);
+        if (valueType == ValueType.BITMAP) {
             if (values != null && values.size() == 1 && values.get(0) instanceof BytesRef) {
                 values.set(0, new BytesArray(Base64.getDecoder().decode(((BytesRef) values.get(0)).utf8ToString())));
             } else if (termsLookup == null) {
