@@ -159,7 +159,7 @@ public final class OptimizationContext {
     /**
      * Contains debug info of BKD traversal to show in profile
      */
-    static class DebugInfo {
+    public static class DebugInfo {
         private int leaf = 0; // leaf node visited
         private int inner = 0; // inner node visited
 
