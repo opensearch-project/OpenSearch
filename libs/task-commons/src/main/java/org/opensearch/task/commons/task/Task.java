@@ -293,7 +293,7 @@ public class Task {
 
         /**
          * Set Task Assignment Time
-         * @param assignedAt
+         * @param assignedAt Timestamp at which the Task was assigned to a worker
          */
         public void assignedAt(long assignedAt) {
             this.assignedAt = assignedAt;
@@ -301,7 +301,7 @@ public class Task {
 
         /**
          * Set Task Start Time
-         * @param startedAt
+         * @param startedAt Timestamp at which the Task was started execution on worker
          */
         public void startedAt(long startedAt) {
             this.startedAt = startedAt;
@@ -309,7 +309,7 @@ public class Task {
 
         /**
          * Set Task Completion Time
-         * @param completedAt
+         * @param completedAt Timestamp at which the Task was either completed/failed/cancelled
          */
         public void completedAt(long completedAt) {
             this.completedAt = completedAt;
@@ -317,7 +317,7 @@ public class Task {
 
         /**
          * Set Task Last Heartbeat Time for the task
-         * @param lastHeartbeatAt
+         * @param lastHeartbeatAt Timestamp at which last heartbeat was sent by the worker
          */
         public void lastHeartbeatAt(long lastHeartbeatAt) {
             this.lastHeartbeatAt = lastHeartbeatAt;
@@ -325,7 +325,7 @@ public class Task {
 
         /**
          * Set Task Assigned Node
-         * @param node
+         * @param node Worker Node on which the Task is to be executed
          */
         public void assignedNode(WorkerNode node) {
             this.assignedNode = node;

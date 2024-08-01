@@ -47,9 +47,14 @@ dependencies {
   api "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
   api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
   api "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
+  api "org.apache.httpcomponents.core5:httpcore5-reactive:${versions.httpcore5}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // reactor
+  api "io.projectreactor:reactor-core:${versions.reactor}"
+  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
 
   testImplementation project(":client:test")
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
@@ -93,22 +98,52 @@ testingConventions {
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  'org.conscrypt.Conscrypt',
-  'org.slf4j.impl.StaticLoggerBinder',
-  'org.slf4j.impl.StaticMDCBinder',
-  'org.slf4j.impl.StaticMarkerBinder',
-  //commons-logging optional dependencies
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'org.apache.log4j.Level',
-  'org.apache.log4j.Logger',
-  'org.apache.log4j.Priority',
-  //commons-logging provided dependencies
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener'
-)
+thirdPartyAudit {
+  ignoreMissingClasses(
+      'org.conscrypt.Conscrypt',
+      'org.slf4j.impl.StaticLoggerBinder',
+      'org.slf4j.impl.StaticMDCBinder',
+      'org.slf4j.impl.StaticMarkerBinder',
+      //commons-logging optional dependencies
+      'org.apache.avalon.framework.logger.Logger',
+      'org.apache.log.Hierarchy',
+      'org.apache.log.Logger',
+      'org.apache.log4j.Level',
+      'org.apache.log4j.Logger',
+      'org.apache.log4j.Priority',
+      //commons-logging provided dependencies
+      'javax.servlet.ServletContextEvent',
+      'javax.servlet.ServletContextListener',
+      'io.micrometer.context.ContextAccessor',
+      'io.micrometer.context.ContextRegistry',
+      'io.micrometer.context.ContextSnapshot',
+      'io.micrometer.context.ContextSnapshot$Scope',
+      'io.micrometer.context.ContextSnapshotFactory',
+      'io.micrometer.context.ContextSnapshotFactory$Builder',
+      'io.micrometer.context.ThreadLocalAccessor',
+      'io.micrometer.core.instrument.Clock',
+      'io.micrometer.core.instrument.Counter',
+      'io.micrometer.core.instrument.Counter$Builder',
+      'io.micrometer.core.instrument.DistributionSummary',
+      'io.micrometer.core.instrument.DistributionSummary$Builder',
+      'io.micrometer.core.instrument.Meter',
+      'io.micrometer.core.instrument.MeterRegistry',
+      'io.micrometer.core.instrument.Metrics',
+      'io.micrometer.core.instrument.Tag',
+      'io.micrometer.core.instrument.Tags',
+      'io.micrometer.core.instrument.Timer',
+      'io.micrometer.core.instrument.Timer$Builder',
+      'io.micrometer.core.instrument.Timer$Sample',
+      'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+      'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+      'io.micrometer.core.instrument.search.Search',
+      'reactor.blockhound.BlockHound$Builder',
+      'reactor.blockhound.integration.BlockHoundIntegration'
+   )
+   ignoreViolations(
+      'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
+   )
+}
 
 tasks.withType(JavaCompile) {
   // Suppressing '[options] target value 8 is obsolete and will be removed in a future release'
