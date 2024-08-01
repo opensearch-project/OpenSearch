@@ -169,12 +169,15 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (routing != null) {
             builder.field("routing", routing);
         }
+        if (store) {
+            builder.field("store", true);
+        }
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, id, path, routing);
+        return Objects.hash(index, id, path, routing, store);
     }
 
     @Override
@@ -189,6 +192,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return Objects.equals(index, other.index)
             && Objects.equals(id, other.id)
             && Objects.equals(path, other.path)
-            && Objects.equals(routing, other.routing);
+            && Objects.equals(routing, other.routing)
+            && Objects.equals(store, other.store);
     }
 }

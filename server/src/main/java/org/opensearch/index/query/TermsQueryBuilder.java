@@ -88,9 +88,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private final Supplier<List<?>> supplier;
 
     private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
-    private ValueType valueType;
+    private ValueType valueType = ValueType.DEFAULT;
 
-    private enum ValueType {
+    enum ValueType {
         DEFAULT("default"),
         BITMAP("bitmap");
 
@@ -110,7 +110,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
     }
 
-    public final TermsQueryBuilder valueType(ValueType valueType) {
+    TermsQueryBuilder valueType(ValueType valueType) {
         this.valueType = valueType;
         return this;
     }
@@ -410,6 +410,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             builder.field(fieldName, convertBack(values));
         }
         printBoostAndQueryName(builder);
+        if (valueType != ValueType.DEFAULT) {
+            builder.field(VALUE_TYPE_FIELD.getPreferredName(), valueType.type);
+        }
         builder.endObject();
     }
 
@@ -576,7 +579,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, values, termsLookup, supplier);
+        return Objects.hash(fieldName, values, termsLookup, supplier, valueType);
     }
 
     @Override
@@ -584,7 +587,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(values, other.values)
             && Objects.equals(termsLookup, other.termsLookup)
-            && Objects.equals(supplier, other.supplier);
+            && Objects.equals(supplier, other.supplier)
+            && Objects.equals(valueType, other.valueType);
     }
 
     @Override

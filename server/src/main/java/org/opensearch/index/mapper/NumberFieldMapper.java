@@ -833,38 +833,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 RoaringBitmap bitmap = new RoaringBitmap();
                 try {
                     bitmap.deserialize(ByteBuffer.wrap(bitmapArray.array()));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Failed to deserialize the bitmap.", e);
                 }
 
                 if (isSearchable) {
-                    return new IndexOrDocValuesQuery(generateBitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
+                    return new IndexOrDocValuesQuery(bitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
                 }
                 return new BitmapDocValuesQuery(field, bitmap);
-            }
-
-            PointInSetQuery generateBitmapIndexQuery(String field, RoaringBitmap bitmap) {
-                final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
-                return new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
-
-                    long upto;
-
-                    @Override
-                    public BytesRef next() {
-                        upto = bitmap.nextValue((int) upto);
-                        if (upto == -1) {
-                            return null;
-                        }
-                        IntPoint.encodeDimension((int) upto, encoded.bytes, 0);
-                        upto++;
-                        return encoded;
-                    }
-                }) {
-                    @Override
-                    protected String toString(byte[] value) {
-                        return "";
-                    }
-                };
             }
 
             @Override
@@ -1463,6 +1439,31 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return new MatchNoDocsQuery();
             }
             return builder.apply(l, u);
+        }
+
+        static PointInSetQuery bitmapIndexQuery(String field, RoaringBitmap bitmap) {
+            final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
+            return new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
+
+                long upto;
+
+                @Override
+                public BytesRef next() {
+                    upto = bitmap.nextValue((int) upto);
+                    if (upto == -1) {
+                        return null;
+                    }
+                    IntPoint.encodeDimension((int) upto, encoded.bytes, 0);
+                    upto++;
+                    return encoded;
+                }
+            }) {
+                @Override
+                protected String toString(byte[] value) {
+                    assert value.length == Integer.BYTES;
+                    return Integer.toString(IntPoint.decodeDimension(value, 0));
+                }
+            };
         }
     }
 

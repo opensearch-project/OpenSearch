@@ -62,6 +62,7 @@ import org.opensearch.common.Numbers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -73,17 +74,21 @@ import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
+
+import org.roaringbitmap.RoaringBitmap;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -142,6 +147,21 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ft.termsQuery(Arrays.asList(1.0, 2.1), null)
         );
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
+    }
+
+    public void testBitmapQuery() {
+        RoaringBitmap r = new RoaringBitmap();
+        r.add(111);
+        r.add(333);
+        byte[] array = new byte[r.serializedSizeInBytes()];
+        r.serialize(ByteBuffer.wrap(array));
+        BytesArray bitmap = new BytesArray(array);
+
+        NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
+        assertEquals(
+            new IndexOrDocValuesQuery(NumberType.bitmapIndexQuery("field", r), new BitmapDocValuesQuery("field", r)),
+            ft.bitmapQuery(bitmap)
+        );
     }
 
     public void testByteTermQueryWithDecimalPart() {
