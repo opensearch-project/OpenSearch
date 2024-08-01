@@ -6,11 +6,10 @@
 # - Verify document count
 # - Search rangeQuery and regexpQuery
 # - Delete indices when connection is teardown
-
-"Mappings and Supported queries":
+setup:
   - skip:
-      version: " - 2.16.99"
-      reason: "fixed in 2.17.0"
+      version: " - 2.15.99"
+      reason: "fixed in 2.16.0"
 
   # Create indices with constant_keyword field type
   - do:
@@ -63,6 +62,23 @@
       indices.refresh:
         index: [test, test1]
 
+---
+# Delete Index when connection is teardown
+teardown:
+  - skip:
+      version: " - 2.15.99"
+      reason: "fixed in 2.16.0"
+
+  - do:
+      indices.delete:
+        index: test,test1
+
+---
+"Mappings":
+  - skip:
+      version: " - 2.15.99"
+      reason: "fixed in 2.16.0"
+
   # Check mapping
   - do:
       indices.get_mapping:
@@ -96,6 +112,12 @@
 
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.genre: "d3efault" }
+
+---
+"Queries":
+  - skip:
+      version: " - 2.16.99"
+      reason: "fixed in 2.17.0"
 
   # Test rangeQuery
   - do:
@@ -313,8 +335,3 @@
         }
 
   - length: { hits.hits: 0 }
-
-  # Delete Index when connection is teardown
-  - do:
-      indices.delete:
-        index: test,test1
