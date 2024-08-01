@@ -153,6 +153,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15056")
     public void testCreateCloneIndexLowPriorityRateLimit() {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         int numPrimaryShards = 1;
