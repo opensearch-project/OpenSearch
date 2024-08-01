@@ -54,6 +54,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.mapper.NumericPointEncoder;
 import org.opensearch.search.optimization.filterrewrite.Ranges;
+import org.opensearch.search.optimization.filterrewrite.TreeTraversal;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -141,16 +142,15 @@ public class BKDTreeMultiRangesTraverseBenchmark {
     public Map<Integer, List<Integer>> multiRangeTraverseTree(treeState state) throws Exception {
         Map<Integer, List<Integer>> mockIDCollect = new HashMap<>();
 
-        BiConsumer<Integer, List<Integer>> collectRangeIDs = (activeIndex, docIDs) -> {
+        TreeTraversal.RangeAwareIntersectVisitor treeVisitor = new TreeTraversal.DocCollectRangeAwareIntersectVisitor(state.pointTree, state.ranges, state.maxNumNonZeroRanges, (activeIndex, docID) -> {
             if (mockIDCollect.containsKey(activeIndex)) {
-                mockIDCollect.get(activeIndex).addAll(docIDs);
+                mockIDCollect.get(activeIndex).add(docID);
             } else {
-                mockIDCollect.put(activeIndex, docIDs);
+                mockIDCollect.put(activeIndex, List.of(docID));
             }
-        };
+        });
 
-        multiRangesTraverse(state.pointTree, state.ranges, collectRangeIDs, state.maxNumNonZeroRanges);
-
+        multiRangesTraverse(treeVisitor);
         return mockIDCollect;
     }
 }

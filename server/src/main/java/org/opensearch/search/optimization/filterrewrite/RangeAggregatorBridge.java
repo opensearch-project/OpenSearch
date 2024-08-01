@@ -20,7 +20,6 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.List;
 
 import static org.opensearch.search.optimization.filterrewrite.TreeTraversal.multiRangesTraverse;
 
@@ -77,22 +76,26 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
 
     @Override
     public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, final LeafBucketCollector sub) throws IOException {
+        TreeTraversal.RangeAwareIntersectVisitor treeVisitor;
+        if (sub != null) {
+            treeVisitor = new TreeTraversal.DocCollectRangeAwareIntersectVisitor(values.getPointTree(), optimizationContext.getRanges(), Integer.MAX_VALUE, (activeIndex, docID) -> {
+                long ord = bucketOrdProducer().apply(activeIndex);
 
-
-        BiConsumer<Integer, List<Integer>> collectRangeIDs = (activeIndex, docIDs) -> {
-            long ord = bucketOrdProducer().apply(activeIndex);
-            incrementDocCount.accept(ord, (long) docIDs.size());
-
-            try {
-                for (int docID : docIDs) {
+                try {
+                    incrementDocCount.accept(ord, (long) 1);
                     sub.collect(docID, activeIndex);
+                } catch ( IOException ioe) {
+                    throw new RuntimeException(ioe);
                 }
-            } catch ( IOException ioe) {
-                throw new RuntimeException(ioe);
-            }
-        };
+            });
+        } else {
+            treeVisitor = new TreeTraversal.DocCountRangeAwareIntersectVisitor(values.getPointTree(), optimizationContext.getRanges(), Integer.MAX_VALUE, (activeIndex, docCount) -> {
+                long ord = bucketOrdProducer().apply(activeIndex);
+                incrementDocCount.accept(ord, (long) docCount);
+            });
+        }
 
-        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), collectRangeIDs, Integer.MAX_VALUE));
+         optimizationContext.consumeDebugInfo(multiRangesTraverse(treeVisitor));
     }
 
     /**

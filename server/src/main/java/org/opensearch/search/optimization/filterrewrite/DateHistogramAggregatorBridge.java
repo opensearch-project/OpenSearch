@@ -126,25 +126,31 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
 
     @Override
     public void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, final LeafBucketCollector sub) throws IOException {
-        int size = getSize();
-
         DateFieldMapper.DateFieldType fieldType = getFieldType();
-        BiConsumer<Integer, List<Integer>> collectRangeIDs = (activeIndex, docIDs) -> {
-            long rangeStart = LongPoint.decodeDimension(optimizationContext.getRanges().lowers[activeIndex], 0);
-            rangeStart = fieldType.convertNanosToMillis(rangeStart);
-            long ord = getBucketOrd(bucketOrdProducer().apply(rangeStart));
-            incrementDocCount.accept(ord, (long) docIDs.size());
+        TreeTraversal.RangeAwareIntersectVisitor treeVisitor;
+        if (sub != null) {
+            treeVisitor = new TreeTraversal.DocCollectRangeAwareIntersectVisitor(values.getPointTree(), optimizationContext.getRanges(), getSize(), (activeIndex, docID) -> {
+                long rangeStart = LongPoint.decodeDimension(optimizationContext.getRanges().lowers[activeIndex], 0);
+                rangeStart = fieldType.convertNanosToMillis(rangeStart);
+                long ord = getBucketOrd(bucketOrdProducer().apply(rangeStart));
 
-            try {
-                for (int docID : docIDs) {
-                    sub.collect(docID, ord);
+                try {
+                    incrementDocCount.accept(ord, (long) 1);
+                    sub.collect(docID, activeIndex);
+                } catch ( IOException ioe) {
+                    throw new RuntimeException(ioe);
                 }
-            } catch ( IOException ioe) {
-                throw new RuntimeException(ioe);
-            }
-        };
+            });
+        } else {
+            treeVisitor = new TreeTraversal.DocCountRangeAwareIntersectVisitor(values.getPointTree(), optimizationContext.getRanges(), getSize(), (activeIndex, docCount) -> {
+                long rangeStart = LongPoint.decodeDimension(optimizationContext.getRanges().lowers[activeIndex], 0);
+                rangeStart = fieldType.convertNanosToMillis(rangeStart);
+                long ord = getBucketOrd(bucketOrdProducer().apply(rangeStart));
+                incrementDocCount.accept(ord, (long) docCount);
+            });
+        }
 
-        optimizationContext.consumeDebugInfo(multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), collectRangeIDs, size));
+        optimizationContext.consumeDebugInfo(multiRangesTraverse(treeVisitor));
     }
 
     protected static long getBucketOrd(long bucketOrd) {

@@ -173,7 +173,7 @@ public final class TreeTraversal {
      * 1.) activeIndex for range in which document(s) reside
      * 2.) total documents counted
      */
-    private static abstract class DocCountRangeAwareIntersectVisitor extends RangeAwareIntersectVisitor {
+    public static class DocCountRangeAwareIntersectVisitor extends RangeAwareIntersectVisitor {
         BiConsumer<Integer, Integer> countDocs;
 
         public DocCountRangeAwareIntersectVisitor(
@@ -220,7 +220,7 @@ public final class TreeTraversal {
      * 1.) activeIndex for range in which document(s) reside
      * 2.) document id to collect
      */
-    private static abstract class DocCollectRangeAwareIntersectVisitor extends RangeAwareIntersectVisitor {
+    public static class DocCollectRangeAwareIntersectVisitor extends RangeAwareIntersectVisitor {
         BiConsumer<Integer, Integer> collectDocs;
 
         public DocCollectRangeAwareIntersectVisitor(
