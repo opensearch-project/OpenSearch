@@ -11,13 +11,11 @@ package org.opensearch.search.query_group;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 
 /**
  * Main class to declare the QueryGroup feature related settings
  */
 public class QueryGroupServiceSettings {
-    private static final Long DEFAULT_RUN_INTERVAL_MILLIS = 1000l;
     private static final Double DEFAULT_NODE_LEVEL_MEMORY_REJECTION_THRESHOLD = 0.8;
     private static final Double DEFAULT_NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = 0.9;
     private static final Double DEFAULT_NODE_LEVEL_CPU_REJECTION_THRESHOLD = 0.8;
@@ -27,32 +25,17 @@ public class QueryGroupServiceSettings {
     public static final double NODE_LEVEL_CPU_CANCELLATION_THRESHOLD_MAX_VALUE = 0.95;
     public static final double NODE_LEVEL_CPU_REJECTION_THRESHOLD_MAX_VALUE = 0.9;
 
-    private TimeValue runIntervalMillis;
     private Double nodeLevelMemoryCancellationThreshold;
     private Double nodeLevelMemoryRejectionThreshold;
     private Double nodeLevelCpuCancellationThreshold;
     private Double nodeLevelCpuRejectionThreshold;
-    /**
-     * Setting name for the run interval of QueryGroup service
-     */
-    public static final String SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME = "query_group.service.run_interval_millis";
-    /**
-     * Setting to control the run interval of QueryGroup service
-     */
-    private static final Setting<Long> QUERY_GROUP_RUN_INTERVAL_SETTING = Setting.longSetting(
-        SERVICE_RUN_INTERVAL_MILLIS_SETTING_NAME,
-        DEFAULT_RUN_INTERVAL_MILLIS,
-        1,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
 
     /**
-     * Setting name for node level memory rejection threshold for QueryGroup service
+     * Setting name for node level memory based rejection threshold for QueryGroup service
      */
     public static final String NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME = "query_group.node.memory_rejection_threshold";
     /**
-     * Setting to control the memory rejection threshold
+     * Setting to control the memory based rejection threshold
      */
     public static final Setting<Double> NODE_LEVEL_MEMORY_REJECTION_THRESHOLD = Setting.doubleSetting(
         NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME,
@@ -61,11 +44,11 @@ public class QueryGroupServiceSettings {
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level cpu rejection threshold for QueryGroup service
+     * Setting name for node level cpu based rejection threshold for QueryGroup service
      */
     public static final String NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME = "query_group.node.cpu_rejection_threshold";
     /**
-     * Setting to control the cpu rejection threshold
+     * Setting to control the cpu based rejection threshold
      */
     public static final Setting<Double> NODE_LEVEL_CPU_REJECTION_THRESHOLD = Setting.doubleSetting(
         NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME,
@@ -74,11 +57,11 @@ public class QueryGroupServiceSettings {
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level memory cancellation threshold for QueryGroup service
+     * Setting name for node level memory based cancellation threshold for QueryGroup service
      */
     public static final String NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME = "query_group.node.memory_cancellation_threshold";
     /**
-     * Setting to control the memory cancellation threshold
+     * Setting to control the memory based cancellation threshold
      */
     public static final Setting<Double> NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD = Setting.doubleSetting(
         NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME,
@@ -87,11 +70,11 @@ public class QueryGroupServiceSettings {
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level cpu cancellation threshold for QueryGroup service
+     * Setting name for node level cpu based cancellation threshold for QueryGroup service
      */
     public static final String NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME = "query_group.node.cpu_cancellation_threshold";
     /**
-     * Setting to control the cpu cancellation threshold
+     * Setting to control the cpu based cancellation threshold
      */
     public static final Setting<Double> NODE_LEVEL_CPU_CANCELLATION_THRESHOLD = Setting.doubleSetting(
         NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME,
@@ -106,7 +89,6 @@ public class QueryGroupServiceSettings {
      * @param clusterSettings - QueryGroup cluster settings
      */
     public QueryGroupServiceSettings(Settings settings, ClusterSettings clusterSettings) {
-        runIntervalMillis = new TimeValue(QUERY_GROUP_RUN_INTERVAL_SETTING.get(settings));
         nodeLevelMemoryCancellationThreshold = NODE_LEVEL_MEMORY_CANCELLATION_THRESHOLD.get(settings);
         nodeLevelMemoryRejectionThreshold = NODE_LEVEL_MEMORY_REJECTION_THRESHOLD.get(settings);
         nodeLevelCpuCancellationThreshold = NODE_LEVEL_CPU_CANCELLATION_THRESHOLD.get(settings);
@@ -132,24 +114,16 @@ public class QueryGroupServiceSettings {
     }
 
     /**
-     * Method to get runInterval for QueryGroup service
-     * @return runInterval in milliseconds for QueryGroup service
-     */
-    public TimeValue getRunIntervalMillis() {
-        return runIntervalMillis;
-    }
-
-    /**
-     * Method to get the node level memory cancellation threshold
-     * @return current node level memory cancellation threshold
+     * Method to get the node level memory based cancellation threshold
+     * @return current node level memory based cancellation threshold
      */
     public Double getNodeLevelMemoryCancellationThreshold() {
         return nodeLevelMemoryCancellationThreshold;
     }
 
     /**
-     * Method to set the node level memory cancellation threshold
-     * @param nodeLevelMemoryCancellationThreshold sets the new node level memory cancellation threshold
+     * Method to set the node level memory based cancellation threshold
+     * @param nodeLevelMemoryCancellationThreshold sets the new node level memory based cancellation threshold
      * @throws IllegalArgumentException if the value is &gt; 0.95 and cancellation &lt; rejection threshold
      */
     public void setNodeLevelMemoryCancellationThreshold(Double nodeLevelMemoryCancellationThreshold) {
@@ -170,16 +144,16 @@ public class QueryGroupServiceSettings {
     }
 
     /**
-     * Method to get the node level cpu cancellation threshold
-     * @return current node level cpu cancellation threshold
+     * Method to get the node level cpu based cancellation threshold
+     * @return current node level cpu based cancellation threshold
      */
     public Double getNodeLevelCpuCancellationThreshold() {
         return nodeLevelCpuCancellationThreshold;
     }
 
     /**
-     * Method to set the node level cpu cancellation threshold
-     * @param nodeLevelCpuCancellationThreshold sets the new node level cpu cancellation threshold
+     * Method to set the node level cpu based cancellation threshold
+     * @param nodeLevelCpuCancellationThreshold sets the new node level cpu based cancellation threshold
      * @throws IllegalArgumentException if the value is &gt; 0.95 and cancellation &lt; rejection threshold
      */
     public void setNodeLevelCpuCancellationThreshold(Double nodeLevelCpuCancellationThreshold) {
@@ -200,16 +174,16 @@ public class QueryGroupServiceSettings {
     }
 
     /**
-     * Method to get the memory node level rejection threshold
-     * @return the current memory node level rejection threshold
+     * Method to get the memory based node level rejection threshold
+     * @return the current memory based node level rejection threshold
      */
     public Double getNodeLevelMemoryRejectionThreshold() {
         return nodeLevelMemoryRejectionThreshold;
     }
 
     /**
-     * Method to set the node level memory rejection threshold
-     * @param nodeLevelMemoryRejectionThreshold sets the new memory rejection threshold
+     * Method to set the node level memory based rejection threshold
+     * @param nodeLevelMemoryRejectionThreshold sets the new memory based rejection threshold
      * @throws IllegalArgumentException if rejection &gt; 0.90 and rejection &lt; cancellation threshold
      */
     public void setNodeLevelMemoryRejectionThreshold(Double nodeLevelMemoryRejectionThreshold) {
@@ -230,16 +204,16 @@ public class QueryGroupServiceSettings {
     }
 
     /**
-     * Method to get the cpu node level rejection threshold
-     * @return the current cpu node level rejection threshold
+     * Method to get the cpu based node level rejection threshold
+     * @return the current cpu based node level rejection threshold
      */
     public Double getNodeLevelCpuRejectionThreshold() {
         return nodeLevelCpuRejectionThreshold;
     }
 
     /**
-     * Method to set the node level cpu rejection threshold
-     * @param nodeLevelCpuRejectionThreshold sets the new cpu rejection threshold
+     * Method to set the node level cpu based rejection threshold
+     * @param nodeLevelCpuRejectionThreshold sets the new cpu based rejection threshold
      * @throws IllegalArgumentException if rejection &gt; 0.90 and rejection &lt; cancellation threshold
      */
     public void setNodeLevelCpuRejectionThreshold(Double nodeLevelCpuRejectionThreshold) {
