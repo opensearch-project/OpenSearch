@@ -1,17 +1,18 @@
 ---
 # The test setup includes:
-# - Create index with constant_keyword field type
+# - Create two indices with constant_keyword field type
+# - Index documents
 # - Check mapping
-# - Index two example documents
-# - Search
-# - Delete Index when connection is teardown
+# - Verify document count
+# - Search rangeQuery and regexpQuery
+# - Delete indices when connection is teardown
 
 "Mappings and Supported queries":
   - skip:
-      version: " - 2.15.99"
-      reason: "fixed in 2.16.0"
+      version: " - 2.16.99"
+      reason: "fixed in 2.17.0"
 
-  # Create index with constant_keyword field type
+  # Create indices with constant_keyword field type
   - do:
       indices.create:
         index: test
@@ -22,7 +23,17 @@
                 type: "constant_keyword"
                 value: "1"
 
-  # Index document
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              genre:
+                type: "constant_keyword"
+                value: "d3efault"
+
+  # Index documents to test integer and string are both ok.
   - do:
       index:
         index: test
@@ -39,9 +50,18 @@
           "genre": 1
         }
 
+  # Index documents to test query.
+  - do:
+      index:
+        index: test1
+        id: 1
+        body: {
+          "genre": "d3efault"
+        }
+
   - do:
       indices.refresh:
-        index: test
+        index: [test, test1]
 
   # Check mapping
   - do:
@@ -54,6 +74,7 @@
   # Verify Document Count
   - do:
       search:
+        index: test
         body: {
           query: {
             match_all: {}
@@ -64,7 +85,236 @@
   - match: { hits.hits.0._source.genre: "1" }
   - match: { hits.hits.1._source.genre: 1 }
 
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            match_all: {}
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: "d3efault" }
+
+  # Test rangeQuery
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            range: {
+              genre: {
+                gte: "d3efault"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            range: {
+              genre: {
+                from: "d3efault",
+                "include_lower": "false"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            range: {
+              genre: {
+                lte: "d3efault"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            range: {
+              genre: {
+                to: "d3efault",
+                include_upper: "false"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            range: {
+              genre: {
+                from: "d3efault",
+                to: "d3efault",
+                include_lower: "false",
+                include_upper: "true"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            range: {
+              genre: {
+                from: "d3efault",
+                to: "d3efault",
+                include_lower: "true",
+                include_upper: "false"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            range: {
+              genre: {
+                from: null,
+                to: null
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            range: {
+              genre: {
+                from: "d3efault",
+                to: "d3efault",
+                include_lower: "true",
+                include_upper: "true"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            range: {
+              genre: {
+                from: "d3efaul",
+                to: "d3efault1",
+                include_lower: "true",
+                include_upper: "true"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  # Test regexpQuery
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            regexp: {
+              "genre":"d.*"
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            regexp: {
+              "genre":"d\\defau[a-z]?t"
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            regexp: {
+              "genre":"d\\defa[a-z]?t"
+            }
+          }
+        }
+
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            regexp: {
+              "genre":"d3efa[a-z]{3,3}"
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            regexp: {
+              "genre":"d3efa[a-z]{4,4}"
+            }
+          }
+        }
+
+  - length: { hits.hits: 0 }
+
   # Delete Index when connection is teardown
   - do:
       indices.delete:
-        index: test
+        index: test,test1
