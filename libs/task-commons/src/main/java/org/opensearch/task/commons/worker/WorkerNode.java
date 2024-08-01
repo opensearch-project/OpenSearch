@@ -8,6 +8,8 @@
 
 package org.opensearch.task.commons.worker;
 
+import java.util.Objects;
+
 /**
  * Represents a worker node in the fleet
  */
@@ -77,5 +79,18 @@ public class WorkerNode {
      */
     public String getIp() {
         return ip;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WorkerNode that = (WorkerNode) o;
+        return Objects.equals(id, that.id) && Objects.equals(name, that.name) && Objects.equals(ip, that.ip);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, name, ip);
     }
 }

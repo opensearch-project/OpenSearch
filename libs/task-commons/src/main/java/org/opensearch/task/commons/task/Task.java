@@ -262,7 +262,7 @@ public class Task {
          * @param task Task to build from
          * @return Task.Builder
          */
-        public Builder builder(Task task) {
+        public static Builder builder(Task task) {
             Builder builder = new Builder(
                 task.getTaskId(),
                 task.getTaskStatus(),
@@ -273,6 +273,7 @@ public class Task {
             builder.assignedAt(task.getAssignedAt());
             builder.startedAt(task.getStartedAt());
             builder.completedAt(task.getCompletedAt());
+            builder.lastHeartbeatAt(task.getLastHeartbeatAt());
             builder.assignedNode(task.getAssignedNode());
             return builder;
         }
@@ -286,7 +287,7 @@ public class Task {
          * @param createdAt Task Creation Time
          * @return Task.Builder
          */
-        public Builder builder(TaskId taskId, TaskStatus taskStatus, TaskParams params, TaskType taskType, long createdAt) {
+        public static Builder builder(TaskId taskId, TaskStatus taskStatus, TaskParams params, TaskType taskType, long createdAt) {
             return new Builder(taskId, taskStatus, params, taskType, createdAt);
         }
 
