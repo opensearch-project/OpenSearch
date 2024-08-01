@@ -136,7 +136,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
 
                 try {
                     incrementDocCount.accept(ord, (long) 1);
-                    sub.collect(docID, activeIndex);
+                    sub.collect(docID, ord);
                 } catch ( IOException ioe) {
                     throw new RuntimeException(ioe);
                 }

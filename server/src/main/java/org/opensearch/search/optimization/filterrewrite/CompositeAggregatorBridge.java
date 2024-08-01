@@ -55,7 +55,7 @@ public abstract class CompositeAggregatorBridge extends DateHistogramAggregatorB
 
                 try {
                     incrementDocCount.accept(ord, (long) 1);
-                    sub.collect(docID, activeIndex);
+                    sub.collect(docID, ord);
                 } catch ( IOException ioe) {
                     throw new RuntimeException(ioe);
                 }
