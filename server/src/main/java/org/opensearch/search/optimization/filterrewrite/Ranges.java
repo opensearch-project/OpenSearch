@@ -14,11 +14,11 @@ import org.apache.lucene.util.ArrayUtil;
  * Internal ranges representation for the filter rewrite optimization
  */
 public final class Ranges {
+    static ArrayUtil.ByteArrayComparator comparator;
     byte[][] lowers; // inclusive
     byte[][] uppers; // exclusive
     int size;
     int byteLen;
-    static ArrayUtil.ByteArrayComparator comparator;
 
     public Ranges(byte[][] lowers, byte[][] uppers) {
         this.lowers = lowers;
@@ -28,6 +28,13 @@ public final class Ranges {
         this.byteLen = lowers[0].length;
         comparator = ArrayUtil.getUnsignedComparator(byteLen);
     }
+
+    public static int compareByteValue(byte[] value1, byte[] value2) { return comparator.compare(value1, 0, value2, 0); }
+    public static boolean withinLowerBound(byte[] value, byte[] lowerBound) { return compareByteValue(value, lowerBound) >= 0; }
+    public static boolean withinUpperBound(byte[] value, byte[] upperBound) { return compareByteValue(value, upperBound) < 0; }
+    public boolean withinLowerBound(byte[] value, int idx) { return Ranges.withinLowerBound(value, lowers[idx]); }
+    public boolean withinUpperBound(byte[] value, int idx) { return Ranges.withinUpperBound(value, uppers[idx]); }
+    public boolean withinRange(byte[] value, int idx) { return withinLowerBound(value, idx) && withinUpperBound(value, idx); }
 
     public int firstRangeIndex(byte[] globalMin, byte[] globalMax) {
         if (compareByteValue(lowers[0], globalMax) > 0) {
@@ -41,17 +48,5 @@ public final class Ranges {
             }
         }
         return i;
-    }
-
-    public static int compareByteValue(byte[] value1, byte[] value2) {
-        return comparator.compare(value1, 0, value2, 0);
-    }
-
-    public static boolean withinLowerBound(byte[] value, byte[] lowerBound) {
-        return compareByteValue(value, lowerBound) >= 0;
-    }
-
-    public static boolean withinUpperBound(byte[] value, byte[] upperBound) {
-        return compareByteValue(value, upperBound) < 0;
     }
 }
