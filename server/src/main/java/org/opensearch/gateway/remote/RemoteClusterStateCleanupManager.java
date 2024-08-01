@@ -179,6 +179,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
             Set<String> staleGlobalMetadataPaths = new HashSet<>();
             Set<String> staleEphemeralAttributePaths = new HashSet<>();
             Set<String> staleIndexRoutingPaths = new HashSet<>();
+            Set<String> staleIndexRoutingDiffPaths = new HashSet<>();
             activeManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = remoteManifestManager.fetchRemoteClusterMetadataManifest(
                     clusterName,
@@ -222,6 +223,10 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                     clusterMetadataManifest.getIndicesRouting()
                         .forEach(uploadedIndicesRouting -> filesToKeep.add(uploadedIndicesRouting.getUploadedFilename()));
                 }
+                if (clusterMetadataManifest.getDiffManifest() != null
+                    && clusterMetadataManifest.getDiffManifest().getIndicesRoutingDiffPath() != null) {
+                    filesToKeep.add(clusterMetadataManifest.getDiffManifest().getIndicesRoutingDiffPath());
+                }
             });
             staleManifestBlobMetadata.forEach(blobMetadata -> {
                 ClusterMetadataManifest clusterMetadataManifest = remoteManifestManager.fetchRemoteClusterMetadataManifest(
@@ -263,6 +268,18 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                             );
                         }
                     });
+                }
+                if (clusterMetadataManifest.getDiffManifest() != null
+                    && clusterMetadataManifest.getDiffManifest().getIndicesRoutingDiffPath() != null) {
+                    if (!filesToKeep.contains(clusterMetadataManifest.getDiffManifest().getIndicesRoutingDiffPath())) {
+                        staleIndexRoutingDiffPaths.add(clusterMetadataManifest.getDiffManifest().getIndicesRoutingDiffPath());
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "Indices routing diff paths in stale manifest: {}",
+                                clusterMetadataManifest.getDiffManifest().getIndicesRoutingDiffPath()
+                            )
+                        );
+                    }
                 }
 
                 clusterMetadataManifest.getIndices().forEach(uploadedIndexMetadata -> {
@@ -315,6 +332,15 @@ public class RemoteClusterStateCleanupManager implements Closeable {
                     e
                 );
                 remoteStateStats.indexRoutingFilesCleanupAttemptFailed();
+            }
+            try {
+                remoteRoutingTableService.deleteStaleIndexRoutingDiffPaths(new ArrayList<>(staleIndexRoutingDiffPaths));
+            } catch (IOException e) {
+                logger.error(
+                    () -> new ParameterizedMessage("Error while deleting stale index routing diff files {}", staleIndexRoutingDiffPaths),
+                    e
+                );
+                remoteStateStats.indicesRoutingDiffFileCleanupAttemptFailed();
             }
         } catch (IllegalStateException e) {
             logger.error("Error while fetching Remote Cluster Metadata manifests", e);
