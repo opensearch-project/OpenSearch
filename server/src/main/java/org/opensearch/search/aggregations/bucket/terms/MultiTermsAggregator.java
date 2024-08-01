@@ -397,7 +397,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
                     int doc
                 ) throws IOException {
                     if (collectedValues.size() == index) {
-                        // Avoid performing a deep copy of the composite key by inlining
+                        // Avoid performing a deep copy of the composite key by inlining.
                         long bucketOrd = bucketOrds.add(owningBucketOrd, scratch.bytes().toBytesRef());
                         if (collectBucketOrds) {
                             if (bucketOrd < 0) {
