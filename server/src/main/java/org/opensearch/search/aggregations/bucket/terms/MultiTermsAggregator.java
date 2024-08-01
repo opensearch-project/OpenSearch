@@ -365,6 +365,13 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             }
             boolean collectBucketOrds = aggregator != null && sub != null;
             return new MultiTermsValuesSourceCollector() {
+
+                /**
+                 * This method does the following : <br>
+                 * <li>Fetches the values of every field present in the doc List<List<TermValue<?>>> via @{@link InternalValuesSourceCollector}</li>
+                 * <li>Generates Composite keys from the fetched values for all fields present in the aggregation.</li>
+                 * <li>Adds every composite key to the @{@link BytesKeyedBucketOrds} and Optionally collects them via @{@link BucketsAggregator#collectBucket(LeafBucketCollector, int, long)}</li>
+                 */
                 @Override
                 public void apply(int doc, long owningBucketOrd) throws IOException {
                     // TODO A new list creation can be avoided for every doc.
@@ -379,7 +386,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
 
                 /**
                  * This generates and collects all Composite keys in their buckets by performing a cartesian product <br>
-                 * of all the values of all fields for the given doc recursively.
+                 * of all the values in all the fields ( used in agg ) for the given doc recursively.
                  * @param collectedValues : Values of all fields present in the aggregation for the @doc
                  * @param index : Points to the field being added to generate the composite key
                  */
