@@ -251,7 +251,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             throw new OpenSearchException("boom", ex);
         }
         Map<String, DocumentField> documentField = new HashMap<>();
-        documentField.put(termsPath, new DocumentField(termsPath, randomTerms));
+        List<Object> nonNullTerms = new ArrayList<>();
+        for (Object obj : randomTerms) {
+            if (obj != null) {
+                nonNullTerms.add(obj);
+            }
+        }
+        documentField.put(termsPath, new DocumentField(termsPath, nonNullTerms));
         return new GetResponse(
             new GetResult(getRequest.index(), getRequest.id(), 0, 1, 0, true, new BytesArray(json), documentField, null)
         );
