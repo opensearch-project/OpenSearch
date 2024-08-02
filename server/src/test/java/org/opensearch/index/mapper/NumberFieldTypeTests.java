@@ -149,21 +149,6 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
     }
 
-    public void testBitmapQuery() {
-        RoaringBitmap r = new RoaringBitmap();
-        r.add(111);
-        r.add(333);
-        byte[] array = new byte[r.serializedSizeInBytes()];
-        r.serialize(ByteBuffer.wrap(array));
-        BytesArray bitmap = new BytesArray(array);
-
-        NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertEquals(
-            new IndexOrDocValuesQuery(NumberType.bitmapIndexQuery("field", r), new BitmapDocValuesQuery("field", r)),
-            ft.bitmapQuery(bitmap)
-        );
-    }
-
     public void testByteTermQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE);
         assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
@@ -966,5 +951,34 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             .fieldType();
         assertEquals(Collections.singletonList(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(Collections.singletonList(2.71f), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testBitmapQuery() throws IOException {
+        RoaringBitmap r = new RoaringBitmap();
+        byte[] array = new byte[r.serializedSizeInBytes()];
+        r.serialize(ByteBuffer.wrap(array));
+        BytesArray bitmap = new BytesArray(array);
+
+        NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
+        assertEquals(
+            new IndexOrDocValuesQuery(NumberType.bitmapIndexQuery("field", r), new BitmapDocValuesQuery("field", r)),
+            ft.bitmapQuery(bitmap)
+        );
+
+        ft = new NumberFieldType("field", NumberType.INTEGER, false, false, true, true, null, Collections.emptyMap());
+        assertEquals(new BitmapDocValuesQuery("field", r), ft.bitmapQuery(bitmap));
+
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig());
+        DirectoryReader reader = DirectoryReader.open(w);
+        assertEquals(new MatchNoDocsQuery(), ft.bitmapQuery(bitmap).rewrite(newSearcher(reader)));
+        reader.close();
+        w.close();
+        dir.close();
+
+        NumberType type = randomValueOtherThan(NumberType.INTEGER, () -> randomFrom(NumberType.values()));
+        ft = new NumberFieldMapper.NumberFieldType("field", type);
+        NumberFieldType finalFt = ft;
+        assertThrows(IllegalArgumentException.class, () -> finalFt.bitmapQuery(bitmap));
     }
 }

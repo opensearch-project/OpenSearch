@@ -90,7 +90,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
     private ValueType valueType = ValueType.DEFAULT;
 
-    enum ValueType {
+    /**
+     * Terms query may accept different types of value
+     * <p>
+     * This flag is used to decide how to parse the value and build query upon later
+     */
+    public enum ValueType {
         DEFAULT("default"),
         BITMAP("bitmap");
 
@@ -110,7 +115,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
     }
 
-    TermsQueryBuilder valueType(ValueType valueType) {
+    public TermsQueryBuilder valueType(ValueType valueType) {
         this.valueType = valueType;
         return this;
     }
