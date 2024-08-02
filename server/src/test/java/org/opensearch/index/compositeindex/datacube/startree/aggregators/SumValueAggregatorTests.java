@@ -17,8 +17,8 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
     private SumValueAggregator aggregator;
 
     @Override
-    public ValueAggregator getValueAggregator() {
-        aggregator = new SumValueAggregator(StarTreeNumericType.LONG);
+    public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
+        aggregator = new SumValueAggregator(starTreeNumericType);
         return aggregator;
     }
 
@@ -27,7 +27,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         Long randomLong = randomLong();
         aggregator.getInitialAggregatedValue(randomDouble);
         assertEquals(
-            randomDouble + randomLong.doubleValue(),
+            randomDouble + aggregator.toStarTreeNumericTypeValue(randomLong),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
             0.0
         );
@@ -39,7 +39,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
         aggregator.getInitialAggregatedValue(randomDouble1);
         assertEquals(randomDouble1, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, null), 0.0);
         assertEquals(
-            randomDouble1 + randomLong.doubleValue(),
+            randomDouble1 + aggregator.toStarTreeNumericTypeValue(randomLong),
             aggregator.mergeAggregatedValueAndSegmentValue(randomDouble1, randomLong),
             0.0
         );
@@ -48,7 +48,11 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
     public void testMergeAggregatedValueAndSegmentValue_nullInitialDocValue() {
         Long randomLong = randomLong();
         aggregator.getInitialAggregatedValue(null);
-        assertEquals(randomLong.doubleValue(), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
+        assertEquals(
+            aggregator.toStarTreeNumericTypeValue(randomLong),
+            aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong),
+            0.0
+        );
     }
 
     public void testMergeAggregatedValues() {
@@ -75,7 +79,7 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
 
     public void testToStarTreeNumericTypeValue() {
         long randomLong = randomLong();
-        assertEquals(NumericUtils.sortableLongToDouble(randomLong), aggregator.toStarTreeNumericTypeValue(randomLong), 0.0);
+        assertEquals(aggregator.toStarTreeNumericTypeValue(randomLong), aggregator.toStarTreeNumericTypeValue(randomLong), 0.0);
     }
 
     public void testIdentityMetricValue() {
@@ -89,6 +93,6 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
 
     @Override
     public StarTreeNumericType getValueAggregatorType() {
-        return StarTreeNumericType.DOUBLE;
+        return aggregator.getAggregatedValueType();
     }
 }

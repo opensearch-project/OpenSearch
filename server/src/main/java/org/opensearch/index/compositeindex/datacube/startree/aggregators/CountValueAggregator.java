@@ -16,7 +16,8 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  * @opensearch.experimental
  */
 public class CountValueAggregator implements ValueAggregator<Long> {
-    public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
+
+    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
     public static final long DEFAULT_INITIAL_VALUE = 1L;
     private final StarTreeNumericType starTreeNumericType;
 
@@ -88,6 +89,7 @@ public class CountValueAggregator implements ValueAggregator<Long> {
 
     @Override
     public Long getIdentityMetricValue() {
+        // in present aggregations, if the metric behind count is missing, we treat it as 0
         return 0L;
     }
 }

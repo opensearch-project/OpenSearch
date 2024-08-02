@@ -13,15 +13,27 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 public class MinValueAggregatorTests extends AbstractValueAggregatorTests {
-    private final MinValueAggregator aggregator = new MinValueAggregator(StarTreeNumericType.LONG);
+    private MinValueAggregator aggregator;
 
     public void testMergeAggregatedValueAndSegmentValue() {
-        Long randomLong = randomNonNegativeLong();
+        Long randomLong = randomLong();
         double randomDouble = randomDouble();
-        assertEquals(randomLong.doubleValue(), aggregator.mergeAggregatedValueAndSegmentValue(Double.MAX_VALUE, randomLong), 0.0);
-        assertEquals(randomLong.doubleValue(), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
+        assertEquals(
+            Math.min(aggregator.toStarTreeNumericTypeValue(randomLong), randomDouble),
+            aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
+            0.0
+        );
+        assertEquals(
+            aggregator.toStarTreeNumericTypeValue(randomLong),
+            aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong),
+            0.0
+        );
         assertEquals(randomDouble, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, null), 0.0);
-        assertEquals(2.0, aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L), 0.0);
+        assertEquals(
+            Math.min(2.0, aggregator.toStarTreeNumericTypeValue(3L)),
+            aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L),
+            0.0
+        );
     }
 
     public void testMergeAggregatedValues() {
@@ -57,7 +69,8 @@ public class MinValueAggregatorTests extends AbstractValueAggregatorTests {
     }
 
     @Override
-    public ValueAggregator getValueAggregator() {
+    public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
+        aggregator = new MinValueAggregator(starTreeNumericType);
         return aggregator;
     }
 
@@ -68,6 +81,6 @@ public class MinValueAggregatorTests extends AbstractValueAggregatorTests {
 
     @Override
     public StarTreeNumericType getValueAggregatorType() {
-        return StarTreeNumericType.DOUBLE;
+        return aggregator.getAggregatedValueType();
     }
 }

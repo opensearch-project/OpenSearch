@@ -18,7 +18,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  */
 public class MaxValueAggregator implements ValueAggregator<Double> {
 
-    public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
+    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
     private final StarTreeNumericType starTreeNumericType;
 
     public MaxValueAggregator(StarTreeNumericType starTreeNumericType) {

@@ -19,7 +19,7 @@ import org.opensearch.search.aggregations.metrics.CompensatedSum;
  */
 public class SumValueAggregator implements ValueAggregator<Double> {
 
-    public static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
+    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
     private double sum = 0;
     private double compensation = 0;
     private CompensatedSum kahanSummation = new CompensatedSum(0, 0);
@@ -117,7 +117,7 @@ public class SumValueAggregator implements ValueAggregator<Double> {
             if (value == null) {
                 return getIdentityMetricValue();
             }
-            return VALUE_AGGREGATOR_TYPE.getDoubleValue(value);
+            return starTreeNumericType.getDoubleValue(value);
         } catch (Exception e) {
             throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }
@@ -125,6 +125,7 @@ public class SumValueAggregator implements ValueAggregator<Double> {
 
     @Override
     public Double getIdentityMetricValue() {
+        // in present aggregations, if the metric behind sum is missing, we treat it as 0
         return 0D;
     }
 }

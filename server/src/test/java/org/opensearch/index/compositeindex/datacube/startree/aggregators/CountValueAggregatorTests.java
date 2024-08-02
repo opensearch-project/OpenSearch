@@ -13,7 +13,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
 
 public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
 
-    private final CountValueAggregator aggregator = new CountValueAggregator(StarTreeNumericType.LONG);
+    private CountValueAggregator aggregator;
 
     public void testMergeAggregatedValueAndSegmentValue() {
         long randomLong = randomLong();
@@ -54,7 +54,8 @@ public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
     }
 
     @Override
-    public ValueAggregator getValueAggregator() {
+    public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
+        aggregator = new CountValueAggregator(starTreeNumericType);
         return aggregator;
     }
 
@@ -65,6 +66,6 @@ public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
 
     @Override
     public StarTreeNumericType getValueAggregatorType() {
-        return StarTreeNumericType.LONG;
+        return aggregator.getAggregatedValueType();
     }
 }

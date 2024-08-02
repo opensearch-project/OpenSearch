@@ -14,15 +14,27 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
 
 public class MaxValueAggregatorTests extends AbstractValueAggregatorTests {
 
-    private final MaxValueAggregator aggregator = new MaxValueAggregator(StarTreeNumericType.LONG);
+    private MaxValueAggregator aggregator;
 
     public void testMergeAggregatedValueAndSegmentValue() {
-        Long randomLong = randomNonNegativeLong();
+        Long randomLong = randomLong();
         double randomDouble = randomDouble();
-        assertEquals(randomLong.doubleValue(), aggregator.mergeAggregatedValueAndSegmentValue(Double.MIN_VALUE, randomLong), 0.0);
-        assertEquals(randomLong.doubleValue(), aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong), 0.0);
+        assertEquals(
+            Math.max(aggregator.toStarTreeNumericTypeValue(randomLong), randomDouble),
+            aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, randomLong),
+            0.0
+        );
+        assertEquals(
+            aggregator.toStarTreeNumericTypeValue(randomLong),
+            aggregator.mergeAggregatedValueAndSegmentValue(null, randomLong),
+            0.0
+        );
         assertEquals(randomDouble, aggregator.mergeAggregatedValueAndSegmentValue(randomDouble, null), 0.0);
-        assertEquals(3.0, aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L), 0.0);
+        assertEquals(
+            Math.max(2.0, aggregator.toStarTreeNumericTypeValue(3L)),
+            aggregator.mergeAggregatedValueAndSegmentValue(2.0, 3L),
+            0.0
+        );
     }
 
     public void testMergeAggregatedValues() {
@@ -58,7 +70,8 @@ public class MaxValueAggregatorTests extends AbstractValueAggregatorTests {
     }
 
     @Override
-    public ValueAggregator getValueAggregator() {
+    public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
+        aggregator = new MaxValueAggregator(starTreeNumericType);
         return aggregator;
     }
 
@@ -69,6 +82,6 @@ public class MaxValueAggregatorTests extends AbstractValueAggregatorTests {
 
     @Override
     public StarTreeNumericType getValueAggregatorType() {
-        return StarTreeNumericType.DOUBLE;
+        return aggregator.getAggregatedValueType();
     }
 }

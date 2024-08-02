@@ -19,10 +19,10 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
 
     @Before
     public void setup() {
-        aggregator = getValueAggregator();
+        aggregator = getValueAggregator(randomFrom(StarTreeNumericType.values()));
     }
 
-    public abstract ValueAggregator getValueAggregator();
+    public abstract ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType);
 
     public abstract MetricStat getMetricStat();
 
@@ -53,11 +53,14 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testGetInitialAggregatedValueForSegmentDocValue() {
-        Long randomLong = randomLong();
+        long randomLong = randomLong();
         if (aggregator instanceof CountValueAggregator) {
             assertEquals(CountValueAggregator.DEFAULT_INITIAL_VALUE, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong()));
         } else {
-            assertEquals(randomLong.doubleValue(), aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong));
+            assertEquals(
+                aggregator.toStarTreeNumericTypeValue(randomLong),
+                aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong)
+            );
         }
     }
 }
