@@ -7,7 +7,6 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
@@ -16,97 +15,14 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  *
  * @opensearch.experimental
  */
-public class MinValueAggregator implements ValueAggregator<Double> {
-
-    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
-    private final StarTreeNumericType starTreeNumericType;
+public class MinValueAggregator extends MinMaxValueAggregator {
 
     public MinValueAggregator(StarTreeNumericType starTreeNumericType) {
-        this.starTreeNumericType = starTreeNumericType;
+        super(MetricStat.MIN, starTreeNumericType);
     }
 
     @Override
-    public MetricStat getAggregationType() {
-        return MetricStat.MIN;
-    }
-
-    @Override
-    public StarTreeNumericType getAggregatedValueType() {
-        return VALUE_AGGREGATOR_TYPE;
-    }
-
-    @Override
-    public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue) {
-        if (segmentDocValue == null) {
-            return getIdentityMetricValue();
-        }
-        return starTreeNumericType.getDoubleValue(segmentDocValue);
-    }
-
-    @Override
-    public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue) {
-        if (segmentDocValue == null && value != null) {
-            return value;
-        } else if (segmentDocValue != null && value == null) {
-            return starTreeNumericType.getDoubleValue(segmentDocValue);
-        } else if (segmentDocValue == null) {
-            return getIdentityMetricValue();
-        }
-        return Math.min(value, starTreeNumericType.getDoubleValue(segmentDocValue));
-    }
-
-    @Override
-    public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
-        if (value == null && aggregatedValue != null) {
-            return aggregatedValue;
-        } else if (value != null && aggregatedValue == null) {
-            return value;
-        } else if (value == null) {
-            return getIdentityMetricValue();
-        }
-        return Math.min(value, aggregatedValue);
-    }
-
-    @Override
-    public Double getInitialAggregatedValue(Double value) {
-        if (value == null) {
-            return getIdentityMetricValue();
-        }
-        return value;
-    }
-
-    @Override
-    public int getMaxAggregatedValueByteSize() {
-        return Double.BYTES;
-    }
-
-    @Override
-    public Long toLongValue(Double value) {
-        try {
-            if (value == null) {
-                return null;
-            }
-            return NumericUtils.doubleToSortableLong(value);
-        } catch (Exception e) {
-            throw new IllegalStateException("Cannot convert " + value + " to sortable long", e);
-        }
-    }
-
-    @Override
-    public Double toStarTreeNumericTypeValue(Long value) {
-        try {
-            if (value == null) {
-                return getIdentityMetricValue();
-            }
-            return starTreeNumericType.getDoubleValue(value);
-        } catch (Exception e) {
-            throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
-        }
-    }
-
-    @Override
-    public Double getIdentityMetricValue() {
-        // in present aggregations, if the metric behind min is missing, we treat it as null
-        return null;
+    public Double performValueAggregation(Double aggregatedValue, Double segmentDocValue) {
+        return Math.min(aggregatedValue, segmentDocValue);
     }
 }
