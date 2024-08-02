@@ -1,12 +1,8 @@
+# The test setup includes two parts:
+# part1: test mapping and indexing
+# part2: test query
 ---
-# The test setup includes:
-# - Create two indices with constant_keyword field type
-# - Index documents
-# - Check mapping
-# - Verify document count
-# - Search rangeQuery and regexpQuery
-# - Delete indices when connection is teardown
-setup:
+"Mappings and Indexing":
   - skip:
       version: " - 2.15.99"
       reason: "fixed in 2.16.0"
@@ -21,16 +17,6 @@ setup:
               genre:
                 type: "constant_keyword"
                 value: "1"
-
-  - do:
-      indices.create:
-        index: test1
-        body:
-          mappings:
-            properties:
-              genre:
-                type: "constant_keyword"
-                value: "d3efault"
 
   # Index documents to test integer and string are both ok.
   - do:
@@ -49,35 +35,10 @@ setup:
           "genre": 1
         }
 
-  # Index documents to test query.
-  - do:
-      index:
-        index: test1
-        id: 1
-        body: {
-          "genre": "d3efault"
-        }
-
+  # Refresh
   - do:
       indices.refresh:
-        index: [test, test1]
-
----
-# Delete Index when connection is teardown
-teardown:
-  - skip:
-      version: " - 2.15.99"
-      reason: "fixed in 2.16.0"
-
-  - do:
-      indices.delete:
-        index: test,test1
-
----
-"Mappings":
-  - skip:
-      version: " - 2.15.99"
-      reason: "fixed in 2.16.0"
+        index: test
 
   # Check mapping
   - do:
@@ -101,23 +62,40 @@ teardown:
   - match: { hits.hits.0._source.genre: "1" }
   - match: { hits.hits.1._source.genre: 1 }
 
+  # Delete Index when connection is teardown
   - do:
-      search:
-        index: test1
-        body: {
-          query: {
-            match_all: {}
-          }
-        }
-
-  - length: { hits.hits: 1 }
-  - match: { hits.hits.0._source.genre: "d3efault" }
+      indices.delete:
+        index: test
 
 ---
 "Queries":
   - skip:
       version: " - 2.16.99"
       reason: "fixed in 2.17.0"
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              genre:
+                type: "constant_keyword"
+                value: "d3efault"
+
+  # Index documents to test query.
+  - do:
+      index:
+        index: test1
+        id: 1
+        body: {
+          "genre": "d3efault"
+        }
+
+  # Refresh
+  - do:
+      indices.refresh:
+        index: test1
 
   # Test rangeQuery
   - do:
@@ -335,3 +313,20 @@ teardown:
         }
 
   - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test1
+        body: {
+          query: {
+            match_all: {}
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.genre: "d3efault" }
+
+  # Delete Index when connection is teardown
+  - do:
+      indices.delete:
+        index: test1
