@@ -10,9 +10,7 @@ package org.opensearch.wlm.tracker;
 
 import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
-import org.opensearch.wlm.QueryGroupHelper;
 import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 
@@ -25,7 +23,7 @@ import java.util.stream.Collectors;
 /**
  * This class tracks resource usage per QueryGroup
  */
-public class QueryGroupResourceUsageTrackerService implements TaskManager.TaskEventListeners {
+public class QueryGroupResourceUsageTrackerService {
 
     public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.MEMORY, ResourceType.CPU);
     private final TaskResourceTrackingService taskResourceTrackingService;
@@ -55,7 +53,7 @@ public class QueryGroupResourceUsageTrackerService implements TaskManager.TaskEv
             for (ResourceType resourceType : TRACKED_RESOURCES) {
                 long queryGroupResourceUsage = 0;
                 for (Task task : queryGroupEntry.getValue()) {
-                    queryGroupResourceUsage += QueryGroupHelper.getResourceUsage(resourceType, task);
+                    queryGroupResourceUsage += resourceType.getResourceUsage(task);
                 }
                 queryGroupUsage.put(resourceType, queryGroupResourceUsage);
             }
@@ -82,12 +80,4 @@ public class QueryGroupResourceUsageTrackerService implements TaskManager.TaskEv
             .map(QueryGroupTask.class::cast)
             .collect(Collectors.groupingBy(QueryGroupTask::getQueryGroupId, Collectors.mapping(task -> (Task) task, Collectors.toList())));
     }
-
-    /**
-     * Handles the completion of a task.
-     *
-     * @param task The completed task
-     */
-    @Override
-    public void onTaskCompleted(Task task) {}
 }
