@@ -115,6 +115,8 @@ public final class ThreadContext implements Writeable {
 
     public static final String PLUGIN_EXECUTION_CONTEXT = "_plugin_execution_context";
 
+    private static final Set<String> FORBIDDEN_HEADRES = Set.of(PLUGIN_EXECUTION_CONTEXT);
+
     // thread context permissions
 
     private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("markAsSystemContext");
@@ -214,7 +216,7 @@ public final class ThreadContext implements Writeable {
             threadContextStruct = threadContextStruct.putTransient(transientHeaders);
         }
 
-        threadContextStruct = threadContextStruct.putRequest(PLUGIN_EXECUTION_CONTEXT, pluginClass.getCanonicalName());
+        threadContextStruct = threadContextStruct.putPluginExecutionContext(pluginClass);
         threadLocal.set(threadContextStruct);
 
         return () -> {
@@ -505,6 +507,9 @@ public final class ThreadContext implements Writeable {
      * Puts a header into the context
      */
     public void putHeader(String key, String value) {
+        if (FORBIDDEN_HEADRES.contains(key)) {
+            throw new IllegalArgumentException("Cannot set forbidden header: " + key);
+        }
         threadLocal.set(threadLocal.get().putRequest(key, value));
     }
 
@@ -754,6 +759,14 @@ public final class ThreadContext implements Writeable {
             this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), false);
         }
 
+        private ThreadContextStruct putPluginExecutionContext(Class<?> pluginClass) {
+            Map<String, String> newRequestHeaders = new HashMap<>(this.requestHeaders);
+            if (newRequestHeaders.putIfAbsent(PLUGIN_EXECUTION_CONTEXT, pluginClass.getCanonicalName()) != null) {
+                throw new IllegalArgumentException("value for key [" + PLUGIN_EXECUTION_CONTEXT + "] already present");
+            }
+            return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders, persistentHeaders, isSystemContext);
+        }
+
         private ThreadContextStruct putRequest(String key, String value) {
             Map<String, String> newRequestHeaders = new HashMap<>(this.requestHeaders);
             putSingleHeader(key, value, newRequestHeaders);
@@ -761,6 +774,9 @@ public final class ThreadContext implements Writeable {
         }
 
         private static <T> void putSingleHeader(String key, T value, Map<String, T> newHeaders) {
+            if (FORBIDDEN_HEADRES.contains(key)) {
+                throw new IllegalArgumentException("Cannot set forbidden header: " + key);
+            }
             if (newHeaders.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }

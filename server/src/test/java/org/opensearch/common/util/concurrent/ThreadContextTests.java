@@ -830,6 +830,11 @@ public class ThreadContextTests extends OpenSearchTestCase {
             () -> threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom"))
         );
         assertEquals("value for key [foo] already present", e.getMessage());
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> threadContext.putHeader(Collections.<String, String>singletonMap("_plugin_execution_context", "org.foo.bar.pluginA"))
+        );
+        assertEquals("Cannot set forbidden header: _plugin_execution_context", e2.getMessage());
     }
 
     /**
