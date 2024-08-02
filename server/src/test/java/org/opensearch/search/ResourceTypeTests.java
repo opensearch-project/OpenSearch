@@ -23,7 +23,7 @@ public class ResourceTypeTests extends TestCase {
     public void testFromName() {
         assertSame(ResourceType.CPU, ResourceType.fromName("cpu"));
         assertThrows(IllegalArgumentException.class, () -> { ResourceType.fromName("CPU"); });
-        assertThrows(IllegalArgumentException.class, () -> { ResourceType.fromName("CPU"); });
+        assertThrows(IllegalArgumentException.class, () -> { ResourceType.fromName("Cpu"); });
 
         assertSame(ResourceType.MEMORY, ResourceType.fromName("memory"));
         assertThrows(IllegalArgumentException.class, () -> { ResourceType.fromName("Memory"); });
