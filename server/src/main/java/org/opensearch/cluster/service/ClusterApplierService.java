@@ -61,6 +61,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.util.concurrent.ThreadContextAccess;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.metrics.tags.Tags;
@@ -395,7 +396,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
-        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             final UpdateTask updateTask = new UpdateTask(
                 config.priority(),
                 source,
