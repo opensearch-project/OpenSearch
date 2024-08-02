@@ -449,23 +449,4 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         Query luceneQuery = rewritten.toQuery(context);
         assertTrue(luceneQuery instanceof IndexOrDocValuesQuery);
     }
-
-    // public void testTermsLookupBitmapFail() throws IOException {
-    //     RoaringBitmap bitmap = new RoaringBitmap();
-    //     bitmap.add(111);
-    //     bitmap.add(333);
-    //     byte[] array = new byte[bitmap.serializedSizeInBytes()];
-    //     bitmap.serialize(ByteBuffer.wrap(array));
-    //     randomTerms = List.of(new BytesArray(array), new BytesArray(array)); // this will be fetched back by terms lookup
-    //
-    //     TermsQueryBuilder query = new TermsQueryBuilder(INT_FIELD_NAME, randomTermsLookup().store(true)).valueType(
-    //         TermsQueryBuilder.ValueType.BITMAP
-    //     );
-    //     QueryShardContext context = createShardContext();
-    //     IllegalArgumentException e = expectThrows(
-    //         IllegalArgumentException.class,
-    //         () -> rewriteQuery(query, new QueryShardContext(context))
-    //     );
-    //     assertEquals("Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap.", e.getMessage());
-    // }
 }
