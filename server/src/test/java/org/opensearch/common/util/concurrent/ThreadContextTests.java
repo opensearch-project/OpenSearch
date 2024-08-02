@@ -584,7 +584,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
 
                 @Override
                 public void onAfter() {
-                    assertTrue(threadContext.isSystemContext());
+                    assertEquals(systemContext, threadContext.isSystemContext());
                     assertEquals("bar", threadContext.getHeader("foo"));
                     assertEquals("bar_transient", threadContext.getTransient("foo"));
                     assertNotNull(threadContext.getTransient("failure"));
@@ -595,7 +595,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertTrue(threadContext.isSystemContext());
+                    assertEquals(systemContext, threadContext.isSystemContext());
                     assertEquals("exception from doRun", e.getMessage());
                     assertEquals("bar", threadContext.getHeader("foo"));
                     assertEquals("bar_transient", threadContext.getTransient("foo"));
@@ -605,7 +605,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
-                    assertTrue(threadContext.isSystemContext());
+                    assertEquals(systemContext, threadContext.isSystemContext());
                     assertEquals("bar", threadContext.getHeader("foo"));
                     assertEquals("bar_transient", threadContext.getTransient("foo"));
                     assertFalse(threadContext.isDefaultContext());
