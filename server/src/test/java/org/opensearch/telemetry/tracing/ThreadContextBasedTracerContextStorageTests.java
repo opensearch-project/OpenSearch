@@ -45,7 +45,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
 public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestCase {
     private Tracer tracer;
     private ThreadPool threadPool;
-    private ContextSwitcher contextSwitcher;
     private ThreadContext threadContext;
     private TracerContextStorage<String, Span> threadContextStorage;
     private ExecutorService executorService;
