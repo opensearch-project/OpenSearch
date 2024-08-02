@@ -15,6 +15,7 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
+import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -95,6 +96,25 @@ public class TransferManager {
     @SuppressWarnings("removal")
     private static FileCachedIndexInput createIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request) {
         try {
+            // This local file cache is ref counted and may not strictly enforce capacity.
+            // In our use case capacity directly relates to disk usage.
+            // If we find available capacity is exceeded deny further BlobFetchRequests.
+            if (fileCache.usage().usage() > fileCache.capacity()) {
+                System.gc();
+
+                // File reference cleanup is not immediate and is processed
+                // in a dedicated thread.
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+
+                fileCache.prune();
+                if (fileCache.usage().usage() > fileCache.capacity()) {
+                    throw new IOException("Local file cache capacity exceeded - BlobFetchRequest failed: " + request.getFilePath());
+                }
+            }
             if (Files.exists(request.getFilePath()) == false) {
                 logger.trace("Fetching from Remote in createIndexInput of Transfer Manager");
                 try (
