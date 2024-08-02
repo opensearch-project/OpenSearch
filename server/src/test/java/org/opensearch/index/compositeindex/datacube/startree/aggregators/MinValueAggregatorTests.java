@@ -15,6 +15,10 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
 public class MinValueAggregatorTests extends AbstractValueAggregatorTests {
     private MinValueAggregator aggregator;
 
+    public MinValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
+        super(starTreeNumericType);
+    }
+
     public void testMergeAggregatedValueAndSegmentValue() {
         Long randomLong = randomLong();
         double randomDouble = randomDouble();

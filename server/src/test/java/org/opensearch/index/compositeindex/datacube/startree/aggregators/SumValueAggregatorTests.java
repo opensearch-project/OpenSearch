@@ -16,6 +16,10 @@ public class SumValueAggregatorTests extends AbstractValueAggregatorTests {
 
     private SumValueAggregator aggregator;
 
+    public SumValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
+        super(starTreeNumericType);
+    }
+
     @Override
     public ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType) {
         aggregator = new SumValueAggregator(starTreeNumericType);

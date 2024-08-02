@@ -8,18 +8,38 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
 public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
 
     private ValueAggregator aggregator;
+    private StarTreeNumericType starTreeNumericType;
+
+    public AbstractValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
+        this.starTreeNumericType = starTreeNumericType;
+    }
 
     @Before
     public void setup() {
-        aggregator = getValueAggregator(randomFrom(StarTreeNumericType.values()));
+        aggregator = getValueAggregator(starTreeNumericType);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        List<Object[]> parameters = new ArrayList<>();
+        for (StarTreeNumericType starTreeNumericType : StarTreeNumericType.values()) {
+            parameters.add(new Object[] { starTreeNumericType });
+        }
+        return parameters;
     }
 
     public abstract ValueAggregator getValueAggregator(StarTreeNumericType starTreeNumericType);

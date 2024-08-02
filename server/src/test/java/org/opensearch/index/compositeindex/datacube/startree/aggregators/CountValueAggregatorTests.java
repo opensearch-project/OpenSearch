@@ -15,6 +15,10 @@ public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
 
     private CountValueAggregator aggregator;
 
+    public CountValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
+        super(starTreeNumericType);
+    }
+
     public void testMergeAggregatedValueAndSegmentValue() {
         long randomLong = randomLong();
         assertEquals(randomLong + 1, aggregator.mergeAggregatedValueAndSegmentValue(randomLong, 3L), 0.0);

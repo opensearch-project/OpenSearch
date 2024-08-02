@@ -16,6 +16,10 @@ public class MaxValueAggregatorTests extends AbstractValueAggregatorTests {
 
     private MaxValueAggregator aggregator;
 
+    public MaxValueAggregatorTests(StarTreeNumericType starTreeNumericType) {
+        super(starTreeNumericType);
+    }
+
     public void testMergeAggregatedValueAndSegmentValue() {
         Long randomLong = randomLong();
         double randomDouble = randomDouble();
