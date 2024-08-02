@@ -48,6 +48,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -58,6 +59,7 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
@@ -68,9 +70,11 @@ import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.query.BitmapDocValuesQuery;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,6 +85,8 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import org.roaringbitmap.RoaringBitmap;
 
 /**
  * A {@link FieldMapper} for numeric types: byte, short, int, long, float and double.
@@ -823,6 +829,21 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
+            public Query bitmapQuery(String field, BytesArray bitmapArray, boolean isSearchable) {
+                RoaringBitmap bitmap = new RoaringBitmap();
+                try {
+                    bitmap.deserialize(ByteBuffer.wrap(bitmapArray.array()));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("Failed to deserialize the bitmap.", e);
+                }
+
+                if (isSearchable) {
+                    return new IndexOrDocValuesQuery(bitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
+                }
+                return new BitmapDocValuesQuery(field, bitmap);
+            }
+
+            @Override
             public Query rangeQuery(
                 String field,
                 Object lowerTerm,
@@ -1174,6 +1195,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public abstract Query termsQuery(String field, List<Object> values, boolean hasDocValues, boolean isSearchable);
 
+        public Query bitmapQuery(String field, BytesArray bitmap, boolean isSearchable) {
+            throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support bitmap queries");
+        }
+
         public abstract Query rangeQuery(
             String field,
             Object lowerTerm,
@@ -1415,6 +1440,31 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
             return builder.apply(l, u);
         }
+
+        static PointInSetQuery bitmapIndexQuery(String field, RoaringBitmap bitmap) {
+            final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
+            return new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
+
+                long upto;
+
+                @Override
+                public BytesRef next() {
+                    upto = bitmap.nextValue((int) upto);
+                    if (upto == -1) {
+                        return null;
+                    }
+                    IntPoint.encodeDimension((int) upto, encoded.bytes, 0);
+                    upto++;
+                    return encoded;
+                }
+            }) {
+                @Override
+                protected String toString(byte[] value) {
+                    assert value.length == Integer.BYTES;
+                    return Integer.toString(IntPoint.decodeDimension(value, 0));
+                }
+            };
+        }
     }
 
     /**
@@ -1493,6 +1543,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 query = new BoostQuery(query, boost());
             }
             return query;
+        }
+
+        public Query bitmapQuery(BytesArray bitmap) {
+            return type.bitmapQuery(name(), bitmap, isSearchable());
         }
 
         @Override

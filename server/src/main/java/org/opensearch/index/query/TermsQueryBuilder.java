@@ -37,14 +37,17 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -53,6 +56,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.indices.TermsLookup;
 
 import java.io.IOException;
@@ -60,6 +64,7 @@ import java.nio.CharBuffer;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -81,6 +86,34 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private final List<?> values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
+
+    private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
+    private ValueType valueType = ValueType.DEFAULT;
+
+    enum ValueType {
+        DEFAULT("default"),
+        BITMAP("bitmap");
+
+        private final String type;
+
+        ValueType(String type) {
+            this.type = type;
+        }
+
+        static ValueType fromString(String type) {
+            for (ValueType valueType : ValueType.values()) {
+                if (valueType.type.equalsIgnoreCase(type)) {
+                    return valueType;
+                }
+            }
+            throw new IllegalArgumentException(type + " is not valid " + VALUE_TYPE_FIELD);
+        }
+    }
+
+    TermsQueryBuilder valueType(ValueType valueType) {
+        this.valueType = valueType;
+        return this;
+    }
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
         this(fieldName, null, termsLookup);
@@ -187,11 +220,21 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.supplier = null;
     }
 
+    private TermsQueryBuilder(String fieldName, Iterable<?> values, ValueType valueType) {
+        this(fieldName, values);
+        this.valueType = valueType;
+    }
+
     private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier) {
         this.fieldName = fieldName;
         this.values = null;
         this.termsLookup = null;
         this.supplier = supplier;
+    }
+
+    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, ValueType valueType) {
+        this(fieldName, supplier);
+        this.valueType = valueType;
     }
 
     /**
@@ -203,6 +246,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         termsLookup = in.readOptionalWriteable(TermsLookup::new);
         values = (List<?>) in.readGenericValue();
         this.supplier = null;
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
+            valueType = in.readEnum(ValueType.class);
+        }
     }
 
     @Override
@@ -213,6 +259,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
         out.writeGenericValue(values);
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
+            out.writeEnum(valueType);
+        }
     }
 
     public String fieldName() {
@@ -360,6 +409,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             builder.field(fieldName, convertBack(values));
         }
         printBoostAndQueryName(builder);
+        if (valueType != ValueType.DEFAULT) {
+            builder.field(VALUE_TYPE_FIELD.getPreferredName(), valueType.type);
+        }
         builder.endObject();
     }
 
@@ -370,6 +422,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+
+        String valueTypeStr = ValueType.DEFAULT.type;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -406,6 +460,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     boost = parser.floatValue();
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
+                } else if (VALUE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    valueTypeStr = parser.text();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -430,7 +486,18 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             );
         }
 
-        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
+        ValueType valueType = ValueType.fromString(valueTypeStr);
+        if (valueType == ValueType.BITMAP) {
+            if (values != null && values.size() == 1 && values.get(0) instanceof BytesRef) {
+                values.set(0, new BytesArray(Base64.getDecoder().decode(((BytesRef) values.get(0)).utf8ToString())));
+            } else if (termsLookup == null) {
+                throw new IllegalArgumentException(
+                    "Invalid value for bitmap type: Expected a single-element array with a base64 encoded serialized bitmap."
+                );
+            }
+        }
+
+        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).valueType(valueType);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
@@ -473,17 +540,37 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
+        if (valueType == ValueType.BITMAP) {
+            if (values.size() == 1 && values.get(0) instanceof BytesArray) {
+                if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+                    return ((NumberFieldMapper.NumberFieldType) fieldType).bitmapQuery((BytesArray) values.get(0));
+                }
+            }
+        }
         return fieldType.termsQuery(values, context);
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
+        if (termsLookup.store()) {
+            getRequest.storedFields(termsLookup.path());
+        }
         client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
-            if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
-                List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
-                terms.addAll(extractedValues);
+            if (termsLookup.store()) {
+                List<Object> values = getResponse.getField(termsLookup.path()).getValues();
+                if (values.size() != 1 && valueType == ValueType.BITMAP) {
+                    throw new IllegalArgumentException(
+                        "Invalid value for bitmap type: Expected a single base64 encoded serialized bitmap."
+                    );
+                }
+                terms.addAll(values);
+            } else {
+                if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
+                    List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
+                    terms.addAll(extractedValues);
+                }
             }
             delegatedListener.onResponse(terms);
         }));
@@ -491,7 +578,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, values, termsLookup, supplier);
+        return Objects.hash(fieldName, values, termsLookup, supplier, valueType);
     }
 
     @Override
@@ -499,20 +586,21 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(values, other.values)
             && Objects.equals(termsLookup, other.termsLookup)
-            && Objects.equals(supplier, other.supplier);
+            && Objects.equals(supplier, other.supplier)
+            && Objects.equals(valueType, other.valueType);
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (supplier != null) {
-            return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
+            return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get(), valueType);
         } else if (this.termsLookup != null) {
             SetOnce<List<?>> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, ActionListener.map(listener, list -> {
                 supplier.set(list);
                 return null;
             })));
-            return new TermsQueryBuilder(this.fieldName, supplier::get);
+            return new TermsQueryBuilder(this.fieldName, supplier::get, valueType);
         }
 
         if (values == null || values.isEmpty()) {
