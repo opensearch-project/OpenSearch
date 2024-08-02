@@ -23,6 +23,7 @@ import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeDocum
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,7 +41,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     private static final Logger logger = LogManager.getLogger(OffHeapStarTreeBuilder.class);
     private final StarTreeDocsFileManager starTreeDocumentFileManager;
     private final SegmentDocsFileManager segmentDocumentFileManager;
-    private final StarTreeDocumentsSorter documentSorter;
 
     /**
      * Builds star tree based on star tree field configuration consisting of dimensions, metrics and star tree index
@@ -52,7 +52,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
      */
     protected OffHeapStarTreeBuilder(StarTreeField starTreeField, SegmentWriteState state, MapperService mapperService) throws IOException {
         super(starTreeField, state, mapperService);
-        documentSorter = new StarTreeDocumentsSorter();
         segmentDocumentFileManager = new SegmentDocsFileManager(state, starTreeField, metricAggregatorInfos);
         try {
             starTreeDocumentFileManager = new StarTreeDocsFileManager(state, starTreeField, metricAggregatorInfos);
@@ -176,16 +175,22 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 logger.debug("Sorted doc ids array is null");
                 return Collections.emptyIterator();
             }
-            final StarTreeDocument currentDocument = segmentDocumentFileManager.readStarTreeDocument(sortedDocIds[0], isMerge);
-
-            documentSorter.sort(sortedDocIds, -1, numDocs, index -> {
-                try {
-                    return segmentDocumentFileManager.readDimensions(sortedDocIds[index]);
-                } catch (IOException e) {
-                    throw new RuntimeException("Sort failed : ", e);
+            try {
+                StarTreeDocumentsSorter.sort(sortedDocIds, -1, numDocs, index -> {
+                    try {
+                        return segmentDocumentFileManager.readDimensions(sortedDocIds[index]);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+            } catch (UncheckedIOException ex) {
+                // Unwrap UncheckedIOException and throw as IOException
+                if (ex.getCause() != null) {
+                    throw ex.getCause();
                 }
-            });
-
+                throw ex;
+            }
+            final StarTreeDocument currentDocument = segmentDocumentFileManager.readStarTreeDocument(sortedDocIds[0], isMerge);
             // Create an iterator for aggregated documents
             return new Iterator<StarTreeDocument>() {
                 StarTreeDocument tempCurrentDocument = currentDocument;
@@ -270,7 +275,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         for (int i = 0; i < numDocs; i++) {
             sortedDocIds[i] = startDocId + i;
         }
-        documentSorter.sort(sortedDocIds, dimensionId, numDocs, index -> {
+        StarTreeDocumentsSorter.sort(sortedDocIds, dimensionId, numDocs, index -> {
             try {
                 return starTreeDocumentFileManager.readDimensions(sortedDocIds[index]);
             } catch (IOException e) {

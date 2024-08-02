@@ -743,4 +743,8 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     }
 
     abstract Iterator<StarTreeDocument> mergeStarTrees(List<StarTreeValues> starTreeValues) throws IOException;
+
+    public TreeNode getRootNode() {
+        return rootNode;
+    }
 }

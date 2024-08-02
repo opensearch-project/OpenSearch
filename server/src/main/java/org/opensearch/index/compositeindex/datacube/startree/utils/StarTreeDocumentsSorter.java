@@ -20,7 +20,12 @@ public class StarTreeDocumentsSorter {
     /**
      * Sort documents based on the dimension values off heap using intro sorter.
      */
-    public void sort(final int[] sortedDocIds, final int dimensionId, final int numDocs, final IntFunction<Long[]> dimensionsReader) {
+    public static void sort(
+        final int[] sortedDocIds,
+        final int dimensionId,
+        final int numDocs,
+        final IntFunction<Long[]> dimensionsReader
+    ) {
         new IntroSorter() {
             private Long[] dimensions;
 

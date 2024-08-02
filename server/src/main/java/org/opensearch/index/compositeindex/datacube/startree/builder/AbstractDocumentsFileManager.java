@@ -53,7 +53,7 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
         numMetrics = metricAggregatorInfos.size();
     }
 
-    private void assertDocSizeInBytes(int numBytes) {
+    private void setDocSizeInBytes(int numBytes) {
         if (docSizeInBytes == -1) {
             docSizeInBytes = numBytes;
         }
@@ -66,7 +66,7 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
     protected int writeStarTreeDocument(StarTreeDocument starTreeDocument, IndexOutput output, boolean isAggregatedDoc) throws IOException {
         int numBytes = writeDimensions(starTreeDocument, output);
         numBytes += writeMetrics(starTreeDocument, output, isAggregatedDoc);
-        assertDocSizeInBytes(numBytes);
+        setDocSizeInBytes(numBytes);
         return numBytes;
     }
 

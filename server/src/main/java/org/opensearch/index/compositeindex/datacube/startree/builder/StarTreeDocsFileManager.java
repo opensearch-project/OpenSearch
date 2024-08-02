@@ -139,6 +139,11 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
         ensureDocumentReadable(docId, true);
     }
 
+    /**
+     * Load the correct StarTreeDocuments file based on the docId
+     * "currentFileStartDocId" and "numReadableStarTreeDocuments" tracks the "start doc id" and "end doc id + 1"
+     * of the range in the current open 'star-tree.documents' file
+     */
     private void ensureDocumentReadable(int docId, boolean shouldCreateFileOutput) throws IOException {
         try {
             if (docId >= currentFileStartDocId && docId < numReadableStarTreeDocuments) {
@@ -162,12 +167,11 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
 
     /**
      * The fileToByteSizeMap is in the following format
-     * file1 == 521
-     * file2 == 780
-     * which represents that file1 contains all docs till "520".
+     * file1 == 521 [ contains docs from 0 to 520 ]
+     * file2 == 780 [ contains docs from 521 to 779 ]
      * <p>
-     * "currentFileStartDocId" tracks the "start doc id" of the range in the present 'star-tree.documents' file
-     * "numReadableStarTreeDocuments" tracks the "end doc id + 1" of the range of docs in the present file
+     * This method loads the correct 'star-tree.documents' file based on the docId
+     * and updates the "currentFileStartDocId" and "numReadableStarTreeDocuments"
      */
     private void loadStarTreeDocumentFile(int docId) throws IOException {
         int currentFileStartDocId = 0;
