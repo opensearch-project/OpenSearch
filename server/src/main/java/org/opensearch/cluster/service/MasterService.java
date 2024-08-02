@@ -61,12 +61,10 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.text.Text;
@@ -136,7 +134,6 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile TimeValue slowTaskLoggingThreshold;
 
     protected final ThreadPool threadPool;
-    protected final ContextSwitcher contextSwitcher;
 
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
@@ -172,7 +169,6 @@ public class MasterService extends AbstractLifecycleComponent {
         );
         this.stateStats = new ClusterStateStats();
         this.threadPool = threadPool;
-        this.contextSwitcher = new SystemContextSwitcher(threadPool);
         this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
@@ -1025,7 +1021,8 @@ public class MasterService extends AbstractLifecycleComponent {
         }
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
-        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
 
             List<Batcher.UpdateTask> safeTasks = tasks.entrySet()
                 .stream()

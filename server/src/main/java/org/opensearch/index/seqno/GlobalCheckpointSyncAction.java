@@ -43,8 +43,6 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -71,7 +69,6 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/global_checkpoint_sync";
-    private final ContextSwitcher contextSwitcher;
 
     @Inject
     public GlobalCheckpointSyncAction(
@@ -96,11 +93,12 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             Request::new,
             ThreadPool.Names.MANAGEMENT
         );
-        this.contextSwitcher = new SystemContextSwitcher(threadPool);
     }
 
     public void updateGlobalCheckpointForShard(final ShardId shardId) {
-        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
             execute(new Request(shardId), ActionListener.wrap(r -> {}, e -> {
                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                     logger.info(new ParameterizedMessage("{} global checkpoint sync failed", shardId), e);

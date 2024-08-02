@@ -37,12 +37,9 @@ import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.metrics.MeanMetric;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.RunOnce;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -66,8 +63,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
     private final Logger logger;
-    private final ThreadPool threadPool;
-    private final ContextSwitcher contextSwitcher;
+    private final ThreadContext threadContext;
     private final MeanMetric refreshMetric;
 
     /**
@@ -103,14 +99,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         final IntSupplier getMaxRefreshListeners,
         final Runnable forceRefresh,
         final Logger logger,
-        final ThreadPool threadPool,
+        ThreadContext threadContext,
         final MeanMetric refreshMetric
     ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
         this.logger = logger;
-        this.threadPool = threadPool;
-        this.contextSwitcher = new SystemContextSwitcher(threadPool);
+        this.threadContext = threadContext;
         this.refreshMetric = refreshMetric;
     }
 
@@ -165,9 +160,9 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
             if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
-                ThreadContext.StoredContext storedContext = threadPool.getThreadContext().newStoredContext(true);
+                ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
                 Consumer<Boolean> contextPreservingListener = forced -> {
-                    try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         storedContext.restore();
                         listener.accept(forced);
                     }

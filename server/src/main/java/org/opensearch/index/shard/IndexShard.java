@@ -4566,7 +4566,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),
             logger,
-            threadPool,
+            threadPool.getThreadContext(),
             externalRefreshMetric
         );
     }

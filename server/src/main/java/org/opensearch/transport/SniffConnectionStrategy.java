@@ -46,8 +46,6 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
@@ -151,7 +149,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private final String proxyAddress;
-    private final ContextSwitcher contextSwitcher;
 
     SniffConnectionStrategy(
         String clusterAlias,
@@ -213,7 +210,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.nodePredicate = nodePredicate;
         this.configuredSeedNodes = configuredSeedNodes;
         this.seedNodes = seedNodes;
-        this.contextSwitcher = new SystemContextSwitcher(transportService.getThreadPool());
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
@@ -350,7 +346,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                         threadContext.newRestorableContext(false),
                         new SniffClusterStateResponseHandler(connection, listener, seedNodes)
                     );
-                try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    // we stash any context here since this is an internal execution and should not leak any
+                    // existing context information.
+                    threadContext.markAsSystemContext();
                     transportService.sendRequest(
                         connection,
                         ClusterStateAction.NAME,

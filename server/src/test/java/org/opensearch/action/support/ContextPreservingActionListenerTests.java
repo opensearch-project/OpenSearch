@@ -31,13 +31,10 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.threadpool.TestThreadPool;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
@@ -47,15 +44,13 @@ import static org.hamcrest.Matchers.containsString;
 public class ContextPreservingActionListenerTests extends OpenSearchTestCase {
 
     public void testOriginalContextIsPreservedAfterOnResponse() throws IOException {
-        ThreadPool threadPool = new TestThreadPool("ContextPreservingActionListenerTests.testOriginalContextIsPreservedAfterOnResponse");
-        ThreadContext threadContext = threadPool.getThreadContext();
-        ContextSwitcher contextSwitcher = new SystemContextSwitcher(threadPool);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final boolean nonEmptyContext = randomBoolean();
         if (nonEmptyContext) {
             threadContext.putHeader("not empty", "value");
         }
         final ContextPreservingActionListener<Void> actionListener;
-        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("foo", "bar");
             final ActionListener<Void> delegate = new ActionListener<Void>() {
                 @Override
@@ -86,15 +81,13 @@ public class ContextPreservingActionListenerTests extends OpenSearchTestCase {
     }
 
     public void testOriginalContextIsPreservedAfterOnFailure() throws Exception {
-        ThreadPool threadPool = new TestThreadPool("ContextPreservingActionListenerTests.testOriginalContextIsPreservedAfterOnFailure");
-        ThreadContext threadContext = threadPool.getThreadContext();
-        ContextSwitcher contextSwitcher = new SystemContextSwitcher(threadPool);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final boolean nonEmptyContext = randomBoolean();
         if (nonEmptyContext) {
             threadContext.putHeader("not empty", "value");
         }
         final ContextPreservingActionListener<Void> actionListener;
-        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("foo", "bar");
             final ActionListener<Void> delegate = new ActionListener<Void>() {
                 @Override
@@ -127,15 +120,13 @@ public class ContextPreservingActionListenerTests extends OpenSearchTestCase {
     }
 
     public void testOriginalContextIsWhenListenerThrows() throws Exception {
-        ThreadPool threadPool = new TestThreadPool("ContextPreservingActionListenerTests.testOriginalContextIsWhenListenerThrows");
-        ThreadContext threadContext = threadPool.getThreadContext();
-        ContextSwitcher contextSwitcher = new SystemContextSwitcher(threadPool);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final boolean nonEmptyContext = randomBoolean();
         if (nonEmptyContext) {
             threadContext.putHeader("not empty", "value");
         }
         final ContextPreservingActionListener<Void> actionListener;
-        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("foo", "bar");
             final ActionListener<Void> delegate = new ActionListener<Void>() {
                 @Override
@@ -177,11 +168,9 @@ public class ContextPreservingActionListenerTests extends OpenSearchTestCase {
     }
 
     public void testToStringIncludesDelegate() {
-        ThreadPool threadPool = new TestThreadPool("ContextPreservingActionListenerTests.testToStringIncludesDelegate");
-        ThreadContext threadContext = threadPool.getThreadContext();
-        ContextSwitcher contextSwitcher = new SystemContextSwitcher(threadPool);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final ContextPreservingActionListener<Void> actionListener;
-        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             final ActionListener<Void> delegate = new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void aVoid) {}

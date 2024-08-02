@@ -40,8 +40,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.transport.NetworkExceptionHelper;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.NotifyOnceListener;
@@ -61,12 +59,10 @@ public final class OutboundHandler {
 
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
-    private final ContextSwitcher contextSwitcher;
 
     public OutboundHandler(StatsTracker statsTracker, ThreadPool threadPool) {
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
-        this.contextSwitcher = new SystemContextSwitcher(threadPool);
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
@@ -83,7 +79,7 @@ public final class OutboundHandler {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         BytesReference reference = sendContext.get();
         // stash thread context so that channel event loop is not polluted by thread context
-        try (ThreadContext.StoredContext existing = contextSwitcher.switchContext()) {
+        try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
             channel.sendMessage(reference, sendContext);
         } catch (RuntimeException ex) {
             sendContext.onFailure(ex);

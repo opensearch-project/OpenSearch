@@ -415,7 +415,6 @@ import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -438,13 +437,11 @@ public abstract class AbstractClient implements Client {
     protected final Settings settings;
     private final ThreadPool threadPool;
     private final Admin admin;
-    private final SystemContextSwitcher contextSwitcher;
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
-        this.contextSwitcher = new SystemContextSwitcher(threadPool);
         this.logger = LogManager.getLogger(this.getClass());
     }
 
@@ -2150,7 +2147,8 @@ public abstract class AbstractClient implements Client {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                try (ThreadContext.StoredContext ctx = contextSwitcher.stashAndMergeHeaders(headers)) {
+                ThreadContext threadContext = threadPool().getThreadContext();
+                try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(headers)) {
                     super.doExecute(action, request, listener);
                 }
             }

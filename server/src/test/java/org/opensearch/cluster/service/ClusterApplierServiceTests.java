@@ -51,8 +51,6 @@ import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.telemetry.metrics.Histogram;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
@@ -93,7 +91,6 @@ import static org.mockito.Mockito.when;
 public class ClusterApplierServiceTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
-    private static ContextSwitcher contextSwitcher;
     private TimedClusterApplierService clusterApplierService;
     private static MetricsRegistry metricsRegistry;
     private static Histogram applierslatencyHistogram;
@@ -102,7 +99,6 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
     @BeforeClass
     public static void createThreadPool() {
         threadPool = new TestThreadPool(ClusterApplierServiceTests.class.getName());
-        contextSwitcher = new SystemContextSwitcher(threadPool);
         metricsRegistry = mock(MetricsRegistry.class);
         applierslatencyHistogram = mock(Histogram.class);
         listenerslatencyHistogram = mock(Histogram.class);
@@ -638,7 +634,7 @@ public class ClusterApplierServiceTests extends OpenSearchTestCase {
     public void testThreadContext() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
 
-        try (ThreadContext.StoredContext ignored = contextSwitcher.switchContext()) {
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
             final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
             final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap(
                 "testResponse",

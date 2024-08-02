@@ -41,10 +41,8 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.node.Node;
@@ -65,7 +63,6 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
     private final String name;
     private final List<Runnable> pendingTasks = new ArrayList<>();
     private final Consumer<Runnable> onTaskAvailableToRun;
-    private final ContextSwitcher contextSwitcher;
     private boolean scheduledNextTask = false;
     private boolean taskInProgress = false;
     private boolean waitForPublish = false;
@@ -84,7 +81,6 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
         );
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
-        this.contextSwitcher = new SystemContextSwitcher(threadPool);
     }
 
     @Override
@@ -136,7 +132,9 @@ public class FakeThreadPoolClusterManagerService extends ClusterManagerService {
                     final Runnable task = pendingTasks.remove(taskIndex);
                     taskInProgress = true;
                     scheduledNextTask = false;
-                    try (ThreadContext.StoredContext ignored = contextSwitcher.switchContext()) {
+                    final ThreadContext threadContext = threadPool.getThreadContext();
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        threadContext.markAsSystemContext();
                         task.run();
                     }
                     if (waitForPublish == false) {

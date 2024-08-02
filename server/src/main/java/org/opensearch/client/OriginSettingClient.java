@@ -35,20 +35,16 @@ package org.opensearch.client;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ContextPreservingActionListener;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 
 import java.util.function.Supplier;
 
-import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
-
 /**
  * A {@linkplain Client} that sends requests with the
- * origin set to a particular value and calls its {@linkplain ActionListener}
- * in its original
+ * {@link ThreadContext#stashWithOrigin origin} set to a particular
+ * value and calls its {@linkplain ActionListener} in its original
  * {@link ThreadContext}.
  *
  * @opensearch.internal
@@ -56,12 +52,10 @@ import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_
 public final class OriginSettingClient extends FilterClient {
 
     private final String origin;
-    private final ContextSwitcher contextSwitcher;
 
     public OriginSettingClient(Client in, String origin) {
         super(in);
         this.origin = origin;
-        this.contextSwitcher = new SystemContextSwitcher(in().threadPool());
     }
 
     @Override
@@ -71,8 +65,7 @@ public final class OriginSettingClient extends FilterClient {
         ActionListener<Response> listener
     ) {
         final Supplier<ThreadContext.StoredContext> supplier = in().threadPool().getThreadContext().newRestorableContext(false);
-        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
-            in().threadPool().getThreadContext().putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
+        try (ThreadContext.StoredContext ignore = in().threadPool().getThreadContext().stashWithOrigin(origin)) {
             super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
         }
     }

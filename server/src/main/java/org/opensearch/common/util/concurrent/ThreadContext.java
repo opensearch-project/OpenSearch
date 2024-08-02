@@ -145,7 +145,7 @@ public final class ThreadContext implements Writeable {
      * Removes the current context and resets a default context. The removed context can be
      * restored by closing the returned {@link StoredContext}.
      */
-    StoredContext stashContext() {
+    public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
         /*
           X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
@@ -247,7 +247,7 @@ public final class ThreadContext implements Writeable {
      * but the tasks API will perform a get on their behalf using this method
      * if it can't find the task in memory.
      */
-    StoredContext stashWithOrigin(String origin) {
+    public StoredContext stashWithOrigin(String origin) {
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
@@ -258,7 +258,7 @@ public final class ThreadContext implements Writeable {
      * The removed context can be restored when closing the returned {@link StoredContext}. The merge strategy is that headers
      * that are already existing are preserved unless they are defaults.
      */
-    StoredContext stashAndMergeHeaders(Map<String, String> headers) {
+    public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);
@@ -596,7 +596,7 @@ public final class ThreadContext implements Writeable {
      * Marks this thread context as an internal system context. This signals that actions in this context are issued
      * by the system itself rather than by a user action.
      */
-    void markAsSystemContext() {
+    public void markAsSystemContext() {
         threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
 

@@ -46,8 +46,6 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.SystemContextSwitcher;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -92,12 +90,10 @@ public class TemplateUpgradeServiceTests extends OpenSearchTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
-    private ContextSwitcher contextSwitcher;
 
     @Before
     public void setUpTest() throws Exception {
         threadPool = new TestThreadPool("TemplateUpgradeServiceTests");
-        contextSwitcher = new SystemContextSwitcher(threadPool);
         clusterService = createClusterService(threadPool);
     }
 
@@ -227,7 +223,9 @@ public class TemplateUpgradeServiceTests extends OpenSearchTestCase {
         assertThat(ise.getMessage(), containsString("template upgrade service should always happen in a system context"));
 
         service.upgradesInProgress.set(additionsCount + deletionsCount + 2); // +2 to skip tryFinishUpgrade
-        try (ThreadContext.StoredContext ignore = contextSwitcher.switchContext()) {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
             service.upgradeTemplates(additions, deletions);
         }
 
