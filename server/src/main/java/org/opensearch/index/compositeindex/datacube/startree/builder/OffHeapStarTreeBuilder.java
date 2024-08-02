@@ -38,8 +38,8 @@ import java.util.Objects;
 @ExperimentalApi
 public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
     private static final Logger logger = LogManager.getLogger(OffHeapStarTreeBuilder.class);
-    private final AbstractDocumentsFileManager starTreeDocumentFileManager;
-    private final AbstractDocumentsFileManager segmentDocumentFileManager;
+    private final StarTreeDocsFileManager starTreeDocumentFileManager;
+    private final SegmentDocsFileManager segmentDocumentFileManager;
     private final StarTreeDocumentsSorter documentSorter;
 
     /**
@@ -75,11 +75,13 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
      */
     @Override
     public void build(List<StarTreeValues> starTreeValuesSubs) throws IOException {
+        boolean success = false;
         try {
             build(mergeStarTrees(starTreeValuesSubs));
+            success = true;
         } finally {
-            starTreeDocumentFileManager.deleteFiles();
-            segmentDocumentFileManager.deleteFiles();
+            starTreeDocumentFileManager.deleteFiles(success);
+            segmentDocumentFileManager.deleteFiles(success);
         }
     }
 
@@ -111,7 +113,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
             throw ex;
         }
         // Create an iterator for aggregated documents
-        return sortAndReduceDocuments(sortedDocIds, totalSegmentDocs);
+        return sortAndReduceDocuments(sortedDocIds, totalSegmentDocs, false);
     }
 
     /**
@@ -163,13 +165,6 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
         }
 
         return sortAndReduceDocuments(docIds, numDocs, true);
-    }
-
-    /**
-     * Sorts and reduces the star tree documents based on the dimensions during flush flow
-     */
-    private Iterator<StarTreeDocument> sortAndReduceDocuments(int[] docIds, int numDocs) throws IOException {
-        return sortAndReduceDocuments(docIds, numDocs, false);
     }
 
     /**
@@ -229,7 +224,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 }
             };
         } catch (IOException ex) {
-            segmentDocumentFileManager.close();
+            IOUtils.closeWhileHandlingException(segmentDocumentFileManager);
             throw ex;
         }
     }
@@ -328,8 +323,7 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
 
     @Override
     public void close() throws IOException {
-        starTreeDocumentFileManager.close();
-        segmentDocumentFileManager.close();
+        IOUtils.closeWhileHandlingException(starTreeDocumentFileManager, segmentDocumentFileManager);
         super.close();
     }
 }

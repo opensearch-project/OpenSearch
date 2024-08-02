@@ -80,7 +80,7 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
             starTreeDocsFileOutput = createStarTreeDocumentsFileOutput();
         } catch (IOException e) {
             IOUtils.closeWhileHandlingException(starTreeDocsFileOutput);
-            IOUtils.close(this);
+            IOUtils.closeWhileHandlingException(this);
             throw e;
         }
         fileCountMergeThreshold = fileCountThreshold;
@@ -155,7 +155,7 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
             closeAndMaybeCreateNewFile(shouldCreateFileOutput, numStarTreeDocs);
             loadStarTreeDocumentFile(docId);
         } catch (IOException ex) {
-            IOUtils.close(this);
+            IOUtils.closeWhileHandlingException(this);
             throw ex;
         }
     }
@@ -251,13 +251,9 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
     /**
      * Delete the old star-tree.documents files
      */
-    private void deleteOldFiles() {
+    private void deleteOldFiles() throws IOException {
         for (String fileName : fileToEndDocIdMap.keySet()) {
-            try {
-                tmpDirectory.deleteFile(fileName);
-            } catch (IOException ignored) {
-                logger.error("Error deleting file {}", fileName);
-            }
+            tmpDirectory.deleteFile(fileName);
         }
     }
 
@@ -279,7 +275,7 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
                 IOUtils.closeWhileHandlingException(starTreeDocsFileOutput);
                 try {
                     tmpDirectory.deleteFile(starTreeDocsFileOutput.getName());
-                } catch (IOException ignored) {}
+                } catch (IOException ignored) {} // similar to IOUtils.deleteFilesIgnoringExceptions
             }
         } finally {
             IOUtils.closeWhileHandlingException(starTreeDocsFileInput, starTreeDocsFileOutput);
@@ -288,7 +284,9 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
         for (String file : fileToEndDocIdMap.keySet()) {
             try {
                 tmpDirectory.deleteFile(file);
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {} // similar to IOUtils.deleteFilesIgnoringExceptions
         }
+        starTreeDocumentOffsets.clear();
+        fileToEndDocIdMap.clear();
     }
 }

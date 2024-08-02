@@ -73,7 +73,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     protected final TreeNode rootNode = getNewNode();
 
     protected final StarTreeField starTreeField;
-    private final MapperService mapperService;
     private final SegmentWriteState state;
     static String NUM_SEGMENT_DOCS = "numSegmentDocs";
 
@@ -95,7 +94,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         this.skipStarNodeCreationForDimensions = new HashSet<>();
         this.totalSegmentDocs = state.segmentInfo.maxDoc();
-        this.mapperService = mapperService;
         this.state = state;
 
         Set<String> skipStarNodeCreationForDimensions = starTreeFieldSpec.getSkipStarNodeCreationInDims();

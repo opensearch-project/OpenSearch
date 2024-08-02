@@ -46,7 +46,7 @@ public class SegmentDocsFileManager extends AbstractDocumentsFileManager impleme
         try {
             segmentDocsFileOutput = tmpDirectory.createTempOutput(SEGMENT_DOC_FILE_NAME, state.segmentSuffix, state.context);
         } catch (IOException e) {
-            IOUtils.close(this);
+            IOUtils.closeWhileHandlingException(this);
             throw e;
         }
     }
@@ -64,7 +64,7 @@ public class SegmentDocsFileManager extends AbstractDocumentsFileManager impleme
                 segmentRandomInput = segmentDocsFileInput.randomAccessSlice(0, segmentDocsFileInput.length());
             }
         } catch (IOException e) {
-            IOUtils.close(this);
+            IOUtils.closeWhileHandlingException(this);
             throw e;
         }
     }
@@ -90,14 +90,12 @@ public class SegmentDocsFileManager extends AbstractDocumentsFileManager impleme
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         try {
             if (this.segmentDocsFileOutput != null) {
                 IOUtils.closeWhileHandlingException(segmentDocsFileOutput);
                 tmpDirectory.deleteFile(segmentDocsFileOutput.getName());
             }
-        } catch (IOException ignored) {} catch (Exception e) {
-            throw new RuntimeException(e);
         } finally {
             IOUtils.closeWhileHandlingException(segmentDocsFileInput, segmentDocsFileOutput);
         }

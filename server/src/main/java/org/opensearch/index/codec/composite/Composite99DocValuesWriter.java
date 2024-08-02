@@ -69,7 +69,7 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
             compositeFieldSet.addAll(type.fields());
         }
         // check if there are any composite fields which are part of the segment
-        segmentHasCompositeFields = !Collections.disjoint(segmentFieldSet, compositeFieldSet);
+        segmentHasCompositeFields = Collections.disjoint(segmentFieldSet, compositeFieldSet) == false;
     }
 
     @Override

@@ -27,8 +27,7 @@ public class StarTreeDocumentBitSetUtil {
      * @throws IOException if an I/O error occurs while writing to the output stream
      */
     public static int writeBitSet(Object[] array, IndexOutput output) throws IOException {
-        int length = (array.length / 8) + (array.length % 8 == 0 ? 0 : 1);
-        ByteListBackedBitset bitset = new ByteListBackedBitset(length);
+        ByteListBackedBitset bitset = new ByteListBackedBitset(getLength(array));
         for (int i = 0; i < array.length; i++) {
             if (array[i] == null) {
                 bitset.set(i);

@@ -208,13 +208,25 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
     /**
      * Delete the temporary files created
      */
-    public void deleteFiles() {
+    public void deleteFiles(boolean success) throws IOException {
+        if (success) {
+            for (String file : tmpDirectory.getCreatedFiles()) {
+                tmpDirectory.deleteFile(file);
+            }
+        } else {
+            deleteFilesIgnoringException();
+        }
+
+    }
+
+    /**
+     * Delete the temporary files created
+     */
+    private void deleteFilesIgnoringException() throws IOException {
         for (String file : tmpDirectory.getCreatedFiles()) {
             try {
                 tmpDirectory.deleteFile(file);
-            } catch (final IOException ignored) {
-                logger.error("Error deleting file {}", file);
-            }
+            } catch (final IOException ignored) {} // similar to IOUtils.deleteFilesWhileIgnoringExceptions
         }
     }
 }
