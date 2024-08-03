@@ -11,14 +11,13 @@ package org.opensearch.search;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.tasks.CancellableTask;
-
-import junit.framework.TestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ResourceTypeTests extends TestCase {
+public class ResourceTypeTests extends OpenSearchTestCase {
 
     public void testFromName() {
         assertSame(ResourceType.CPU, ResourceType.fromName("cpu"));
