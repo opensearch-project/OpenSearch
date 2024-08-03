@@ -15,7 +15,6 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -29,6 +28,7 @@ import java.security.PrivilegedAction;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * This acts as entry point to fetch {@link BlobFetchRequest} and return actual {@link IndexInput}. Utilizes the BlobContainer interface to
@@ -99,7 +99,10 @@ public class TransferManager {
             // This local file cache is ref counted and may not strictly enforce capacity.
             // In our use case capacity directly relates to disk usage.
             // If we find available capacity is exceeded deny further BlobFetchRequests.
-            if (fileCache.usage().usage() > fileCache.capacity()) {
+            Supplier<Short> cacheUsagePerc = () ->
+                fileCache.capacity() <= 0 ? 0 : (short) (Math.round((100d * fileCache.usage().usage()) / fileCache.capacity()));
+
+            if (cacheUsagePerc.get() >= 99) {
                 System.gc();
 
                 // File reference cleanup is not immediate and is processed
@@ -111,7 +114,7 @@ public class TransferManager {
                 }
 
                 fileCache.prune();
-                if (fileCache.usage().usage() > fileCache.capacity()) {
+                if (cacheUsagePerc.get() >= 99) {
                     throw new IOException("Local file cache capacity exceeded - BlobFetchRequest failed: " + request.getFilePath());
                 }
             }
