@@ -1,6 +1,6 @@
 <img src="https://opensearch.org/assets/img/opensearch-logo-themed.svg" height="64px">
 
-The maintainers of the OpenSearch Repo seek to promote an inclusive and engaged community of contributors. In order to facilitate this, weekly triage meetings are open-to-all and attendance is encouraged for anyone who hopes to contribute, discuss an issue, or learn more about the project. There are several weekly triage meetings scoped to the following component areas: Search, Storage, Cluster Manager, and finally "Core" as a catch-all for all other issues. To learn more about contributing to the OpenSearch Repo visit the [Contributing](./CONTRIBUTING.md) documentation.
+The maintainers of the OpenSearch Repo seek to promote an inclusive and engaged community of contributors. In order to facilitate this, weekly triage meetings are open-to-all and attendance is encouraged for anyone who hopes to contribute, discuss an issue, or learn more about the project. There are several weekly triage meetings scoped to the following component areas: Search, Storage, and Cluster Manager. To learn more about contributing to the OpenSearch Repo visit the [Contributing](./CONTRIBUTING.md) documentation.
 
 ### Do I need to attend for my issue to be addressed/triaged?
 
@@ -14,7 +14,7 @@ Each meeting we seek to address all new issues. However, should we run out of ti
 
 ### How do I join a Triage meeting?
 
- Check the [OpenSearch Meetup Group](https://www.meetup.com/opensearch/) for the latest schedule and details for joining each meeting. Each component area has its own meetup series: [Search](https://www.meetup.com/opensearch/events/300929493/), [Storage](https://www.meetup.com/opensearch/events/299907409/), [Cluster Manager](https://www.meetup.com/opensearch/events/301082218/), [Indexing](https://www.meetup.com/opensearch/events/301734024/), and [Core](https://www.meetup.com/opensearch/events/301061009/).
+ Check the [OpenSearch Meetup Group](https://www.meetup.com/opensearch/) for the latest schedule and details for joining each meeting. Each component area has its own meetup series: [Search](https://www.meetup.com/opensearch/events/300929493/), [Storage](https://www.meetup.com/opensearch/events/299907409/), [Cluster Manager](https://www.meetup.com/opensearch/events/301082218/), and [Indexing](https://www.meetup.com/opensearch/events/301734024/).
 
 After joining the virtual meeting, you can enable your video / voice to join the discussion.  If you do not have a webcam or microphone available, you can still join in via the text chat.
 
