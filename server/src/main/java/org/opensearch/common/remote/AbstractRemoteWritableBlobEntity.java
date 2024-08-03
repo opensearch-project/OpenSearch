@@ -40,6 +40,10 @@ public abstract class AbstractRemoteWritableBlobEntity<T> implements RemoteWrite
         this.namedXContentRegistry = namedXContentRegistry;
     }
 
+    public AbstractRemoteWritableBlobEntity(final String clusterUUID, final Compressor compressor) {
+        this(clusterUUID, compressor, null);
+    }
+
     public abstract BlobPathParameters getBlobPathParameters();
 
     public abstract String getType();

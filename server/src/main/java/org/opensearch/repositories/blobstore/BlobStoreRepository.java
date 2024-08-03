@@ -109,6 +109,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
+import org.opensearch.index.remote.RemoteStorePathStrategy.PathInput;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -157,6 +158,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -174,6 +176,8 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
+import static org.opensearch.index.remote.RemoteStoreEnums.PathType.HASHED_PREFIX;
 import static org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 import static org.opensearch.repositories.blobstore.ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS;
 
@@ -302,6 +306,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting to enable prefix mode verification. In this mode, a hashed string is prepended at the prefix of the base
+     * path during repository verification.
+     */
+    public static final Setting<Boolean> PREFIX_MODE_VERIFICATION_SETTING = Setting.boolSetting(
+        "prefix_mode_verification",
+        false,
+        Setting.Property.NodeScope
+    );
+
     protected volatile boolean supportURLRepo;
 
     private volatile int maxShardBlobDeleteBatch;
@@ -369,6 +383,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final boolean isSystemRepository;
 
+    private final boolean prefixModeVerification;
+
     private final Object lock = new Object();
 
     private final SetOnce<BlobContainer> blobContainer = new SetOnce<>();
@@ -426,6 +442,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         readRepositoryMetadata(repositoryMetadata);
 
         isSystemRepository = SYSTEM_REPOSITORY_SETTING.get(metadata.settings());
+        prefixModeVerification = PREFIX_MODE_VERIFICATION_SETTING.get(metadata.settings());
         this.namedXContentRegistry = namedXContentRegistry;
         this.threadPool = clusterService.getClusterApplierService().threadPool();
         this.clusterService = clusterService;
@@ -765,6 +782,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // for test purposes only
     protected BlobStore getBlobStore() {
         return blobStore.get();
+    }
+
+    boolean getPrefixModeVerification() {
+        return prefixModeVerification;
     }
 
     /**
@@ -1918,7 +1939,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } else {
                 String seed = UUIDs.randomBase64UUID();
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
-                BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+                BlobContainer testContainer = testContainer(seed);
                 BytesArray bytes = new BytesArray(testBytes);
                 if (isSystemRepository == false) {
                     try (InputStream stream = bytes.streamInput()) {
@@ -1936,12 +1957,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * Returns the blobContainer depending on the seed and {@code prefixModeVerification}.
+     */
+    private BlobContainer testContainer(String seed) {
+        BlobPath testBlobPath;
+        if (prefixModeVerification == true) {
+            PathInput pathInput = PathInput.builder().basePath(basePath()).indexUUID(seed).build();
+            testBlobPath = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE_1);
+        } else {
+            testBlobPath = basePath();
+        }
+        assert Objects.nonNull(testBlobPath);
+        return blobStore().blobContainer(testBlobPath.add(testBlobPrefix(seed)));
+    }
+
     @Override
     public void endVerification(String seed) {
         if (isReadOnly() == false) {
             try {
-                final String testPrefix = testBlobPrefix(seed);
-                blobStore().blobContainer(basePath().add(testPrefix)).delete();
+                testContainer(seed).delete();
             } catch (Exception exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
@@ -2678,7 +2713,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ShardId shardId = store.shardId();
         try {
             final String generation = snapshotStatus.generation();
-            logger.info("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
+            logger.info("[{}] [{}] shallow copy snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
 
             long indexTotalFileSize = 0;
@@ -3266,7 +3301,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
         } else {
-            BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+            BlobContainer testBlobContainer = testContainer(seed);
             try {
                 BytesArray bytes = new BytesArray(seed);
                 try (InputStream stream = bytes.streamInput()) {

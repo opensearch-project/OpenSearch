@@ -41,6 +41,10 @@ teardown:
       ingest.delete_pipeline:
         id: "pipeline2"
         ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: test_index_template_for_bulk
+        ignore: 404
 
 ---
 "Test bulk request without default pipeline":
@@ -168,8 +172,42 @@ teardown:
         id: test_id3
   - match: { _source: {"f1": "v2", "f2": 47, "field1": "value1"}}
 
+# related issue: https://github.com/opensearch-project/OpenSearch/issues/12888
 ---
-"Test bulk API with batch enabled happy case":
+"Test bulk upsert honors default_pipeline and final_pipeline when the auto-created index matches with the index template":
+  - skip:
+      version: " - 2.15.99"
+      reason: "fixed in 2.16.0"
+  - do:
+      indices.put_index_template:
+        name: test_for_bulk_upsert_index_template
+        body:
+          index_patterns: test_bulk_upsert_*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+              default_pipeline: pipeline1
+              final_pipeline: pipeline2
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"update": {"_index": "test_bulk_upsert_index", "_id": "test_id3"}}'
+          - '{"upsert": {"f1": "v2", "f2": 47}, "doc": {"x": 1}}'
+
+  - match: { errors: false }
+  - match: { items.0.update.result: created }
+
+  - do:
+      get:
+        index: test_bulk_upsert_index
+        id: test_id3
+  - match: { _source: {"f1": "v2", "f2": 47, "field1": "value1", "field2": "value2"}}
+
+---
+"Test bulk API with default batch size":
   - skip:
       version: " - 2.13.99"
       reason: "Added in 2.14.0"
@@ -177,7 +215,6 @@ teardown:
   - do:
       bulk:
         refresh: true
-        batch_size: 2
         pipeline: "pipeline1"
         body:
           - '{"index": {"_index": "test_index", "_id": "test_id1"}}'
@@ -206,36 +243,6 @@ teardown:
         index: test_index
         id: test_id3
   - match: { _source: { "text": "text3", "field1": "value1" } }
-
----
-"Test bulk API with batch_size missing":
-  - skip:
-      version: " - 2.13.99"
-      reason: "Added in 2.14.0"
-
-  - do:
-      bulk:
-        refresh: true
-        pipeline: "pipeline1"
-        body:
-          - '{"index": {"_index": "test_index", "_id": "test_id1"}}'
-          - '{"text": "text1"}'
-          - '{"index": {"_index": "test_index", "_id": "test_id2"}}'
-          - '{"text": "text2"}'
-
-  - match: { errors: false }
-
-  - do:
-      get:
-        index: test_index
-        id: test_id1
-  - match: { _source: { "text": "text1", "field1": "value1" } }
-
-  - do:
-      get:
-        index: test_index
-        id: test_id2
-  - match: { _source: { "text": "text2", "field1": "value1" } }
 
 ---
 "Test bulk API with invalid batch_size":

@@ -101,6 +101,7 @@ import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
+import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -143,13 +144,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> SEARCH_QUERY_METRICS_ENABLED_SETTING = Setting.boolSetting(
-        "search.query.metrics.enabled",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     // cluster level setting for timeout based search cancellation. If search request level parameter is present then that will take
     // precedence over the cluster setting value
     public static final String SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY = "search.cancel_after_time_interval";
@@ -182,11 +176,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory;
     private final Tracer tracer;
 
-    private volatile boolean searchQueryMetricsEnabled;
-
     private final MetricsRegistry metricsRegistry;
 
-    private SearchQueryCategorizer searchQueryCategorizer;
     private TaskResourceTrackingService taskResourceTrackingService;
 
     @Inject
@@ -222,19 +213,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.searchPipelineService = searchPipelineService;
         this.metricsRegistry = metricsRegistry;
-        this.searchQueryMetricsEnabled = clusterService.getClusterSettings().get(SEARCH_QUERY_METRICS_ENABLED_SETTING);
         this.searchRequestOperationsCompositeListenerFactory = searchRequestOperationsCompositeListenerFactory;
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(SEARCH_QUERY_METRICS_ENABLED_SETTING, this::setSearchQueryMetricsEnabled);
         this.tracer = tracer;
         this.taskResourceTrackingService = taskResourceTrackingService;
-    }
-
-    private void setSearchQueryMetricsEnabled(boolean searchQueryMetricsEnabled) {
-        this.searchQueryMetricsEnabled = searchQueryMetricsEnabled;
-        if ((this.searchQueryMetricsEnabled == true) && this.searchQueryCategorizer == null) {
-            this.searchQueryCategorizer = new SearchQueryCategorizer(metricsRegistry);
-        }
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(
@@ -462,6 +443,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             searchRequestContext.getSearchRequestOperationsListener().onRequestStart(searchRequestContext);
 
+            // At this point either the QUERY_GROUP_ID header will be present in ThreadContext either via ActionFilter
+            // or HTTP header (HTTP header will be deprecated once ActionFilter is implemented)
+            if (task instanceof QueryGroupTask) {
+                ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
+            }
+
             PipelinedRequest searchRequest;
             ActionListener<SearchResponse> listener;
             try {
@@ -473,13 +460,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
 
             ActionListener<SearchRequest> requestTransformListener = ActionListener.wrap(sr -> {
-                if (searchQueryMetricsEnabled) {
-                    try {
-                        searchQueryCategorizer.categorize(sr.source());
-                    } catch (Exception e) {
-                        logger.error("Error while trying to categorize the query.", e);
-                    }
-                }
 
                 ActionListener<SearchSourceBuilder> rewriteListener = buildRewriteListener(
                     sr,

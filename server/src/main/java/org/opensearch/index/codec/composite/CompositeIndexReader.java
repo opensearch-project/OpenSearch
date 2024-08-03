@@ -9,7 +9,6 @@
 package org.opensearch.index.codec.composite;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.mapper.CompositeMappedFieldType;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,10 +24,10 @@ public interface CompositeIndexReader {
      * Get list of composite index fields from the segment
      *
      */
-    List<String> getCompositeIndexFields();
+    List<CompositeIndexFieldInfo> getCompositeIndexFields();
 
     /**
      * Get composite index values based on the field name and the field type
      */
-    CompositeIndexValues getCompositeIndexValues(String field, CompositeMappedFieldType.CompositeFieldType fieldType) throws IOException;
+    CompositeIndexValues getCompositeIndexValues(CompositeIndexFieldInfo fieldInfo) throws IOException;
 }

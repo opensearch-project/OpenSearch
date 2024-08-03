@@ -129,7 +129,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
      */
     public static class NodeInfoRequest extends TransportRequest {
 
-        NodesInfoRequest request;
+        protected NodesInfoRequest request;
 
         public NodeInfoRequest(StreamInput in) throws IOException {
             super(in);

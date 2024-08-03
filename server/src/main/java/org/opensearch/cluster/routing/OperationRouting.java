@@ -42,8 +42,10 @@ import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.node.ResponseCollectorService;
 
@@ -243,6 +245,13 @@ public class OperationRouting {
             IndexMetadata indexMetadataForShard = indexMetadata(clusterState, shard.shardId.getIndex().getName());
             if (indexMetadataForShard.isRemoteSnapshot() && (preference == null || preference.isEmpty())) {
                 preference = Preference.PRIMARY.type();
+            }
+
+            if (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX)
+                && IndexModule.DataLocalityType.PARTIAL.name()
+                    .equals(indexMetadataForShard.getSettings().get(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey()))
+                && (preference == null || preference.isEmpty())) {
+                preference = Preference.PRIMARY_FIRST.type();
             }
 
             ShardIterator iterator = preferenceActiveShardIterator(

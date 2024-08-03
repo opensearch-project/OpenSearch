@@ -44,6 +44,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     public static final int CODEC_V2 = 2; // In Codec V2, there are separate metadata files rather than a single global metadata file,
     // also we introduce index routing-metadata, diff and other attributes as part of manifest
     // required for state publication
+    public static final int CODEC_V3 = 3; // In Codec V3, we have introduced new diff field in diff-manifest's routing_table_diff
 
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
     private static final ParseField STATE_VERSION_FIELD = new ParseField("state_version");
@@ -107,6 +108,10 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             .transientSettingsMetadata(transientSettingsMetadata(fields))
             .hashesOfConsistentSettings(hashesOfConsistentSettings(fields))
             .clusterStateCustomMetadataMap(clusterStateCustomMetadata(fields));
+    }
+
+    private static ClusterMetadataManifest.Builder manifestV3Builder(Object[] fields) {
+        return manifestV2Builder(fields);
     }
 
     private static long term(Object[] fields) {
@@ -226,12 +231,18 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         fields -> manifestV2Builder(fields).build()
     );
 
-    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V2;
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> PARSER_V3 = new ConstructingObjectParser<>(
+        "cluster_metadata_manifest",
+        fields -> manifestV3Builder(fields).build()
+    );
+
+    private static final ConstructingObjectParser<ClusterMetadataManifest, Void> CURRENT_PARSER = PARSER_V3;
 
     static {
         declareParser(PARSER_V0, CODEC_V0);
         declareParser(PARSER_V1, CODEC_V1);
         declareParser(PARSER_V2, CODEC_V2);
+        declareParser(PARSER_V3, CODEC_V3);
     }
 
     private static void declareParser(ConstructingObjectParser<ClusterMetadataManifest, Void> parser, long codec_version) {
@@ -309,7 +320,7 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
             );
             parser.declareObject(
                 ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> ClusterStateDiffManifest.fromXContent(p),
+                (p, c) -> ClusterStateDiffManifest.fromXContent(p, codec_version),
                 DIFF_MANIFEST
             );
         }

@@ -17,9 +17,9 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.mapper.CompositeMappedFieldType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -74,15 +74,13 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
     }
 
     @Override
-    public List<String> getCompositeIndexFields() {
+    public List<CompositeIndexFieldInfo> getCompositeIndexFields() {
         // todo : read from file formats and get the field names.
-        throw new UnsupportedOperationException();
-
+        return new ArrayList<>();
     }
 
     @Override
-    public CompositeIndexValues getCompositeIndexValues(String field, CompositeMappedFieldType.CompositeFieldType fieldType)
-        throws IOException {
+    public CompositeIndexValues getCompositeIndexValues(CompositeIndexFieldInfo compositeIndexFieldInfo) throws IOException {
         // TODO : read compositeIndexValues [starTreeValues] from star tree files
         throw new UnsupportedOperationException();
     }
