@@ -10,11 +10,17 @@ package org.opensearch.indices.recovery;
 
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.StepListener;
+import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.RecoveryEngineException;
+import org.opensearch.index.seqno.ReplicationTracker;
+import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.RunUnderPrimaryPermit;
@@ -22,6 +28,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -48,7 +56,8 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         // A replica of an index with remote translog does not require the translogs locally and keeps receiving the
         // updated segments file on refresh, flushes, and merges. In recovery, here, only file-based recovery is performed
         // and there is no translog replay done.
-
+        final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
+        waitForAssignment(retentionLeaseRef);
         final StepListener<SendFileResult> sendFileStep = new StepListener<>();
         final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
         final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
@@ -102,4 +111,41 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
 
         finalizeStepAndCompleteFuture(startingSeqNo, sendSnapshotStep, sendFileStep, prepareEngineStep, onFailure);
     }
+
+    protected void waitForAssignment(SetOnce<RetentionLease> retentionLeaseRef)  {
+        BackoffPolicy EXPONENTIAL_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(
+            TimeValue.timeValueMillis(100),
+            3
+        );
+        AtomicReference<ShardRouting> targetShardRouting = new AtomicReference<>();
+        Iterator<TimeValue>  backoffDelayIterator = EXPONENTIAL_BACKOFF_POLICY.iterator();
+        while (backoffDelayIterator.hasNext() ) {
+            RunUnderPrimaryPermit.run(() -> {
+                final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
+                targetShardRouting.set(routingTable.getByAllocationId(request.targetAllocationId()));
+                if (targetShardRouting.get() == null) {
+                    logger.info(
+                        "delaying recovery of {} as it is not listed as assigned to target node {}",
+                        request.shardId(),
+                        request.targetNode()
+                    );
+                    Thread.sleep(backoffDelayIterator.next().millis());
+                }
+                if (targetShardRouting.get() != null) {
+                    assert targetShardRouting.get().initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
+                    retentionLeaseRef.set(shard.getRetentionLeases().get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting.get())));
+                }
+
+            }, shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ", shard, cancellableThreads, logger);
+
+            if (targetShardRouting.get() != null) {
+                return;
+            }
+        }
+        if (targetShardRouting.get() != null) {
+            return;
+        }
+        throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+    }
+
 }

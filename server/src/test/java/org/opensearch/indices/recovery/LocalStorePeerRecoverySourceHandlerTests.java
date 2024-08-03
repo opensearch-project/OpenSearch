@@ -45,6 +45,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
@@ -52,6 +54,7 @@ import org.opensearch.action.StepListener;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.SetOnce;
@@ -89,6 +92,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardRelocatedException;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
@@ -102,8 +106,6 @@ import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -141,6 +143,8 @@ import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -741,6 +745,104 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
             handler.recoverToTarget(future);
             future.actionGet();
         });
+        assertFalse(phase1Called.get());
+        assertFalse(prepareTargetForTranslogCalled.get());
+        assertFalse(phase2Called.get());
+    }
+
+    public void testThrowExceptionOnNoTargetInRouting() throws IOException {
+        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
+        final StartRecoveryRequest request = getStartRecoveryRequest();
+        final IndexShard shard = mock(IndexShard.class);
+        when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
+        when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
+        when(shard.isRelocatedPrimary()).thenReturn(false);
+        final ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
+        final IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
+        when(routingTable.getByAllocationId(anyString())).thenReturn(null);
+        when(shard.getReplicationGroup()).thenReturn(replicationGroup);
+        when(replicationGroup.getRoutingTable()).thenReturn(routingTable);
+        when(shard.acquireSafeIndexCommit()).thenReturn(mock(GatedCloseable.class));
+        doAnswer(invocation -> {
+            ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
+            return null;
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
+
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+            );
+        if (randomBoolean()) {
+            indexMetadata.state(IndexMetadata.State.CLOSE);
+        }
+        when(shard.indexSettings()).thenReturn(new IndexSettings(indexMetadata.build(), Settings.EMPTY));
+
+        final AtomicBoolean phase1Called = new AtomicBoolean();
+        final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
+        final AtomicBoolean phase2Called = new AtomicBoolean();
+        final RecoverySourceHandler handler = new LocalStorePeerRecoverySourceHandler(
+            shard,
+            mock(RecoveryTargetHandler.class),
+            threadPool,
+            request,
+            Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
+            between(1, 8),
+            between(1, 8)
+        ) {
+
+            @Override
+            void phase1(
+                IndexCommit snapshot,
+                long startingSeqNo,
+                IntSupplier translogOps,
+                ActionListener<SendFileResult> listener,
+                boolean skipCreateRetentionLeaseStep
+            ) {
+                phase1Called.set(true);
+                super.phase1(snapshot, startingSeqNo, translogOps, listener, skipCreateRetentionLeaseStep);
+            }
+
+            @Override
+            void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
+                prepareTargetForTranslogCalled.set(true);
+                super.prepareTargetForTranslog(totalTranslogOps, listener);
+            }
+
+            @Override
+            void phase2(
+                long startingSeqNo,
+                long endingSeqNo,
+                Translog.Snapshot snapshot,
+                long maxSeenAutoIdTimestamp,
+                long maxSeqNoOfUpdatesOrDeletes,
+                RetentionLeases retentionLeases,
+                long mappingVersion,
+                ActionListener<SendSnapshotResult> listener
+            ) throws IOException {
+                phase2Called.set(true);
+                super.phase2(
+                    startingSeqNo,
+                    endingSeqNo,
+                    snapshot,
+                    maxSeenAutoIdTimestamp,
+                    maxSeqNoOfUpdatesOrDeletes,
+                    retentionLeases,
+                    mappingVersion,
+                    listener
+                );
+            }
+
+        };
+        PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
+        expectThrows(DelayRecoveryException.class, () -> {
+            handler.recoverToTarget(future);
+            future.actionGet();
+        });
+        verify(routingTable, times(1)).getByAllocationId(null);
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
