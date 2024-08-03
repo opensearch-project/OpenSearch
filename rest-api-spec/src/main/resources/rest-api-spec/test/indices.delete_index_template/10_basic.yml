@@ -1,0 +1,52 @@
+setup:
+  - do:
+      indices.put_index_template:
+        name: test_template_1
+        body:
+          index_patterns: test-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+          "priority": 50
+
+  - do:
+      indices.put_index_template:
+        name: test_template_2
+        body:
+          index_patterns: test-*
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+          "priority": 51
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: test-1
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: test_template_1
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: test_template_2
+        ignore: 404
+
+---
+"Delete index template which is not used by data stream but index pattern matches":
+  - skip:
+      version: " - 2.99.99"
+      reason: "fixed in 3.0.0"
+
+  - do:
+      indices.create_data_stream:
+        name: test-1
+
+  - do:
+      indices.delete_index_template:
+        name: test_template_1
