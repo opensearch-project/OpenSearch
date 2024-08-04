@@ -70,9 +70,9 @@ public class SegmentDocsFileManager extends AbstractDocumentsFileManager impleme
     }
 
     @Override
-    public StarTreeDocument readStarTreeDocument(int docId, boolean isMerge) throws IOException {
+    public StarTreeDocument readStarTreeDocument(int docId, boolean isAggregatedDoc) throws IOException {
         maybeInitializeSegmentInput();
-        return readStarTreeDocument(segmentRandomInput, (long) docId * docSizeInBytes, isMerge);
+        return readStarTreeDocument(segmentRandomInput, (long) docId * docSizeInBytes, isAggregatedDoc);
     }
 
     @Override

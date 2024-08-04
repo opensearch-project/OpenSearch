@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.utils;
 
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.opensearch.common.util.ByteArrayBackedBitset;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -27,7 +28,7 @@ public class StarTreeDocumentBitSetUtil {
      * @throws IOException if an I/O error occurs while writing to the output stream
      */
     public static int writeBitSet(Object[] array, IndexOutput output) throws IOException {
-        ByteListBackedBitset bitset = new ByteListBackedBitset(getLength(array));
+        ByteArrayBackedBitset bitset = new ByteArrayBackedBitset(getLength(array));
         for (int i = 0; i < array.length; i++) {
             if (array[i] == null) {
                 bitset.set(i);
@@ -41,7 +42,7 @@ public class StarTreeDocumentBitSetUtil {
      */
     public static int readBitSet(RandomAccessInput input, long offset, Object[] array, Function<Integer, Object> identityValueSupplier)
         throws IOException {
-        ByteListBackedBitset bitset = new ByteListBackedBitset(input, offset, getLength(array));
+        ByteArrayBackedBitset bitset = new ByteArrayBackedBitset(input, offset, getLength(array));
         for (int i = 0; i < array.length; i++) {
             if (bitset.get(i)) {
                 array[i] = identityValueSupplier.apply(i);

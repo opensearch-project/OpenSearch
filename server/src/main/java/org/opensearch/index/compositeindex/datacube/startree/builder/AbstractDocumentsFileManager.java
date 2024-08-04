@@ -118,19 +118,18 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
      *
      * @param input   RandomAccessInput
      * @param offset  Offset in the file
-     * @param shouldReadAggregatedDocs boolean to indicate if aggregated star tree docs should be read
+     * @param isAggregatedDoc boolean to indicate if aggregated star tree docs should be read
      * @return StarTreeDocument
      * @throws IOException IOException in case of I/O errors
      */
-    protected StarTreeDocument readStarTreeDocument(RandomAccessInput input, long offset, boolean shouldReadAggregatedDocs)
-        throws IOException {
+    protected StarTreeDocument readStarTreeDocument(RandomAccessInput input, long offset, boolean isAggregatedDoc) throws IOException {
         int dimSize = starTreeField.getDimensionsOrder().size();
         Long[] dimensions = new Long[dimSize];
         long initialOffset = offset;
         offset = readDimensions(dimensions, input, offset);
 
         Object[] metrics = new Object[numMetrics];
-        offset = readMetrics(input, offset, numMetrics, metrics, shouldReadAggregatedDocs);
+        offset = readMetrics(input, offset, numMetrics, metrics, isAggregatedDoc);
         assert (offset - initialOffset) == docSizeInBytes;
         return new StarTreeDocument(dimensions, metrics);
     }
@@ -155,7 +154,7 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
     /**
      * Read star tree metrics from file
      */
-    protected long readMetrics(RandomAccessInput input, long offset, int numMetrics, Object[] metrics, boolean shouldReadAggregatedDocs)
+    protected long readMetrics(RandomAccessInput input, long offset, int numMetrics, Object[] metrics, boolean isAggregatedDoc)
         throws IOException {
         for (int i = 0; i < numMetrics; i++) {
             switch (metricAggregatorInfos.get(i).getValueAggregators().getAggregatedValueType()) {
@@ -165,7 +164,7 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
                     break;
                 case DOUBLE:
                     long val = input.readLong(offset);
-                    if (shouldReadAggregatedDocs) {
+                    if (isAggregatedDoc) {
                         metrics[i] = StarTreeNumericTypeConverters.sortableLongtoDouble(val);
                     } else {
                         metrics[i] = val;
@@ -193,7 +192,7 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
     /**
      * Read star tree document from file based on doc id
      */
-    public abstract StarTreeDocument readStarTreeDocument(int docId, boolean isMerge) throws IOException;
+    public abstract StarTreeDocument readStarTreeDocument(int docId, boolean isAggregatedDoc) throws IOException;
 
     /**
      * Read star document dimensions from file based on doc id

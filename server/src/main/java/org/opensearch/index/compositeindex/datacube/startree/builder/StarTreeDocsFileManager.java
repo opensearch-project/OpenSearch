@@ -199,12 +199,10 @@ public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implem
      *    If the operation is only for reading existing documents, a new file is not created.
      */
     private void closeAndMaybeCreateNewFile(boolean shouldCreateFileForAppend, int numStarTreeDocs) throws IOException {
-        if (starTreeDocsFileOutput != null) {
-            IOUtils.close(starTreeDocsFileOutput);
-        }
         currBytes = 0;
         if (starTreeDocsFileOutput != null) {
             fileToEndDocIdMap.put(starTreeDocsFileOutput.getName(), numStarTreeDocs);
+            IOUtils.close(starTreeDocsFileOutput);
         }
         if (shouldCreateFileForAppend) {
             starTreeDocsFileOutput = createStarTreeDocumentsFileOutput();
