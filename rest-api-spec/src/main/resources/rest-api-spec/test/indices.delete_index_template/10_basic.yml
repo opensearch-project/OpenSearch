@@ -40,8 +40,8 @@ teardown:
 ---
 "Delete index template which is not used by data stream but index pattern matches":
   - skip:
-      version: " - 2.99.99"
-      reason: "fixed in 3.0.0"
+      version: " - 2.16.99"
+      reason: "fixed in 2.17.0"
 
   - do:
       indices.create_data_stream:
