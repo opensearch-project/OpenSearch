@@ -560,6 +560,64 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
 
         ClusterState updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, "foo");
         assertNull(updatedState.metadata().templatesV2().get("foo"));
+
+        // test remove a template which is not used by a data stream but index patterns can match
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_PRIORITY, randomIntBetween(0, 100000))
+            .build();
+        CompressedXContent mappings = new CompressedXContent(
+            "{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}"
+        );
+
+        Map<String, Object> meta = Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
+        List<String> indexPatterns = List.of("foo*");
+        List<String> componentTemplates = randomList(0, 10, () -> randomAlphaOfLength(5));
+        ComposableIndexTemplate templateToRemove = new ComposableIndexTemplate(
+            indexPatterns,
+            new Template(settings, mappings, null),
+            componentTemplates,
+            randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            meta,
+            null
+        );
+
+        ClusterState stateWithDS = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        new DataStream(
+                            "foo",
+                            new DataStream.TimestampField("@timestamp"),
+                            Collections.singletonList(new Index(".ds-foo-000001", "uuid2"))
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(".ds-foo-000001")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        final ClusterState clusterState = metadataIndexTemplateService.addIndexTemplateV2(stateWithDS, false, "foo", templateToRemove);
+        assertNotNull(clusterState.metadata().templatesV2().get("foo"));
+        assertTemplatesEqual(clusterState.metadata().templatesV2().get("foo"), templateToRemove);
+
+        updatedState = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(clusterState, "foo");
+        assertNull(updatedState.metadata().templatesV2().get("foo"));
     }
 
     /**
