@@ -51,12 +51,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -195,7 +193,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             MetadataFilenameUtils.METADATA_PREFIX,
             Integer.MAX_VALUE
         );
-        Set<String> lockedMetadataFiles = getPinnedTimestampLockedFiles(metadataFiles, Set.of(timestamp));
+        Set<String> lockedMetadataFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
+            metadataFiles,
+            Set.of(timestamp),
+            metadataFilePinnedTimestampMap,
+            MetadataFilenameUtils::getTimestamp
+        );
         if (lockedMetadataFiles.isEmpty()) {
             return null;
         }
@@ -383,7 +386,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return RemoteStoreUtils.invertLong(filenameTokens[2]);
         }
 
-        static long getTimestamp(String[] filenameTokens) {
+        static long getTimestamp(String filename) {
+            String[] filenameTokens = filename.split(SEPARATOR);
             return RemoteStoreUtils.invertLong(filenameTokens[6]);
         }
 
@@ -833,7 +837,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
 
         // ToDo: fetch pinned timestamps along with last fetch status of pinned timestamps. If stale, return.
         Set<Long> pinnedTimestamps = new HashSet<>();
-        Set<String> implicitLockedFiles = getPinnedTimestampLockedFiles(metadataFilesEligibleToDelete, pinnedTimestamps);
+        Set<String> implicitLockedFiles = RemoteStoreUtils.getPinnedTimestampLockedFiles(
+            metadataFilesEligibleToDelete,
+            pinnedTimestamps,
+            metadataFilePinnedTimestampMap,
+            MetadataFilenameUtils::getTimestamp
+        );
         final Set<String> allLockFiles = new HashSet<>(implicitLockedFiles);
 
         try {
@@ -906,80 +915,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             }
         }
         logger.debug("deletedSegmentFiles={}", deletedSegmentFiles);
-    }
-
-    /**
-     * Determines and returns a set of metadata files that match provided pinned timestamps.
-     *
-     * This method identifies metadata files that are considered implicitly locked due to their timestamps
-     * matching or being the closest preceding timestamp to the pinned timestamps. It uses a caching mechanism
-     * to improve performance for previously processed timestamps.
-     *
-     * @param metadataFiles A list of metadata file names. Expected to be sorted in descending order of timestamp.
-     * @param pinnedTimestampSet A set of timestamps representing pinned points in time.
-     * @return A set of metadata file names that are implicitly locked based on the pinned timestamps.
-     *
-     * @implSpec The method performs the following steps:
-     *           1. Validates input parameters.
-     *           2. Updates the cache (metadataFilePinnedTimestampMap) to remove outdated entries.
-     *           3. Processes cached entries and identifies new timestamps to process.
-     *           4. For new timestamps, iterates through metadata files to find matching or closest preceding files.
-     *           5. Updates the cache with newly processed timestamps and their corresponding metadata files.
-     *
-     * @implNote The method currently sorts the metadata files, but this may be unnecessary if files are
-     *           already sorted when fetched from the remote store.
-     */
-    Set<String> getPinnedTimestampLockedFiles(List<String> metadataFiles, Set<Long> pinnedTimestampSet) {
-        Set<String> implicitLockedFiles = new HashSet<>();
-
-        if (metadataFiles == null || metadataFiles.isEmpty() || pinnedTimestampSet == null) {
-            return implicitLockedFiles;
-        }
-
-        // Remove entries for timestamps that are no longer pinned
-        metadataFilePinnedTimestampMap.keySet().retainAll(pinnedTimestampSet);
-
-        // Add cached entries and collect new timestamps
-        Set<Long> newPinnedTimestamps = new TreeSet<>(Collections.reverseOrder());
-        for (Long pinnedTimestamp : pinnedTimestampSet) {
-            String cachedFile = metadataFilePinnedTimestampMap.get(pinnedTimestamp);
-            if (cachedFile != null) {
-                implicitLockedFiles.add(cachedFile);
-            } else {
-                newPinnedTimestamps.add(pinnedTimestamp);
-            }
-        }
-
-        if (newPinnedTimestamps.isEmpty()) {
-            return implicitLockedFiles;
-        }
-
-        // Sort metadata files in descending order of timestamp
-        // ToDo: Do we really need this? Files fetched from remote store are already lexicographically sorted.
-        metadataFiles.sort(String::compareTo);
-
-        Iterator<Long> timestampIterator = newPinnedTimestamps.iterator();
-        Long currentPinnedTimestamp = timestampIterator.next();
-        long prevMdTimestamp = Long.MAX_VALUE;
-
-        for (String metadataFileName : metadataFiles) {
-            long currentMdTimestamp = MetadataFilenameUtils.getTimestamp(metadataFileName.split(SEPARATOR));
-
-            while (currentMdTimestamp <= currentPinnedTimestamp && prevMdTimestamp > currentPinnedTimestamp) {
-                implicitLockedFiles.add(metadataFileName);
-                // Do not cache entry for latest metadata file as the next metadata can also match the same pinned timestamp
-                if (prevMdTimestamp != Long.MAX_VALUE) {
-                    metadataFilePinnedTimestampMap.put(currentPinnedTimestamp, metadataFileName);
-                }
-                if (timestampIterator.hasNext() == false) {
-                    return implicitLockedFiles;
-                }
-                currentPinnedTimestamp = timestampIterator.next();
-            }
-            prevMdTimestamp = currentMdTimestamp;
-        }
-
-        return implicitLockedFiles;
     }
 
     public Map<Long, String> getMetadataFilePinnedTimestampMap() {
