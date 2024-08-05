@@ -61,6 +61,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.rest.pagination.IndexBasedPaginationStrategy;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -95,10 +96,18 @@ public class RestIndicesAction extends AbstractCatAction {
         "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead.";
     private static final String DUPLICATE_PARAMETER_ERROR_MESSAGE =
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
+    private static final String DEFAULT_CAT_INDICES_PAGE_SIZE_STRING = "1000";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_cat/indices"), new Route(GET, "/_cat/indices/{index}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_cat/indices"),
+                new Route(GET, "/_cat/indices/{index}"),
+                new Route(GET, "/_cat/V2/indices"),
+                new Route(GET, "/_cat/V2/indices/{index}")
+            )
+        );
     }
 
     @Override
@@ -131,9 +140,13 @@ public class RestIndicesAction extends AbstractCatAction {
             }
             clusterManagerTimeout = request.paramAsTime("master_timeout", DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT);
         }
+        // Check for a paginated query.
+        if (request.path().contains("/V2/indices")) {
+            return doPaginatedCatRequest(request, client, clusterManagerTimeout, indices);
+        }
+
         final TimeValue clusterManagerNodeTimeout = clusterManagerTimeout;
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
-
         return channel -> {
             final ActionListener<Table> listener = ActionListener.notifyOnce(new RestResponseListener<Table>(channel) {
                 @Override
@@ -189,6 +202,91 @@ public class RestIndicesAction extends AbstractCatAction {
                         sendClusterHealthRequest(
                             indices,
                             subRequestIndicesOptions,
+                            local,
+                            clusterManagerNodeTimeout,
+                            client,
+                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(final Exception e) {
+                        listener.onFailure(e);
+                    }
+                }
+            );
+        };
+    }
+
+    public RestChannelConsumer doPaginatedCatRequest(
+        final RestRequest request,
+        final NodeClient client,
+        final TimeValue clusterManagerNodeTimeout,
+        final String[] indices
+    ) {
+        final boolean local = request.paramAsBoolean("local", false);
+        final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
+        final String requestedToken = request.param("next_token");
+        IndexBasedPaginationStrategy.validateRequestedRequest(requestedToken);
+        final int pageSize = Integer.parseInt(request.param("max_page_size", DEFAULT_CAT_INDICES_PAGE_SIZE_STRING));
+        final boolean latestIndicesFirst = request.paramAsBoolean("latest_indices_first", false);
+
+        return channel -> {
+            final ActionListener<Table> listener = ActionListener.notifyOnce(new RestResponseListener<Table>(channel) {
+                @Override
+                public RestResponse buildResponse(final Table table) throws Exception {
+                    return RestTable.buildResponse(table, channel);
+                }
+            });
+
+            // Fetch all the indices from clusterStateRequest for a paginated query.
+            sendClusterStateRequest(
+                indices,
+                IndicesOptions.lenientExpandHidden(),
+                local,
+                clusterManagerNodeTimeout,
+                client,
+                new ActionListener<ClusterStateResponse>() {
+                    @Override
+                    public void onResponse(final ClusterStateResponse clusterStateResponse) {
+                        IndexBasedPaginationStrategy paginationStrategy = new IndexBasedPaginationStrategy(
+                            requestedToken,
+                            pageSize,
+                            latestIndicesFirst,
+                            clusterStateResponse.getState()
+                        );
+
+                        final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
+                            request,
+                            4,
+                            listener,
+                            new Table.PaginationMetadata(
+                                true,
+                                "indices",
+                                paginationStrategy.getNextToken(),
+                                paginationStrategy.getPreviousToken()
+                            )
+                        );
+                        groupedListener.onResponse(clusterStateResponse);
+                        final String[] indicesToBeQueried = paginationStrategy.getPageElements().toArray(new String[0]);
+                        sendGetSettingsRequest(
+                            indicesToBeQueried,
+                            IndicesOptions.fromRequest(request, IndicesOptions.strictExpand()),
+                            local,
+                            clusterManagerNodeTimeout,
+                            client,
+                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                        );
+                        sendIndicesStatsRequest(
+                            indicesToBeQueried,
+                            IndicesOptions.lenientExpandHidden(),
+                            includeUnloadedSegments,
+                            client,
+                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                        );
+                        sendClusterHealthRequest(
+                            indicesToBeQueried,
+                            IndicesOptions.lenientExpandHidden(),
                             local,
                             clusterManagerNodeTimeout,
                             client,
@@ -289,6 +387,15 @@ public class RestIndicesAction extends AbstractCatAction {
         final int size,
         final ActionListener<Table> listener
     ) {
+        return createGroupedListener(request, size, listener, null);
+    }
+
+    private GroupedActionListener<ActionResponse> createGroupedListener(
+        final RestRequest request,
+        final int size,
+        final ActionListener<Table> listener,
+        final Table.PaginationMetadata paginationMetadata
+    ) {
         return new GroupedActionListener<>(new ActionListener<Collection<ActionResponse>>() {
             @Override
             public void onResponse(final Collection<ActionResponse> responses) {
@@ -311,7 +418,14 @@ public class RestIndicesAction extends AbstractCatAction {
                     IndicesStatsResponse statsResponse = extractResponse(responses, IndicesStatsResponse.class);
                     Map<String, IndexStats> indicesStats = statsResponse.getIndices();
 
-                    Table responseTable = buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates);
+                    Table responseTable = buildTable(
+                        request,
+                        indicesSettings,
+                        indicesHealths,
+                        indicesStats,
+                        indicesStates,
+                        paginationMetadata
+                    );
                     listener.onResponse(responseTable);
                 } catch (Exception e) {
                     onFailure(e);
@@ -340,7 +454,11 @@ public class RestIndicesAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        return getTableWithHeader(request, null);
+    }
+
+    protected Table getTableWithHeader(final RestRequest request, final Table.PaginationMetadata paginationMetadata) {
+        Table table = new Table(paginationMetadata);
         table.startHeaders();
         table.addCell("health", "alias:h;desc:current health status");
         table.addCell("status", "alias:s;desc:open/close status");
@@ -709,11 +827,12 @@ public class RestIndicesAction extends AbstractCatAction {
         final Map<String, Settings> indicesSettings,
         final Map<String, ClusterIndexHealth> indicesHealths,
         final Map<String, IndexStats> indicesStats,
-        final Map<String, IndexMetadata> indicesMetadatas
+        final Map<String, IndexMetadata> indicesMetadatas,
+        final Table.PaginationMetadata paginationMetadata
     ) {
 
         final String healthParam = request.param("health");
-        final Table table = getTableWithHeader(request);
+        final Table table = getTableWithHeader(request, paginationMetadata);
 
         indicesSettings.forEach((indexName, settings) -> {
             if (indicesMetadatas.containsKey(indexName) == false) {
