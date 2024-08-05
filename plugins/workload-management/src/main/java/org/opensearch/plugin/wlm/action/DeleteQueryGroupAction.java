@@ -13,7 +13,7 @@ import org.opensearch.action.ActionType;
 /**
  * Transport action for delete QueryGroup
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
 public class DeleteQueryGroupAction extends ActionType<DeleteQueryGroupResponse> {
 

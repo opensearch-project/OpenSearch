@@ -21,13 +21,13 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Response for the delete API for QueryGroup
+ * Response for delete QueryGroup
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
 public class DeleteQueryGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
     private final List<QueryGroup> queryGroups;
-    private RestStatus restStatus;
+    private final RestStatus restStatus;
 
     /**
      * Constructor for DeleteQueryGroupResponse

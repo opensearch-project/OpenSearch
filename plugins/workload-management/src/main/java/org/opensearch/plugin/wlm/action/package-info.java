@@ -7,6 +7,6 @@
  */
 
 /**
- * Base Package of CRUD API of QueryGroup
+ * Package for the action classes of WorkloadManagementPlugin
  */
 package org.opensearch.plugin.wlm.action;

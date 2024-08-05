@@ -7,6 +7,6 @@
  */
 
 /**
- * QueryGroup related artifacts
+ * Package for the service classes of WorkloadManagementPlugin
  */
-package org.opensearch.search.query_group;
+package org.opensearch.plugin.wlm.service;

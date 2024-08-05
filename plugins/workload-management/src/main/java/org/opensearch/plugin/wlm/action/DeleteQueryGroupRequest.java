@@ -12,17 +12,16 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 
 /**
- * A request for delete QueryGroup
+ * Request for delete QueryGroup
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
-public class DeleteQueryGroupRequest extends ActionRequest implements Writeable.Reader<DeleteQueryGroupRequest> {
-    String name;
+public class DeleteQueryGroupRequest extends ActionRequest {
+    private final String name;
 
     /**
      * Default constructor for DeleteQueryGroupRequest
@@ -42,11 +41,6 @@ public class DeleteQueryGroupRequest extends ActionRequest implements Writeable.
     }
 
     @Override
-    public DeleteQueryGroupRequest read(StreamInput in) throws IOException {
-        return new DeleteQueryGroupRequest(in);
-    }
-
-    @Override
     public ActionRequestValidationException validate() {
         return null;
     }
@@ -56,14 +50,6 @@ public class DeleteQueryGroupRequest extends ActionRequest implements Writeable.
      */
     public String getName() {
         return name;
-    }
-
-    /**
-     * Name setter
-     * @param name - name to be set
-     */
-    public void setName(String name) {
-        this.name = name;
     }
 
     @Override
