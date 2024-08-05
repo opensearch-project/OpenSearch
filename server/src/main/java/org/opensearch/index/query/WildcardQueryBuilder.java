@@ -217,9 +217,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                             caseInsensitive = parser.booleanValue();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
-                        }  else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
                             rewrite_override = parser.textOrNull();
-                        }else {
+                        } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "[wildcard] query does not support [" + currentFieldName + "]"
@@ -237,7 +237,8 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         return new WildcardQueryBuilder(fieldName, value).rewrite(rewrite)
             .boost(boost)
             .queryName(queryName)
-            .caseInsensitive(caseInsensitive).rewrite_override(rewrite_override);
+            .caseInsensitive(caseInsensitive)
+            .rewrite_override(rewrite_override);
     }
 
     @Override
@@ -288,6 +289,6 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             && Objects.equals(value, other.value)
             && Objects.equals(rewrite, other.rewrite)
             && Objects.equals(caseInsensitive, other.caseInsensitive)
-                && Objects.equals(rewrite_override, other.rewrite_override);
+            && Objects.equals(rewrite_override, other.rewrite_override);
     }
 }

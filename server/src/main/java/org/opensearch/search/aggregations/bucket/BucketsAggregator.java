@@ -76,7 +76,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     public BucketsAggregator(
         String name,
-            AggregatorFactories factories,
+        AggregatorFactories factories,
         SearchContext context,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,

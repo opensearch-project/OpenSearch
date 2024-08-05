@@ -176,7 +176,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         String rewrite = null;
         String rewrite_override = null;
 
-
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
@@ -204,7 +203,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                             caseInsensitive = parser.booleanValue();
                         } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
                             rewrite_override = parser.textOrNull();
-                        }else {
+                        } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "[prefix] query does not support [" + currentFieldName + "]"
@@ -219,7 +218,11 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
             }
         }
 
-        return new PrefixQueryBuilder(fieldName, value).rewrite(rewrite).boost(boost).queryName(queryName).caseInsensitive(caseInsensitive).rewrite_override(rewrite_override);
+        return new PrefixQueryBuilder(fieldName, value).rewrite(rewrite)
+            .boost(boost)
+            .queryName(queryName)
+            .caseInsensitive(caseInsensitive)
+            .rewrite_override(rewrite_override);
     }
 
     @Override
@@ -273,7 +276,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(value, other.value)
             && Objects.equals(rewrite, other.rewrite)
-                && Objects.equals(rewrite_override, other.rewrite_override)
+            && Objects.equals(rewrite_override, other.rewrite_override)
             && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 }

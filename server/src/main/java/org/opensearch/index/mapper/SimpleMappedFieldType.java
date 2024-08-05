@@ -86,7 +86,14 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
         throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support range queries");
     }
 
-    protected Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,RewriteOverride rewriteOverride, QueryShardContext context) {
+    protected Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        RewriteOverride rewriteOverride,
+        QueryShardContext context
+    ) {
         throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support range queries");
     }
 

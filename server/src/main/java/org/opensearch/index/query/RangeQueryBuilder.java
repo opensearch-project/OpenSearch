@@ -78,7 +78,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     private static final ParseField RELATION_FIELD = new ParseField("relation");
     private static final ParseField REWRITE_OVERRIDE = new ParseField("rewrite_override");
 
-
     private final String fieldName;
     private Object from;
     private Object to;
@@ -381,7 +380,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         String relation = null;
         String rewrite_override = null;
 
-
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -426,7 +424,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                             queryName = parser.text();
                         } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
                             rewrite_override = parser.textOrNull();
-                        }else {
+                        } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "[range] query does not support [" + currentFieldName + "]"
@@ -565,6 +563,6 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             && Objects.equals(includeLower, other.includeLower)
             && Objects.equals(includeUpper, other.includeUpper)
             && Objects.equals(format, other.format)
-                && Objects.equals(rewrite_override, other.rewrite_override);
+            && Objects.equals(rewrite_override, other.rewrite_override);
     }
 }

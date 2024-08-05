@@ -271,7 +271,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                             queryName = parser.text();
                         } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
                             rewrite_override = parser.textOrNull();
-                        }else {
+                        } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "[regexp] query does not support [" + currentFieldName + "]"
@@ -356,6 +356,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             && Objects.equals(syntaxFlagsValue, other.syntaxFlagsValue)
             && Objects.equals(caseInsensitive, other.caseInsensitive)
             && Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates)
-            && Objects.equals(rewrite, other.rewrite) && Objects.equals(rewrite_override, other.rewrite_override);
+            && Objects.equals(rewrite, other.rewrite)
+            && Objects.equals(rewrite_override, other.rewrite_override);
     }
 }
