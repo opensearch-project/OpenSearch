@@ -39,10 +39,14 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
 
     final String field;
     final RoaringBitmap bitmap;
+    final long min;
+    final long max;
 
     public BitmapDocValuesQuery(String field, RoaringBitmap bitmap) {
         this.field = field;
         this.bitmap = bitmap;
+        min = bitmap.first();
+        max = bitmap.last();
     }
 
     @Override
@@ -58,12 +62,12 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
                         @Override
                         public boolean matches() throws IOException {
                             long value = singleton.longValue();
-                            return bitmap.contains((int) value);
+                            return value >= min && value <= max && bitmap.contains((int) value);
                         }
 
                         @Override
                         public float matchCost() {
-                            return 2;
+                            return 5; // 2 comparisons, possible lookup in the bitmap
                         }
                     };
                 } else {
@@ -73,7 +77,11 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
                             int count = values.docValueCount();
                             for (int i = 0; i < count; i++) {
                                 final long value = values.nextValue();
-                                if (bitmap.contains((int) value)) {
+                                if (value < min) {
+                                    continue;
+                                } else if (value > max) {
+                                    return false; // values are sorted, terminate
+                                } else if (bitmap.contains((int) value)) {
                                     return true;
                                 }
                             }
@@ -82,7 +90,7 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
 
                         @Override
                         public float matchCost() {
-                            return 2 * values.docValueCount();
+                            return 5; // 2 comparisons, possible lookup in the bitmap
                         }
                     };
                 }
