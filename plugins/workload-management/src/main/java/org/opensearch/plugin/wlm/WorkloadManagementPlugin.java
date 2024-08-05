@@ -23,6 +23,9 @@ import org.opensearch.plugin.wlm.action.TransportCreateQueryGroupAction;
 import org.opensearch.plugin.wlm.action.TransportGetQueryGroupAction;
 import org.opensearch.plugin.wlm.rest.RestCreateQueryGroupAction;
 import org.opensearch.plugin.wlm.rest.RestGetQueryGroupAction;
+import org.opensearch.plugin.wlm.action.DeleteQueryGroupAction;
+import org.opensearch.plugin.wlm.action.TransportDeleteQueryGroupAction;
+import org.opensearch.plugin.wlm.rest.RestDeleteQueryGroupAction;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
@@ -46,7 +49,8 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionPlugin.ActionHandler<>(CreateQueryGroupAction.INSTANCE, TransportCreateQueryGroupAction.class),
-            new ActionPlugin.ActionHandler<>(GetQueryGroupAction.INSTANCE, TransportGetQueryGroupAction.class)
+            new ActionPlugin.ActionHandler<>(GetQueryGroupAction.INSTANCE, TransportGetQueryGroupAction.class),
+            new ActionPlugin.ActionHandler<>(DeleteQueryGroupAction.INSTANCE, TransportDeleteQueryGroupAction.class)
         );
     }
 
@@ -60,7 +64,7 @@ public class WorkloadManagementPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestCreateQueryGroupAction(), new RestGetQueryGroupAction());
+        return List.of(new RestCreateQueryGroupAction(), new RestGetQueryGroupAction(), new RestDeleteQueryGroupAction());
     }
 
     @Override

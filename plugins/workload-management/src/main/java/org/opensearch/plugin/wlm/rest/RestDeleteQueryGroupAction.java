@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.wlm.action.rest;
+package org.opensearch.plugin.wlm.rest;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.rest.RestStatus;
@@ -29,7 +29,7 @@ import static org.opensearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest action to delete a QueryGroup
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
 public class RestDeleteQueryGroupAction extends BaseRestHandler {
 
@@ -48,13 +48,12 @@ public class RestDeleteQueryGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "_query_group/{name}"), new Route(DELETE, "_query_group/"));
+        return List.of(new Route(DELETE, "_wlm/query_group/{name}"), new Route(DELETE, "_wlm/query_group/"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String name = request.param("name");
-        DeleteQueryGroupRequest deleteQueryGroupRequest = new DeleteQueryGroupRequest(name);
+        DeleteQueryGroupRequest deleteQueryGroupRequest = new DeleteQueryGroupRequest(request.param("name"));
         return channel -> client.execute(DeleteQueryGroupAction.INSTANCE, deleteQueryGroupRequest, deleteQueryGroupResponse(channel));
     }
 

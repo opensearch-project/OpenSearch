@@ -39,6 +39,7 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MEMORY_STRING;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MONITOR_STRING;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_NONE_EXISTED;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_ONE;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_TWO;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_TWO;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertEqualQueryGroups;
@@ -47,7 +48,9 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterSettingsSet;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterState;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.preparePersistenceServiceSetup;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterState;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupPersistenceService;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupTwo;
 import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
 import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.SOURCE;
@@ -297,5 +300,28 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         QueryGroupPersistenceService queryGroupPersistenceService = QueryGroupTestUtils.queryGroupPersistenceService();
         queryGroupPersistenceService.setMaxQueryGroupCount(50);
         assertEquals(50, queryGroupPersistenceService.getMaxQueryGroupCount());
+    }
+
+    public void testDeleteSingleQueryGroup() {
+        ClusterState newClusterState = queryGroupPersistenceService().deleteQueryGroupInClusterState(NAME_TWO, clusterState());
+        Map<String, QueryGroup> afterDeletionGroups = newClusterState.getMetadata().queryGroups();
+        assertFalse(afterDeletionGroups.containsKey(_ID_TWO));
+        assertEquals(1, afterDeletionGroups.size());
+        List<QueryGroup> oldQueryGroups = new ArrayList<>();
+        oldQueryGroups.add(queryGroupOne);
+        assertEqualQueryGroups(new ArrayList<>(afterDeletionGroups.values()), oldQueryGroups);
+    }
+
+    public void testDeleteAllQueryGroups() {
+        ClusterState newClusterState = queryGroupPersistenceService().deleteQueryGroupInClusterState(null, clusterState());
+        Map<String, QueryGroup> afterDeletionGroups = newClusterState.getMetadata().queryGroups();
+        assertEquals(0, afterDeletionGroups.size());
+    }
+
+    public void testDeleteNonExistedQueryGroup() {
+        assertThrows(
+            RuntimeException.class,
+            () -> queryGroupPersistenceService().deleteQueryGroupInClusterState(NAME_NONE_EXISTED, clusterState())
+        );
     }
 }

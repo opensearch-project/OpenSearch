@@ -6,6 +6,14 @@
  * compatible open source license.
  */
 
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.plugin.wlm.service;
 
 import org.apache.logging.log4j.LogManager;
@@ -24,12 +32,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
+import org.opensearch.plugin.wlm.action.DeleteQueryGroupResponse;
 import org.opensearch.search.ResourceType;
 
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +48,7 @@ import java.util.stream.Collectors;
 public class QueryGroupPersistenceService {
     static final String SOURCE = "query-group-persistence-service";
     private static final String CREATE_QUERY_GROUP_THROTTLING_KEY = "create-query-group";
+    private static final String DELETE_QUERY_GROUP_THROTTLING_KEY = "delete-query-group";
     private static final Logger logger = LogManager.getLogger(QueryGroupPersistenceService.class);
     /**
      *  max QueryGroup count setting name
@@ -65,6 +76,7 @@ public class QueryGroupPersistenceService {
     private final ClusterService clusterService;
     private volatile int maxQueryGroupCount;
     final ThrottlingKey createQueryGroupThrottlingKey;
+    final ThrottlingKey deleteQueryGroupThrottlingKey;
 
     /**
      * Constructor for QueryGroupPersistenceService
@@ -81,6 +93,7 @@ public class QueryGroupPersistenceService {
     ) {
         this.clusterService = clusterService;
         this.createQueryGroupThrottlingKey = clusterService.registerClusterManagerTask(CREATE_QUERY_GROUP_THROTTLING_KEY, true);
+        this.deleteQueryGroupThrottlingKey = clusterService.registerClusterManagerTask(DELETE_QUERY_GROUP_THROTTLING_KEY, true);
         setMaxQueryGroupCount(MAX_QUERY_GROUP_COUNT.get(settings));
         clusterSettings.addSettingsUpdateConsumer(MAX_QUERY_GROUP_COUNT, this::setMaxQueryGroupCount);
     }
@@ -210,6 +223,69 @@ public class QueryGroupPersistenceService {
             .findAny()
             .stream()
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Modify cluster state to delete the QueryGroup
+     * @param name - the name for QueryGroup to be deleted
+     * @param listener - ActionListener for DeleteQueryGroupResponse
+     */
+    public void deleteInClusterStateMetadata(String name, ActionListener<DeleteQueryGroupResponse> listener) {
+        clusterService.submitStateUpdateTask(SOURCE, new ClusterStateUpdateTask(Priority.NORMAL) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return deleteQueryGroupInClusterState(name, currentState);
+            }
+
+            @Override
+            public ThrottlingKey getClusterManagerThrottlingKey() {
+                return deleteQueryGroupThrottlingKey;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn("Failed to delete QueryGroup due to error: {}, for source: {}", e.getMessage(), source);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                final Map<String, QueryGroup> oldGroupsMap = oldState.metadata().queryGroups();
+                final Map<String, QueryGroup> newGroupsMap = newState.metadata().queryGroups();
+
+                List<QueryGroup> deletedGroups = oldGroupsMap.keySet()
+                    .stream()
+                    .filter(groupId -> !newGroupsMap.containsKey(groupId))
+                    .map(oldGroupsMap::get)
+                    .collect(Collectors.toList());
+
+                DeleteQueryGroupResponse response = new DeleteQueryGroupResponse(deletedGroups, RestStatus.OK);
+                listener.onResponse(response);
+            }
+        });
+    }
+
+    /**
+     * Modify cluster state to delete the QueryGroup, and return the new cluster state
+     * @param name - the name for QueryGroup to be deleted
+     * @param currentClusterState - current cluster state
+     */
+    ClusterState deleteQueryGroupInClusterState(final String name, final ClusterState currentClusterState) {
+        final Metadata metadata = currentClusterState.metadata();
+        QueryGroup queryGroupToRemove = metadata.queryGroups()
+            .values()
+            .stream()
+            .filter(queryGroup -> queryGroup.getName().equals(name))
+            .findFirst()
+            .orElse(null);
+        if (queryGroupToRemove != null) {
+            return ClusterState.builder(currentClusterState)
+                .metadata(Metadata.builder(metadata).remove(queryGroupToRemove).build())
+                .build();
+        } else {
+            logger.error("The QueryGroup with provided name {} doesn't exist", name);
+            throw new IllegalArgumentException("No QueryGroup exists with the provided name: " + name);
+        }
     }
 
     /**

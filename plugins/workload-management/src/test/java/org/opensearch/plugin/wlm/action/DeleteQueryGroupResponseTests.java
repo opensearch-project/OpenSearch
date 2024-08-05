@@ -21,10 +21,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.compareQueryGroups;
-import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupList;
-import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupOne;
-import static org.opensearch.plugin.wlm.action.QueryGroupTestUtils.queryGroupTwo;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertEqualQueryGroups;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupTwo;
 import static org.mockito.Mockito.mock;
 
 public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
@@ -41,7 +41,7 @@ public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
 
         DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
-        compareQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
+        assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
     }
 
     public void testSerializationMultipleQueryGroup() throws IOException {
@@ -55,7 +55,7 @@ public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
         DeleteQueryGroupResponse otherResponse = new DeleteQueryGroupResponse(streamInput);
         assertEquals(response.getRestStatus(), otherResponse.getRestStatus());
         assertEquals(2, otherResponse.getQueryGroups().size());
-        compareQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
+        assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
     }
 
     public void testSerializationNull() throws IOException {
@@ -84,8 +84,8 @@ public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
             + "      \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
             + "      \"name\" : \"query_group_one\",\n"
             + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"updatedAt\" : 4513232413,\n"
-            + "      \"resourceLimits\" : {\n"
+            + "      \"updated_at\" : 4513232413,\n"
+            + "      \"resource_limits\" : {\n"
             + "        \"memory\" : 0.3\n"
             + "      }\n"
             + "    }\n"
@@ -107,8 +107,8 @@ public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
             + "      \"_id\" : \"AgfUO5Ja9yfsYlONlYi3TQ==\",\n"
             + "      \"name\" : \"query_group_one\",\n"
             + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"updatedAt\" : 4513232413,\n"
-            + "      \"resourceLimits\" : {\n"
+            + "      \"updated_at\" : 4513232413,\n"
+            + "      \"resource_limits\" : {\n"
             + "        \"memory\" : 0.3\n"
             + "      }\n"
             + "    },\n"
@@ -116,8 +116,8 @@ public class DeleteQueryGroupResponseTests extends OpenSearchTestCase {
             + "      \"_id\" : \"G5iIqHy4g7eK1qIAAAAIH53=1\",\n"
             + "      \"name\" : \"query_group_two\",\n"
             + "      \"resiliency_mode\" : \"monitor\",\n"
-            + "      \"updatedAt\" : 4513232415,\n"
-            + "      \"resourceLimits\" : {\n"
+            + "      \"updated_at\" : 4513232415,\n"
+            + "      \"resource_limits\" : {\n"
             + "        \"memory\" : 0.6\n"
             + "      }\n"
             + "    }\n"
