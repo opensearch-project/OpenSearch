@@ -149,9 +149,9 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         assertEquals(
             "{\"_id\":\""
                 + queryGroupId
-                + "\",\"name\":\"TestQueryGroup\",\"resiliency_mode\":\"enforced\",\"updatedAt\":"
+                + "\",\"name\":\"TestQueryGroup\",\"resiliency_mode\":\"enforced\",\"updated_at\":"
                 + currentTimeInMillis
-                + ",\"resourceLimits\":{\"cpu\":0.3,\"memory\":0.4}}",
+                + ",\"resource_limits\":{\"cpu\":0.3,\"memory\":0.4}}",
             builder.toString()
         );
     }
