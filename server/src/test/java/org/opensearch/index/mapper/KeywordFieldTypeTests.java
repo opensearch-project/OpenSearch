@@ -149,7 +149,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"),RewriteOverride.DEFAULT,null)
+            () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), RewriteOverride.DEFAULT, null)
         );
         assertEquals(
             "Cannot search on field [field] since it is both not indexed, and does not have doc_values " + "enabled.",
