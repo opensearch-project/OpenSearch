@@ -7,7 +7,6 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 /**
@@ -15,14 +14,14 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  *
  * @opensearch.experimental
  */
-public class MaxValueAggregator extends MinMaxValueAggregator {
+public class MaxValueAggregator extends StatelessDoubleValueAggregator {
 
     public MaxValueAggregator(StarTreeNumericType starTreeNumericType) {
-        super(MetricStat.MAX, starTreeNumericType);
+        super(starTreeNumericType, null);
     }
 
     @Override
-    public Double performValueAggregation(Double aggregatedValue, Double segmentDocValue) {
+    protected Double performValueAggregation(Double aggregatedValue, Double segmentDocValue) {
         return Math.max(aggregatedValue, segmentDocValue);
     }
 }

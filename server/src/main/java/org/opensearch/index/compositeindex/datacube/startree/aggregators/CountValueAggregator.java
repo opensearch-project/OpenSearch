@@ -7,7 +7,6 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 /**
@@ -17,22 +16,11 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  */
 public class CountValueAggregator implements ValueAggregator<Long> {
 
-    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
     public static final long DEFAULT_INITIAL_VALUE = 1L;
     private final StarTreeNumericType starTreeNumericType;
 
     public CountValueAggregator(StarTreeNumericType starTreeNumericType) {
         this.starTreeNumericType = starTreeNumericType;
-    }
-
-    @Override
-    public MetricStat getAggregationType() {
-        return MetricStat.COUNT;
-    }
-
-    @Override
-    public StarTreeNumericType getAggregatedValueType() {
-        return VALUE_AGGREGATOR_TYPE;
     }
 
     @Override
@@ -62,24 +50,6 @@ public class CountValueAggregator implements ValueAggregator<Long> {
             aggregatedValue = getIdentityMetricValue();
         }
         return value + aggregatedValue;
-    }
-
-    @Override
-    public Long getInitialAggregatedValue(Long value) {
-        if (value == null) {
-            return getIdentityMetricValue();
-        }
-        return value;
-    }
-
-    @Override
-    public int getMaxAggregatedValueByteSize() {
-        return Long.BYTES;
-    }
-
-    @Override
-    public Long toLongValue(Long value) {
-        return value;
     }
 
     @Override

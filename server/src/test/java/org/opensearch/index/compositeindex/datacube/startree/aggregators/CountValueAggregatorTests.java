@@ -8,7 +8,6 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
@@ -37,16 +36,6 @@ public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
         assertEquals(randomLong, aggregator.getInitialAggregatedValue(randomLong), 0.0);
     }
 
-    public void testGetMaxAggregatedValueByteSize() {
-        assertEquals(Long.BYTES, aggregator.getMaxAggregatedValueByteSize());
-    }
-
-    public void testToLongValue() {
-        long randomLong = randomLong();
-        assertEquals(randomLong, aggregator.toLongValue(randomLong), 0.0);
-        assertNull(aggregator.toLongValue(null));
-    }
-
     public void testToStarTreeNumericTypeValue() {
         long randomLong = randomLong();
         assertEquals(randomLong, aggregator.toStarTreeNumericTypeValue(randomLong), 0.0);
@@ -63,13 +52,4 @@ public class CountValueAggregatorTests extends AbstractValueAggregatorTests {
         return aggregator;
     }
 
-    @Override
-    public MetricStat getMetricStat() {
-        return MetricStat.COUNT;
-    }
-
-    @Override
-    public StarTreeNumericType getValueAggregatorType() {
-        return aggregator.getAggregatedValueType();
-    }
 }
