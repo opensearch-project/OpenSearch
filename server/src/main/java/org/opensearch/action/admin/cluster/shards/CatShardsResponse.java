@@ -27,15 +27,16 @@ public class CatShardsResponse extends ActionResponse {
 
     private IndicesStatsResponse indicesStatsResponse = null;
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-
-    }
-
     public CatShardsResponse() {}
 
     public CatShardsResponse(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        clusterStateResponse.writeTo(out);
+        indicesStatsResponse.writeTo(out);
     }
 
     public void setClusterStateResponse(ClusterStateResponse clusterStateResponse) {

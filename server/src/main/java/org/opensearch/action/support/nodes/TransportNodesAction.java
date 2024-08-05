@@ -123,7 +123,6 @@ public abstract class TransportNodesAction<
      * This constructor should only be used for actions for which the creation of the final response is fast enough to be safely executed
      * on a transport thread.
      */
-
     protected TransportNodesAction(
         String actionName,
         ThreadPool threadPool,

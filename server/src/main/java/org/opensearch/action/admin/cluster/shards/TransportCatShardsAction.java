@@ -48,22 +48,21 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
     }
 
     @Override
-    public void doExecute(Task task, CatShardsRequest shardsRequest, ActionListener<CatShardsResponse> listener) {
+    public void doExecute(Task parenTask, CatShardsRequest shardsRequest, ActionListener<CatShardsResponse> listener) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(shardsRequest.getLocal());
         clusterStateRequest.clusterManagerNodeTimeout(shardsRequest.getClusterManagerNodeTimeout());
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
 
-        if (task != null) {
-            clusterStateRequest.setParentTask(client.getLocalNodeId(), task.getId());
-            TimeoutTaskCancellationUtility.wrapWithCancellationListener(
-                client,
-                (CancellableTask) task,
-                ((CancellableTask) task).getCancellationTimeout(),
-                ActionListener.wrap(r -> {}, e -> {})
-            );
-        }
+        clusterStateRequest.setParentTask(client.getLocalNodeId(), parenTask.getId());
+        listener = TimeoutTaskCancellationUtility.wrapAndHandleWithCancellationListener(
+            client,
+            (CancellableTask) parenTask,
+            ((CancellableTask) parenTask).getCancellationTimeout(),
+            listener
+        );
         CatShardsResponse catShardsResponse = new CatShardsResponse();
+        ActionListener<CatShardsResponse> finalListener = listener;
         try {
             client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
                 @Override
@@ -72,32 +71,32 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                     IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                     indicesStatsRequest.all();
                     indicesStatsRequest.indices(shardsRequest.getIndices());
-                    indicesStatsRequest.setParentTask(client.getLocalNodeId(), task.getId());
+                    indicesStatsRequest.setParentTask(client.getLocalNodeId(), parenTask.getId());
                     try {
                         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 catShardsResponse.setIndicesStatsResponse(indicesStatsResponse);
-                                listener.onResponse(catShardsResponse);
+                                if (!((CancellableTask) parenTask).isCancelled()) finalListener.onResponse(catShardsResponse);
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                listener.onFailure(e);
+                                if (!((CancellableTask) parenTask).isCancelled()) finalListener.onFailure(e);
                             }
                         });
                     } catch (Exception e) {
-                        listener.onFailure(e);
+                        if (!((CancellableTask) parenTask).isCancelled()) finalListener.onFailure(e);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    if (!((CancellableTask) parenTask).isCancelled()) finalListener.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            listener.onFailure(e);
+            if (!((CancellableTask) parenTask).isCancelled()) finalListener.onFailure(e);
         }
 
     }

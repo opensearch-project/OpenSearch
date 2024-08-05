@@ -86,14 +86,16 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
         // Dropping master node to delay in cluster state call.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(0)));
 
+        CountDownLatch latch = new CountDownLatch(2);
         new Thread(() -> {
             try {
                 // Ensures the cancellation timeout expires.
-                Thread.sleep(1000);
+                Thread.sleep(2000);
                 // Starting master node to proceed in cluster state call.
                 internalCluster().startClusterManagerOnlyNode(
                     Settings.builder().put("node.name", masterNodes.get(0)).put(clusterManagerDataPathSettings).build()
                 );
+                latch.countDown();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -101,8 +103,8 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
 
         final CatShardsRequest shardsRequest = new CatShardsRequest();
         shardsRequest.setCancelAfterTimeInterval(timeValueMillis(1000));
+        shardsRequest.setClusterManagerNodeTimeout(timeValueMillis(2500));
         shardsRequest.setIndices(Strings.EMPTY_ARRAY);
-        CountDownLatch latch = new CountDownLatch(1);
         client().execute(CatShardsAction.INSTANCE, shardsRequest, new ActionListener<CatShardsResponse>() {
             @Override
             public void onResponse(CatShardsResponse catShardsResponse) {
