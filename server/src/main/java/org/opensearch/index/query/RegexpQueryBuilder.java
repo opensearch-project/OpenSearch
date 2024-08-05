@@ -38,6 +38,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.opensearch.Version;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
@@ -72,6 +73,10 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
     private static final ParseField VALUE_FIELD = new ParseField("value");
+
+    private static final ParseField REWRITE_OVERRIDE = new ParseField("rewrite_override");
+
+    private String rewrite_override;
 
     private final String fieldName;
 
@@ -112,6 +117,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         maxDeterminizedStates = in.readVInt();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
+        if (in.getVersion().after(Version.V_2_16_0)) {
+            rewrite_override = in.readOptionalString();
+        }
     }
 
     @Override
@@ -122,6 +130,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         out.writeVInt(maxDeterminizedStates);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
+        if (out.getVersion().after(Version.V_2_16_0)) {
+            out.writeOptionalString(rewrite_override);
+        }
     }
 
     /** Returns the field name used in this query. */
@@ -172,6 +183,11 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         return this.caseInsensitive;
     }
 
+    public RegexpQueryBuilder rewrite_override(String rewrite_override) {
+        this.rewrite_override = rewrite_override;
+        return this;
+    }
+
     /**
      * Sets the regexp maxDeterminizedStates.
      */
@@ -206,6 +222,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         if (rewrite != null) {
             builder.field(REWRITE_FIELD.getPreferredName(), rewrite);
         }
+        if (rewrite_override != null) {
+            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
+        }
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -215,6 +234,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         String fieldName = null;
         String rewrite = null;
         String value = null;
+        String rewrite_override = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         int flagsValue = RegexpQueryBuilder.DEFAULT_FLAGS_VALUE;
         boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
@@ -249,7 +269,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                             caseInsensitive = parser.booleanValue();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
-                        } else {
+                        } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            rewrite_override = parser.textOrNull();
+                        }else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "[regexp] query does not support [" + currentFieldName + "]"
@@ -270,6 +292,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             .boost(boost)
             .queryName(queryName);
         result.caseInsensitive(caseInsensitive);
+        result.rewrite_override(rewrite_override);
         return result;
     }
 
@@ -323,7 +346,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, syntaxFlagsValue, caseInsensitive, maxDeterminizedStates, rewrite);
+        return Objects.hash(fieldName, value, syntaxFlagsValue, caseInsensitive, maxDeterminizedStates, rewrite, rewrite_override);
     }
 
     @Override
@@ -333,6 +356,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             && Objects.equals(syntaxFlagsValue, other.syntaxFlagsValue)
             && Objects.equals(caseInsensitive, other.caseInsensitive)
             && Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates)
-            && Objects.equals(rewrite, other.rewrite);
+            && Objects.equals(rewrite, other.rewrite) && Objects.equals(rewrite_override, other.rewrite_override);
     }
 }

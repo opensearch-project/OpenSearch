@@ -35,6 +35,7 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
@@ -75,6 +76,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField FORMAT_FIELD = new ParseField("format");
     private static final ParseField RELATION_FIELD = new ParseField("relation");
+    private static final ParseField REWRITE_OVERRIDE = new ParseField("rewrite_override");
+
 
     private final String fieldName;
     private Object from;
@@ -84,6 +87,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     private boolean includeUpper = DEFAULT_INCLUDE_UPPER;
     private String format;
     private ShapeRelation relation;
+
+    private String rewrite_override;
 
     /**
      * A Query that matches documents within an range of terms.
@@ -116,6 +121,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 throw new IllegalArgumentException("[range] query does not support relation [" + relationString + "]");
             }
         }
+        if (in.getVersion().after(Version.V_2_16_0)) {
+            rewrite_override = in.readOptionalString();
+        }
     }
 
     private boolean isRelationAllowed(ShapeRelation relation) {
@@ -136,6 +144,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             relationString = this.relation.getRelationName();
         }
         out.writeOptionalString(relationString);
+        if (out.getVersion().after(Version.V_2_16_0)) {
+            out.writeOptionalString(rewrite_override);
+        }
     }
 
     /**
@@ -271,6 +282,11 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         return this;
     }
 
+    public RangeQueryBuilder rewrite_override(String rewrite_override) {
+        this.rewrite_override = rewrite_override;
+        return this;
+    }
+
     /**
      * In case of date field, gets the from/to fields timezone adjustment
      */
@@ -344,6 +360,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (relation != null) {
             builder.field(RELATION_FIELD.getPreferredName(), relation.getRelationName());
         }
+        if (rewrite_override != null) {
+            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
+        }
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -360,6 +379,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         String queryName = null;
         String format = null;
         String relation = null;
+        String rewrite_override = null;
+
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -403,7 +424,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                             relation = parser.text();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
-                        } else {
+                        } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            rewrite_override = parser.textOrNull();
+                        }else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "[range] query does not support [" + currentFieldName + "]"
@@ -432,6 +455,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (relation != null) {
             rangeQuery.relation(relation);
         }
+        rangeQuery.rewrite_override(rewrite_override);
         return rangeQuery;
     }
 
@@ -529,7 +553,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper, format);
+        return Objects.hash(fieldName, from, to, timeZone, includeLower, includeUpper, format, rewrite_override);
     }
 
     @Override
@@ -540,6 +564,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             && Objects.equals(timeZone, other.timeZone)
             && Objects.equals(includeLower, other.includeLower)
             && Objects.equals(includeUpper, other.includeUpper)
-            && Objects.equals(format, other.format);
+            && Objects.equals(format, other.format)
+                && Objects.equals(rewrite_override, other.rewrite_override);
     }
 }

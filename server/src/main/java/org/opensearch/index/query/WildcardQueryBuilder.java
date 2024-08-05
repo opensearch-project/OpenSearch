@@ -36,6 +36,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.Version;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -67,6 +68,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     private static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
     private static final ParseField VALUE_FIELD = new ParseField("value");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
+    private static final ParseField REWRITE_OVERRIDE = new ParseField("rewrite_override");
+
+    private String rewrite_override;
 
     private final String fieldName;
 
@@ -109,6 +113,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         value = in.readString();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
+        if (in.getVersion().after(Version.V_2_16_0)) {
+            rewrite_override = in.readOptionalString();
+        }
     }
 
     @Override
@@ -117,6 +124,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeString(value);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
+        if (out.getVersion().after(Version.V_2_16_0)) {
+            out.writeOptionalString(rewrite_override);
+        }
     }
 
     @Override
@@ -142,6 +152,11 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         return this;
     }
 
+    public WildcardQueryBuilder rewrite_override(String rewrite_override) {
+        this.rewrite_override = rewrite_override;
+        return this;
+    }
+
     public boolean caseInsensitive() {
         return this.caseInsensitive;
     }
@@ -162,6 +177,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         if (caseInsensitive != DEFAULT_CASE_INSENSITIVITY) {
             builder.field(CASE_INSENSITIVE_FIELD.getPreferredName(), caseInsensitive);
         }
+        if (rewrite_override != null) {
+            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
+        }
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -175,6 +193,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
         String queryName = null;
         String currentFieldName = null;
+        String rewrite_override = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -198,7 +217,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                             caseInsensitive = parser.booleanValue();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
-                        } else {
+                        }  else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            rewrite_override = parser.textOrNull();
+                        }else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "[wildcard] query does not support [" + currentFieldName + "]"
@@ -216,7 +237,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         return new WildcardQueryBuilder(fieldName, value).rewrite(rewrite)
             .boost(boost)
             .queryName(queryName)
-            .caseInsensitive(caseInsensitive);
+            .caseInsensitive(caseInsensitive).rewrite_override(rewrite_override);
     }
 
     @Override
@@ -258,7 +279,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, rewrite, caseInsensitive);
+        return Objects.hash(fieldName, value, rewrite, caseInsensitive, rewrite_override);
     }
 
     @Override
@@ -266,6 +287,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(value, other.value)
             && Objects.equals(rewrite, other.rewrite)
-            && Objects.equals(caseInsensitive, other.caseInsensitive);
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+                && Objects.equals(rewrite_override, other.rewrite_override);
     }
 }

@@ -388,7 +388,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, QueryShardContext context, RewriteOverride rewriteOverride) {
+        public Query termsQuery(List<?> values,  RewriteOverride rewriteOverride, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
             if (rewriteOverride == null) {
                 rewriteOverride = RewriteOverride.DEFAULT;
@@ -438,6 +438,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         public Query prefixQuery(
             String value,
             @Nullable MultiTermQuery.RewriteMethod method,
+            @Nullable RewriteOverride rewriteOverride,
             boolean caseInsensitive,
             QueryShardContext context
         ) {
@@ -450,21 +451,49 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
-            if (isSearchable() && hasDocValues()) {
-                Query indexQuery = super.prefixQuery(value, method, caseInsensitive, context);
-                Query dvQuery = super.prefixQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, context);
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            if (rewriteOverride == null) {
+                rewriteOverride = RewriteOverride.DEFAULT;
             }
-            if (hasDocValues()) {
-                if (caseInsensitive) {
-                    return AutomatonQueries.caseInsensitivePrefixQuery(
-                        (new Term(name(), indexedValueForSearch(value))),
-                        MultiTermQuery.DOC_VALUES_REWRITE
-                    );
-                }
-                return new PrefixQuery(new Term(name(), indexedValueForSearch(value)), MultiTermQuery.DOC_VALUES_REWRITE);
+            Query query = null;
+            switch (rewriteOverride) {
+                case DEFAULT:
+                    if (isSearchable() && hasDocValues()) {
+                        Query indexQuery = super.prefixQuery(value, method, caseInsensitive, context);
+                        Query dvQuery = super.prefixQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, context);
+                        query = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                    }
+                    else if (hasDocValues()) {
+                        if (caseInsensitive) {
+                            return AutomatonQueries.caseInsensitivePrefixQuery(
+                                    (new Term(name(), indexedValueForSearch(value))),
+                                    MultiTermQuery.DOC_VALUES_REWRITE
+                            );
+                        }
+                        query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)), MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
+                    else{
+                        query = super.prefixQuery(value, method, caseInsensitive, context);
+                    }
+                    break;
+                case INDEX_ONLY:
+                    failIfNotIndexed();
+                    query = super.prefixQuery(value, method, caseInsensitive, context);
+                    break;
+                case DOC_VALUES_ONLY:
+                    failIfNoDocValues();
+                    if (caseInsensitive) {
+                        query =  AutomatonQueries.caseInsensitivePrefixQuery(
+                                (new Term(name(), indexedValueForSearch(value))),
+                                MultiTermQuery.DOC_VALUES_REWRITE
+                        );
+                    }
+                    else {
+                        query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)), MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
+                    break;
             }
-            return super.prefixQuery(value, method, caseInsensitive, context);
+
+            return query;
         }
 
         @Override
@@ -474,6 +503,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             int matchFlags,
             int maxDeterminizedStates,
             @Nullable MultiTermQuery.RewriteMethod method,
+            @Nullable RewriteOverride rewriteOverride,
             QueryShardContext context
         ) {
             if (context.allowExpensiveQueries() == false) {
@@ -482,33 +512,59 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
-            if (isSearchable() && hasDocValues()) {
-                Query indexQuery = super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
-                Query dvQuery = super.regexpQuery(
-                    value,
-                    syntaxFlags,
-                    matchFlags,
-                    maxDeterminizedStates,
-                    MultiTermQuery.DOC_VALUES_REWRITE,
-                    context
-                );
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            if (rewriteOverride == null) {
+                rewriteOverride = RewriteOverride.DEFAULT;
             }
-            if (hasDocValues()) {
-                return new RegexpQuery(
-                    new Term(name(), indexedValueForSearch(value)),
-                    syntaxFlags,
-                    matchFlags,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    maxDeterminizedStates,
-                    MultiTermQuery.DOC_VALUES_REWRITE
-                );
+            Query query = null;
+            switch(rewriteOverride) {
+                case DEFAULT:
+                    if (isSearchable() && hasDocValues()) {
+                        Query indexQuery = super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+                        Query dvQuery = super.regexpQuery(
+                                value,
+                                syntaxFlags,
+                                matchFlags,
+                                maxDeterminizedStates,
+                                MultiTermQuery.DOC_VALUES_REWRITE,
+                                context
+                        );
+                        query =  new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                    }
+                    else if (hasDocValues()) {
+                        query =  new RegexpQuery(
+                                new Term(name(), indexedValueForSearch(value)),
+                                syntaxFlags,
+                                matchFlags,
+                                RegexpQuery.DEFAULT_PROVIDER,
+                                maxDeterminizedStates,
+                                MultiTermQuery.DOC_VALUES_REWRITE
+                        );
+                    }
+                    else {
+                        query =  super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+                    }
+                    break;
+                case INDEX_ONLY:
+                    failIfNotIndexed();
+                    query = super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+                    break;
+                case DOC_VALUES_ONLY:
+                    failIfNoDocValues();
+                    query = new RegexpQuery(
+                            new Term(name(), indexedValueForSearch(value)),
+                            syntaxFlags,
+                            matchFlags,
+                            RegexpQuery.DEFAULT_PROVIDER,
+                            maxDeterminizedStates,
+                            MultiTermQuery.DOC_VALUES_REWRITE
+                    );
+                    break;
             }
-            return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+                return query;
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, RewriteOverride rewriteOverride, QueryShardContext context) {
             if (context.allowExpensiveQueries() == false) {
                 throw new OpenSearchException(
                     "[range] queries on [text] or [keyword] fields cannot be executed when '"
@@ -517,41 +573,67 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
-            if (isSearchable() && hasDocValues()) {
-                Query indexQuery = new TermRangeQuery(
-                    name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                    includeLower,
-                    includeUpper
-                );
-                Query dvQuery = new TermRangeQuery(
-                    name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                    includeLower,
-                    includeUpper,
-                    MultiTermQuery.DOC_VALUES_REWRITE
-                );
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            if (rewriteOverride == null) {
+                rewriteOverride = RewriteOverride.DEFAULT;
             }
-            if (hasDocValues()) {
-                return new TermRangeQuery(
-                    name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                    includeLower,
-                    includeUpper,
-                    MultiTermQuery.DOC_VALUES_REWRITE
-                );
+            Query query = null;
+            switch (rewriteOverride) {
+                case DEFAULT:
+                    if (isSearchable() && hasDocValues()) {
+                        Query indexQuery = new TermRangeQuery(
+                                name(),
+                                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                                includeLower,
+                                includeUpper
+                        );
+                        Query dvQuery = new TermRangeQuery(
+                                name(),
+                                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                                includeLower,
+                                includeUpper,
+                                MultiTermQuery.DOC_VALUES_REWRITE
+                        );
+                        query = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                    }
+                    else if (hasDocValues()) {
+                        query = new TermRangeQuery(
+                                name(),
+                                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                                includeLower,
+                                includeUpper,
+                                MultiTermQuery.DOC_VALUES_REWRITE
+                        );
+                    }
+                    else {
+                        query = super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+                    }
+                    break;
+                case INDEX_ONLY:
+                    failIfNotIndexed();
+                    query = new TermRangeQuery(
+                            name(),
+                            lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                            upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                            includeLower,
+                            includeUpper
+                    );
+                    break;
+                case DOC_VALUES_ONLY:
+                    failIfNoDocValues();
+                    query = new TermRangeQuery(
+                            name(),
+                            lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                            upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                            includeLower,
+                            includeUpper,
+                            MultiTermQuery.DOC_VALUES_REWRITE
+                    );
+                    break;
             }
-            return new TermRangeQuery(
-                name(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower,
-                includeUpper
-            );
+            return query;
         }
 
         @Override
@@ -562,6 +644,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             int maxExpansions,
             boolean transpositions,
             @Nullable MultiTermQuery.RewriteMethod method,
+            @Nullable RewriteOverride rewriteOverride,
             QueryShardContext context
         ) {
             failIfNotIndexedAndNoDocValues();
@@ -570,36 +653,63 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                     "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to " + "false."
                 );
             }
-            if (isSearchable() && hasDocValues()) {
-                Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
-                Query dvQuery = super.fuzzyQuery(
-                    value,
-                    fuzziness,
-                    prefixLength,
-                    maxExpansions,
-                    transpositions,
-                    MultiTermQuery.DOC_VALUES_REWRITE,
-                    context
-                );
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            if (rewriteOverride == null) {
+                rewriteOverride = RewriteOverride.DEFAULT;
             }
-            if (hasDocValues()) {
-                return new FuzzyQuery(
-                    new Term(name(), indexedValueForSearch(value)),
-                    fuzziness.asDistance(BytesRefs.toString(value)),
-                    prefixLength,
-                    maxExpansions,
-                    transpositions,
-                    MultiTermQuery.DOC_VALUES_REWRITE
-                );
+            Query query = null;
+            switch (rewriteOverride) {
+                case DEFAULT:
+                    if (isSearchable() && hasDocValues()) {
+                        Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
+                        Query dvQuery = super.fuzzyQuery(
+                            value,
+                            fuzziness,
+                            prefixLength,
+                            maxExpansions,
+                            transpositions,
+                            MultiTermQuery.DOC_VALUES_REWRITE,
+                            context
+                        );
+                        query = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                    }
+                    else if (hasDocValues()) {
+                        query = new FuzzyQuery(
+                            new Term(name(), indexedValueForSearch(value)),
+                            fuzziness.asDistance(BytesRefs.toString(value)),
+                            prefixLength,
+                            maxExpansions,
+                            transpositions,
+                            MultiTermQuery.DOC_VALUES_REWRITE
+                        );
+                    }
+                    else {
+                        query = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
+                    }
+                    break;
+                case INDEX_ONLY:
+                    failIfNotIndexed();
+                    query = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
+                    break;
+                case DOC_VALUES_ONLY:
+                    failIfNoDocValues();
+                    query = new FuzzyQuery(
+                        new Term(name(), indexedValueForSearch(value)),
+                        fuzziness.asDistance(BytesRefs.toString(value)),
+                        prefixLength,
+                        maxExpansions,
+                        transpositions,
+                        MultiTermQuery.DOC_VALUES_REWRITE
+                    );
+                    break;
             }
-            return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+           return query;
         }
 
         @Override
         public Query wildcardQuery(
             String value,
             @Nullable MultiTermQuery.RewriteMethod method,
+            @Nullable RewriteOverride rewriteOverride,
             boolean caseInsensitive,
             QueryShardContext context
         ) {
@@ -612,21 +722,43 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             // keyword field types are always normalized, so ignore case sensitivity and force normalize the
             // wildcard
             // query text
-            if (isSearchable() && hasDocValues()) {
-                Query indexQuery = super.wildcardQuery(value, method, caseInsensitive, true, context);
-                Query dvQuery = super.wildcardQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, true, context);
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+            if (rewriteOverride == null) {
+                rewriteOverride = RewriteOverride.DEFAULT;
             }
-            if (hasDocValues()) {
-                Term term;
-                value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
-                term = new Term(name(), value);
-                if (caseInsensitive) {
-                    return AutomatonQueries.caseInsensitiveWildcardQuery(term, method);
-                }
-                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+            Query query = null;
+            switch (rewriteOverride) {
+                case DEFAULT:
+                    if (isSearchable() && hasDocValues()) {
+                        Query indexQuery = super.wildcardQuery(value, method, caseInsensitive, true, context);
+                        Query dvQuery = super.wildcardQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, true, context);
+                        query = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                    }
+                    if (hasDocValues()) {
+                        Term term;
+                        value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
+                        term = new Term(name(), value);
+                        if (caseInsensitive) {
+                            return AutomatonQueries.caseInsensitiveWildcardQuery(term, method);
+                        }
+                        query = new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
+                    break;
+                case INDEX_ONLY:
+                    failIfNotIndexed();
+                    query = super.wildcardQuery(value, method, caseInsensitive, true, context);
+                    break;
+                case DOC_VALUES_ONLY:
+                    failIfNoDocValues();
+                    Term term;
+                    value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
+                    term = new Term(name(), value);
+                    if (caseInsensitive) {
+                        return AutomatonQueries.caseInsensitiveWildcardQuery(term, method);
+                    }
+                    query = new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                    break;
             }
-            return super.wildcardQuery(value, method, caseInsensitive, true, context);
+            return query;
         }
 
     }

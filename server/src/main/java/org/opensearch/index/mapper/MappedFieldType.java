@@ -230,7 +230,7 @@ public abstract class MappedFieldType {
         );
     }
 
-    public Query termsQuery(List<?> values, @Nullable QueryShardContext context, @Nullable RewriteOverride rewriteOverride) {
+    public Query termsQuery(List<?> values, @Nullable RewriteOverride rewriteOverride, @Nullable QueryShardContext context) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Object value : values) {
             builder.add(termQuery(value, context), Occur.SHOULD);
@@ -294,6 +294,34 @@ public abstract class MappedFieldType {
         );
     }
 
+    public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            @Nullable RewriteOverride rewriteOverride,
+            QueryShardContext context
+    ) {
+        throw new IllegalArgumentException(
+                "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    public Query prefixQuery(
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            @Nullable RewriteOverride rewriteOverride,
+            boolean caseInsensitve,
+            QueryShardContext context
+    ) {
+        throw new QueryShardException(
+                context,
+                "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
     // Case sensitive form of prefix query
     public final Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         return prefixQuery(value, method, false, context);
@@ -328,6 +356,18 @@ public abstract class MappedFieldType {
             "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
+    public Query wildcardQuery(
+            String value,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            @Nullable RewriteOverride rewriteOverride,
+            boolean caseInsensitve,
+            QueryShardContext context
+    ) {
+        throw new QueryShardException(
+                context,
+                "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
 
     /** always normalizes the wildcard pattern to lowercase */
     public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
@@ -348,6 +388,21 @@ public abstract class MappedFieldType {
         throw new QueryShardException(
             context,
             "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            @Nullable RewriteOverride rewriteOverride,
+            QueryShardContext context
+    ) {
+        throw new QueryShardException(
+                context,
+                "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 

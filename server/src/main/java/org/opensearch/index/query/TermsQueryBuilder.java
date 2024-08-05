@@ -254,10 +254,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return this;
     }
 
-    public String rewrite_override() {
-        return this.rewrite_override;
-    }
-
     private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
         Arrays.asList(Byte.class, Short.class, Integer.class, Long.class)
     );
