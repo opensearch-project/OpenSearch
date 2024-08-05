@@ -66,7 +66,7 @@ dependencies {
   }
   api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-  api 'org.apache.avro:avro:1.11.3'
+  api 'org.apache.avro:avro:1.12.0'
   api 'com.google.code.gson:gson:2.11.0'
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
