@@ -72,6 +72,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -617,10 +618,10 @@ public class AllocationService {
 
     private void allocateAllUnassignedShards(RoutingAllocation allocation) {
         ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
-        allocator.allocateAllUnassignedShards(allocation, true);
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, true)).ifPresent(Runnable::run);
         allocator.afterPrimariesBeforeReplicas(allocation);
         // Replicas Assignment
-        allocator.allocateAllUnassignedShards(allocation, false);
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, false)).ifPresent(Runnable::run);
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {

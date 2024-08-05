@@ -93,7 +93,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
         assertEquals(0, constraints.weight(balancer, node, indexName));
 
-        perIndexPrimaryShardCount = 3;
+        perIndexPrimaryShardCount = 2;
         when(node.numPrimaryShards(anyString())).thenReturn(perIndexPrimaryShardCount);
         assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, indexName));
 

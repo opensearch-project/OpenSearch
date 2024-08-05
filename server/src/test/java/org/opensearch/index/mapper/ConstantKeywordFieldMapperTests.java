@@ -105,6 +105,14 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
         assertThat(e.getMessage(), containsString("Field [field] is missing required parameter [value]"));
     }
 
+    public void testBuilderToXContent() throws IOException {
+        ConstantKeywordFieldMapper.Builder builder = new ConstantKeywordFieldMapper.Builder("name", "value1");
+        XContentBuilder xContentBuilder = JsonXContent.contentBuilder().startObject();
+        builder.toXContent(xContentBuilder, false);
+        xContentBuilder.endObject();
+        assertEquals("{\"value\":\"value1\"}", xContentBuilder.toString());
+    }
+
     private final SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);

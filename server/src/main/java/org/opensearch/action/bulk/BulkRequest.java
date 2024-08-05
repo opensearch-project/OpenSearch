@@ -96,7 +96,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
-    private int batchSize = 1;
+    private int batchSize = Integer.MAX_VALUE;
 
     private long sizeInBytes = 0;
 

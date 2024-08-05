@@ -88,6 +88,7 @@ public class RemoteClusterStateUtils {
         ClusterMetadataManifest.UploadedMetadataAttribute uploadedClusterBlocks;
         List<ClusterMetadataManifest.UploadedIndexMetadata> uploadedIndicesRoutingMetadata;
         ClusterMetadataManifest.UploadedMetadataAttribute uploadedHashesOfConsistentSettings;
+        ClusterMetadataManifest.UploadedMetadataAttribute uploadedIndicesRoutingDiffMetadata;
 
         public UploadedMetadataResults(
             List<ClusterMetadataManifest.UploadedIndexMetadata> uploadedIndexMetadata,

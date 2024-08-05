@@ -8,13 +8,11 @@
 
 package org.opensearch.gateway.remote;
 
-import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.DiffableUtils.NonDiffableValueSerializer;
-import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
-import org.opensearch.common.remote.RemoteWritableEntityStore;
+import org.opensearch.common.remote.AbstractRemoteWritableEntityManager;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.gateway.remote.model.RemoteClusterBlocks;
@@ -26,9 +24,7 @@ import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -36,13 +32,11 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class RemoteClusterStateAttributesManager {
+public class RemoteClusterStateAttributesManager extends AbstractRemoteWritableEntityManager {
     public static final String CLUSTER_STATE_ATTRIBUTE = "cluster_state_attribute";
     public static final String DISCOVERY_NODES = "nodes";
     public static final String CLUSTER_BLOCKS = "blocks";
     public static final int CLUSTER_STATE_ATTRIBUTES_CURRENT_CODEC_VERSION = 1;
-    private final Map<String, RemoteWritableEntityStore> remoteWritableEntityStores;
-    private final NamedWriteableRegistry namedWriteableRegistry;
 
     RemoteClusterStateAttributesManager(
         String clusterName,
@@ -51,8 +45,6 @@ public class RemoteClusterStateAttributesManager {
         NamedWriteableRegistry namedWriteableRegistry,
         ThreadPool threadpool
     ) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        this.remoteWritableEntityStores = new HashMap<>();
         this.remoteWritableEntityStores.put(
             RemoteDiscoveryNodes.DISCOVERY_NODES,
             new RemoteClusterStateBlobStore<>(
@@ -85,46 +77,28 @@ public class RemoteClusterStateAttributesManager {
         );
     }
 
-    /**
-     * Allows async upload of Cluster State Attribute components to remote
-     */
-    CheckedRunnable<IOException> getAsyncMetadataWriteAction(
+    @Override
+    protected ActionListener<Void> getWrappedWriteListener(
         String component,
-        AbstractRemoteWritableBlobEntity blobEntity,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
-    ) {
-        return () -> getStore(blobEntity).writeAsync(blobEntity, getActionListener(component, blobEntity, latchedActionListener));
-    }
-
-    private ActionListener<Void> getActionListener(
-        String component,
-        AbstractRemoteWritableBlobEntity remoteObject,
-        LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
+        AbstractRemoteWritableBlobEntity remoteEntity,
+        ActionListener<ClusterMetadataManifest.UploadedMetadata> listener
     ) {
         return ActionListener.wrap(
-            resp -> latchedActionListener.onResponse(remoteObject.getUploadedMetadata()),
-            ex -> latchedActionListener.onFailure(new RemoteStateTransferException(component, remoteObject, ex))
+            resp -> listener.onResponse(remoteEntity.getUploadedMetadata()),
+            ex -> listener.onFailure(new RemoteStateTransferException("Upload failed for " + component, remoteEntity, ex))
         );
     }
 
-    private RemoteWritableEntityStore getStore(AbstractRemoteWritableBlobEntity entity) {
-        RemoteWritableEntityStore remoteStore = remoteWritableEntityStores.get(entity.getType());
-        if (remoteStore == null) {
-            throw new IllegalArgumentException("Unknown entity type [" + entity.getType() + "]");
-        }
-        return remoteStore;
-    }
-
-    public CheckedRunnable<IOException> getAsyncMetadataReadAction(
+    @Override
+    protected ActionListener<Object> getWrappedReadListener(
         String component,
-        AbstractRemoteWritableBlobEntity blobEntity,
-        LatchedActionListener<RemoteReadResult> listener
+        AbstractRemoteWritableBlobEntity remoteEntity,
+        ActionListener<RemoteReadResult> listener
     ) {
-        final ActionListener actionListener = ActionListener.wrap(
+        return ActionListener.wrap(
             response -> listener.onResponse(new RemoteReadResult(response, CLUSTER_STATE_ATTRIBUTE, component)),
-            listener::onFailure
+            ex -> listener.onFailure(new RemoteStateTransferException("Download failed for " + component, remoteEntity, ex))
         );
-        return () -> getStore(blobEntity).readAsync(blobEntity, actionListener);
     }
 
     public DiffableUtils.MapDiff<String, ClusterState.Custom, Map<String, ClusterState.Custom>> getUpdatedCustoms(
@@ -158,4 +132,5 @@ public class RemoteClusterStateAttributesManager {
             NonDiffableValueSerializer.getAbstractInstance()
         );
     }
+
 }

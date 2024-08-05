@@ -41,9 +41,11 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -1051,6 +1053,68 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         } finally {
             IOUtils.close(clusterService);
             terminate(threadPool);
+        }
+    }
+
+    @SuppressForbidden(reason = "feature flag overrides")
+    public void testPartialIndexPrimaryDefault() throws Exception {
+        System.setProperty(FeatureFlags.TIERED_REMOTE_INDEX, "true");
+        final int numIndices = 1;
+        final int numShards = 2;
+        final int numReplicas = 2;
+        final String[] indexNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indexNames[i] = "test" + i;
+        }
+        // The first index is a partial index
+        final String indexName = indexNames[0];
+        ClusterService clusterService = null;
+        ThreadPool threadPool = null;
+
+        try {
+            OperationRouting opRouting = new OperationRouting(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+
+            ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
+            threadPool = new TestThreadPool("testPartialIndexPrimaryDefault");
+            clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+            // Update the index config within the cluster state to modify the index to a partial index
+            IndexMetadata partialIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(
+                    Settings.builder()
+                        .put(state.metadata().index(indexName).getSettings())
+                        .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), IndexModule.DataLocalityType.PARTIAL)
+                        .build()
+                )
+                .build();
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata())
+                .put(partialIndexMetadata, false)
+                .generateClusterUuidIfNeeded();
+            state = ClusterState.builder(state).metadata(metadataBuilder.build()).build();
+
+            // Verify default preference is primary only
+            GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, null);
+            assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
+
+            for (ShardIterator shardIterator : groupIterator) {
+                assertTrue("Only primary should exist with no preference", shardIterator.nextOrNull().primary());
+            }
+
+            // Verify alternative preference can be applied to a partial index
+            groupIterator = opRouting.searchShards(state, indexNames, null, "_replica");
+            assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
+
+            for (ShardIterator shardIterator : groupIterator) {
+                assertThat("Replica shards will be returned", shardIterator.size(), equalTo(numReplicas));
+                assertFalse("Returned shard should be a replica", shardIterator.nextOrNull().primary());
+            }
+        } finally {
+            IOUtils.close(clusterService);
+            terminate(threadPool);
+            System.setProperty(FeatureFlags.TIERED_REMOTE_INDEX, "false");
         }
     }
 

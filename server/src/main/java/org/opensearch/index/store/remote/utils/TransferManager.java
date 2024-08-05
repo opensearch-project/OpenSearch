@@ -64,16 +64,22 @@ public class TransferManager {
         final Path key = blobFetchRequest.getFilePath();
         logger.trace("fetchBlob called for {}", key.toString());
 
-        final CachedIndexInput cacheEntry = fileCache.compute(key, (path, cachedIndexInput) -> {
-            if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
-                logger.trace("Transfer Manager - IndexInput closed or not in cache");
-                // Doesn't exist or is closed, either way create a new one
-                return new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest);
-            } else {
-                logger.trace("Transfer Manager - Already in cache");
-                // already in the cache and ready to be used (open)
-                return cachedIndexInput;
-            }
+        // We need to do a privileged action here in order to fetch from remote
+        // and write/evict from local file cache in case this is invoked as a side
+        // effect of a plugin (such as a scripted search) that doesn't have the
+        // necessary permissions.
+        final CachedIndexInput cacheEntry = AccessController.doPrivileged((PrivilegedAction<CachedIndexInput>) () -> {
+            return fileCache.compute(key, (path, cachedIndexInput) -> {
+                if (cachedIndexInput == null || cachedIndexInput.isClosed()) {
+                    logger.trace("Transfer Manager - IndexInput closed or not in cache");
+                    // Doesn't exist or is closed, either way create a new one
+                    return new DelayedCreationCachedIndexInput(fileCache, streamReader, blobFetchRequest);
+                } else {
+                    logger.trace("Transfer Manager - Already in cache");
+                    // already in the cache and ready to be used (open)
+                    return cachedIndexInput;
+                }
+            });
         });
 
         // Cache entry was either retrieved from the cache or newly added, either
@@ -88,37 +94,31 @@ public class TransferManager {
 
     @SuppressWarnings("removal")
     private static FileCachedIndexInput createIndexInput(FileCache fileCache, StreamReader streamReader, BlobFetchRequest request) {
-        // We need to do a privileged action here in order to fetch from remote
-        // and write to the local file cache in case this is invoked as a side
-        // effect of a plugin (such as a scripted search) that doesn't have the
-        // necessary permissions.
-        return AccessController.doPrivileged((PrivilegedAction<FileCachedIndexInput>) () -> {
-            try {
-                if (Files.exists(request.getFilePath()) == false) {
-                    logger.trace("Fetching from Remote in createIndexInput of Transfer Manager");
-                    try (
-                        OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
-                        OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
-                    ) {
-                        for (BlobFetchRequest.BlobPart blobPart : request.blobParts()) {
-                            try (
-                                InputStream snapshotFileInputStream = streamReader.read(
-                                    blobPart.getBlobName(),
-                                    blobPart.getPosition(),
-                                    blobPart.getLength()
-                                );
-                            ) {
-                                snapshotFileInputStream.transferTo(localFileOutputStream);
-                            }
+        try {
+            if (Files.exists(request.getFilePath()) == false) {
+                logger.trace("Fetching from Remote in createIndexInput of Transfer Manager");
+                try (
+                    OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
+                    OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
+                ) {
+                    for (BlobFetchRequest.BlobPart blobPart : request.blobParts()) {
+                        try (
+                            InputStream snapshotFileInputStream = streamReader.read(
+                                blobPart.getBlobName(),
+                                blobPart.getPosition(),
+                                blobPart.getLength()
+                            );
+                        ) {
+                            snapshotFileInputStream.transferTo(localFileOutputStream);
                         }
                     }
                 }
-                final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.READ);
-                return new FileCachedIndexInput(fileCache, request.getFilePath(), luceneIndexInput);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
-        });
+            final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.READ);
+            return new FileCachedIndexInput(fileCache, request.getFilePath(), luceneIndexInput);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

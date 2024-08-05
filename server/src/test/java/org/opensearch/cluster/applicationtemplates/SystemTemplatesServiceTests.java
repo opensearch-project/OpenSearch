@@ -32,22 +32,31 @@ public class SystemTemplatesServiceTests extends OpenSearchTestCase {
     public void testSystemTemplatesLoaded() throws IOException {
         setupService(true);
 
-        systemTemplatesService.onClusterManager();
-        SystemTemplatesService.Stats stats = systemTemplatesService.stats();
-        assertNotNull(stats);
-        assertEquals(stats.getTemplatesLoaded(), 1L);
-        assertEquals(stats.getFailedLoadingTemplates(), 0L);
-        assertEquals(stats.getFailedLoadingRepositories(), 1L);
+        // First time load should happen, second time should short circuit.
+        for (int iter = 1; iter <= 2; iter++) {
+            systemTemplatesService.onClusterManager();
+            SystemTemplatesService.Stats stats = systemTemplatesService.stats();
+            assertNotNull(stats);
+            assertEquals(stats.getTemplatesLoaded(), iter % 2);
+            assertEquals(stats.getFailedLoadingTemplates(), 0L);
+            assertEquals(stats.getFailedLoadingRepositories(), iter % 2);
+        }
     }
 
-    public void testSystemTemplatesVerify() throws IOException {
+    public void testSystemTemplatesVerifyAndLoad() throws IOException {
         setupService(false);
 
         systemTemplatesService.verifyRepositories();
-
         SystemTemplatesService.Stats stats = systemTemplatesService.stats();
         assertNotNull(stats);
         assertEquals(stats.getTemplatesLoaded(), 0L);
+        assertEquals(stats.getFailedLoadingTemplates(), 0L);
+        assertEquals(stats.getFailedLoadingRepositories(), 0L);
+
+        systemTemplatesService.onClusterManager();
+        stats = systemTemplatesService.stats();
+        assertNotNull(stats);
+        assertEquals(stats.getTemplatesLoaded(), 1L);
         assertEquals(stats.getFailedLoadingTemplates(), 0L);
         assertEquals(stats.getFailedLoadingRepositories(), 0L);
     }
@@ -55,16 +64,19 @@ public class SystemTemplatesServiceTests extends OpenSearchTestCase {
     public void testSystemTemplatesVerifyWithFailingRepository() throws IOException {
         setupService(true);
 
-        assertThrows(IllegalStateException.class, () -> systemTemplatesService.verifyRepositories());
+        // Do it multiple times to ensure verify checks are always executed.
+        for (int i = 0; i < 2; i++) {
+            assertThrows(IllegalStateException.class, () -> systemTemplatesService.verifyRepositories());
 
-        SystemTemplatesService.Stats stats = systemTemplatesService.stats();
-        assertNotNull(stats);
-        assertEquals(stats.getTemplatesLoaded(), 0L);
-        assertEquals(stats.getFailedLoadingTemplates(), 0L);
-        assertEquals(stats.getFailedLoadingRepositories(), 1L);
+            SystemTemplatesService.Stats stats = systemTemplatesService.stats();
+            assertNotNull(stats);
+            assertEquals(stats.getTemplatesLoaded(), 0L);
+            assertEquals(stats.getFailedLoadingTemplates(), 0L);
+            assertEquals(stats.getFailedLoadingRepositories(), 1L);
+        }
     }
 
-    void setupService(boolean errorFromMockPlugin) throws IOException {
+    private void setupService(boolean errorFromMockPlugin) throws IOException {
         FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES, true).build());
 
         ThreadPool mockPool = Mockito.mock(ThreadPool.class);

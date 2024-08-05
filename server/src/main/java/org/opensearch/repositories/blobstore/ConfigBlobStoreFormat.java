@@ -8,7 +8,6 @@
 
 package org.opensearch.repositories.blobstore;
 
-import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -51,23 +50,30 @@ public class ConfigBlobStoreFormat<T extends ToXContent> extends BaseBlobStoreFo
             return;
         }
         String blobName = blobName(name);
-        BytesReference bytes = serialize(obj, blobName, new NoneCompressor(), ToXContent.EMPTY_PARAMS, XContentType.JSON, null, null);
+        BytesReference bytesReference = serialize(
+            obj,
+            blobName,
+            new NoneCompressor(),
+            ToXContent.EMPTY_PARAMS,
+            XContentType.JSON,
+            null,
+            null
+        );
         String resourceDescription = "BlobStoreFormat.writeAsyncWithPriority(blob=\"" + blobName + "\")";
-        try (IndexInput input = new ByteArrayIndexInput(resourceDescription, BytesReference.toBytes(bytes))) {
-            try (
-                RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-                    blobName,
-                    blobName,
-                    bytes.length(),
-                    true,
-                    WritePriority.URGENT,
-                    (size, position) -> new OffsetRangeIndexInputStream(input, size, position),
-                    null,
-                    false
-                )
-            ) {
-                ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
-            }
+        byte[] bytes = BytesReference.toBytes(bytesReference);
+        try (
+            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                blobName,
+                blobName,
+                bytes.length,
+                true,
+                WritePriority.URGENT,
+                (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDescription, bytes), size, position),
+                null,
+                false
+            )
+        ) {
+            ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(remoteTransferContainer.createWriteContext(), listener);
         }
     }
 }

@@ -10,6 +10,8 @@ package org.opensearch.cluster.applicationtemplates;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.util.Objects;
+
 /**
  * Metadata information about a template available in a template repository.
  */
@@ -48,13 +50,14 @@ public class SystemTemplateMetadata {
      * @return Metadata object based on name
      */
     public static SystemTemplateMetadata fromComponentTemplate(String fullyQualifiedName) {
-        assert fullyQualifiedName.length() > 1 : "System template name must have at least one component";
-        assert fullyQualifiedName.substring(1, fullyQualifiedName.indexOf(DELIMITER, 1)).equals(COMPONENT_TEMPLATE_TYPE);
+        assert fullyQualifiedName.length() > DELIMITER.length() * 3 + 2 + COMPONENT_TEMPLATE_TYPE.length()
+            : "System template name must have all defined components";
+        assert (DELIMITER + fullyQualifiedName.substring(1, fullyQualifiedName.indexOf(DELIMITER, 1))).equals(COMPONENT_TEMPLATE_TYPE);
 
         return new SystemTemplateMetadata(
-            Long.parseLong(fullyQualifiedName.substring(fullyQualifiedName.lastIndexOf(DELIMITER))),
+            Long.parseLong(fullyQualifiedName.substring(fullyQualifiedName.lastIndexOf(DELIMITER) + 1)),
             COMPONENT_TEMPLATE_TYPE,
-            fullyQualifiedName.substring(0, fullyQualifiedName.lastIndexOf(DELIMITER))
+            fullyQualifiedName.substring(fullyQualifiedName.indexOf(DELIMITER, 2) + 1, fullyQualifiedName.lastIndexOf(DELIMITER))
         );
     }
 
@@ -64,5 +67,23 @@ public class SystemTemplateMetadata {
 
     public final String fullyQualifiedName() {
         return type + DELIMITER + name + DELIMITER + version;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SystemTemplateMetadata that = (SystemTemplateMetadata) o;
+        return version == that.version && Objects.equals(type, that.type) && Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(version, type, name);
+    }
+
+    @Override
+    public String toString() {
+        return "SystemTemplateMetadata{" + "version=" + version + ", type='" + type + '\'' + ", name='" + name + '\'' + '}';
     }
 }

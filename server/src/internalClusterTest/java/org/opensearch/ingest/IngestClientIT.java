@@ -315,6 +315,87 @@ public class IngestClientIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         assertThat(upserted.get("processed"), equalTo(true));
     }
 
+    public void testSingleDocIngestFailure() throws Exception {
+        createIndex("test");
+        BytesReference source = BytesReference.bytes(
+            jsonBuilder().startObject()
+                .field("description", "my_pipeline")
+                .startArray("processors")
+                .startObject()
+                .startObject("test")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, MediaTypeRegistry.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
+
+        GetPipelineRequest getPipelineRequest = new GetPipelineRequest("_id");
+        GetPipelineResponse getResponse = client().admin().cluster().getPipeline(getPipelineRequest).get();
+        assertThat(getResponse.isFound(), is(true));
+        assertThat(getResponse.pipelines().size(), equalTo(1));
+        assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
+
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> client().prepareIndex("test")
+                .setId("1")
+                .setPipeline("_id")
+                .setSource(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", true)
+                .get()
+        );
+
+        DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest("_id");
+        AcknowledgedResponse response = client().admin().cluster().deletePipeline(deletePipelineRequest).get();
+        assertThat(response.isAcknowledged(), is(true));
+
+        getResponse = client().admin().cluster().prepareGetPipeline("_id").get();
+        assertThat(getResponse.isFound(), is(false));
+        assertThat(getResponse.pipelines().size(), equalTo(0));
+    }
+
+    public void testSingleDocIngestDrop() throws Exception {
+        createIndex("test");
+        BytesReference source = BytesReference.bytes(
+            jsonBuilder().startObject()
+                .field("description", "my_pipeline")
+                .startArray("processors")
+                .startObject()
+                .startObject("test")
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject()
+        );
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, MediaTypeRegistry.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
+
+        GetPipelineRequest getPipelineRequest = new GetPipelineRequest("_id");
+        GetPipelineResponse getResponse = client().admin().cluster().getPipeline(getPipelineRequest).get();
+        assertThat(getResponse.isFound(), is(true));
+        assertThat(getResponse.pipelines().size(), equalTo(1));
+        assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
+
+        DocWriteResponse indexResponse = client().prepareIndex("test")
+            .setId("1")
+            .setPipeline("_id")
+            .setSource(Requests.INDEX_CONTENT_TYPE, "field", "value", "drop", true)
+            .get();
+        assertEquals(DocWriteResponse.Result.NOOP, indexResponse.getResult());
+
+        Map<String, Object> doc = client().prepareGet("test", "1").get().getSourceAsMap();
+        assertNull(doc);
+
+        DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest("_id");
+        AcknowledgedResponse response = client().admin().cluster().deletePipeline(deletePipelineRequest).get();
+        assertThat(response.isAcknowledged(), is(true));
+
+        getResponse = client().admin().cluster().prepareGetPipeline("_id").get();
+        assertThat(getResponse.isFound(), is(false));
+        assertThat(getResponse.pipelines().size(), equalTo(0));
+    }
+
     public void test() throws Exception {
         BytesReference source = BytesReference.bytes(
             jsonBuilder().startObject()

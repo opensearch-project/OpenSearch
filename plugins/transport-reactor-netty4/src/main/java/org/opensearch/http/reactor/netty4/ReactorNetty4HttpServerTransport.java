@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioChannelOption;
@@ -390,7 +391,9 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 response.chunkedTransfer(false);
                 response.compression(true);
                 r.headers().forEach(h -> response.addHeader(h.getKey(), h.getValue()));
-                return Mono.from(response.sendObject(r.content()));
+
+                final ByteBuf content = r.content().copy();
+                return Mono.from(response.sendObject(content));
             });
         }
     }

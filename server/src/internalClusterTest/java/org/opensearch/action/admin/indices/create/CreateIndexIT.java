@@ -406,4 +406,28 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         assertEquals("Should have index name in response", "foo", response.index());
     }
 
+    public void testCreateIndexWithNullReplicaCountPickUpClusterReplica() {
+        int numReplicas = 3;
+        String indexName = "test-idx-1";
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("cluster.default_number_of_replicas", numReplicas).build())
+                .get()
+        );
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), (String) null)
+            .build();
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(settings).get());
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getClusterManagerName());
+        for (IndexService indexService : indicesService) {
+            assertEquals(indexName, indexService.index().getName());
+            assertEquals(
+                numReplicas,
+                (int) indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null)
+            );
+        }
+    }
 }

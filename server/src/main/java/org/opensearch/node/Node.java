@@ -52,6 +52,7 @@ import org.opensearch.action.search.SearchRequestOperationsCompositeListenerFact
 import org.opensearch.action.search.SearchRequestOperationsListener;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
+import org.opensearch.action.search.SearchTaskRequestOperationsListener;
 import org.opensearch.action.search.SearchTransportService;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.update.UpdateHelper;
@@ -262,6 +263,7 @@ import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 import org.opensearch.watcher.ResourceWatcherService;
+import org.opensearch.wlm.WorkloadManagementTransportInterceptor;
 
 import javax.net.ssl.SNIHostName;
 
@@ -380,7 +382,7 @@ public class Node implements Closeable {
 
     public static final Setting<String> NODE_SEARCH_CACHE_SIZE_SETTING = new Setting<>(
         "node.search.cache.size",
-        s -> (FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING) || DiscoveryNode.isDedicatedSearchNode(s)) ? "80%" : ZERO,
+        s -> (DiscoveryNode.isDedicatedSearchNode(s)) ? "80%" : ZERO,
         Node::validateFileCacheSize,
         Property.NodeScope
     );
@@ -855,8 +857,17 @@ public class Node implements Closeable {
                 threadPool
             );
 
+            final TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
+                settings,
+                clusterService.getClusterSettings(),
+                threadPool
+            );
+
             final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService.getClusterSettings());
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);
+            final SearchTaskRequestOperationsListener searchTaskRequestOperationsListener = new SearchTaskRequestOperationsListener(
+                taskResourceTrackingService
+            );
 
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
             CacheModule cacheModule = new CacheModule(pluginsService.filterPlugins(CachePlugin.class), settings);
@@ -988,7 +999,7 @@ public class Node implements Closeable {
             final SearchRequestOperationsCompositeListenerFactory searchRequestOperationsCompositeListenerFactory =
                 new SearchRequestOperationsCompositeListenerFactory(
                     Stream.concat(
-                        Stream.of(searchRequestStats, searchRequestSlowLog),
+                        Stream.of(searchRequestStats, searchRequestSlowLog, searchTaskRequestOperationsListener),
                         pluginComponents.stream()
                             .filter(p -> p instanceof SearchRequestOperationsListener)
                             .map(p -> (SearchRequestOperationsListener) p)
@@ -1037,6 +1048,10 @@ public class Node implements Closeable {
                 admissionControlService
             );
 
+            WorkloadManagementTransportInterceptor workloadManagementTransportInterceptor = new WorkloadManagementTransportInterceptor(
+                threadPool
+            );
+
             final Collection<SecureSettingsFactory> secureSettingsFactories = pluginsService.filterPlugins(Plugin.class)
                 .stream()
                 .map(p -> p.getSecureSettingFactory(settings))
@@ -1044,7 +1059,10 @@ public class Node implements Closeable {
                 .map(Optional::get)
                 .collect(Collectors.toList());
 
-            List<TransportInterceptor> transportInterceptors = List.of(admissionControlTransportInterceptor);
+            List<TransportInterceptor> transportInterceptors = List.of(
+                admissionControlTransportInterceptor,
+                workloadManagementTransportInterceptor
+            );
             final NetworkModule networkModule = new NetworkModule(
                 settings,
                 pluginsService.filterPlugins(NetworkPlugin.class),
@@ -1116,12 +1134,6 @@ public class Node implements Closeable {
             // Going forward, IndexingPressureService will have required constructs for exposing listeners/interfaces for plugin
             // development. Then we can deprecate Getter and Setter for IndexingPressureService in ClusterService (#478).
             clusterService.setIndexingPressureService(indexingPressureService);
-
-            final TaskResourceTrackingService taskResourceTrackingService = new TaskResourceTrackingService(
-                settings,
-                clusterService.getClusterSettings(),
-                threadPool
-            );
 
             final SearchBackpressureSettings searchBackpressureSettings = new SearchBackpressureSettings(
                 settings,
@@ -2025,8 +2037,7 @@ public class Node implements Closeable {
      * Else it configures the size to 80% of total capacity for a dedicated search node, if not explicitly defined.
      */
     private void initializeFileCache(Settings settings, CircuitBreaker circuitBreaker) throws IOException {
-        boolean isWritableRemoteIndexEnabled = FeatureFlags.isEnabled(FeatureFlags.TIERED_REMOTE_INDEX_SETTING);
-        if (DiscoveryNode.isSearchNode(settings) == false && isWritableRemoteIndexEnabled == false) {
+        if (DiscoveryNode.isSearchNode(settings) == false) {
             return;
         }
 

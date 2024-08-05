@@ -46,7 +46,7 @@ dependencies {
   api "io.projectreactor.netty:reactor-netty-core:${versions.reactor_netty}"
 
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  testImplementation "io.projectreactor:reactor-test:${versions.reactor}"
+  javaRestTestImplementation "io.projectreactor:reactor-test:${versions.reactor}"
   testImplementation project(":modules:transport-netty4")
 }
 
@@ -78,6 +78,10 @@ internalClusterTest {
 
 javaRestTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+}
+
+testClusters.javaRestTest {
+  setting 'http.type', 'reactor-netty4'
 }
 
 thirdPartyAudit {

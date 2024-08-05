@@ -8,6 +8,7 @@
 
 package org.opensearch.rest.action.document;
 
+import com.google.protobuf.ExperimentalApi;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BulkItemResponse;
@@ -26,6 +27,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.http.HttpChunk;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -37,6 +39,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -57,6 +60,7 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  *
  * @opensearch.api
  */
+@ExperimentalApi
 public class RestBulkStreamingAction extends BaseRestHandler {
     private static final BulkResponse EMPTY = new BulkResponse(new BulkItemResponse[0], 0L);
     private final boolean allowExplicitIndex;
@@ -95,6 +99,18 @@ public class RestBulkStreamingAction extends BaseRestHandler {
         final StreamingRestChannelConsumer consumer = (channel) -> {
             final MediaType mediaType = request.getMediaType();
 
+            // We prepare (and more importantly, validate) the templated BulkRequest instance: in case the parameters
+            // are incorrect, we are going to fail the request immediately, instead of producing a possibly large amount
+            // of failed chunks.
+            FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
+            BulkRequest prepareBulkRequest = Requests.bulkRequest();
+            if (waitForActiveShards != null) {
+                prepareBulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
+            }
+
+            prepareBulkRequest.timeout(timeout);
+            prepareBulkRequest.setRefreshPolicy(refresh);
+
             // Set the content type and the status code before sending the response stream over
             channel.prepareResponse(RestStatus.OK, Map.of("Content-Type", List.of(mediaType.mediaTypeWithoutParameters())));
 
@@ -105,17 +121,17 @@ public class RestBulkStreamingAction extends BaseRestHandler {
             // TODOs:
             // - add batching (by interval and/or count)
             // - eliminate serialization inefficiencies
-            Flux.from(channel).map(chunk -> {
-                FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
+            Flux.from(channel).zipWith(Flux.fromStream(Stream.generate(() -> {
                 BulkRequest bulkRequest = Requests.bulkRequest();
-                if (waitForActiveShards != null) {
-                    bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
-                }
+                bulkRequest.waitForActiveShards(prepareBulkRequest.waitForActiveShards());
+                bulkRequest.timeout(prepareBulkRequest.timeout());
+                bulkRequest.setRefreshPolicy(prepareBulkRequest.getRefreshPolicy());
+                return bulkRequest;
+            }))).map(t -> {
+                final HttpChunk chunk = t.getT1();
+                final BulkRequest bulkRequest = t.getT2();
 
-                bulkRequest.timeout(timeout);
-                bulkRequest.setRefreshPolicy(refresh);
-
-                try {
+                try (chunk) {
                     bulkRequest.add(
                         chunk.content(),
                         defaultIndex,
@@ -168,7 +184,17 @@ public class RestBulkStreamingAction extends BaseRestHandler {
                 } catch (IOException ex) {
                     throw new UncheckedIOException(ex);
                 }
-            })).subscribe();
+            })).onErrorComplete(ex -> {
+                if (ex instanceof Error) {
+                    return false;
+                }
+                try {
+                    channel.sendResponse(new BytesRestResponse(channel, (Exception) ex));
+                    return true;
+                } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).subscribe();
         };
 
         return channel -> {

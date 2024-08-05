@@ -55,7 +55,8 @@ public class TransportGetWeightedRoutingAction extends TransportClusterManagerNo
             threadPool,
             actionFilters,
             ClusterGetWeightedRoutingRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            true
         );
         this.weightedRoutingService = weightedRoutingService;
     }

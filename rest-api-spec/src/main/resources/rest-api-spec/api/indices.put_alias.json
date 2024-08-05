@@ -1,7 +1,7 @@
 {
   "indices.put_alias":{
     "documentation":{
-      "url":"https://opensearch.org/docs/latest/api-reference/index-apis/alias/",
+      "url":"https://opensearch.org/docs/latest/api-reference/index-apis/update-alias/",
       "description":"Creates or updates an alias."
     },
     "stability":"stable",

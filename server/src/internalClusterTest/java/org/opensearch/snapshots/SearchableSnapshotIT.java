@@ -67,7 +67,6 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
-import static org.opensearch.common.util.FeatureFlags.TIERED_REMOTE_INDEX;
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
 import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
@@ -1019,11 +1018,12 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startNode(Settings.builder().put(onlyRole(DiscoveryNodeRole.SEARCH_ROLE)));
         // test start node without search role
         internalCluster().startNode(Settings.builder().put(onlyRole(DiscoveryNodeRole.DATA_ROLE)));
-        // test start non-dedicated search node with TIERED_REMOTE_INDEX feature enabled
-        internalCluster().startNode(
-            Settings.builder()
-                .put(onlyRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.DATA_ROLE)))
-                .put(TIERED_REMOTE_INDEX, true)
+        // test start non-dedicated search node, if the user doesn't configure the cache size, it fails
+        assertThrows(
+            SettingsException.class,
+            () -> internalCluster().startNode(
+                Settings.builder().put(onlyRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.DATA_ROLE)))
+            )
         );
         // test start non-dedicated search node
         assertThrows(

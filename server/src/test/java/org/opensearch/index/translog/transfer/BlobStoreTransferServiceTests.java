@@ -22,6 +22,8 @@ import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
@@ -54,9 +56,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+
 import static org.opensearch.index.translog.transfer.TranslogTransferManager.CHECKPOINT_FILE_DATA_KEY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
@@ -139,8 +145,28 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         FsBlobStore fsBlobStore = mock(FsBlobStore.class);
         when(fsBlobStore.blobContainer(any())).thenReturn(mockAsyncFsContainer);
 
-        TransferService transferService = new BlobStoreTransferService(fsBlobStore, threadPool);
-        uploadBlobFromInputStream(transferService);
+        BlobStoreTransferService transferServiceSpy = Mockito.spy(new BlobStoreTransferService(fsBlobStore, threadPool));
+        uploadBlobFromInputStream(transferServiceSpy);
+
+        ArgumentCaptor<RemoteTransferContainer.OffsetRangeInputStreamSupplier> inputStreamCaptor = ArgumentCaptor.forClass(
+            RemoteTransferContainer.OffsetRangeInputStreamSupplier.class
+        );
+        verify(transferServiceSpy).uploadBlobAsyncInternal(
+            Mockito.anyString(),
+            Mockito.anyString(),
+            Mockito.anyLong(),
+            Mockito.any(),
+            Mockito.any(),
+            inputStreamCaptor.capture(),
+            Mockito.anyLong(),
+            Mockito.any(),
+            Mockito.any()
+        );
+        RemoteTransferContainer.OffsetRangeInputStreamSupplier inputStreamSupplier = inputStreamCaptor.getValue();
+        OffsetRangeInputStream inputStream1 = inputStreamSupplier.get(1, 0);
+        OffsetRangeInputStream inputStream2 = inputStreamSupplier.get(1, 2);
+        assertNotEquals(inputStream1, inputStream2);
+        assertNotEquals(inputStream1.getFilePointer(), inputStream2.getFilePointer());
     }
 
     private IndexMetadata getIndexMetadata() {
