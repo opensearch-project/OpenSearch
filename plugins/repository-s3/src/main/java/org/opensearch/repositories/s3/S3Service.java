@@ -99,7 +99,7 @@ class S3Service implements Closeable {
 
     private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "aws.stsEndpointOverride";
 
-    private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
+    private static final String GLOBAL_S3_ENDPOINT = "s3.amazonaws.com";
 
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = new ConcurrentHashMap<>();
 
@@ -205,7 +205,11 @@ class S3Service implements Closeable {
         builder.httpClientBuilder(buildHttpClient(clientSettings));
         builder.overrideConfiguration(buildOverrideConfiguration(clientSettings));
 
-        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : DEFAULT_S3_ENDPOINT;
+        String s3Endpoint = Strings.hasText(clientSettings.region)
+            ? "s3." + Region.of(clientSettings.region).toString() + ".amazonaws.com"
+            : GLOBAL_S3_ENDPOINT;
+
+        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : s3Endpoint;
         if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
             // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
             // TODO: Remove this once fixed in the AWS SDK
