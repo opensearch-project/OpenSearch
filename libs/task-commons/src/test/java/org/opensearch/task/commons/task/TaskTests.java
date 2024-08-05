@@ -107,11 +107,12 @@ public class TaskTests extends OpenSearchTestCase {
         builder.completedAt(createdAt + 3000);
         builder.lastHeartbeatAt(createdAt + 2500);
         builder.assignedNode(WorkerNode.createWorkerNode("node1", "nodeip", "nodename"));
+        builder.taskStatus(TaskStatus.ACTIVE);
 
         Task task = builder.build();
 
         assertEquals(taskId, task.getTaskId());
-        assertEquals(taskStatus, task.getTaskStatus());
+        assertEquals(TaskStatus.ACTIVE, task.getTaskStatus());
         assertEquals(params, task.getParams());
         assertEquals(taskType, task.getTaskType());
         assertEquals(createdAt, task.getCreatedAt());

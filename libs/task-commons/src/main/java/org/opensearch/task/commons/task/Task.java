@@ -198,7 +198,7 @@ public class Task {
         /**
          * Depicts latest state of the Task
          */
-        private final TaskStatus taskStatus;
+        private TaskStatus taskStatus;
 
         /**
          * Various params to used for Task execution
@@ -321,6 +321,14 @@ public class Task {
          */
         public void lastHeartbeatAt(long lastHeartbeatAt) {
             this.lastHeartbeatAt = lastHeartbeatAt;
+        }
+
+        /**
+         * Update the Task Status
+         * @param taskStatus {@link TaskStatus} - current status of the Task
+         */
+        public void taskStatus(TaskStatus taskStatus) {
+            this.taskStatus = taskStatus;
         }
 
         /**
