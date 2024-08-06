@@ -386,7 +386,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return RemoteStoreUtils.invertLong(filenameTokens[2]);
         }
 
-        static long getTimestamp(String filename) {
+        public static long getTimestamp(String filename) {
             String[] filenameTokens = filename.split(SEPARATOR);
             return RemoteStoreUtils.invertLong(filenameTokens[6]);
         }
