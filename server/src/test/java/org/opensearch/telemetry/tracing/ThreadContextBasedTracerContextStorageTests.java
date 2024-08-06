@@ -8,8 +8,6 @@
 
 package org.opensearch.telemetry.tracing;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -21,7 +19,6 @@ import org.opensearch.telemetry.metrics.MetricsTelemetry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.telemetry.tracing.MockTracingTelemetry;
-import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -41,10 +38,8 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestCase {
     private Tracer tracer;
-    private ThreadPool threadPool;
     private ThreadContext threadContext;
     private TracerContextStorage<String, Span> threadContextStorage;
     private ExecutorService executorService;

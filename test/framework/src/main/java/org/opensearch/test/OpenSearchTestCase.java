@@ -618,7 +618,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      */
     private void resetDeprecationLogger() {
         // "clear" context by stashing current values and dropping the returned StoredContext
-        // threadContext.stashContext();
+        threadContext.stashContext();
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();

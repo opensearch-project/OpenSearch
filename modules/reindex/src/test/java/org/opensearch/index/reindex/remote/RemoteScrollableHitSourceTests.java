@@ -606,6 +606,8 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
                 FutureCallback<T> callback
             ) {
                 try {
+                    // Throw away the current thread context to simulate running async httpclient's thread pool
+                    threadPool.getThreadContext().stashContext();
                     ClassicHttpRequest request = getRequest(requestProducer);
                     URL resource = resources[responseCount];
                     String path = paths[responseCount++];

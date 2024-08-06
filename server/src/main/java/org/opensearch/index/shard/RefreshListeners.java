@@ -99,7 +99,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         final IntSupplier getMaxRefreshListeners,
         final Runnable forceRefresh,
         final Logger logger,
-        ThreadContext threadContext,
+        final ThreadContext threadContext,
         final MeanMetric refreshMetric
     ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;

@@ -8,7 +8,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.client.node.NodeClient;
+import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -63,7 +63,7 @@ public interface TelemetryAwarePlugin {
      * @param contextSwitcher A client for switching to plugin system context
      */
     default Collection<Object> createComponents(
-        NodeClient client,
+        Client client,
         ClusterService clusterService,
         ThreadPool threadPool,
         ResourceWatcherService resourceWatcherService,
