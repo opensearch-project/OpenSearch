@@ -53,6 +53,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     private final SegmentedCache<Path, CachedIndexInput> theCache;
 
     private final CircuitBreaker circuitBreaker;
+    private boolean allowOverflow = true;
 
     public FileCache(SegmentedCache<Path, CachedIndexInput> cache, CircuitBreaker circuitBreaker) {
         this.theCache = cache;
