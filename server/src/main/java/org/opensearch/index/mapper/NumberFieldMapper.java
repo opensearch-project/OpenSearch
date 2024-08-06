@@ -79,6 +79,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -829,7 +830,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             }
 
             @Override
-            public Query bitmapQuery(String field, BytesArray bitmapArray, boolean isSearchable) {
+            public Query bitmapQuery(String field, BytesArray bitmapArray, boolean isSearchable, boolean hasDocValues) {
                 RoaringBitmap bitmap = new RoaringBitmap();
                 try {
                     bitmap.deserialize(ByteBuffer.wrap(bitmapArray.array()));
@@ -837,8 +838,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     throw new IllegalArgumentException("Failed to deserialize the bitmap.", e);
                 }
 
-                if (isSearchable) {
+                if (isSearchable && hasDocValues) {
                     return new IndexOrDocValuesQuery(bitmapIndexQuery(field, bitmap), new BitmapDocValuesQuery(field, bitmap));
+                }
+                if (isSearchable) {
+                    return bitmapIndexQuery(field, bitmap);
                 }
                 return new BitmapDocValuesQuery(field, bitmap);
             }
@@ -1195,7 +1199,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
         public abstract Query termsQuery(String field, List<Object> values, boolean hasDocValues, boolean isSearchable);
 
-        public Query bitmapQuery(String field, BytesArray bitmap, boolean isSearchable) {
+        public Query bitmapQuery(String field, BytesArray bitmap, boolean isSearchable, boolean hasDocValues) {
             throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support bitmap queries");
         }
 
@@ -1445,16 +1449,17 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             final BytesRef encoded = new BytesRef(new byte[Integer.BYTES]);
             return new PointInSetQuery(field, 1, Integer.BYTES, new PointInSetQuery.Stream() {
 
-                long upto;
+                final Iterator<Integer> iterator = bitmap.iterator();
 
                 @Override
                 public BytesRef next() {
-                    upto = bitmap.nextValue((int) upto);
-                    if (upto == -1) {
+                    int value;
+                    if (iterator.hasNext()) {
+                        value = iterator.next();
+                    } else {
                         return null;
                     }
-                    IntPoint.encodeDimension((int) upto, encoded.bytes, 0);
-                    upto++;
+                    IntPoint.encodeDimension(value, encoded.bytes, 0);
                     return encoded;
                 }
             }) {
@@ -1546,7 +1551,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         }
 
         public Query bitmapQuery(BytesArray bitmap) {
-            return type.bitmapQuery(name(), bitmap, isSearchable());
+            failIfNotIndexedAndNoDocValues();
+            return type.bitmapQuery(name(), bitmap, isSearchable(), hasDocValues());
         }
 
         @Override
