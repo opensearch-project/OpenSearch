@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  */
 public class QueryGroupResourceUsageTrackerService implements QueryGroupUsageTracker, TaskManager.TaskEventListeners {
 
-    public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.MEMORY, ResourceType.CPU);
+    public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.values());
     private final TaskManager taskManager;
     private final TaskResourceTrackingService taskResourceTrackingService;
 
