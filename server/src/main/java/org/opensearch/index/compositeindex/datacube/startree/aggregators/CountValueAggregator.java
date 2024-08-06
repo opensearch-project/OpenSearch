@@ -14,7 +14,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  *
  * @opensearch.experimental
  */
-public class CountValueAggregator implements ValueAggregator<Long> {
+class CountValueAggregator implements ValueAggregator<Long> {
 
     public static final long DEFAULT_INITIAL_VALUE = 1L;
     private final StarTreeNumericType starTreeNumericType;

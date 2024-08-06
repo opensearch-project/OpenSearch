@@ -14,7 +14,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  *
  * @opensearch.experimental
  */
-public class MinValueAggregator extends StatelessDoubleValueAggregator {
+class MinValueAggregator extends StatelessDoubleValueAggregator {
 
     public MinValueAggregator(StarTreeNumericType starTreeNumericType) {
         super(starTreeNumericType, null);

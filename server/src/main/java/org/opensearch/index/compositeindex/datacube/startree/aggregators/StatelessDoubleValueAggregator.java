@@ -15,7 +15,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  *
  * @opensearch.experimental
  */
-public abstract class StatelessDoubleValueAggregator implements ValueAggregator<Double> {
+abstract class StatelessDoubleValueAggregator implements ValueAggregator<Double> {
 
     protected final StarTreeNumericType starTreeNumericType;
     protected final Double identityValue;
@@ -64,7 +64,7 @@ public abstract class StatelessDoubleValueAggregator implements ValueAggregator<
     }
 
     /**
-     * Performs min or max aggregation on the value and the segmentDocValue based on the implementation
+     * Performs stateless aggregation on the value and the segmentDocValue based on the implementation
      *
      * @param aggregatedValue aggregated value for the segment so far
      * @param segmentDocValue current segment doc value

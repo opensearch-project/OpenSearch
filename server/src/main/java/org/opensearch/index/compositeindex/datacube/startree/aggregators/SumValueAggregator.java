@@ -20,12 +20,10 @@ import org.opensearch.search.aggregations.metrics.CompensatedSum;
  *
  * @opensearch.experimental
  */
-public class SumValueAggregator implements ValueAggregator<Double> {
+class SumValueAggregator implements ValueAggregator<Double> {
 
     private final StarTreeNumericType starTreeNumericType;
 
-    private double sum = 0;
-    private double compensation = 0;
     private CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
     public SumValueAggregator(StarTreeNumericType starTreeNumericType) {
@@ -35,13 +33,12 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     @Override
     public Double getInitialAggregatedValueForSegmentDocValue(Long segmentDocValue) {
         kahanSummation.reset(0, 0);
+        // add takes care of the sum and compensation internally
         if (segmentDocValue != null) {
             kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
         } else {
             kahanSummation.add(getIdentityMetricValue());
         }
-        compensation = kahanSummation.delta();
-        sum = kahanSummation.value();
         return kahanSummation.value();
     }
 
@@ -50,41 +47,36 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     @Override
     public Double mergeAggregatedValueAndSegmentValue(Double value, Long segmentDocValue) {
         assert value == null || kahanSummation.value() == value;
-        kahanSummation.reset(sum, compensation);
+        // add takes care of the sum and compensation internally
         if (segmentDocValue != null) {
             kahanSummation.add(starTreeNumericType.getDoubleValue(segmentDocValue));
         } else {
             kahanSummation.add(getIdentityMetricValue());
         }
-        compensation = kahanSummation.delta();
-        sum = kahanSummation.value();
         return kahanSummation.value();
     }
 
     @Override
     public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
         assert aggregatedValue == null || kahanSummation.value() == aggregatedValue;
-        kahanSummation.reset(sum, compensation);
+        // add takes care of the sum and compensation internally
         if (value != null) {
             kahanSummation.add(value);
         } else {
             kahanSummation.add(getIdentityMetricValue());
         }
-        compensation = kahanSummation.delta();
-        sum = kahanSummation.value();
         return kahanSummation.value();
     }
 
     @Override
     public Double getInitialAggregatedValue(Double value) {
         kahanSummation.reset(0, 0);
+        // add takes care of the sum and compensation internally
         if (value != null) {
             kahanSummation.add(value);
         } else {
             kahanSummation.add(getIdentityMetricValue());
         }
-        compensation = kahanSummation.delta();
-        sum = kahanSummation.value();
         return kahanSummation.value();
     }
 

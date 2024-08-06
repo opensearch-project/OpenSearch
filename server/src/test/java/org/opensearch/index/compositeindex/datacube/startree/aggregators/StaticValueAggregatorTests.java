@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class StaticValueAggregatorTests extends OpenSearchTestCase {
@@ -46,15 +47,11 @@ public class StaticValueAggregatorTests extends OpenSearchTestCase {
     }
 
     private double kahanSum(double[] numbers) {
-        double sum = 0.0;
-        double c = 0.0;
+        CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         for (double num : numbers) {
-            double y = num - c;
-            double t = sum + y;
-            c = (t - sum) - y;
-            sum = t;
+            compensatedSum.add(num);
         }
-        return sum;
+        return compensatedSum.value();
     }
 
     private double normalSum(double[] numbers) {

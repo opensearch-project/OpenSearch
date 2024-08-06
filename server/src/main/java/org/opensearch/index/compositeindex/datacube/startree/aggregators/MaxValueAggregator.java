@@ -14,7 +14,7 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  *
  * @opensearch.experimental
  */
-public class MaxValueAggregator extends StatelessDoubleValueAggregator {
+class MaxValueAggregator extends StatelessDoubleValueAggregator {
 
     public MaxValueAggregator(StarTreeNumericType starTreeNumericType) {
         super(starTreeNumericType, null);
