@@ -2071,7 +2071,7 @@ public class Node implements Closeable {
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
         List<Path> fileCacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
         this.fileCache.restoreFromDirectory(fileCacheDataPaths);
-//        this.fileCache.overflowEnabled(NODE_SEARCH_CACHE_SIZE_SETTING.get(settings));
+        this.fileCache.enableOverflow(NODE_SEARCH_CACHE_OVERFLOW_SETTING.get(settings));
     }
 
     private static long calculateFileCacheSize(String capacityRaw, long totalSpace) {
