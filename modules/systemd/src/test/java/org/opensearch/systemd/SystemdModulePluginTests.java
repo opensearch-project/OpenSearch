@@ -68,14 +68,14 @@ public class SystemdModulePluginTests extends OpenSearchTestCase {
 
     public void testIsImplicitlyNotEnabled() {
         final SystemdModulePlugin plugin = new SystemdModulePlugin(null);
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
 
     public void testIsExplicitlyNotEnabled() {
         final SystemdModulePlugin plugin = new SystemdModulePlugin(Boolean.FALSE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
@@ -167,7 +167,7 @@ public class SystemdModulePluginTests extends OpenSearchTestCase {
             }
 
         };
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         if (Boolean.TRUE.toString().equals(esSDNotify)) {
             assertNotNull(plugin.extender());
         } else {

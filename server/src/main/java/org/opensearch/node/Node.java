@@ -117,8 +117,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.PluginContextSwitcher;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -572,6 +570,7 @@ public class Node implements Closeable {
 
             runnableTaskListener = new AtomicReference<>();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
+            pluginsService.initializePlugins(threadPool);
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);
@@ -954,29 +953,29 @@ public class Node implements Closeable {
 
             final ViewService viewService = new ViewService(clusterService, client, null);
 
-            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> {
-                ContextSwitcher contextSwitcher = new PluginContextSwitcher(threadPool, p);
-                return p.createComponents(
-                    client,
-                    clusterService,
-                    threadPool,
-                    resourceWatcherService,
-                    scriptService,
-                    xContentRegistry,
-                    environment,
-                    nodeEnvironment,
-                    namedWriteableRegistry,
-                    clusterModule.getIndexNameExpressionResolver(),
-                    repositoriesServiceReference::get,
-                    contextSwitcher
-                ).stream();
-            }).collect(Collectors.toList());
+            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
+                .stream()
+                .flatMap(
+                    p -> p.createComponents(
+                        client,
+                        clusterService,
+                        threadPool,
+                        resourceWatcherService,
+                        scriptService,
+                        xContentRegistry,
+                        environment,
+                        nodeEnvironment,
+                        namedWriteableRegistry,
+                        clusterModule.getIndexNameExpressionResolver(),
+                        repositoriesServiceReference::get
+                    ).stream()
+                )
+                .collect(Collectors.toList());
 
             Collection<Object> telemetryAwarePluginComponents = pluginsService.filterPlugins(TelemetryAwarePlugin.class)
                 .stream()
-                .flatMap(p -> {
-                    ContextSwitcher contextSwitcher = new PluginContextSwitcher(threadPool, (Plugin) p);
-                    return p.createComponents(
+                .flatMap(
+                    p -> p.createComponents(
                         client,
                         clusterService,
                         threadPool,
@@ -989,10 +988,9 @@ public class Node implements Closeable {
                         clusterModule.getIndexNameExpressionResolver(),
                         repositoriesServiceReference::get,
                         tracer,
-                        metricsRegistry,
-                        contextSwitcher
-                    ).stream();
-                })
+                        metricsRegistry
+                    ).stream()
+                )
                 .collect(Collectors.toList());
 
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.

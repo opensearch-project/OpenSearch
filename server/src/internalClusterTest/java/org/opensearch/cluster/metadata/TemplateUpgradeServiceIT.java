@@ -38,7 +38,6 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -98,8 +97,7 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            ContextSwitcher contextSwitcher
+            Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
                 logger.debug("the template dummy setting was updated to {}", integer);
@@ -115,8 +113,7 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier,
-                contextSwitcher
+                repositoriesServiceSupplier
             );
         }
 

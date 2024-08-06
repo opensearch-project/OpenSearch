@@ -47,7 +47,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -470,8 +469,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            final ContextSwitcher contextSwitcher
+            final Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();

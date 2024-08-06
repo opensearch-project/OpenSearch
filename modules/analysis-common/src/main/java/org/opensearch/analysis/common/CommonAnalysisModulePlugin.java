@@ -133,7 +133,6 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -189,8 +188,7 @@ public class CommonAnalysisModulePlugin extends Plugin implements AnalysisPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        ContextSwitcher contextSwitcher
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.scriptService.set(scriptService);
         return Collections.emptyList();

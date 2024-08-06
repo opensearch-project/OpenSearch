@@ -47,6 +47,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ContextSwitcher;
+import org.opensearch.common.util.concurrent.PluginContextSwitcher;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -94,6 +95,8 @@ import java.util.function.UnaryOperator;
 @PublicApi(since = "1.0.0")
 public abstract class Plugin implements Closeable {
 
+    protected ContextSwitcher contextSwitcher;
+
     /**
      * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link Metadata.Custom}; see
      * also {@link ClusterState.FeatureAware}.
@@ -121,6 +124,18 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
+     * Setter for PluginContextSwitcher.
+     *
+     * @param contextSwitcher A client for switching to plugin system context
+     */
+    final void setContextSwitcher(PluginContextSwitcher contextSwitcher) {
+        if (this.contextSwitcher != null) {
+            throw new IllegalStateException("contextSwitcher can only be set once");
+        }
+        this.contextSwitcher = contextSwitcher;
+    }
+
+    /**
      * Returns components added by this plugin.
      * <p>
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
@@ -139,7 +154,6 @@ public abstract class Plugin implements Closeable {
      * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
      *                                    is called, but will return the repositories service once the node is initialized.
-     * @param contextSwitcher             A client for switching to plugin system context
      */
     public Collection<Object> createComponents(
         Client client,
@@ -152,8 +166,7 @@ public abstract class Plugin implements Closeable {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        ContextSwitcher contextSwitcher
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         return Collections.emptyList();
     }

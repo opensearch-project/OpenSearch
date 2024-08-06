@@ -36,8 +36,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
-
-    private ContextSwitcher contextSwitcher;
     private ThreadPool threadPool;
 
     @Override
@@ -52,9 +50,7 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        ContextSwitcher contextSwitcher) {
-        this.contextSwitcher = contextSwitcher;
+        Supplier<RepositoriesService> repositoriesServiceSupplier) {
         this.threadPool = threadPool;
         return Collections.emptyList();
     }

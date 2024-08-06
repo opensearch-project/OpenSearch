@@ -50,11 +50,13 @@ import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.PluginContextSwitcher;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -772,6 +774,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             return Class.forName(className, false, loader).asSubclass(Plugin.class);
         } catch (Throwable t) {
             throw new OpenSearchException("Unable to load plugin class [" + className + "]", t);
+        }
+    }
+
+    public void initializePlugins(ThreadPool threadPool) {
+        List<Plugin> pluginList = filterPlugins(Plugin.class);
+        for (Plugin p : pluginList) {
+            PluginContextSwitcher contextSwitcher = new PluginContextSwitcher(threadPool, p);
+            p.setContextSwitcher(contextSwitcher);
         }
     }
 

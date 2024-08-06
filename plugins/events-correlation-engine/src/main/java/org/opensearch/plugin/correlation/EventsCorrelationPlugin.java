@@ -18,7 +18,6 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -88,8 +87,7 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        ContextSwitcher contextSwitcher
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         correlationRuleIndices = new CorrelationRuleIndices(client, clusterService);
         return List.of(correlationRuleIndices);

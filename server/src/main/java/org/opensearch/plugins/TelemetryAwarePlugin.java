@@ -13,7 +13,6 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -60,7 +59,6 @@ public interface TelemetryAwarePlugin {
      *                                   is called, but will return the repositories service once the node is initialized.
      * @param tracer the tracer to add tracing instrumentation.
      * @param metricsRegistry the registry for metrics instrumentation.
-     * @param contextSwitcher A client for switching to plugin system context
      */
     default Collection<Object> createComponents(
         Client client,
@@ -75,8 +73,7 @@ public interface TelemetryAwarePlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        MetricsRegistry metricsRegistry,
-        ContextSwitcher contextSwitcher
+        MetricsRegistry metricsRegistry
     ) {
         return Collections.emptyList();
     }
