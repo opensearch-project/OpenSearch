@@ -70,7 +70,7 @@ public class CreateQueryGroupRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        QueryGroup.writeToOutput(out, queryGroup);
+        queryGroup.writeTo(out);
     }
 
     /**

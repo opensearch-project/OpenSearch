@@ -104,15 +104,11 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeToOutput(out, this);
-    }
-
-    public static void writeToOutput(StreamOutput out, QueryGroup queryGroup) throws IOException {
-        out.writeString(queryGroup.getName());
-        out.writeString(queryGroup.get_id());
-        out.writeString(queryGroup.getResiliencyMode().getName());
-        out.writeMap(queryGroup.getResourceLimits(), ResourceType::writeTo, StreamOutput::writeDouble);
-        out.writeLong(queryGroup.getUpdatedAtInMillis());
+        out.writeString(name);
+        out.writeString(_id);
+        out.writeString(resiliencyMode.getName());
+        out.writeMap(resourceLimits, ResourceType::writeTo, StreamOutput::writeDouble);
+        out.writeLong(updatedAtInMillis);
     }
 
     private void validateResourceLimits(Map<ResourceType, Double> resourceLimits) {

@@ -15,11 +15,11 @@ import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugin.wlm.service.QueryGroupPersistenceService;
-import org.opensearch.search.ResourceType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -104,7 +104,7 @@ public class QueryGroupTestUtils {
         return new QueryGroupPersistenceService(clusterService, settings(), clusterSettings());
     }
 
-    public static List<Object> preparePersistenceServiceSetup(Map<String, QueryGroup> queryGroups) {
+    public static Tuple<QueryGroupPersistenceService, ClusterState> preparePersistenceServiceSetup(Map<String, QueryGroup> queryGroups) {
         Metadata metadata = Metadata.builder().queryGroups(queryGroups).build();
         Settings settings = Settings.builder().build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
@@ -127,15 +127,10 @@ public class QueryGroupTestUtils {
             settings,
             clusterSettings
         );
-        return List.of(queryGroupPersistenceService, clusterState);
+        return new Tuple<QueryGroupPersistenceService, ClusterState>(queryGroupPersistenceService, clusterState);
     }
 
-    public static void compareResourceLimits(Map<ResourceType, Object> resourceLimitMapOne, Map<ResourceType, Object> resourceLimitMapTwo) {
-        assertTrue(resourceLimitMapOne.keySet().containsAll(resourceLimitMapTwo.keySet()));
-        assertTrue(resourceLimitMapOne.values().containsAll(resourceLimitMapTwo.values()));
-    }
-
-    public static void compareQueryGroups(List<QueryGroup> listOne, List<QueryGroup> listTwo) {
+    public static void assertEqualQueryGroups(List<QueryGroup> listOne, List<QueryGroup> listTwo) {
         assertEquals(listOne.size(), listTwo.size());
         listOne.sort(Comparator.comparing(QueryGroup::getName));
         listTwo.sort(Comparator.comparing(QueryGroup::getName));

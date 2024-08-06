@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.opensearch.plugin.wlm.QueryGroupTestUtils.compareQueryGroups;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertEqualQueryGroups;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
 
 public class CreateQueryGroupRequestTests extends OpenSearchTestCase {
@@ -35,6 +35,6 @@ public class CreateQueryGroupRequestTests extends OpenSearchTestCase {
         List<QueryGroup> list2 = new ArrayList<>();
         list1.add(queryGroupOne);
         list2.add(otherRequest.getQueryGroup());
-        compareQueryGroups(list1, list2);
+        assertEqualQueryGroups(list1, list2);
     }
 }
