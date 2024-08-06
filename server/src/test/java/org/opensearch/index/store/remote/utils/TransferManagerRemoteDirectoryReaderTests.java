@@ -12,6 +12,7 @@ import org.apache.lucene.store.IOContext;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.index.store.RemoteDirectory;
+import org.opensearch.index.store.remote.filecache.FileCache;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -26,15 +27,15 @@ public class TransferManagerRemoteDirectoryReaderTests extends TransferManagerTe
     private RemoteDirectory remoteDirectory;
 
     @Override
-    protected void initializeTransferManager() throws IOException {
+    protected TransferManager initializeTransferManager(FileCache cache) throws IOException {
         remoteDirectory = mock(RemoteDirectory.class);
         doAnswer(i -> new ByteArrayIndexInput("blob", createData())).when(remoteDirectory).openInput(eq("blob"), any());
-        transferManager = new TransferManager(
+        return new TransferManager(
             (name, position, length) -> new InputStreamIndexInput(
                 remoteDirectory.openInput(name, new BlockIOContext(IOContext.DEFAULT, position, length)),
                 length
             ),
-            fileCache
+            cache
         );
     }
 

@@ -49,8 +49,9 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        fileCache.enableOverflow(true);
         directory = new MMapDirectory(createTempDir(), SimpleFSLockFactory.INSTANCE);
-        initializeTransferManager();
+        transferManager = initializeTransferManager(fileCache);
     }
 
     @After
@@ -62,6 +63,25 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         final byte[] data = new byte[EIGHT_MB];
         data[EIGHT_MB - 1] = 7;
         return data;
+    }
+
+    public void testOverflowDisabled() throws Exception {
+        FileCache strictCache = FileCacheFactory.createConcurrentLRUFileCache(
+            EIGHT_MB * 2,
+            1,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+        );
+        strictCache.enableOverflow(false);
+        TransferManager tm = initializeTransferManager(strictCache);
+
+        assertThrows(IOException.class, () -> {
+            IndexInput i1 = fetchBlobWithName(tm, "1");
+            IndexInput i2 = fetchBlobWithName(tm, "2");
+            IndexInput i3 = fetchBlobWithName(tm, "3");
+            assertIndexInputIsFunctional(i1);
+            assertIndexInputIsFunctional(i2);
+            assertIndexInputIsFunctional(i3);
+        });
     }
 
     public void testSingleAccess() throws Exception {
@@ -193,7 +213,7 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         assertFalse(blockingThread.isAlive());
     }
 
-    protected abstract void initializeTransferManager() throws IOException;
+    protected abstract TransferManager initializeTransferManager(FileCache cache) throws IOException;
 
     protected abstract void mockExceptionWhileReading() throws IOException;
 
@@ -203,6 +223,12 @@ public abstract class TransferManagerTestCase extends OpenSearchTestCase {
         List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
         blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
         return transferManager.fetchBlob(BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build());
+    }
+
+    private IndexInput fetchBlobWithName(TransferManager tm, String blobname) throws IOException {
+        List<BlobFetchRequest.BlobPart> blobParts = new ArrayList<>();
+        blobParts.add(new BlobFetchRequest.BlobPart("blob", 0, EIGHT_MB));
+        return tm.fetchBlob(BlobFetchRequest.builder().fileName(blobname).directory(directory).blobParts(blobParts).build());
     }
 
     private static void assertIndexInputIsFunctional(IndexInput indexInput) throws IOException {
