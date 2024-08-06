@@ -66,13 +66,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      * */
     private DiscoveryNode[] concreteNodes;
 
-    /**
-     * Since do not use the discovery nodes coming from the request in all code paths following a request extended off from
-     * BaseNodeRequest, we do not require it to sent around across all nodes.
-     *
-     * Setting default behavior as `true` but can be explicitly changed in requests that do not require.
-     */
-    private boolean includeDiscoveryNodes = true;
     private final TimeValue DEFAULT_TIMEOUT_SECS = TimeValue.timeValueSeconds(30);
 
     private TimeValue timeout;
@@ -125,14 +118,6 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
 
     public void setConcreteNodes(DiscoveryNode[] concreteNodes) {
         this.concreteNodes = concreteNodes;
-    }
-
-    public void setIncludeDiscoveryNodes(boolean value) {
-        includeDiscoveryNodes = value;
-    }
-
-    public boolean getIncludeDiscoveryNodes() {
-        return includeDiscoveryNodes;
     }
 
     @Override

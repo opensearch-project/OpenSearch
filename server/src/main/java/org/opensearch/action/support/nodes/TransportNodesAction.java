@@ -202,11 +202,16 @@ public abstract class TransportNodesAction<
 
     /**
      * resolve node ids to concrete nodes of the incoming request
-     **/
-    protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
+     *
+     * @return
+     */
+    protected DiscoveryNode[] resolveRequest(NodesRequest request, ClusterState clusterState) {
+        if (request.concreteNodes() != null) {
+            return request.concreteNodes();
+        }
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
         String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
-        request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
+        return Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new);
     }
 
     /**
@@ -234,23 +239,16 @@ public abstract class TransportNodesAction<
             this.task = task;
             this.request = request;
             this.listener = listener;
-            if (request.concreteNodes() == null) {
-                resolveRequest(request, clusterService.state());
-                assert request.concreteNodes() != null;
-            }
-            this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
-            this.concreteNodes = request.concreteNodes();
-
-            if (request.getIncludeDiscoveryNodes() == false) {
-                // As we transfer the ownership of discovery nodes to route the request to into the AsyncAction class, we
-                // remove the list of DiscoveryNodes from the request. This reduces the payload of the request and improves
-                // the number of concrete nodes in the memory.
-                request.setConcreteNodes(null);
-            }
+            this.concreteNodes = resolveRequest(request, clusterService.state());
+            this.responses = new AtomicReferenceArray<>(this.concreteNodes.length);
         }
 
         void start() {
             final DiscoveryNode[] nodes = this.concreteNodes;
+            // As we transfer the ownership of discovery nodes to route the request to into the AsyncAction class,
+            // we remove the list of DiscoveryNodes from the request. This reduces the payload of the request and improves
+            // the number of concrete nodes in the memory.
+            request.setConcreteNodes(null);
             if (nodes.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
