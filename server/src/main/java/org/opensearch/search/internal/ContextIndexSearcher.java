@@ -518,7 +518,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (searchContext.searchAfter() != null
             && searchContext.request() != null
             && searchContext.request().source() != null
-            && Objects.equals(searchContext.trackTotalHitsUpTo(), SearchContext.TRACK_TOTAL_HITS_DISABLED)) {
+            && searchContext.trackTotalHitsUpTo() == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
             // Only applied on primary sort field and primary search_after.
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
             // Check for sort.missing == null, since in case of missing values sort queries, if segment/shard's min/max
