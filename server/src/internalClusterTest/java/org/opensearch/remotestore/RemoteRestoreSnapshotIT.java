@@ -747,7 +747,7 @@ public class RemoteRestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(exception.getMessage().contains("cannot remove setting [index.remote_store.segment.repository]" + " on restore"));
     }
 
-    public void testCentralizedCreateAndRestoreShallowCopy() throws Exception {
+    public void testCreateShallowCopyV2() throws Exception {
 
         Settings snapshotSettings = Settings.builder().put("snapshot.shallow_snapshot_v2", true).build();
         internalCluster().startClusterManagerOnlyNode(Settings.builder().put(snapshotSettings).build());

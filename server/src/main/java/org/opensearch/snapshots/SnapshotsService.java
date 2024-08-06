@@ -266,13 +266,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot completion listener
      */
     public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        startCreateSnapshot(
-            request,
-            ActionListener.wrap(snapshot -> addListener(snapshot, ActionListener.map(listener, Tuple::v2)), listener::onFailure)
-        );
+        startCreateSnapshot(request, listener);
     }
 
-    public void startCreateSnapshot(final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
+    public void startCreateSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
         Repository repository = repositoriesService.repository(request.repository());
         boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
         logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
@@ -286,7 +283,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (remoteStoreIndexShallowCopy && isShallowSnapV2 && request.indices().length == 0) {
             createShallowSnapshotV2(request, listener);
         } else {
-            createSnapshot(request, listener);
+            createSnapshot(
+                request,
+                ActionListener.wrap(snapshot -> addListener(snapshot, ActionListener.map(listener, Tuple::v2)), listener::onFailure)
+            );
         }
     }
 
@@ -440,7 +440,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
 
-    public void createShallowSnapshotV2(final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
+    public void createShallowSnapshotV2(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
         long pinnedTimestamp = System.currentTimeMillis();
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
@@ -530,15 +530,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     throw new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager");
                 }
                 final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
-                pinnedTimestampListener.whenComplete(
-
-                    repoData -> {
-                        completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(repoData, snapshotInfo));
-                        listener.onResponse(snapshot);
-                    },
-
-                    e -> failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()))
-                );
+                pinnedTimestampListener.whenComplete(repoData -> {
+                    // completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(repoData, snapshotInfo));
+                    listener.onResponse(snapshotInfo);
+                }, listener::onFailure);
 
                 repository.finalizeSnapshot(
                     shardGenerations,
@@ -566,7 +561,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         @Override
                         public void onFailure(Exception e) {
                             logger.error("Failed to upload files to snapshot repo {} for snapshot {} ", repositoryName, snapshotName);
-                            failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()));
+                            // failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()));
                             listener.onFailure(e);
                         }
                     }
@@ -576,7 +571,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         } catch (Exception e) {
             assert false : new AssertionError(e);
             logger.error("Snapshot {} creation failed with exception {}", snapshot.getSnapshotId().getName(), e);
-            failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()));
+            // failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()));
             listener.onFailure(e);
         }
     }
