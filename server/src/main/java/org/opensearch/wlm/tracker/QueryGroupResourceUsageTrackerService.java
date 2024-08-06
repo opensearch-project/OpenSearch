@@ -15,6 +15,7 @@ import org.opensearch.wlm.QueryGroupLevelResourceUsageView;
 import org.opensearch.wlm.QueryGroupTask;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
  */
 public class QueryGroupResourceUsageTrackerService {
 
-    public static final List<ResourceType> TRACKED_RESOURCES = List.of(ResourceType.MEMORY, ResourceType.CPU);
+    public static final EnumSet<ResourceType> TRACKED_RESOURCES = EnumSet.allOf(ResourceType.class);
     private final TaskResourceTrackingService taskResourceTrackingService;
 
     /**
