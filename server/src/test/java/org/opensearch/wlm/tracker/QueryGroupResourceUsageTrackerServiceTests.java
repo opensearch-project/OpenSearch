@@ -11,7 +11,7 @@ package org.opensearch.wlm.tracker;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
@@ -110,7 +110,8 @@ public class QueryGroupResourceUsageTrackerServiceTests extends OpenSearchTestCa
                 ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
             }
         }
-        when(task.getTotalResourceStats()).thenReturn(new TaskResourceUsage(cpuUsage, heapUsage));
+        when(task.getTotalResourceUtilization(ResourceStats.CPU)).thenReturn(cpuUsage);
+        when(task.getTotalResourceUtilization(ResourceStats.MEMORY)).thenReturn(heapUsage);
         when(task.getStartTimeNanos()).thenReturn((long) 0);
 
         AtomicBoolean isCancelled = new AtomicBoolean(false);
