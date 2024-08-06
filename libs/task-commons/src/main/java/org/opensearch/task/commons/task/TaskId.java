@@ -10,6 +10,8 @@ package org.opensearch.task.commons.task;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.util.Objects;
+
 /**
  * Class encapsulating Task identifier
  */
@@ -35,5 +37,19 @@ public class TaskId {
      */
     public String getValue() {
         return id;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        TaskId other = (TaskId) obj;
+        return this.id.equals(other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }
