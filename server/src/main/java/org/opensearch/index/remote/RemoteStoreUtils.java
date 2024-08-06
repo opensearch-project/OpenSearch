@@ -439,7 +439,10 @@ public class RemoteStoreUtils {
 
         for (String metadataFileName : metadataFiles) {
             long currentMdTimestamp = getTimestampFunction.apply(metadataFileName);
-
+            // We always prefer md file with higher values of prefix like primary term, generation etc.
+            if (currentMdTimestamp > prevMdTimestamp) {
+                continue;
+            }
             while (currentMdTimestamp <= currentPinnedTimestamp && prevMdTimestamp > currentPinnedTimestamp) {
                 implicitLockedFiles.add(metadataFileName);
                 // Do not cache entry for latest metadata file as the next metadata can also match the same pinned timestamp
