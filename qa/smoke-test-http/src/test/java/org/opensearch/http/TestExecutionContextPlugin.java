@@ -54,8 +54,7 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ContextSwitcher contextSwitcher) {
-        // TODO Fix this
-        this.contextSwitcher = null;
+        this.contextSwitcher = contextSwitcher;
         this.threadPool = threadPool;
         return Collections.emptyList();
     }
