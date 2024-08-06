@@ -218,7 +218,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        private KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
+        protected KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
             String normalizerName = this.normalizer.getValue();
@@ -549,7 +549,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             if (isSearchable() && hasDocValues()) {
-                Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+                Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
                 Query dvQuery = super.fuzzyQuery(
                     value,
                     fuzziness,
@@ -703,7 +703,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
+    static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();

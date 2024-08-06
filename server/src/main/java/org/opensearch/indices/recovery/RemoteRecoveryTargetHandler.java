@@ -111,7 +111,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             shardId,
             PeerRecoveryTargetService.Actions.FILE_CHUNK,
             requestSeqNoGenerator,
-            onSourceThrottle
+            onSourceThrottle,
+            recoverySettings::recoveryRateLimiter
         );
         this.remoteStoreEnabled = remoteStoreEnabled;
     }

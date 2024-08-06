@@ -44,6 +44,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.transport.Transport;
 
 import java.util.Comparator;
@@ -91,7 +92,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         SearchTask task,
         Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
         SearchResponse.Clusters clusters,
-        SearchRequestContext searchRequestContext
+        SearchRequestContext searchRequestContext,
+        Tracer tracer
     ) {
         // We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super(
@@ -112,7 +114,8 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             new CanMatchSearchPhaseResults(shardsIts.size()),
             shardsIts.size(),
             clusters,
-            searchRequestContext
+            searchRequestContext,
+            tracer
         );
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;

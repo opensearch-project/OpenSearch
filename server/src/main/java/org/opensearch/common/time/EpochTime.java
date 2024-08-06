@@ -126,7 +126,12 @@ class EpochTime {
 
         @Override
         public long getFrom(TemporalAccessor temporal) {
-            long instantSecondsInMillis = temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000;
+            long instantSeconds = temporal.getLong(ChronoField.INSTANT_SECONDS);
+            if (instantSeconds < Long.MIN_VALUE / 1000L || instantSeconds > Long.MAX_VALUE / 1000L) {
+                // Multiplying would yield integer overflow
+                return Long.MAX_VALUE;
+            }
+            long instantSecondsInMillis = instantSeconds * 1_000;
             if (instantSecondsInMillis >= 0) {
                 if (temporal.isSupported(ChronoField.NANO_OF_SECOND)) {
                     return instantSecondsInMillis + (temporal.getLong(ChronoField.NANO_OF_SECOND) / 1_000_000);

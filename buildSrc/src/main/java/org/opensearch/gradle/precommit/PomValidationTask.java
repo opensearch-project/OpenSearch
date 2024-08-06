@@ -106,6 +106,7 @@ public class PomValidationTask extends PrecommitTask {
 
     private void validateString(String element, String value) {
         validateNonNull(element, value, () -> validateNonEmpty(element, value, s -> s.trim().isEmpty()));
+        getLogger().info(element + " with value " + value + " is validated.");
     }
 
     private <T> void validateCollection(String element, Collection<T> value, Consumer<T> validator) {

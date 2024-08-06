@@ -38,6 +38,8 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -56,6 +58,8 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.aggregations.AggregationBuilders.global;
+import static org.opensearch.search.aggregations.AggregationBuilders.stats;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
@@ -163,5 +167,47 @@ public class AggregationsIntegrationIT extends ParameterizedStaticSettingsOpenSe
             assertTrue(actualExceptionMessage.startsWith(LARGE_STRING_EXCEPTION_MESSAGE));
         }
         assertTrue("Exception should have been thrown", exceptionThrown);
+    }
+
+    public void testAggsOnEmptyShards() {
+        // Create index with 5 shards but only 1 doc
+        assertAcked(
+            prepareCreate(
+                "idx",
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            ).setMapping("score", "type=integer")
+        );
+        client().prepareIndex("idx").setId("1").setSource("score", "5").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        // Validate global agg does not throw an exception
+        assertSearchResponse(
+            client().prepareSearch("idx").addAggregation(global("global").subAggregation(stats("value_stats").field("score"))).get()
+        );
+
+        // Validate non-global agg does not throw an exception
+        assertSearchResponse(client().prepareSearch("idx").addAggregation(stats("value_stats").field("score")).get());
+    }
+
+    public void testAggsWithTerminateAfter() throws InterruptedException {
+        assertAcked(
+            prepareCreate(
+                "terminate_index",
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            ).setMapping("f", "type=keyword").get()
+        );
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(5, 20); ++i) {
+            docs.add(client().prepareIndex("terminate_index").setSource("f", Integer.toString(i / 3)));
+        }
+        indexRandom(true, docs);
+
+        SearchResponse response = client().prepareSearch("terminate_index")
+            .setSize(2)
+            .setTerminateAfter(1)
+            .addAggregation(terms("f").field("f"))
+            .get();
+        assertSearchResponse(response);
+        assertTrue(response.isTerminatedEarly());
+        assertEquals(response.getHits().getHits().length, 1);
     }
 }

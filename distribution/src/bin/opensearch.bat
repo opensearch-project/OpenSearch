@@ -62,14 +62,17 @@ if not exist "%SERVICE_LOG_DIR%" (
 	mkdir "%SERVICE_LOG_DIR%"
 )
 
-SET KEYSTORE_PASSWORD=
 IF "%checkpassword%"=="Y" (
   CALL "%~dp0opensearch-keystore.bat" has-passwd --silent
   IF !ERRORLEVEL! EQU 0 (
-    SET /P KEYSTORE_PASSWORD=OpenSearch keystore password:
-    IF !ERRORLEVEL! NEQ 0 (
-      ECHO Failed to read keystore password on standard input
-      EXIT /B !ERRORLEVEL!
+    if defined KEYSTORE_PASSWORD (
+      ECHO Using value of KEYSTORE_PASSWORD from the environment
+    ) else (
+      SET /P KEYSTORE_PASSWORD=OpenSearch keystore password:
+      IF !ERRORLEVEL! NEQ 0 (
+        ECHO Failed to read keystore password on standard input
+        EXIT /B !ERRORLEVEL!
+      )
     )
   )
 )

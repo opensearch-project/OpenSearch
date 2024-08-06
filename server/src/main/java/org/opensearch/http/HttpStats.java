@@ -32,6 +32,7 @@
 
 package org.opensearch.http;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -43,8 +44,9 @@ import java.io.IOException;
 /**
  * Stats for HTTP connections
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class HttpStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;

@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskListener;
@@ -47,6 +48,7 @@ import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.History;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
@@ -88,6 +90,7 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
@@ -653,6 +656,12 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId)
                     );
                 }
+                if (clusterNode.coordinator.getMode() == Mode.LEADER || clusterNode.coordinator.getMode() == Mode.FOLLOWER) {
+                    assertFalse(
+                        "Election scheduler should stop after cluster has stabilised",
+                        clusterNode.coordinator.isElectionSchedulerRunning()
+                    );
+                }
             }
 
             final Set<String> connectedNodeIds = clusterNodes.stream()
@@ -1137,7 +1146,8 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     settings,
                     clusterSettings,
                     deterministicTaskQueue,
-                    threadPool
+                    threadPool,
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                 );
                 clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
@@ -1173,7 +1183,9 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getElectionStrategy(),
                     nodeHealthService,
                     persistedStateRegistry,
-                    remoteStoreNodeService
+                    remoteStoreNodeService,
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+                    null
                 );
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
@@ -1587,9 +1599,10 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             Settings settings,
             ClusterSettings clusterSettings,
             DeterministicTaskQueue deterministicTaskQueue,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            ClusterManagerMetrics clusterManagerMetrics
         ) {
-            super(nodeName, settings, clusterSettings, threadPool);
+            super(nodeName, settings, clusterSettings, threadPool, clusterManagerMetrics);
             this.nodeName = nodeName;
             this.deterministicTaskQueue = deterministicTaskQueue;
             addStateApplier(event -> {

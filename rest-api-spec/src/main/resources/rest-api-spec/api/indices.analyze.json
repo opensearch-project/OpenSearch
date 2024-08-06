@@ -1,7 +1,7 @@
 {
   "indices.analyze":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-analyze.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/analyze-apis/",
       "description":"Performs the analysis process on a text and return the tokens breakdown of the text."
     },
     "stability":"stable",

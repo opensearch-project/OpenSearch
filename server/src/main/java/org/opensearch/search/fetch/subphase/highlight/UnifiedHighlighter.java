@@ -48,6 +48,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.text.Text;
+import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -159,6 +160,10 @@ public class UnifiedHighlighter implements Highlighter {
         Integer fieldMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzerOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
+        MappedFieldType derivedFieldType = fieldContext.context.getQueryShardContext().resolveDerivedFieldType(fieldContext.fieldName);
+        if (derivedFieldType != null) {
+            analyzer = ((DerivedFieldType) derivedFieldType).getIndexAnalyzer();
+        }
         if (fieldMaxAnalyzedOffset != null) {
             analyzer = getLimitedOffsetAnalyzer(analyzer, fieldMaxAnalyzedOffset);
         }

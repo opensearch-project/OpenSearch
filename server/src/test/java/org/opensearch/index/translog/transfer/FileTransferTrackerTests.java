@@ -20,6 +20,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+
 public class FileTransferTrackerTests extends OpenSearchTestCase {
 
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -91,6 +95,32 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
             remoteTranslogTransferTracker.addUploadBytesStarted(fileSize);
             fileTransferTracker.onSuccess(transferFileSnapshot);
             assertEquals(fileTransferTracker.allUploaded().size(), 2);
+        }
+    }
+
+    public void testOnSuccessStatsFailure() throws IOException {
+        RemoteTranslogTransferTracker localRemoteTranslogTransferTracker = spy(remoteTranslogTransferTracker);
+        doAnswer((count) -> { throw new NullPointerException("Error while updating stats"); }).when(localRemoteTranslogTransferTracker)
+            .addUploadBytesSucceeded(anyLong());
+
+        FileTransferTracker localFileTransferTracker = new FileTransferTracker(shardId, localRemoteTranslogTransferTracker);
+
+        Path testFile = createTempFile();
+        int fileSize = 128;
+        Files.write(testFile, randomByteArrayOfLength(fileSize), StandardOpenOption.APPEND);
+        try (
+            FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+                testFile,
+                randomNonNegativeLong(),
+                null
+            );
+        ) {
+            Set<FileSnapshot.TransferFileSnapshot> toUpload = new HashSet<>(2);
+            toUpload.add(transferFileSnapshot);
+            localFileTransferTracker.recordBytesForFiles(toUpload);
+            localRemoteTranslogTransferTracker.addUploadBytesStarted(fileSize);
+            localFileTransferTracker.onSuccess(transferFileSnapshot);
+            assertEquals(localFileTransferTracker.allUploaded().size(), 1);
         }
     }
 

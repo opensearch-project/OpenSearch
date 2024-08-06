@@ -51,10 +51,13 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
@@ -65,7 +68,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.equalTo;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class TransportResizeActionTests extends OpenSearchTestCase {
 
@@ -95,6 +103,19 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         return clusterState;
     }
 
+    private ClusterSettings createClusterSettings(
+        CompatibilityMode compatibilityMode,
+        RemoteStoreNodeService.Direction migrationDirection
+    ) {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings.applySettings(
+            (Settings.builder()
+                .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), compatibilityMode)
+                .put(MIGRATION_DIRECTION_SETTING.getKey(), migrationDirection)).build()
+        );
+        return clusterSettings;
+    }
+
     public void testErrorCondition() {
         ClusterState state = createClusterState(
             "source",
@@ -102,6 +123,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build()
         );
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         assertTrue(
             expectThrows(
                 IllegalStateException.class,
@@ -110,6 +132,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                     state,
                     (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)),
                     new StoreStats(between(1, 10000), between(1, 10000)),
+                    clusterSettings,
                     "source",
                     "target"
                 )
@@ -125,6 +148,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 clusterState,
                 (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null,
                 new StoreStats(between(1, 10000), between(1, 10000)),
+                clusterSettings,
                 "source",
                 "target"
             );
@@ -144,6 +168,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 clusterState,
                 (i) -> new DocsStats(between(10, 1000), between(1, 10), between(1, 10000)),
                 new StoreStats(between(1, 10000), between(1, 10000)),
+                clusterSettings,
                 "source",
                 "target"
             );
@@ -173,6 +198,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             clusterState,
             (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000)),
             new StoreStats(between(1, 10000), between(1, 10000)),
+            clusterSettings,
             "source",
             "target"
         );
@@ -189,7 +215,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
-
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
@@ -204,6 +230,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             clusterState,
             null,
             new StoreStats(between(1, 10000), between(1, 10000)),
+            clusterSettings,
             "source",
             "target"
         );
@@ -217,6 +244,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             clusterState,
             null,
             new StoreStats(between(1, 10000), between(1, 10000)),
+            clusterSettings,
             "source",
             "target"
         );
@@ -235,6 +263,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
@@ -249,6 +278,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             clusterState,
             null,
             new StoreStats(between(1, 10000), between(1, 10000)),
+            clusterSettings,
             "source",
             "target"
         );
@@ -265,6 +295,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 finalState,
                 null,
                 new StoreStats(between(1, 10000), between(1, 10000)),
+                clusterSettings,
                 "source",
                 "target"
             )
@@ -286,6 +317,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
 
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
@@ -301,6 +333,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             clusterState,
             (i) -> stats,
             new StoreStats(between(1, 10000), between(1, 10000)),
+            clusterSettings,
             indexName,
             "target"
         );
@@ -325,6 +358,8 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
+
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
@@ -345,6 +380,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             clusterState,
             (i) -> stats,
             new StoreStats(100, between(1, 10000)),
+            clusterSettings,
             indexName,
             "target"
         );
@@ -366,6 +402,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             clusterState,
             (i) -> stats,
             new StoreStats(100, between(1, 10000)),
+            clusterSettings,
             indexName,
             "target"
         );
@@ -387,6 +424,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             clusterState,
             (i) -> stats,
             new StoreStats(100, between(1, 10000)),
+            clusterSettings,
             indexName,
             "target"
         );
@@ -477,6 +515,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             createClusterState(indexName, 10, 0, 40, Settings.builder().put("index.blocks.read_only", true).build())
         ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
 
+        ClusterSettings clusterSettings = createClusterSettings(CompatibilityMode.STRICT, RemoteStoreNodeService.Direction.NONE);
         // Target index will be blocked by [index.blocks.read_only=true] copied from the source index
         ResizeRequest resizeRequest = new ResizeRequest("target", indexName);
         ResizeType resizeType;
@@ -500,6 +539,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
                 finalState,
                 null,
                 new StoreStats(between(1, 10000), between(1, 10000)),
+                clusterSettings,
                 indexName,
                 "target"
             )
@@ -551,6 +591,7 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
             clusterState,
             (i) -> stats,
             new StoreStats(100, between(1, 10000)),
+            clusterSettings,
             indexName,
             "target"
         );
@@ -559,6 +600,127 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         assertEquals(String.valueOf(expectedShardsNum), request.settings().get("index.number_of_shards"));
         assertEquals(cause, request.cause());
         assertEquals(request.waitForActiveShards(), activeShardCount);
+    }
+
+    public void testResizeFailuresDuringMigration() {
+        // We will keep all other settings correct for resize request,
+        // So we only need to test for the failures due to cluster setting validation while migration
+        final Settings directionEnabledNodeSettings = Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build();
+        FeatureFlags.initializeFeatureFlags(directionEnabledNodeSettings);
+        boolean isRemoteStoreEnabled = randomBoolean();
+        CompatibilityMode compatibilityMode = randomFrom(CompatibilityMode.values());
+        RemoteStoreNodeService.Direction migrationDirection = randomFrom(RemoteStoreNodeService.Direction.values());
+        // If not mixed mode, then migration direction is NONE.
+        if (!compatibilityMode.equals(CompatibilityMode.MIXED)) {
+            migrationDirection = RemoteStoreNodeService.Direction.NONE;
+        }
+        ClusterSettings clusterSettings = createClusterSettings(compatibilityMode, migrationDirection);
+
+        ClusterState clusterState = ClusterState.builder(
+            createClusterState(
+                "source",
+                10,
+                0,
+                40,
+                Settings.builder().put("index.blocks.write", true).put(SETTING_REMOTE_STORE_ENABLED, isRemoteStoreEnabled).build()
+            )
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        AllocationService service = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+
+        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        // now we start the shard
+        routingTable = OpenSearchAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / 10), between(1, 1000), between(1, 10000));
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        ResizeType resizeType;
+        int expectedShardsNum;
+        String cause;
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                resizeType = ResizeType.SHRINK;
+                expectedShardsNum = 5;
+                cause = "shrink_index";
+                break;
+            case 1:
+                resizeType = ResizeType.SPLIT;
+                expectedShardsNum = 20;
+                cause = "split_index";
+                break;
+            default:
+                resizeType = ResizeType.CLONE;
+                expectedShardsNum = 10;
+                cause = "clone_index";
+        }
+        resizeRequest.setResizeType(resizeType);
+        resizeRequest.getTargetIndexRequest()
+            .settings(Settings.builder().put("index.number_of_shards", expectedShardsNum).put("index.blocks.read_only", false).build());
+        final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
+        resizeRequest.setWaitForActiveShards(activeShardCount);
+
+        if (compatibilityMode == CompatibilityMode.MIXED) {
+            if ((migrationDirection == RemoteStoreNodeService.Direction.REMOTE_STORE && isRemoteStoreEnabled == false)
+                || migrationDirection == RemoteStoreNodeService.Direction.DOCREP && isRemoteStoreEnabled == true) {
+                ClusterState finalState = clusterState;
+                IllegalStateException ise = expectThrows(
+                    IllegalStateException.class,
+                    () -> TransportResizeAction.prepareCreateIndexRequest(
+                        resizeRequest,
+                        finalState,
+                        (i) -> stats,
+                        new StoreStats(between(1, 10000), between(1, 10000)),
+                        clusterSettings,
+                        "source",
+                        "target"
+                    )
+                );
+                assertEquals(
+                    ise.getMessage(),
+                    "Index "
+                        + resizeType
+                        + " is not allowed as remote migration mode is mixed"
+                        + " and index is remote store "
+                        + (isRemoteStoreEnabled ? "enabled" : "disabled")
+                );
+            } else {
+                CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
+                    resizeRequest,
+                    clusterState,
+                    (i) -> stats,
+                    new StoreStats(100, between(1, 10000)),
+                    clusterSettings,
+                    "source",
+                    "target"
+                );
+                assertNotNull(request.recoverFrom());
+                assertEquals("source", request.recoverFrom().getName());
+                assertEquals(String.valueOf(expectedShardsNum), request.settings().get("index.number_of_shards"));
+                assertEquals(cause, request.cause());
+                assertEquals(request.waitForActiveShards(), activeShardCount);
+            }
+        } else {
+            CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
+                resizeRequest,
+                clusterState,
+                (i) -> stats,
+                new StoreStats(100, between(1, 10000)),
+                clusterSettings,
+                "source",
+                "target"
+            );
+            assertNotNull(request.recoverFrom());
+            assertEquals("source", request.recoverFrom().getName());
+            assertEquals(String.valueOf(expectedShardsNum), request.settings().get("index.number_of_shards"));
+            assertEquals(cause, request.cause());
+            assertEquals(request.waitForActiveShards(), activeShardCount);
+        }
     }
 
     private DiscoveryNode newNode(String nodeId) {

@@ -21,19 +21,21 @@ import static org.mockito.Mockito.when;
 
 public class SearchBackpressureTestHelpers extends OpenSearchTestCase {
 
-    public static <T extends CancellableTask> T createMockTaskWithResourceStats(Class<T> type, long cpuUsage, long heapUsage) {
-        return createMockTaskWithResourceStats(type, cpuUsage, heapUsage, 0);
+    public static <T extends CancellableTask> T createMockTaskWithResourceStats(Class<T> type, long cpuUsage, long heapUsage, long taskId) {
+        return createMockTaskWithResourceStats(type, cpuUsage, heapUsage, 0, taskId);
     }
 
     public static <T extends CancellableTask> T createMockTaskWithResourceStats(
         Class<T> type,
         long cpuUsage,
         long heapUsage,
-        long startTimeNanos
+        long startTimeNanos,
+        long taskId
     ) {
         T task = mock(type);
         when(task.getTotalResourceStats()).thenReturn(new TaskResourceUsage(cpuUsage, heapUsage));
         when(task.getStartTimeNanos()).thenReturn(startTimeNanos);
+        when(task.getId()).thenReturn(randomNonNegativeLong());
 
         AtomicBoolean isCancelled = new AtomicBoolean(false);
         doAnswer(invocation -> {

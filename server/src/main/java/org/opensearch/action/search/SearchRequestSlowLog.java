@@ -140,7 +140,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
     protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
     @Override
-    protected void onPhaseFailure(SearchPhaseContext context) {}
+    protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {}
 
     @Override
     protected void onRequestStart(SearchRequestContext searchRequestContext) {}

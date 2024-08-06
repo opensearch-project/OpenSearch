@@ -33,6 +33,7 @@
 package org.opensearch.transport;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -45,8 +46,9 @@ import java.io.IOException;
 /**
  * Stats for transport activity
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TransportStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;

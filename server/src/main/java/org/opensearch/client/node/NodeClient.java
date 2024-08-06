@@ -39,6 +39,7 @@ import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.Client;
 import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -53,8 +54,9 @@ import java.util.function.Supplier;
 /**
  * Client that executes actions on the local node.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodeClient extends AbstractClient {
 
     private DynamicActionRegistry actionRegistry;

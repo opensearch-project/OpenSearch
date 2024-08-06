@@ -47,15 +47,18 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.apache.http.protocol.HttpContext;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.HeapBufferedAsyncResponseConsumer;
+import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.unit.TimeValue;
@@ -79,6 +82,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Queue;
@@ -86,10 +90,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -490,7 +496,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").start());
         assertEquals(
             "Error parsing the response, remote is likely not an OpenSearch instance",
-            e.getCause().getCause().getCause().getMessage()
+            e.getCause().getCause().getCause().getCause().getMessage()
         );
     }
 
@@ -499,7 +505,7 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").start());
         assertEquals(
             "Error parsing the response, remote is likely not an OpenSearch instance",
-            e.getCause().getCause().getCause().getMessage()
+            e.getCause().getCause().getCause().getCause().getMessage()
         );
     }
 
@@ -649,5 +655,92 @@ public class RemoteScrollableHitSourceTests extends OpenSearchTestCase {
         }, e -> fail()));
         assertNotNull(exception.get());
         return exception.get();
+    }
+
+    RemoteScrollableHitSource createRemoteSourceWithFailure(
+        boolean shouldMockRemoteVersion,
+        Exception failure,
+        AtomicInteger invocationCount
+    ) {
+        CloseableHttpAsyncClient httpClient = new CloseableHttpAsyncClient() {
+            @Override
+            public <T> Future<T> execute(
+                HttpAsyncRequestProducer requestProducer,
+                HttpAsyncResponseConsumer<T> responseConsumer,
+                HttpContext context,
+                FutureCallback<T> callback
+            ) {
+                invocationCount.getAndIncrement();
+                callback.failed(failure);
+                return null;
+            }
+
+            @Override
+            public void close() throws IOException {}
+
+            @Override
+            public boolean isRunning() {
+                return false;
+            }
+
+            @Override
+            public void start() {}
+        };
+        return sourceWithMockedClient(shouldMockRemoteVersion, httpClient);
+    }
+
+    void verifyRetries(boolean shouldMockRemoteVersion, Exception failureResponse, boolean expectedToRetry) {
+        retriesAllowed = 5;
+        AtomicInteger invocations = new AtomicInteger();
+        invocations.set(0);
+        RemoteScrollableHitSource source = createRemoteSourceWithFailure(shouldMockRemoteVersion, failureResponse, invocations);
+
+        Throwable e = expectThrows(RuntimeException.class, source::start);
+        int expectedInvocations = 0;
+        if (shouldMockRemoteVersion) {
+            expectedInvocations += 1; // first search
+            if (expectedToRetry) expectedInvocations += retriesAllowed;
+        } else {
+            expectedInvocations = 1; // the first should fail and not trigger any retry.
+        }
+
+        assertEquals(expectedInvocations, invocations.get());
+
+        // Unwrap the some artifacts from the test
+        while (e.getMessage().equals("failed")) {
+            e = e.getCause();
+        }
+        // There is an additional wrapper for ResponseException.
+        if (failureResponse instanceof ResponseException) {
+            e = e.getCause();
+        }
+
+        assertSame(failureResponse, e);
+    }
+
+    ResponseException withResponseCode(int statusCode, String errorMsg) throws IOException {
+        org.opensearch.client.Response mockResponse = Mockito.mock(org.opensearch.client.Response.class);
+        ProtocolVersion protocolVersion = new ProtocolVersion("https", 1, 1);
+        Mockito.when(mockResponse.getEntity()).thenReturn(new StringEntity(errorMsg, ContentType.TEXT_PLAIN));
+        Mockito.when(mockResponse.getStatusLine()).thenReturn(new BasicStatusLine(protocolVersion, statusCode, errorMsg));
+        Mockito.when(mockResponse.getRequestLine()).thenReturn(new BasicRequestLine("GET", "/", protocolVersion));
+        return new ResponseException(mockResponse);
+    }
+
+    public void testRetryOnCallFailure() throws Exception {
+        // First call succeeds. Search calls failing with 5xxs and 429s should be retried but not 400s.
+        verifyRetries(true, withResponseCode(500, "Internal Server Error"), true);
+        verifyRetries(true, withResponseCode(429, "Too many requests"), true);
+        verifyRetries(true, withResponseCode(400, "Client Error"), false);
+
+        // First call succeeds. Search call failed with exceptions other than ResponseException
+        verifyRetries(true, new ConnectException("blah"), true); // should retry connect exceptions.
+        verifyRetries(true, new RuntimeException("foobar"), false);
+
+        // First call(remote version lookup) failed and no retries expected
+        verifyRetries(false, withResponseCode(500, "Internal Server Error"), false);
+        verifyRetries(false, withResponseCode(429, "Too many requests"), false);
+        verifyRetries(false, withResponseCode(400, "Client Error"), false);
+        verifyRetries(false, new ConnectException("blah"), false);
     }
 }

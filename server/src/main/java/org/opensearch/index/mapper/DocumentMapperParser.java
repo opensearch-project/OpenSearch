@@ -136,7 +136,7 @@ public class DocumentMapperParser {
     }
 
     @SuppressWarnings({ "unchecked" })
-    private DocumentMapper parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+    public DocumentMapper parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }

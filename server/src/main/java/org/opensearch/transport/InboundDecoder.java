@@ -50,8 +50,8 @@ import java.util.function.Consumer;
  */
 public class InboundDecoder implements Releasable {
 
-    static final Object PING = new Object();
-    static final Object END_CONTENT = new Object();
+    public static final Object PING = new Object();
+    public static final Object END_CONTENT = new Object();
 
     private final Version version;
     private final PageCacheRecycler recycler;

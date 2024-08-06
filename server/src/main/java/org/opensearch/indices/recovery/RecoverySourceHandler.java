@@ -843,9 +843,11 @@ public abstract class RecoverySourceHandler {
 
             if (request.isPrimaryRelocation()) {
                 logger.trace("performing relocation hand-off");
-                final Runnable forceSegRepRunnable = shard.indexSettings().isSegRepEnabled()
-                    ? recoveryTarget::forceSegmentFileSync
-                    : () -> {};
+                final Runnable forceSegRepRunnable = shard.indexSettings().isSegRepEnabledOrRemoteNode()
+                    || (request.sourceNode().isRemoteStoreNode() && request.targetNode().isRemoteStoreNode())
+                        ? recoveryTarget::forceSegmentFileSync
+                        : () -> {};
+
                 // TODO: make relocated async
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
                 cancellableThreads.execute(
@@ -857,7 +859,7 @@ public abstract class RecoverySourceHandler {
                  */
             } else {
                 // Force round of segment replication to update its checkpoint to primary's
-                if (shard.indexSettings().isSegRepEnabled()) {
+                if (shard.indexSettings().isSegRepEnabledOrRemoteNode()) {
                     cancellableThreads.execute(recoveryTarget::forceSegmentFileSync);
                 }
             }

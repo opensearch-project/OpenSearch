@@ -25,6 +25,7 @@ import org.opensearch.transport.TransportRequestOptions;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * This class handles sending file chunks over the transport layer to a target shard.
@@ -36,11 +37,11 @@ public final class RemoteSegmentFileChunkWriter implements FileChunkWriter {
     private final AtomicLong requestSeqNoGenerator;
     private final RetryableTransportClient retryableTransportClient;
     private final ShardId shardId;
-    private final RecoverySettings recoverySettings;
     private final long replicationId;
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
     private final TransportRequestOptions fileChunkRequestOptions;
     private final Consumer<Long> onSourceThrottle;
+    private final Supplier<RateLimiter> rateLimiterSupplier;
     private final String action;
 
     public RemoteSegmentFileChunkWriter(
@@ -50,14 +51,15 @@ public final class RemoteSegmentFileChunkWriter implements FileChunkWriter {
         ShardId shardId,
         String action,
         AtomicLong requestSeqNoGenerator,
-        Consumer<Long> onSourceThrottle
+        Consumer<Long> onSourceThrottle,
+        Supplier<RateLimiter> rateLimiterSupplier
     ) {
         this.replicationId = replicationId;
-        this.recoverySettings = recoverySettings;
         this.retryableTransportClient = retryableTransportClient;
         this.shardId = shardId;
         this.requestSeqNoGenerator = requestSeqNoGenerator;
         this.onSourceThrottle = onSourceThrottle;
+        this.rateLimiterSupplier = rateLimiterSupplier;
         this.fileChunkRequestOptions = TransportRequestOptions.builder()
             .withType(TransportRequestOptions.Type.RECOVERY)
             .withTimeout(recoverySettings.internalActionTimeout())
@@ -78,7 +80,7 @@ public final class RemoteSegmentFileChunkWriter implements FileChunkWriter {
         // Pause using the rate limiter, if desired, to throttle the recovery
         final long throttleTimeInNanos;
         // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
-        final RateLimiter rl = recoverySettings.rateLimiter();
+        final RateLimiter rl = rateLimiterSupplier.get();
         if (rl != null) {
             long bytes = bytesSinceLastPause.addAndGet(content.length());
             if (bytes > rl.getMinPauseCheckBytes()) {

@@ -59,9 +59,12 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -77,6 +80,24 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
+    private SearchRequestOperationsListenerAssertingListener assertingListener;
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+
+        assertingListener = new SearchRequestOperationsListenerAssertingListener();
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+
+        assertingListener.assertFinished();
+    }
+
     public void testBottomFieldSort() throws Exception {
         testCase(false, false);
     }
@@ -218,15 +239,18 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             task,
             SearchResponse.Clusters.EMPTY,
             new SearchRequestContext(
-                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                searchRequest
-            )
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                searchRequest,
+                () -> null
+            ),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
                 return new SearchPhase("test") {
                     @Override
                     public void run() {
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
                         latch.countDown();
                     }
                 };

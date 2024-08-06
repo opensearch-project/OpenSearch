@@ -42,7 +42,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
 
-@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
 
     /**
@@ -295,7 +295,6 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * for multiple indices matching a wildcard name pattern.
      * @throws IOException IO Exception.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     public void testRTSRestoreWithCommittedDataMultipleIndicesPatterns() throws Exception {
         testRestoreFlowMultipleIndices(2, true, randomIntBetween(1, 5));
     }
@@ -306,16 +305,16 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * with all remote-enabled red indices considered for the restore by default.
      * @throws IOException IO Exception.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     public void testRTSRestoreWithCommittedDataDefaultAllIndices() throws Exception {
         int shardCount = randomIntBetween(1, 5);
-        prepareCluster(1, 3, INDEX_NAMES, 1, shardCount);
+        int replicaCount = 1;
+        prepareCluster(1, 3, INDEX_NAMES, replicaCount, shardCount);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
         for (String index : indices) {
             Map<String, Long> indexStats = indexData(2, true, index);
             indicesStats.put(index, indexStats);
-            assertEquals(shardCount, getNumShards(index).totalNumShards);
+            assertEquals(shardCount * (replicaCount + 1), getNumShards(index).totalNumShards);
         }
 
         for (String index : indices) {
@@ -337,7 +336,7 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
         ensureGreen(indices);
 
         for (String index : indices) {
-            assertEquals(shardCount, getNumShards(index).totalNumShards);
+            assertEquals(shardCount * (replicaCount + 1), getNumShards(index).totalNumShards);
             verifyRestoredData(indicesStats.get(index), index);
         }
     }
@@ -395,16 +394,16 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
      * except those matching the specified exclusion pattern.
      * @throws IOException IO Exception.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/8480")
     public void testRTSRestoreWithCommittedDataExcludeIndicesPatterns() throws Exception {
         int shardCount = randomIntBetween(1, 5);
-        prepareCluster(1, 3, INDEX_NAMES, 1, shardCount);
+        int replicaCount = 1;
+        prepareCluster(1, 3, INDEX_NAMES, replicaCount, shardCount);
         String[] indices = INDEX_NAMES.split(",");
         Map<String, Map<String, Long>> indicesStats = new HashMap<>();
         for (String index : indices) {
             Map<String, Long> indexStats = indexData(2, true, index);
             indicesStats.put(index, indexStats);
-            assertEquals(shardCount, getNumShards(index).totalNumShards);
+            assertEquals(shardCount * (replicaCount + 1), getNumShards(index).totalNumShards);
         }
 
         for (String index : indices) {
@@ -433,9 +432,9 @@ public class RemoteStoreRestoreIT extends BaseRemoteStoreRestoreIT {
                 PlainActionFuture.newFuture()
             );
         ensureGreen(indices[0], indices[1]);
-        assertEquals(shardCount, getNumShards(indices[0]).totalNumShards);
+        assertEquals(shardCount * (replicaCount + 1), getNumShards(indices[0]).totalNumShards);
         verifyRestoredData(indicesStats.get(indices[0]), indices[0]);
-        assertEquals(shardCount, getNumShards(indices[1]).totalNumShards);
+        assertEquals(shardCount * (replicaCount + 1), getNumShards(indices[1]).totalNumShards);
         verifyRestoredData(indicesStats.get(indices[1]), indices[1]);
         ensureRed(indices[2], indices[3]);
     }

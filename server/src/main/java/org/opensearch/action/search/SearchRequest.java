@@ -33,6 +33,7 @@
 package org.opensearch.action.search;
 
 import org.opensearch.LegacyESVersion;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -515,7 +516,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * The tye of search to execute.
+     * The type of search to execute.
      */
     public SearchType searchType() {
         return searchType;
@@ -731,7 +732,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             sb.append("scroll[").append(scroll.keepAlive()).append("], ");
         }
         if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            sb.append("source[");
+            try {
+                sb.append(source.toString(FORMAT_PARAMS));
+            } catch (final OpenSearchException ex) {
+                sb.append("<error: ").append(ex.getMessage()).append(">");
+            }
+            sb.append("]");
         } else {
             sb.append("source[]");
         }

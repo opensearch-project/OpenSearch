@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.MeanMetric;
 
 import java.util.concurrent.atomic.LongAdder;
@@ -39,8 +40,9 @@ import java.util.concurrent.atomic.LongAdder;
 /**
  * Tracks transport statistics
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class StatsTracker {
 
     private final LongAdder bytesRead = new LongAdder();

@@ -33,6 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.rest.RestRequest.Method;
 
@@ -46,6 +47,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 @FunctionalInterface
 public interface RestHandler {
 
@@ -67,6 +69,14 @@ public interface RestHandler {
      * this endpoint.
      */
     default boolean supportsContentStream() {
+        return false;
+    }
+
+    /**
+     * Indicates if the RestHandler supports request / response streaming. Please note that the transport engine has to support
+     * streaming as well.
+     */
+    default boolean supportsStreaming() {
         return false;
     }
 
@@ -180,8 +190,9 @@ public interface RestHandler {
     /**
      * Route for the request.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class Route {
 
         protected final String path;
@@ -231,7 +242,10 @@ public interface RestHandler {
 
     /**
      * Represents an API that has been deprecated and is slated for removal.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class DeprecatedRoute extends Route {
 
         private final String deprecationMessage;
@@ -249,7 +263,10 @@ public interface RestHandler {
     /**
      * Represents an API that has had its {@code path} or {@code method} changed. Holds both the
      * new and previous {@code path} and {@code method} combination.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class ReplacedRoute extends Route {
 
         private final String deprecatedPath;

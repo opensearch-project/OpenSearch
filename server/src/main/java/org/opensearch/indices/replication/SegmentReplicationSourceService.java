@@ -29,7 +29,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
-import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
@@ -124,18 +123,20 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 request.getCheckpoint().getShardId(),
                 SegmentReplicationTargetService.Actions.FILE_CHUNK,
                 new AtomicLong(0),
-                (throttleTime) -> {}
+                (throttleTime) -> {},
+                recoverySettings::replicationRateLimiter
             );
-            final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-            channel.sendResponse(
-                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+            final SegmentReplicationSourceHandler handler = ongoingSegmentReplications.prepareForReplication(
+                request,
+                segmentSegmentFileChunkWriter
             );
+            channel.sendResponse(new CheckpointInfoResponse(handler.getCheckpoint(), handler.getInfosBytes()));
             timer.stop();
             logger.trace(
                 new ParameterizedMessage(
                     "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
                     request.getReplicationId(),
-                    copyState.getCheckpoint(),
+                    handler.getCheckpoint(),
                     request.getTargetNode().getId(),
                     timer.time()
                 )
@@ -175,7 +176,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         // we need to ensure its state has cleared up in ongoing replications.
         if (event.routingTableChanged()) {
             for (IndexService indexService : indicesService) {
-                if (indexService.getIndexSettings().isSegRepEnabled()) {
+                if (indexService.getIndexSettings().isSegRepEnabledOrRemoteNode()) {
                     for (IndexShard indexShard : indexService) {
                         if (indexShard.routingEntry().primary()) {
                             final IndexMetadata indexMetadata = indexService.getIndexSettings().getIndexMetadata();
@@ -217,11 +218,11 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
 
     /**
      *
-     * Cancels any replications on this node to a replica shard that is about to be closed.
+     * Before a primary shard is closed, cancel any ongoing replications to release incref'd segments.
      */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
+        if (indexShard != null && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
             ongoingSegmentReplications.cancel(indexShard, "shard is closed");
         }
     }
@@ -231,7 +232,10 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
      */
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-        if (indexShard != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
+        if (indexShard != null
+            && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()
+            && oldRouting.primary() == false
+            && newRouting.primary()) {
             ongoingSegmentReplications.cancel(indexShard.routingEntry().allocationId().getId(), "Relocating primary shard.");
         }
     }

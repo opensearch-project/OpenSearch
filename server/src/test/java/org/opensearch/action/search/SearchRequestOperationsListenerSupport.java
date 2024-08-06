@@ -25,7 +25,8 @@ public interface SearchRequestOperationsListenerSupport {
             context,
             new SearchRequestContext(
                 new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
-                new SearchRequest()
+                new SearchRequest(),
+                () -> null
             )
         );
     }

@@ -82,6 +82,11 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
         return ArrayUtil.copyOfSubArray(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
     }
 
+    static byte[] toBytesWithoutCompact(BytesReference reference) {
+        final BytesRef bytesRef = reference.toBytesRef();
+        return bytesRef.bytes;
+    }
+
     /**
      * Returns an array of byte buffers from the given BytesReference.
      */

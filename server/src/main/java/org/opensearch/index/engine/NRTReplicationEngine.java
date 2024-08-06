@@ -488,7 +488,8 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
                  This is not required for remote store implementations given on failover the replica re-syncs with the store
                  during promotion.
                  */
-                if (engineConfig.getIndexSettings().isRemoteStoreEnabled() == false) {
+                if (engineConfig.getIndexSettings().isRemoteStoreEnabled() == false
+                    && engineConfig.getIndexSettings().isAssignedOnRemoteNode() == false) {
                     latestSegmentInfos.counter = latestSegmentInfos.counter + SI_COUNTER_INCREMENT;
                     latestSegmentInfos.changed();
                 }

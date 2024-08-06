@@ -90,7 +90,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public enum Dynamic {
         TRUE,
         FALSE,
-        STRICT
+        STRICT,
+        STRICT_ALLOW_TEMPLATES
     }
 
     /**
@@ -283,6 +284,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
+                } else if (value.equalsIgnoreCase("strict_allow_templates")) {
+                    builder.dynamic(Dynamic.STRICT_ALLOW_TEMPLATES);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
@@ -290,6 +293,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return true;
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
+                return true;
+            } else if (fieldName.equals("derived")) {
+                if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
+                    // nothing to do here, empty (to support "derived: []" case)
+                } else if (fieldNode instanceof Map) {
+                    parseDerived(builder, (Map<String, Object>) fieldNode, parserContext);
+                } else {
+                    throw new OpenSearchParseException("derived must be a map type");
+                }
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -347,6 +359,55 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (nested) {
                 builder.nested = Nested.newNested(nestedIncludeInParent, nestedIncludeInRoot);
             }
+        }
+
+        protected static void parseDerived(ObjectMapper.Builder objBuilder, Map<String, Object> derivedNode, ParserContext parserContext) {
+            Iterator<Map.Entry<String, Object>> iterator = derivedNode.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String fieldName = entry.getKey();
+                // Should accept empty arrays, as a work around for when the
+                // user can't provide an empty Map. (PHP for example)
+                boolean isEmptyList = entry.getValue() instanceof List && ((List<?>) entry.getValue()).isEmpty();
+
+                if (entry.getValue() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> node = (Map<String, Object>) entry.getValue();
+
+                    // Derived fields are a bit unique in that the 'type' attribute does not map to the TypeParser
+                    // like it would for traditional fields in properties.
+                    // So in this case, the DerivedFieldMapper's TypeParser will explicitly be used
+                    Mapper.TypeParser typeParser = parserContext.typeParser(DerivedFieldMapper.CONTENT_TYPE);
+                    String[] fieldNameParts = fieldName.split("\\.");
+                    // field name is just ".", which is invalid
+                    if (fieldNameParts.length < 1) {
+                        throw new MapperParsingException("Invalid field name " + fieldName);
+                    }
+                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                    Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, node, parserContext);
+                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                        ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
+                        intermediate.add(fieldBuilder);
+                        fieldBuilder = intermediate;
+                    }
+                    objBuilder.add(fieldBuilder);
+                    node.remove("type");
+                    DocumentMapperParser.checkNoRemainingFields(fieldName, node, parserContext.indexVersionCreated());
+                    iterator.remove();
+                } else if (isEmptyList) {
+                    iterator.remove();
+                } else {
+                    throw new MapperParsingException(
+                        "Expected map for property [derived_fields] on field [" + fieldName + "] but got a " + fieldName.getClass()
+                    );
+                }
+            }
+
+            DocumentMapperParser.checkNoRemainingFields(
+                derivedNode,
+                parserContext.indexVersionCreated(),
+                "DocType mapping definition has unsupported parameters: "
+            );
         }
 
         protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
@@ -663,7 +724,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        Mapper[] sortedMappers = mappers.values().stream().toArray(size -> new Mapper[size]);
+        Mapper[] derivedSortedMappers = mappers.values()
+            .stream()
+            .filter(m -> m instanceof DerivedFieldMapper)
+            .toArray(size -> new Mapper[size]);
+        Arrays.sort(derivedSortedMappers, new Comparator<Mapper>() {
+            @Override
+            public int compare(Mapper o1, Mapper o2) {
+                return o1.name().compareTo(o2.name());
+            }
+        });
+
+        Mapper[] sortedMappers = mappers.values()
+            .stream()
+            .filter(m -> !(m instanceof DerivedFieldMapper))
+            .toArray(size -> new Mapper[size]);
         Arrays.sort(sortedMappers, new Comparator<Mapper>() {
             @Override
             public int compare(Mapper o1, Mapper o2) {
@@ -672,6 +747,17 @@ public class ObjectMapper extends Mapper implements Cloneable {
         });
 
         int count = 0;
+        for (Mapper mapper : derivedSortedMappers) {
+            if (count++ == 0) {
+                builder.startObject("derived");
+            }
+            mapper.toXContent(builder, params);
+        }
+        if (count > 0) {
+            builder.endObject();
+        }
+
+        count = 0;
         for (Mapper mapper : sortedMappers) {
             if (!(mapper instanceof MetadataFieldMapper)) {
                 if (count++ == 0) {

@@ -358,6 +358,16 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     /**
+     * This method handles an incoming http request as a stream.
+     *
+     * @param httpRequest that is incoming
+     * @param httpChannel that received the http request
+     */
+    public void incomingStream(HttpRequest httpRequest, final StreamingHttpChannel httpChannel) {
+        handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+    }
+
+    /**
      * This method handles an incoming http request.
      *
      * @param httpRequest that is incoming
@@ -438,29 +448,56 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             RestChannel innerChannel;
             ThreadContext threadContext = threadPool.getThreadContext();
             try {
-                innerChannel = new DefaultRestChannel(
-                    httpChannel,
-                    httpRequest,
-                    restRequest,
-                    bigArrays,
-                    handlingSettings,
-                    threadContext,
-                    corsHandler,
-                    trace
-                );
+                if (httpChannel instanceof StreamingHttpChannel) {
+                    innerChannel = new DefaultStreamingRestChannel(
+                        (StreamingHttpChannel) httpChannel,
+                        httpRequest,
+                        restRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                } else {
+                    innerChannel = new DefaultRestChannel(
+                        httpChannel,
+                        httpRequest,
+                        restRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                }
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
-                innerChannel = new DefaultRestChannel(
-                    httpChannel,
-                    httpRequest,
-                    innerRequest,
-                    bigArrays,
-                    handlingSettings,
-                    threadContext,
-                    corsHandler,
-                    trace
-                );
+
+                if (httpChannel instanceof StreamingHttpChannel) {
+                    innerChannel = new DefaultStreamingRestChannel(
+                        (StreamingHttpChannel) httpChannel,
+                        httpRequest,
+                        innerRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                } else {
+                    innerChannel = new DefaultRestChannel(
+                        httpChannel,
+                        httpRequest,
+                        innerRequest,
+                        bigArrays,
+                        handlingSettings,
+                        threadContext,
+                        corsHandler,
+                        trace
+                    );
+                }
             }
             channel = innerChannel;
         }

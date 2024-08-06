@@ -79,7 +79,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     // index to IndexRoutingTable map
     private final Map<String, IndexRoutingTable> indicesRouting;
 
-    private RoutingTable(long version, final Map<String, IndexRoutingTable> indicesRouting) {
+    public RoutingTable(long version, final Map<String, IndexRoutingTable> indicesRouting) {
         this.version = version;
         this.indicesRouting = Collections.unmodifiableMap(indicesRouting);
     }
@@ -304,6 +304,16 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      */
     public ShardsIterator allShardsSatisfyingPredicate(Predicate<ShardRouting> predicate) {
         String[] indices = indicesRouting.keySet().toArray(new String[0]);
+        return allShardsSatisfyingPredicate(indices, predicate, false);
+    }
+
+    /**
+     * All the shards for the provided indices on the node which match the predicate
+     * @param indices indices to return all the shards.
+     * @param predicate condition to match
+     * @return iterator over shards matching the predicate for the specific indices
+     */
+    public ShardsIterator allShardsSatisfyingPredicate(String[] indices, Predicate<ShardRouting> predicate) {
         return allShardsSatisfyingPredicate(indices, predicate, false);
     }
 

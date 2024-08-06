@@ -62,7 +62,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'http.content_type.required', 'true'
-      systemProperty 'opensearch.experimental.optimize_doc_id_lookup.fuzzy_set.enabled', 'true'
     }
   }
 

@@ -32,103 +32,77 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.DeprecatedApi;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.lease.Releasables;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.transport.nativeprotocol.NativeInboundMessage;
 
 import java.io.IOException;
 
 /**
  * Inbound data as a message
- *
- * @opensearch.internal
+ * This api is deprecated, please use {@link org.opensearch.transport.nativeprotocol.NativeInboundMessage} instead.
+ * @opensearch.api
  */
-public class InboundMessage implements Releasable {
+@DeprecatedApi(since = "2.14.0")
+public class InboundMessage implements Releasable, ProtocolInboundMessage {
 
-    private final Header header;
-    private final ReleasableBytesReference content;
-    private final Exception exception;
-    private final boolean isPing;
-    private Releasable breakerRelease;
-    private StreamInput streamInput;
+    private final NativeInboundMessage nativeInboundMessage;
 
     public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
-        this.header = header;
-        this.content = content;
-        this.breakerRelease = breakerRelease;
-        this.exception = null;
-        this.isPing = false;
+        this.nativeInboundMessage = new NativeInboundMessage(header, content, breakerRelease);
     }
 
     public InboundMessage(Header header, Exception exception) {
-        this.header = header;
-        this.content = null;
-        this.breakerRelease = null;
-        this.exception = exception;
-        this.isPing = false;
+        this.nativeInboundMessage = new NativeInboundMessage(header, exception);
     }
 
     public InboundMessage(Header header, boolean isPing) {
-        this.header = header;
-        this.content = null;
-        this.breakerRelease = null;
-        this.exception = null;
-        this.isPing = isPing;
+        this.nativeInboundMessage = new NativeInboundMessage(header, isPing);
     }
 
     public Header getHeader() {
-        return header;
+        return this.nativeInboundMessage.getHeader();
     }
 
     public int getContentLength() {
-        if (content == null) {
-            return 0;
-        } else {
-            return content.length();
-        }
+        return this.nativeInboundMessage.getContentLength();
     }
 
     public Exception getException() {
-        return exception;
+        return this.nativeInboundMessage.getException();
     }
 
     public boolean isPing() {
-        return isPing;
+        return this.nativeInboundMessage.isPing();
     }
 
     public boolean isShortCircuit() {
-        return exception != null;
+        return this.nativeInboundMessage.getException() != null;
     }
 
     public Releasable takeBreakerReleaseControl() {
-        final Releasable toReturn = breakerRelease;
-        breakerRelease = null;
-        if (toReturn != null) {
-            return toReturn;
-        } else {
-            return () -> {};
-        }
+        return this.nativeInboundMessage.takeBreakerReleaseControl();
     }
 
     public StreamInput openOrGetStreamInput() throws IOException {
-        assert isPing == false && content != null;
-        if (streamInput == null) {
-            streamInput = content.streamInput();
-            streamInput.setVersion(header.getVersion());
-        }
-        return streamInput;
+        return this.nativeInboundMessage.openOrGetStreamInput();
     }
 
     @Override
     public void close() {
-        IOUtils.closeWhileHandlingException(streamInput);
-        Releasables.closeWhileHandlingException(content, breakerRelease);
+        this.nativeInboundMessage.close();
     }
 
     @Override
     public String toString() {
-        return "InboundMessage{" + header + "}";
+        return this.nativeInboundMessage.toString();
     }
+
+    @Override
+    public String getProtocol() {
+        return this.nativeInboundMessage.getProtocol();
+    }
+
 }

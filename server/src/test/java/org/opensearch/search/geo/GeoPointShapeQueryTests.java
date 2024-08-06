@@ -100,6 +100,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
                     client().prepareSearch("test")
                         .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, rectangle).relation(shapeRelation))
                         .get();
+                    fail("Expected " + shapeRelation + " query relation not supported for Field [" + defaultGeoFieldName + "]");
                 } catch (SearchPhaseExecutionException e) {
                     assertThat(
                         e.getCause().getMessage(),
@@ -119,6 +120,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
         try {
             client().prepareSearch("test").setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, line)).get();
+            fail("Expected field [" + defaultGeoFieldName + "] does not support LINEARRING queries");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getCause().getMessage(), containsString("does not support " + GeoShapeType.LINESTRING + " queries"));
         }
@@ -138,11 +140,14 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
             searchRequestBuilder.setQuery(queryBuilder);
             searchRequestBuilder.setIndices("test");
             searchRequestBuilder.get();
+            fail("Expected field [" + defaultGeoFieldName + "] does not support LINEARRING queries");
         } catch (SearchPhaseExecutionException e) {
             assertThat(
                 e.getCause().getMessage(),
                 containsString("Field [" + defaultGeoFieldName + "] does not support LINEARRING queries")
             );
+        } catch (UnsupportedOperationException e) {
+            assertThat(e.getMessage(), containsString("line ring cannot be serialized using GeoJson"));
         }
     }
 
@@ -160,6 +165,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
         try {
             client().prepareSearch("test").setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiline)).get();
+            fail("Expected field [" + defaultGeoFieldName + "] does not support " + GeoShapeType.MULTILINESTRING + " queries");
         } catch (Exception e) {
             assertThat(e.getCause().getMessage(), containsString("does not support " + GeoShapeType.MULTILINESTRING + " queries"));
         }
@@ -175,6 +181,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
         try {
             client().prepareSearch("test").setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint)).get();
+            fail("Expected field [" + defaultGeoFieldName + "] does not support " + GeoShapeType.MULTIPOINT + " queries");
         } catch (Exception e) {
             assertThat(e.getCause().getMessage(), containsString("does not support " + GeoShapeType.MULTIPOINT + " queries"));
         }
@@ -190,6 +197,7 @@ public class GeoPointShapeQueryTests extends GeoQueryTests {
 
         try {
             client().prepareSearch("test").setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point)).get();
+            fail("Expected field [" + defaultGeoFieldName + "] does not support " + GeoShapeType.POINT + " queries");
         } catch (Exception e) {
             assertThat(e.getCause().getMessage(), containsString("does not support " + GeoShapeType.POINT + " queries"));
         }

@@ -28,7 +28,7 @@ public class CacheSettings {
         (key) -> Setting.simpleString(key, "", Setting.Property.NodeScope)
     );
 
-    public static Setting<String> getConcreteSettingForCacheType(CacheType cacheType) {
+    public static Setting<String> getConcreteStoreNameSettingForCacheType(CacheType cacheType) {
         return CACHE_TYPE_STORE_NAME.getConcreteSettingForNamespace(cacheType.getSettingPrefix());
     }
 }

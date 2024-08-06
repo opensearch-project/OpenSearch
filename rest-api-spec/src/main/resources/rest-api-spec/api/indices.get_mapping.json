@@ -1,7 +1,7 @@
 {
   "indices.get_mapping":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-mapping.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/index-apis/put-mapping/",
       "description":"Returns mappings for one or more indices."
     },
     "stability":"stable",

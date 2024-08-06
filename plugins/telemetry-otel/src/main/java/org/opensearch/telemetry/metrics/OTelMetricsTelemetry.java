@@ -9,18 +9,22 @@
 package org.opensearch.telemetry.metrics;
 
 import org.opensearch.common.concurrent.RefCountedReleasable;
+import org.opensearch.telemetry.OTelAttributesConverter;
 import org.opensearch.telemetry.OTelTelemetryPlugin;
+import org.opensearch.telemetry.metrics.tags.Tags;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.function.Supplier;
 
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.MeterProvider;
+import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 /**
@@ -84,6 +88,28 @@ public class OTelMetricsTelemetry<T extends MeterProvider & Closeable> implement
             (PrivilegedAction<DoubleHistogram>) () -> otelMeter.histogramBuilder(name).setUnit(unit).setDescription(description).build()
         );
         return new OTelHistogram(doubleHistogram);
+    }
+
+    @Override
+    public Closeable createGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags) {
+        ObservableDoubleGauge doubleObservableGauge = AccessController.doPrivileged(
+            (PrivilegedAction<ObservableDoubleGauge>) () -> otelMeter.gaugeBuilder(name)
+                .setUnit(unit)
+                .setDescription(description)
+                .buildWithCallback(record -> record.record(valueProvider.get(), OTelAttributesConverter.convert(tags)))
+        );
+        return () -> doubleObservableGauge.close();
+    }
+
+    @Override
+    public Closeable createGauge(String name, String description, String unit, Supplier<TaggedMeasurement> value) {
+        ObservableDoubleGauge doubleObservableGauge = AccessController.doPrivileged(
+            (PrivilegedAction<ObservableDoubleGauge>) () -> otelMeter.gaugeBuilder(name)
+                .setUnit(unit)
+                .setDescription(description)
+                .buildWithCallback(record -> record.record(value.get().getValue(), OTelAttributesConverter.convert(value.get().getTags())))
+        );
+        return () -> doubleObservableGauge.close();
     }
 
     @Override

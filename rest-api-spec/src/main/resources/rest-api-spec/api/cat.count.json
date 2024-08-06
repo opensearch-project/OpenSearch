@@ -1,7 +1,7 @@
 {
   "cat.count":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-count.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/cat/cat-count/",
       "description":"Provides quick access to the document count of the entire cluster, or individual indices."
     },
     "stability":"stable",

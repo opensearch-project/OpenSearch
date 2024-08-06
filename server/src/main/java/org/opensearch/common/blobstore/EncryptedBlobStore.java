@@ -9,6 +9,7 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.crypto.CryptoHandlerRegistry;
 import org.opensearch.crypto.CryptoRegistryException;
@@ -66,6 +67,15 @@ public class EncryptedBlobStore implements BlobStore {
     }
 
     /**
+     * Reoload blobstore metadata
+     * @param repositoryMetadata new repository metadata
+     */
+    @Override
+    public void reload(RepositoryMetadata repositoryMetadata) {
+        blobStore.reload(repositoryMetadata);
+    }
+
+    /**
      * Retrieves statistics about the BlobStore. Delegates the call to the underlying BlobStore's stats() method.
      *
      * @return A map containing statistics about the BlobStore.
@@ -83,6 +93,11 @@ public class EncryptedBlobStore implements BlobStore {
     @Override
     public Map<Metric, Map<String, Long>> extendedStats() {
         return blobStore.extendedStats();
+    }
+
+    @Override
+    public boolean isBlobMetadataEnabled() {
+        return blobStore.isBlobMetadataEnabled();
     }
 
     /**

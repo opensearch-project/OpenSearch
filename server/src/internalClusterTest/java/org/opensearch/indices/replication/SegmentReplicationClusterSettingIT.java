@@ -89,8 +89,8 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         Index index = resolveIndex(INDEX_NAME);
         Index anotherIndex = resolveIndex(ANOTHER_INDEX);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNode);
-        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
-        assertEquals(indicesService.indexService(anotherIndex).getIndexSettings().isSegRepEnabled(), true);
+        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabledOrRemoteNode(), false);
+        assertEquals(indicesService.indexService(anotherIndex).getIndexSettings().isSegRepEnabledOrRemoteNode(), true);
     }
 
     public void testIndexReplicationSettingOverridesDocRepClusterSetting() throws Exception {
@@ -119,8 +119,8 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         Index index = resolveIndex(INDEX_NAME);
         Index anotherIndex = resolveIndex(ANOTHER_INDEX);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNode);
-        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), true);
-        assertEquals(indicesService.indexService(anotherIndex).getIndexSettings().isSegRepEnabled(), false);
+        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabledOrRemoteNode(), true);
+        assertEquals(indicesService.indexService(anotherIndex).getIndexSettings().isSegRepEnabledOrRemoteNode(), false);
     }
 
     public void testReplicationTypesOverrideNotAllowed_IndexAPI() {

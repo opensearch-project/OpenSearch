@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.ParseField;
@@ -61,6 +62,8 @@ import java.util.function.BiConsumer;
 @PublicApi(since = "1.0.0")
 public abstract class Aggregator extends BucketCollector implements Releasable {
 
+    private final SetOnce<InternalAggregation> internalAggregation = new SetOnce<>();
+
     /**
      * Parses the aggregation request and creates the appropriate aggregator factory for it.
      *
@@ -81,6 +84,13 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @throws java.io.IOException      When parsing fails
          */
         AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException;
+    }
+
+    /**
+     * Returns the InternalAggregation stored during post collection
+     */
+    public InternalAggregation getPostCollectionAggregation() {
+        return internalAggregation.get();
     }
 
     /**
@@ -185,13 +195,15 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Build the result of this aggregation if it is at the "top level"
-     * of the aggregation tree. If, instead, it is a sub-aggregation of
-     * another aggregation then the aggregation that contains it will call
-     * {@link #buildAggregations(long[])}.
+     * of the aggregation tree and save it. This should get called
+     * during post collection. If, instead, it is a sub-aggregation
+     * of another aggregation then the aggregation that contains
+     * it will call {@link #buildAggregations(long[])}.
      */
     public final InternalAggregation buildTopLevel() throws IOException {
         assert parent() == null;
-        return buildAggregations(new long[] { 0 })[0];
+        this.internalAggregation.set(buildAggregations(new long[] { 0 })[0]);
+        return internalAggregation.get();
     }
 
     /**

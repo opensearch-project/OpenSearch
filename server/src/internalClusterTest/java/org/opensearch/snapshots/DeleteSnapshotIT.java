@@ -14,9 +14,14 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -27,6 +32,8 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static org.opensearch.index.remote.RemoteStoreEnums.DataCategory.SEGMENTS;
+import static org.opensearch.index.remote.RemoteStoreEnums.DataType.LOCK_FILES;
 import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -305,9 +312,24 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
             .getSetting(remoteStoreEnabledIndexName, IndexMetadata.SETTING_INDEX_UUID);
 
         logger.info("--> create two remote index shallow snapshots");
-        List<String> shallowCopySnapshots = createNSnapshots(snapshotRepoName, 2);
+        SnapshotInfo snapshotInfo1 = createFullSnapshot(snapshotRepoName, "snap1");
+        SnapshotInfo snapshotInfo2 = createFullSnapshot(snapshotRepoName, "snap2");
 
-        String[] lockFiles = getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME);
+        final RepositoriesService repositoriesService = internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository remoteStoreRepository = (BlobStoreRepository) repositoriesService.repository(REMOTE_REPO_NAME);
+        BlobPath shardLevelBlobPath = getShardLevelBlobPath(
+            client(),
+            remoteStoreEnabledIndexName,
+            remoteStoreRepository.basePath(),
+            "0",
+            SEGMENTS,
+            LOCK_FILES
+        );
+        BlobContainer blobContainer = remoteStoreRepository.blobStore().blobContainer(shardLevelBlobPath);
+        String[] lockFiles;
+        try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
+            lockFiles = lockDirectory.listAll();
+        }
         assert (lockFiles.length == 2) : "lock files are " + Arrays.toString(lockFiles);
 
         // delete the giremote store index
@@ -316,17 +338,20 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete snapshot 1");
         AcknowledgedResponse deleteSnapshotResponse = clusterManagerClient.admin()
             .cluster()
-            .prepareDeleteSnapshot(snapshotRepoName, shallowCopySnapshots.get(0))
+            .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo1.snapshotId().getName())
             .get();
         assertAcked(deleteSnapshotResponse);
 
-        lockFiles = getLockFilesInRemoteStore(remoteStoreEnabledIndexName, REMOTE_REPO_NAME, indexUUID);
+        try (RemoteBufferedOutputDirectory lockDirectory = new RemoteBufferedOutputDirectory(blobContainer)) {
+            lockFiles = lockDirectory.listAll();
+        }
         assert (lockFiles.length == 1) : "lock files are " + Arrays.toString(lockFiles);
+        assertTrue(lockFiles[0].contains(snapshotInfo2.snapshotId().getUUID()));
 
         logger.info("--> delete snapshot 2");
         deleteSnapshotResponse = clusterManagerClient.admin()
             .cluster()
-            .prepareDeleteSnapshot(snapshotRepoName, shallowCopySnapshots.get(1))
+            .prepareDeleteSnapshot(snapshotRepoName, snapshotInfo2.snapshotId().getName())
             .get();
         assertAcked(deleteSnapshotResponse);
 

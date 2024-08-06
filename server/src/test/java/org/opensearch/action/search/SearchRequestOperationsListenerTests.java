@@ -40,7 +40,7 @@ public class SearchRequestOperationsListenerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public void onPhaseFailure(SearchPhaseContext context) {
+            public void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
                 searchPhaseMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
             }
         };

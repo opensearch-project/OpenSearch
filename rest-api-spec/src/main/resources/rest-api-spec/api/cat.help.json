@@ -1,7 +1,7 @@
 {
   "cat.help":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/cat/index/",
       "description":"Returns help for the Cat APIs."
     },
     "stability":"stable",

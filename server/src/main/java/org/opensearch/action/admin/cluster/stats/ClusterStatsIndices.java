@@ -78,26 +78,49 @@ public class ClusterStatsIndices implements ToXContentFragment {
         this.segments = new SegmentsStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
-            for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
-                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
-                if (indexShardStats == null) {
-                    indexShardStats = new ShardStats();
-                    countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
+            // Aggregated response from the node
+            if (r.getAggregatedNodeLevelStats() != null) {
+
+                for (Map.Entry<String, ClusterStatsNodeResponse.AggregatedIndexStats> entry : r.getAggregatedNodeLevelStats().indexStatsMap
+                    .entrySet()) {
+                    ShardStats indexShardStats = countsPerIndex.get(entry.getKey());
+                    if (indexShardStats == null) {
+                        indexShardStats = new ShardStats(entry.getValue());
+                        countsPerIndex.put(entry.getKey(), indexShardStats);
+                    } else {
+                        indexShardStats.addStatsFrom(entry.getValue());
+                    }
                 }
 
-                indexShardStats.total++;
+                docs.add(r.getAggregatedNodeLevelStats().commonStats.docs);
+                store.add(r.getAggregatedNodeLevelStats().commonStats.store);
+                fieldData.add(r.getAggregatedNodeLevelStats().commonStats.fieldData);
+                queryCache.add(r.getAggregatedNodeLevelStats().commonStats.queryCache);
+                completion.add(r.getAggregatedNodeLevelStats().commonStats.completion);
+                segments.add(r.getAggregatedNodeLevelStats().commonStats.segments);
+            } else {
+                // Default response from the node
+                for (org.opensearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
+                    ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
+                    if (indexShardStats == null) {
+                        indexShardStats = new ShardStats();
+                        countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
+                    }
 
-                CommonStats shardCommonStats = shardStats.getStats();
+                    indexShardStats.total++;
 
-                if (shardStats.getShardRouting().primary()) {
-                    indexShardStats.primaries++;
-                    docs.add(shardCommonStats.docs);
+                    CommonStats shardCommonStats = shardStats.getStats();
+
+                    if (shardStats.getShardRouting().primary()) {
+                        indexShardStats.primaries++;
+                        docs.add(shardCommonStats.docs);
+                    }
+                    store.add(shardCommonStats.store);
+                    fieldData.add(shardCommonStats.fieldData);
+                    queryCache.add(shardCommonStats.queryCache);
+                    completion.add(shardCommonStats.completion);
+                    segments.add(shardCommonStats.segments);
                 }
-                store.add(shardCommonStats.store);
-                fieldData.add(shardCommonStats.fieldData);
-                queryCache.add(shardCommonStats.queryCache);
-                completion.add(shardCommonStats.completion);
-                segments.add(shardCommonStats.segments);
             }
         }
 
@@ -201,6 +224,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
         double maxIndexReplication = -1;
 
         public ShardStats() {}
+
+        public ShardStats(ClusterStatsNodeResponse.AggregatedIndexStats aggregatedIndexStats) {
+            this.total = aggregatedIndexStats.total;
+            this.primaries = aggregatedIndexStats.primaries;
+        }
 
         /**
          * number of indices in the cluster
@@ -327,6 +355,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
                 maxIndexPrimaryShards = Math.max(maxIndexPrimaryShards, indexShardCount.primaries);
                 maxIndexReplication = Math.max(maxIndexReplication, indexShardCount.getReplication());
             }
+        }
+
+        public void addStatsFrom(ClusterStatsNodeResponse.AggregatedIndexStats incomingStats) {
+            this.total += incomingStats.total;
+            this.primaries += incomingStats.primaries;
         }
 
         /**

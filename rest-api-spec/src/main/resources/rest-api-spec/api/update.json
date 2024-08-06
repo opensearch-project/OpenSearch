@@ -1,7 +1,7 @@
 {
   "update":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/document-apis/update-document/",
       "description":"Updates a document with a script or partial document."
     },
     "stability":"stable",

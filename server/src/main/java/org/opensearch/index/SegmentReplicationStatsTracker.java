@@ -45,7 +45,7 @@ public class SegmentReplicationStatsTracker {
         Map<ShardId, SegmentReplicationPerGroupStats> stats = new HashMap<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
-                if (indexShard.indexSettings().isSegRepEnabled() && indexShard.routingEntry().primary()) {
+                if (indexShard.indexSettings().isSegRepEnabledOrRemoteNode() && indexShard.routingEntry().primary()) {
                     stats.putIfAbsent(indexShard.shardId(), getStatsForShard(indexShard));
                 }
             }

@@ -148,8 +148,8 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         project.getTasks().withType(AbstractCopyTask.class).configureEach(t -> {
             t.dependsOn(project.getTasks().withType(EmptyDirTask.class));
             t.setIncludeEmptyDirs(true);
-            t.setDirMode(0755);
-            t.setFileMode(0644);
+            t.dirPermissions(perms -> perms.unix(0755));
+            t.filePermissions(perms -> perms.unix(0644));
         });
 
         // common config across all archives

@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.get.GetResponse;
@@ -400,6 +401,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testReplicationAfterForceMerge() throws Exception {
+        performReplicationAfterForceMerge(false, SHARD_COUNT * (1 + REPLICA_COUNT));
+    }
+
+    public void testReplicationAfterForceMergeOnPrimaryShardsOnly() throws Exception {
+        performReplicationAfterForceMerge(true, SHARD_COUNT);
+    }
+
+    private void performReplicationAfterForceMerge(boolean primaryOnly, int expectedSuccessfulShards) throws Exception {
         final String nodeA = internalCluster().startDataOnlyNode();
         final String nodeB = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
@@ -430,8 +439,16 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForDocs(expectedHitCount, indexer);
             waitForSearchableDocs(expectedHitCount, nodeA, nodeB);
 
-            // Force a merge here so that the in memory SegmentInfos does not reference old segments on disk.
-            client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
+            // Perform force merge only on the primary shards.
+            final ForceMergeResponse forceMergeResponse = client().admin()
+                .indices()
+                .prepareForceMerge(INDEX_NAME)
+                .setPrimaryOnly(primaryOnly)
+                .setMaxNumSegments(1)
+                .setFlush(false)
+                .get();
+            assertThat(forceMergeResponse.getFailedShards(), is(0));
+            assertThat(forceMergeResponse.getSuccessfulShards(), is(expectedSuccessfulShards));
             refresh(INDEX_NAME);
             verifyStoreContent();
         }
@@ -592,6 +609,67 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         segmentReplicationSourceService.beforeIndexShardClosed(primaryShard.shardId(), primaryShard, indexSettings());
         latch.countDown();
         assertDocCounts(docCount, primaryNode);
+    }
+
+    public void testCancellationDuringGetCheckpointInfo() throws Exception {
+        cancelDuringReplicaAction(SegmentReplicationSourceService.Actions.GET_CHECKPOINT_INFO);
+    }
+
+    public void testCancellationDuringGetSegments() throws Exception {
+        cancelDuringReplicaAction(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES);
+    }
+
+    private void cancelDuringReplicaAction(String actionToblock) throws Exception {
+        // this test stubs transport calls specific to node-node replication.
+        assumeFalse(
+            "Skipping the test as its not compatible with segment replication with remote store.",
+            segmentReplicationWithRemoteEnabled()
+        );
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
+        ensureYellow(INDEX_NAME);
+
+        final String replicaNode = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+        final SegmentReplicationTargetService targetService = internalCluster().getInstance(
+            SegmentReplicationTargetService.class,
+            replicaNode
+        );
+        final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+        CountDownLatch startCancellationLatch = new CountDownLatch(1);
+        CountDownLatch latch = new CountDownLatch(1);
+
+        MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNode
+        );
+        primaryTransportService.addRequestHandlingBehavior(actionToblock, (handler, request, channel, task) -> {
+            logger.info("action {}", actionToblock);
+            try {
+                startCancellationLatch.countDown();
+                latch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // index a doc and trigger replication
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        // remove the replica and ensure it is cleaned up.
+        startCancellationLatch.await();
+        SegmentReplicationTarget target = targetService.get(replicaShard.shardId());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+        assertEquals("Replication not closed: " + target.getId(), 0, target.refCount());
+        assertEquals("Store has a positive refCount", 0, replicaShard.store().refCount());
+        // stop the replica, this will do additional checks on shutDown to ensure the replica and its store are closed properly
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
+        latch.countDown();
     }
 
     public void testStartReplicaAfterPrimaryIndexesDocs() throws Exception {
@@ -1327,7 +1405,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
             .setRequestCache(false)
             .get();
-        PitTestsUtil.assertUsingGetAllPits(client(replica), pitResponse.getId(), pitResponse.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(replica), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
         assertSegments(false, INDEX_NAME, 1, client(replica), pitResponse.getId());
 
         List<String> currentFiles = List.of(replicaShard.store().directory().listAll());

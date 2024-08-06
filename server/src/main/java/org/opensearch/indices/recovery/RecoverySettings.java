@@ -66,6 +66,16 @@ public class RecoverySettings {
     );
 
     /**
+     * Individual speed setting for segment replication, default -1B to reuse the setting of recovery.
+     */
+    public static final Setting<ByteSizeValue> INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        "indices.replication.max_bytes_per_sec",
+        new ByteSizeValue(-1),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
      * Controls the maximum number of file chunk requests that can be sent concurrently from the source node to the target node.
      */
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING = Setting.intSetting(
@@ -159,25 +169,6 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
-    /**
-     * Controls minimum number of metadata files to keep in remote segment store.
-     * {@code value < 1} will disable deletion of stale segment metadata files.
-     */
-    public static final Setting<Integer> CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING = Setting.intSetting(
-        "cluster.remote_store.index.segment_metadata.retention.max_count",
-        10,
-        -1,
-        v -> {
-            if (v == 0) {
-                throw new IllegalArgumentException(
-                    "Value 0 is not allowed for this setting as it would delete all the data from remote segment store"
-                );
-            }
-        },
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
     public static final Setting<TimeValue> INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT = Setting.timeSetting(
         "indices.recovery.internal_remote_upload_timeout",
         new TimeValue(1, TimeUnit.HOURS),
@@ -188,20 +179,30 @@ public class RecoverySettings {
     // choose 512KB-16B to ensure that the resulting byte[] is not a humongous allocation in G1.
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
 
-    private volatile ByteSizeValue maxBytesPerSec;
+    public static final Setting<ByteSizeValue> INDICES_RECOVERY_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "indices.recovery.chunk_size",
+        DEFAULT_CHUNK_SIZE,
+        new ByteSizeValue(1, ByteSizeUnit.BYTES),
+        new ByteSizeValue(100, ByteSizeUnit.MB),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    private volatile ByteSizeValue recoveryMaxBytesPerSec;
+    private volatile ByteSizeValue replicationMaxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
     private volatile int maxConcurrentRemoteStoreStreams;
-    private volatile SimpleRateLimiter rateLimiter;
+    private volatile SimpleRateLimiter recoveryRateLimiter;
+    private volatile SimpleRateLimiter replicationRateLimiter;
     private volatile TimeValue retryDelayStateSync;
     private volatile TimeValue retryDelayNetwork;
     private volatile TimeValue activityTimeout;
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
-    private volatile int minRemoteSegmentMetadataFiles;
 
-    private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
+    private volatile ByteSizeValue chunkSize;
     private volatile TimeValue internalRemoteUploadTimeout;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
@@ -218,17 +219,21 @@ public class RecoverySettings {
         this.internalActionLongTimeout = INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.get(settings);
 
         this.activityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
-        this.maxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);
-        if (maxBytesPerSec.getBytes() <= 0) {
-            rateLimiter = null;
+        this.recoveryMaxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+            recoveryRateLimiter = null;
         } else {
-            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
+            recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
+        this.replicationMaxBytesPerSec = INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        updateReplicationRateLimiter();
 
-        logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
+        logger.debug("using recovery max_bytes_per_sec[{}]", recoveryMaxBytesPerSec);
         this.internalRemoteUploadTimeout = INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.get(settings);
+        this.chunkSize = INDICES_RECOVERY_CHUNK_SIZE_SETTING.get(settings);
 
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING, this::setMaxConcurrentOperations);
         clusterSettings.addSettingsUpdateConsumer(
@@ -243,17 +248,30 @@ public class RecoverySettings {
             this::setInternalActionLongTimeout
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
-        minRemoteSegmentMetadataFiles = CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
-            this::setMinRemoteSegmentMetadataFiles
-        );
         clusterSettings.addSettingsUpdateConsumer(INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT, this::setInternalRemoteUploadTimeout);
-
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CHUNK_SIZE_SETTING, this::setChunkSize);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
+            this::setInternalActionRetryTimeout
+        );
     }
 
+    /**
+     * Method unused as of 2.14 but left as part of public API.
+     * Use recoveryRateLimiter or replicationRateLimiter instead.
+     * @return {@link RateLimiter} Recovery rate limiter
+     */
+    @Deprecated(forRemoval = true, since = "2.14")
     public RateLimiter rateLimiter() {
-        return rateLimiter;
+        return recoveryRateLimiter;
+    }
+
+    public RateLimiter recoveryRateLimiter() {
+        return recoveryRateLimiter;
+    }
+
+    public RateLimiter replicationRateLimiter() {
+        return replicationRateLimiter;
     }
 
     public TimeValue retryDelayNetwork() {
@@ -288,10 +306,7 @@ public class RecoverySettings {
         return chunkSize;
     }
 
-    public void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
-        if (chunkSize.bytesAsInt() <= 0) {
-            throw new IllegalArgumentException("chunkSize must be > 0");
-        }
+    public void setChunkSize(ByteSizeValue chunkSize) {
         this.chunkSize = chunkSize;
     }
 
@@ -319,14 +334,44 @@ public class RecoverySettings {
         this.internalRemoteUploadTimeout = internalRemoteUploadTimeout;
     }
 
-    private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
-        this.maxBytesPerSec = maxBytesPerSec;
-        if (maxBytesPerSec.getBytes() <= 0) {
-            rateLimiter = null;
-        } else if (rateLimiter != null) {
-            rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());
+    public void setInternalActionRetryTimeout(TimeValue internalActionRetryTimeout) {
+        this.internalActionRetryTimeout = internalActionRetryTimeout;
+    }
+
+    private void setRecoveryMaxBytesPerSec(ByteSizeValue recoveryMaxBytesPerSec) {
+        this.recoveryMaxBytesPerSec = recoveryMaxBytesPerSec;
+        if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+            recoveryRateLimiter = null;
+        } else if (recoveryRateLimiter != null) {
+            recoveryRateLimiter.setMBPerSec(recoveryMaxBytesPerSec.getMbFrac());
         } else {
-            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
+            recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
+        }
+        if (replicationMaxBytesPerSec.getBytes() < 0) updateReplicationRateLimiter();
+    }
+
+    private void setReplicationMaxBytesPerSec(ByteSizeValue replicationMaxBytesPerSec) {
+        this.replicationMaxBytesPerSec = replicationMaxBytesPerSec;
+        updateReplicationRateLimiter();
+    }
+
+    private void updateReplicationRateLimiter() {
+        if (replicationMaxBytesPerSec.getBytes() >= 0) {
+            if (replicationMaxBytesPerSec.getBytes() == 0) {
+                replicationRateLimiter = null;
+            } else if (replicationRateLimiter != null) {
+                replicationRateLimiter.setMBPerSec(replicationMaxBytesPerSec.getMbFrac());
+            } else {
+                replicationRateLimiter = new SimpleRateLimiter(replicationMaxBytesPerSec.getMbFrac());
+            }
+        } else { // when replicationMaxBytesPerSec = -1B, use setting of recovery
+            if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+                replicationRateLimiter = null;
+            } else if (replicationRateLimiter != null) {
+                replicationRateLimiter.setMBPerSec(recoveryMaxBytesPerSec.getMbFrac());
+            } else {
+                replicationRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
+            }
         }
     }
 
@@ -354,11 +399,4 @@ public class RecoverySettings {
         this.maxConcurrentRemoteStoreStreams = maxConcurrentRemoteStoreStreams;
     }
 
-    private void setMinRemoteSegmentMetadataFiles(int minRemoteSegmentMetadataFiles) {
-        this.minRemoteSegmentMetadataFiles = minRemoteSegmentMetadataFiles;
-    }
-
-    public int getMinRemoteSegmentMetadataFiles() {
-        return this.minRemoteSegmentMetadataFiles;
-    }
 }

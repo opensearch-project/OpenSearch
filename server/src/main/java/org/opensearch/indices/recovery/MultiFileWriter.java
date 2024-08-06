@@ -161,7 +161,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 + "] in "
                 + Arrays.toString(store.directory().listAll());
             // With Segment Replication, we will fsync after a full commit has been received.
-            if (store.indexSettings().isSegRepEnabled() == false) {
+            if (store.indexSettings().isSegRepEnabledOrRemoteNode() == false) {
                 store.directory().sync(Collections.singleton(temporaryFileName));
             }
             IndexOutput remove = removeOpenIndexOutputs(name);

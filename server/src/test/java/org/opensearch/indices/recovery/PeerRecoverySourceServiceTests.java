@@ -38,6 +38,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.shard.IndexShardTestUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.NodeRoles;
@@ -65,8 +66,8 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(
             primary.shardId(),
             randomAlphaOfLength(10),
-            getFakeDiscoNode("source"),
-            getFakeDiscoNode("target"),
+            IndexShardTestUtils.getFakeDiscoNode("source"),
+            IndexShardTestUtils.getFakeDiscoNode("target"),
             Store.MetadataSnapshot.EMPTY,
             randomBoolean(),
             randomLong(),

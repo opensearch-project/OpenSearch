@@ -72,6 +72,17 @@ public final class RandomDocumentPicks {
     }
 
     /**
+     * Returns a random field name that doesn't exist in the document.
+     */
+    public static String randomNonExistingFieldName(Random random, IngestDocument ingestDocument) {
+        String fieldName;
+        do {
+            fieldName = randomFieldName(random);
+        } while (canAddField(fieldName, ingestDocument) == false);
+        return fieldName;
+    }
+
+    /**
      * Returns a random leaf field name.
      */
     public static String randomLeafFieldName(Random random) {

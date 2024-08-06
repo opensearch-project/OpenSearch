@@ -670,7 +670,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     deprecatedParamsMap.put(deprecatedName, param);
                 }
             }
-            String type = (String) fieldNode.remove("type");
+            String type = (String) fieldNode.get("type");
+            if (paramsMap.get("type") == null) {
+                fieldNode.remove("type");
+            }
+
             for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 final String propName = entry.getKey();

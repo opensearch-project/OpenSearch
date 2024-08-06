@@ -8,7 +8,11 @@
 
 package org.opensearch.telemetry.metrics;
 
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.Closeable;
+import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -57,6 +61,37 @@ public class DefaultMetricsRegistryTests extends OpenSearchTestCase {
             "ms"
         );
         assertSame(mockHistogram, histogram);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGauge() {
+        Closeable mockCloseable = mock(Closeable.class);
+        when(
+            defaultMeterRegistry.createGauge(any(String.class), any(String.class), any(String.class), any(Supplier.class), any(Tags.class))
+        ).thenReturn(mockCloseable);
+        Closeable closeable = defaultMeterRegistry.createGauge(
+            "org.opensearch.telemetry.metrics.DefaultMeterRegistryTests.testObservableGauge",
+            "test observable gauge",
+            "ms",
+            () -> 1.0,
+            Tags.EMPTY
+        );
+        assertSame(mockCloseable, closeable);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGaugeWithValueAndTagSupplier() {
+        Closeable mockCloseable = mock(Closeable.class);
+        when(defaultMeterRegistry.createGauge(any(String.class), any(String.class), any(String.class), any(Supplier.class))).thenReturn(
+            mockCloseable
+        );
+        Closeable closeable = defaultMeterRegistry.createGauge(
+            "org.opensearch.telemetry.metrics.DefaultMeterRegistryTests.testObservableGauge",
+            "test observable gauge",
+            "ms",
+            () -> TaggedMeasurement.create(1.0, Tags.EMPTY)
+        );
+        assertSame(mockCloseable, closeable);
     }
 
 }

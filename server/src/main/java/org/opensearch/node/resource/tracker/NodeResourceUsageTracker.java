@@ -8,6 +8,7 @@
 
 package org.opensearch.node.resource.tracker;
 
+import org.apache.lucene.util.Constants;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -69,6 +70,9 @@ public class NodeResourceUsageTracker extends AbstractLifecycleComponent {
      * Checks if all of the resource usage trackers are ready
      */
     public boolean isReady() {
+        if (Constants.LINUX) {
+            return memoryUsageTracker.isReady() && cpuUsageTracker.isReady() && ioUsageTracker.isReady();
+        }
         return memoryUsageTracker.isReady() && cpuUsageTracker.isReady();
     }
 

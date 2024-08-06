@@ -78,6 +78,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.remote.RemoteStoreTestsHelper;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexShardState;
@@ -1589,9 +1590,15 @@ public class TransportReplicationActionTests extends OpenSearchTestCase {
 
     @SuppressWarnings("unchecked")
     private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService) {
+        return mockIndexShard(shardId, clusterService, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService, boolean remote) {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.state()).thenReturn(IndexShardState.STARTED);
+        when(indexShard.indexSettings()).thenReturn(RemoteStoreTestsHelper.createIndexSettings(remote));
         doAnswer(invocation -> {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
             if (isPrimaryMode.get()) {

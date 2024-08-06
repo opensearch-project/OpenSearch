@@ -17,22 +17,23 @@ opensearchplugin {
   classname 'org.opensearch.plugin.discovery.gce.GceDiscoveryPlugin'
 }
 
-versions << [
-  'google': '1.23.0'
-]
-
 dependencies {
-  api "com.google.apis:google-api-services-compute:v1-rev160-${versions.google}"
-  api "com.google.api-client:google-api-client:${versions.google}"
+  api "com.google.apis:google-api-services-compute:v1-rev20240407-2.0.0"
+  api "com.google.api-client:google-api-client:1.35.2"
   api "com.google.oauth-client:google-oauth-client:1.35.0"
-  api "com.google.http-client:google-http-client:${versions.google}"
-  api "com.google.http-client:google-http-client-jackson2:${versions.google}"
+  api "com.google.http-client:google-http-client:${versions.google_http_client}"
+  api "com.google.http-client:google-http-client-gson:${versions.google_http_client}"
+  api "com.google.http-client:google-http-client-jackson2:${versions.google_http_client}"
   api 'com.google.code.findbugs:jsr305:3.0.2'
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
+  api 'io.grpc:grpc-api:1.57.2'
+  api 'io.opencensus:opencensus-api:0.31.1'
+  api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
 }
 
 restResources {
@@ -43,6 +44,7 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /google-.*/, to: 'google'
+  mapping from: /opencensus.*/, to: 'opencensus'
 }
 
 check {
@@ -55,26 +57,36 @@ test {
   systemProperty 'tests.artifact', project.name
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // classes are missing
-  'javax.jms.Message',
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'com.google.api.client.json.gson.GsonFactory',
-  'com.google.common.base.Preconditions',
-  'com.google.common.base.Splitter',
-  'com.google.common.cache.CacheBuilder',
-  'com.google.common.cache.CacheLoader',
-  'com.google.common.cache.LoadingCache',
-  'com.google.common.collect.ImmutableMap',
-  'com.google.common.collect.ImmutableMap$Builder',
-  'com.google.common.collect.ImmutableSet',
-  'com.google.common.collect.Lists',
-  'com.google.common.collect.Multiset',
-  'com.google.common.collect.SortedMultiset',
-  'com.google.common.collect.TreeMultiset',
-  'com.google.common.io.BaseEncoding',
-)
+thirdPartyAudit {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  )
+
+  ignoreMissingClasses(
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
+    'com.google.common.util.concurrent.internal.InternalFutureFailureAccess',
+    'com.google.common.util.concurrent.internal.InternalFutures',
+    'com.google.gson.stream.JsonReader',
+    'com.google.gson.stream.JsonToken',
+    'com.google.gson.stream.JsonWriter',
+    'javax.jms.Message',
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger'
+  )
+}

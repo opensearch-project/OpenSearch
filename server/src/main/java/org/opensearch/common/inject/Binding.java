@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.spi.BindingScopingVisitor;
 import org.opensearch.common.inject.spi.BindingTargetVisitor;
 import org.opensearch.common.inject.spi.Element;
@@ -69,8 +70,9 @@ import org.opensearch.common.inject.spi.Element;
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Binding<T> extends Element {
 
     /**

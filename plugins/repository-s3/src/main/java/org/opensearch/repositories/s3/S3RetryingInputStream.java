@@ -48,6 +48,7 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -77,6 +78,7 @@ class S3RetryingInputStream extends InputStream {
     private long currentOffset;
     private boolean closed;
     private boolean eof;
+    private Map<String, String> metadata;
 
     S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
         this(blobStore, blobKey, 0, Long.MAX_VALUE - 1);
@@ -122,6 +124,7 @@ class S3RetryingInputStream extends InputStream {
                 getObjectResponseInputStream.response().contentLength()
             );
             this.currentStream = getObjectResponseInputStream;
+            this.metadata = getObjectResponseInputStream.response().metadata();
             this.isStreamAborted.set(false);
         } catch (final SdkException e) {
             if (e instanceof S3Exception) {
@@ -264,5 +267,9 @@ class S3RetryingInputStream extends InputStream {
     // package-private for tests
     boolean isAborted() {
         return isStreamAborted.get();
+    }
+
+    Map<String, String> getMetadata() {
+        return this.metadata;
     }
 }

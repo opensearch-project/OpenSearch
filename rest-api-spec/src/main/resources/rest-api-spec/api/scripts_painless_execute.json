@@ -1,7 +1,7 @@
 {
   "scripts_painless_execute":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-execute-api.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/script-apis/exec-stored-script/",
       "description":"Allows an arbitrary script to be executed and a result to be returned"
     },
     "stability":"experimental",

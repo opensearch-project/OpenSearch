@@ -146,6 +146,11 @@ public interface SearchOperationListener {
     default void onFreePitContext(ReaderContext readerContext) {}
 
     /**
+     * Executed when a shard goes from idle to non-idle state
+     */
+    default void onSearchIdleReactivation() {}
+
+    /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
     final class CompositeListener implements SearchOperationListener {
@@ -307,6 +312,17 @@ public interface SearchOperationListener {
                     listener.onFreePitContext(readerContext);
                 } catch (Exception e) {
                     logger.warn("onFreePitContext listener failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onSearchIdleReactivation() {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onSearchIdleReactivation();
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onNewSearchIdleReactivation listener [{}] failed", listener), e);
                 }
             }
         }

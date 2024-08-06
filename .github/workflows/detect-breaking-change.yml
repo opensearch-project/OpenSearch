@@ -1,0 +1,27 @@
+name: "Detect Breaking Changes"
+on:
+  pull_request
+
+jobs:
+  detect-breaking-change:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin # Temurin is a distribution of adoptium
+        java-version: 21
+    - uses: gradle/gradle-build-action@v3
+      with:
+        cache-disabled: true
+        arguments: japicmp
+        gradle-version: 8.7
+        build-root-directory: server
+    - if: failure()
+      run: cat server/build/reports/java-compatibility/report.txt
+    - if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: java-compatibility-report.html
+        path: ${{ github.workspace }}/server/build/reports/java-compatibility/report.html
+  

@@ -42,6 +42,7 @@ import org.opensearch.gateway.AsyncShardFetch;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PrimaryShardAllocator;
 import org.opensearch.gateway.ReplicaShardAllocator;
+import org.opensearch.gateway.TransportNodesGatewayStartedShardHelper;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
@@ -91,14 +92,21 @@ public class TestGatewayAllocator extends GatewayAllocator {
                         routing -> currentNodes.get(routing.currentNodeId()),
                         routing -> new NodeGatewayStartedShards(
                             currentNodes.get(routing.currentNodeId()),
-                            routing.allocationId().getId(),
-                            routing.primary(),
-                            getReplicationCheckpoint(shardId, routing.currentNodeId())
+                            new TransportNodesGatewayStartedShardHelper.GatewayStartedShard(
+                                routing.allocationId().getId(),
+                                routing.primary(),
+                                getReplicationCheckpoint(shardId, routing.currentNodeId()),
+                                null
+                            )
                         )
                     )
                 );
 
-            return new AsyncShardFetch.FetchResult<>(shardId, foundShards, ignoreNodes);
+            return new AsyncShardFetch.FetchResult<>(foundShards, new HashMap<>() {
+                {
+                    put(shardId, ignoreNodes);
+                }
+            });
         }
     };
 
@@ -111,7 +119,11 @@ public class TestGatewayAllocator extends GatewayAllocator {
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now, just pretend no node has data
             final ShardId shardId = shard.shardId();
-            return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), allocation.getIgnoreNodes(shardId));
+            return new AsyncShardFetch.FetchResult<>(Collections.emptyMap(), new HashMap<>() {
+                {
+                    put(shardId, allocation.getIgnoreNodes(shardId));
+                }
+            });
         }
 
         @Override
@@ -171,4 +183,5 @@ public class TestGatewayAllocator extends GatewayAllocator {
     public void addReplicationCheckpoint(ShardId shardId, String nodeName, ReplicationCheckpoint replicationCheckpoint) {
         shardIdNodeToReplicationCheckPointMap.putIfAbsent(getReplicationCheckPointKey(shardId, nodeName), replicationCheckpoint);
     }
+
 }

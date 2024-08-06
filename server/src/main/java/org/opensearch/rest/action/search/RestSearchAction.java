@@ -50,6 +50,7 @@ import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 import org.opensearch.search.Scroll;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -235,13 +236,12 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.query(queryBuilder);
         }
 
-        int from = request.paramAsInt("from", -1);
-        if (from != -1) {
-            searchSourceBuilder.from(from);
+        if (request.hasParam("from")) {
+            searchSourceBuilder.from(request.paramAsInt("from", SearchService.DEFAULT_FROM));
         }
-        int size = request.paramAsInt("size", -1);
-        if (size != -1) {
-            setSize.accept(size);
+
+        if (request.hasParam("size")) {
+            setSize.accept(request.paramAsInt("size", SearchService.DEFAULT_SIZE));
         }
 
         if (request.hasParam("explain")) {

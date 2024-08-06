@@ -8,6 +8,7 @@
 
 package org.opensearch.ratelimitting.admissioncontrol;
 
+import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -16,6 +17,7 @@ import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissi
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -32,7 +34,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("admission_controller_settings_test");
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
@@ -48,13 +50,21 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
 
     public void testWhenAdmissionControllerRegistered() {
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
-        assertEquals(admissionControlService.getAdmissionControllers().size(), 1);
+        if (Constants.LINUX) {
+            assertEquals(admissionControlService.getAdmissionControllers().size(), 2);
+        } else {
+            assertEquals(admissionControlService.getAdmissionControllers().size(), 1);
+        }
     }
 
     public void testRegisterInvalidAdmissionController() {
         String test = "TEST";
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
-        assertEquals(admissionControlService.getAdmissionControllers().size(), 1);
+        if (Constants.LINUX) {
+            assertEquals(admissionControlService.getAdmissionControllers().size(), 2);
+        } else {
+            assertEquals(admissionControlService.getAdmissionControllers().size(), 1);
+        }
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> admissionControlService.registerAdmissionController(test)
@@ -66,7 +76,11 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         AdmissionControlSettings admissionControlSettings = admissionControlService.admissionControlSettings;
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
-        assertEquals(admissionControllerList.size(), 1);
+        if (Constants.LINUX) {
+            assertEquals(admissionControllerList.size(), 2);
+        } else {
+            assertEquals(admissionControllerList.size(), 1);
+        }
         CpuBasedAdmissionController cpuBasedAdmissionController = (CpuBasedAdmissionController) admissionControlService
             .getAdmissionController(CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER);
         assertEquals(
@@ -132,7 +146,11 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
             .build();
         clusterService.getClusterSettings().applySettings(settings);
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
-        assertEquals(admissionControllerList.size(), 1);
+        if (Constants.LINUX) {
+            assertEquals(admissionControllerList.size(), 2);
+        } else {
+            assertEquals(admissionControllerList.size(), 1);
+        }
     }
 
     public void testApplyAdmissionControllerEnforced() {
@@ -153,6 +171,10 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
             .build();
         clusterService.getClusterSettings().applySettings(settings);
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
-        assertEquals(admissionControllerList.size(), 1);
+        if (Constants.LINUX) {
+            assertEquals(admissionControllerList.size(), 2);
+        } else {
+            assertEquals(admissionControllerList.size(), 1);
+        }
     }
 }

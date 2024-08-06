@@ -1,7 +1,7 @@
 {
   "delete_pit":{
     "documentation":{
-      "url":"https://opensearch.org/docs/latest/opensearch/rest-api/point_in_time/",
+      "url":"https://opensearch.org/docs/latest/search-plugins/searching-data/point-in-time-api",
       "description":"Deletes one or more point in time searches based on the IDs passed."
     },
     "stability":"stable",

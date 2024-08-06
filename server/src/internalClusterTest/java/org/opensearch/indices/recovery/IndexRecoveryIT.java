@@ -104,7 +104,6 @@ import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.recovery.RecoveryState.Stage;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.node.NodeClosedException;
-import org.opensearch.node.RecoverySettingsChunkSizePlugin;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
@@ -156,7 +155,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.action.DocWriteResponse.Result.CREATED;
 import static org.opensearch.action.DocWriteResponse.Result.UPDATED;
-import static org.opensearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
+import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
@@ -187,7 +186,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         return Arrays.asList(
             MockTransportService.TestPlugin.class,
             MockFSIndexStore.TestPlugin.class,
-            RecoverySettingsChunkSizePlugin.class,
             TestAnalysisPlugin.class,
             InternalSettingsPlugin.class,
             MockEngineFactoryPlugin.class
@@ -263,7 +261,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                         // one chunk per sec..
                         .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
                         // small chunks
-                        .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
+                        .put(INDICES_RECOVERY_CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
                 )
                 .get()
                 .isAcknowledged()
@@ -278,7 +276,10 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                 .setTransientSettings(
                     Settings.builder()
                         .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
-                        .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
+                        .put(
+                            INDICES_RECOVERY_CHUNK_SIZE_SETTING.getKey(),
+                            RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING.getDefault(Settings.EMPTY)
+                        )
                 )
                 .get()
                 .isAcknowledged()
@@ -298,7 +299,6 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
         assertThat(response.shardRecoveryStates().size(), equalTo(SHARD_COUNT));
-        assertThat(response.shardRecoveryStates().get(INDEX_NAME).size(), equalTo(1));
 
         List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
         assertThat(recoveryStates.size(), equalTo(1));

@@ -10,10 +10,12 @@ package org.opensearch.index.codec.fuzzy;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.tests.index.BasePostingsFormatTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 
 import java.util.TreeMap;
 
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public class FuzzyFilterPostingsFormatTests extends BasePostingsFormatTestCase {
 
     private TreeMap<String, FuzzySetParameters> params = new TreeMap<>() {

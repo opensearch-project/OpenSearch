@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class SnapshotUtilsTests extends OpenSearchTestCase {
@@ -94,7 +95,7 @@ public class SnapshotUtilsTests extends OpenSearchTestCase {
 
     private void assertIndexNameFiltering(String[] indices, String[] filter, IndicesOptions indicesOptions, String[] expected) {
         List<String> indicesList = Arrays.asList(indices);
-        List<String> actual = SnapshotUtils.filterIndices(indicesList, filter, indicesOptions);
+        List<String> actual = filterIndices(indicesList, filter, indicesOptions);
         assertThat(actual, containsInAnyOrder(expected));
     }
 

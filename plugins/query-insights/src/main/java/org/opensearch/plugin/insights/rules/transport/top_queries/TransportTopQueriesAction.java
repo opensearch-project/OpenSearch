@@ -8,7 +8,6 @@
 
 package org.opensearch.plugin.insights.rules.transport.top_queries;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.nodes.BaseNodeRequest;
@@ -22,14 +21,12 @@ import org.opensearch.plugin.insights.rules.action.top_queries.TopQueries;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesAction;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesRequest;
 import org.opensearch.plugin.insights.rules.action.top_queries.TopQueriesResponse;
-import org.opensearch.plugin.insights.rules.model.MetricType;
 import org.opensearch.plugin.insights.settings.QueryInsightsSettings;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Transport action for cluster/node level top queries information.
@@ -81,17 +78,18 @@ public class TransportTopQueriesAction extends TransportNodesAction<
         final List<TopQueries> responses,
         final List<FailedNodeException> failures
     ) {
-        if (topQueriesRequest.getMetricType() == MetricType.LATENCY) {
-            return new TopQueriesResponse(
-                clusterService.getClusterName(),
-                responses,
-                failures,
-                clusterService.getClusterSettings().get(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE),
-                MetricType.LATENCY
-            );
-        } else {
-            throw new OpenSearchException(String.format(Locale.ROOT, "invalid metric type %s", topQueriesRequest.getMetricType()));
+        int size;
+        switch (topQueriesRequest.getMetricType()) {
+            case CPU:
+                size = clusterService.getClusterSettings().get(QueryInsightsSettings.TOP_N_CPU_QUERIES_SIZE);
+                break;
+            case MEMORY:
+                size = clusterService.getClusterSettings().get(QueryInsightsSettings.TOP_N_MEMORY_QUERIES_SIZE);
+                break;
+            default:
+                size = clusterService.getClusterSettings().get(QueryInsightsSettings.TOP_N_LATENCY_QUERIES_SIZE);
         }
+        return new TopQueriesResponse(clusterService.getClusterName(), responses, failures, size, topQueriesRequest.getMetricType());
     }
 
     @Override
@@ -107,15 +105,10 @@ public class TransportTopQueriesAction extends TransportNodesAction<
     @Override
     protected TopQueries nodeOperation(final NodeRequest nodeRequest) {
         final TopQueriesRequest request = nodeRequest.request;
-        if (request.getMetricType() == MetricType.LATENCY) {
-            return new TopQueries(
-                clusterService.localNode(),
-                queryInsightsService.getTopQueriesService(MetricType.LATENCY).getTopQueriesRecords(true)
-            );
-        } else {
-            throw new OpenSearchException(String.format(Locale.ROOT, "invalid metric type %s", request.getMetricType()));
-        }
-
+        return new TopQueries(
+            clusterService.localNode(),
+            queryInsightsService.getTopQueriesService(request.getMetricType()).getTopQueriesRecords(true)
+        );
     }
 
     /**

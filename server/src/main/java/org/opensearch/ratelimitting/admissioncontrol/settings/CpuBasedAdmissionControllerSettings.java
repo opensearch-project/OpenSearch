@@ -30,6 +30,8 @@ public class CpuBasedAdmissionControllerSettings {
     private AdmissionControlMode transportLayerMode;
     private Long searchCPULimit;
     private Long indexingCPULimit;
+    private Long clusterInfoCPULimit;
+
     /**
      * Feature level setting to operate in shadow-mode or in enforced-mode. If enforced field is set
      * rejection will be performed, otherwise only rejection metrics will be populated.
@@ -62,14 +64,24 @@ public class CpuBasedAdmissionControllerSettings {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Long> CLUSTER_ADMIN_CPU_USAGE_LIMIT = Setting.longSetting(
+        "admission_control.cluster.admin.cpu_usage.limit",
+        Defaults.CPU_USAGE_LIMIT,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     // currently limited to one setting will add further more settings in follow-up PR's
     public CpuBasedAdmissionControllerSettings(ClusterSettings clusterSettings, Settings settings) {
         this.transportLayerMode = CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE, this::setTransportLayerMode);
         this.searchCPULimit = SEARCH_CPU_USAGE_LIMIT.get(settings);
         this.indexingCPULimit = INDEXING_CPU_USAGE_LIMIT.get(settings);
+        this.clusterInfoCPULimit = CLUSTER_ADMIN_CPU_USAGE_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(INDEXING_CPU_USAGE_LIMIT, this::setIndexingCPULimit);
         clusterSettings.addSettingsUpdateConsumer(SEARCH_CPU_USAGE_LIMIT, this::setSearchCPULimit);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ADMIN_CPU_USAGE_LIMIT, this::setClusterInfoCPULimit);
+
     }
 
     private void setTransportLayerMode(AdmissionControlMode admissionControlMode) {
@@ -88,6 +100,10 @@ public class CpuBasedAdmissionControllerSettings {
         return indexingCPULimit;
     }
 
+    public Long getClusterAdminCPULimit() {
+        return clusterInfoCPULimit;
+    }
+
     public void setIndexingCPULimit(Long indexingCPULimit) {
         this.indexingCPULimit = indexingCPULimit;
     }
@@ -95,4 +111,9 @@ public class CpuBasedAdmissionControllerSettings {
     public void setSearchCPULimit(Long searchCPULimit) {
         this.searchCPULimit = searchCPULimit;
     }
+
+    public void setClusterInfoCPULimit(Long clusterInfoCPULimit) {
+        this.clusterInfoCPULimit = clusterInfoCPULimit;
+    }
+
 }

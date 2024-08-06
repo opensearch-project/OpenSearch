@@ -1,7 +1,7 @@
 {
   "get_all_pits":{
     "documentation":{
-      "url":"https://opensearch.org/docs/latest/opensearch/rest-api/point_in_time/",
+      "url":"https://opensearch.org/docs/latest/search-plugins/searching-data/point-in-time-api",
       "description":"Lists all active point in time searches."
     },
     "stability":"stable",

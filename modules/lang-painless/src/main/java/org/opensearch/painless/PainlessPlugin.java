@@ -60,6 +60,7 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.IngestScript;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.ScriptContext;
@@ -107,6 +108,11 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         List<Whitelist> ingest = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         ingest.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.ingest.txt"));
         map.put(IngestScript.CONTEXT, ingest);
+
+        // Functions available to derived fields
+        List<Whitelist> derived = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        derived.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.opensearch.derived.txt"));
+        map.put(DerivedFieldScript.CONTEXT, derived);
 
         allowlists = map;
     }

@@ -1,0 +1,17 @@
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# The OpenSearch Contributors require contributions made to
+# this file be licensed under the Apache-2.0 license or a
+# compatible open source license.
+#
+
+# This file contains an allowlist for functions to be used in derived field context
+
+class org.opensearch.script.DerivedFieldScript @no_import {
+}
+
+static_import {
+    void emit(org.opensearch.script.DerivedFieldScript, Object) bound_to org.opensearch.script.ScriptEmitValues$EmitSingle
+    void emit(org.opensearch.script.DerivedFieldScript, double, double) bound_to org.opensearch.script.ScriptEmitValues$GeoPoint
+}

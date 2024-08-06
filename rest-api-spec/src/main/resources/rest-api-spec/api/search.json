@@ -1,7 +1,7 @@
 {
   "search":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/search/",
       "description":"Returns results matching a query."
     },
     "stability":"stable",

@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.AllocationDecision;
@@ -43,9 +44,12 @@ import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.NodeAllocationResult;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.core.index.shard.ShardId;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * An abstract class that implements basic functionality for allocating
@@ -64,8 +68,9 @@ public abstract class BaseGatewayShardAllocator {
      * Allocate an unassigned shard to nodes (if any) where valid copies of the shard already exist.
      * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, Logger)}
      * to make decisions on assigning shards to nodes.
-     * @param shardRouting the shard to allocate
-     * @param allocation the allocation state container object
+     *
+     * @param shardRouting                the shard to allocate
+     * @param allocation                  the allocation state container object
      * @param unassignedAllocationHandler handles the allocation of the current shard
      */
     public void allocateUnassigned(
@@ -74,7 +79,32 @@ public abstract class BaseGatewayShardAllocator {
         ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
     ) {
         final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shardRouting, allocation, logger);
+        executeDecision(shardRouting, allocateUnassignedDecision, allocation, unassignedAllocationHandler);
+    }
 
+    protected void allocateUnassignedBatchOnTimeout(List<ShardRouting> shardRoutings, RoutingAllocation allocation, boolean primary) {
+        Set<ShardId> shardIdsFromBatch = new HashSet<>();
+        for (ShardRouting shardRouting : shardRoutings) {
+            ShardId shardId = shardRouting.shardId();
+            shardIdsFromBatch.add(shardId);
+        }
+        RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
+        while (iterator.hasNext()) {
+            ShardRouting unassignedShard = iterator.next();
+            AllocateUnassignedDecision allocationDecision;
+            if (unassignedShard.primary() == primary && shardIdsFromBatch.contains(unassignedShard.shardId())) {
+                allocationDecision = AllocateUnassignedDecision.throttle(null);
+                executeDecision(unassignedShard, allocationDecision, allocation, iterator);
+            }
+        }
+    }
+
+    protected void executeDecision(
+        ShardRouting shardRouting,
+        AllocateUnassignedDecision allocateUnassignedDecision,
+        RoutingAllocation allocation,
+        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
+    ) {
         if (allocateUnassignedDecision.isDecisionTaken() == false) {
             // no decision was taken by this allocator
             return;
@@ -109,9 +139,9 @@ public abstract class BaseGatewayShardAllocator {
      * {@link #allocateUnassigned(ShardRouting, RoutingAllocation, ExistingShardsAllocator.UnassignedAllocationHandler)} to make decisions
      * about whether or not the shard can be allocated by this allocator and if so, to which node it will be allocated.
      *
-     * @param unassignedShard  the unassigned shard to allocate
-     * @param allocation       the current routing state
-     * @param logger           the logger
+     * @param unassignedShard the unassigned shard to allocate
+     * @param allocation      the current routing state
+     * @param logger          the logger
      * @return an {@link AllocateUnassignedDecision} with the final decision of whether to allocate and details of the decision
      */
     public abstract AllocateUnassignedDecision makeAllocationDecision(

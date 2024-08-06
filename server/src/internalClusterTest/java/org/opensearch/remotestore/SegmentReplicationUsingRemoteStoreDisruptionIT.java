@@ -23,8 +23,6 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.common.ReplicationCollection;
-import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.SlowClusterStateProcessing;
 
@@ -32,6 +30,8 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
  * This class runs tests with remote store + segRep while blocking file downloads
@@ -59,22 +59,18 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
         indexSingleDoc();
         refresh(INDEX_NAME);
         waitForBlock(replicaNode, REPOSITORY_NAME, TimeValue.timeValueSeconds(10));
-        final SegmentReplicationState state = targetService.getOngoingEventSegmentReplicationState(indexShard.shardId());
-        assertEquals(SegmentReplicationState.Stage.GET_FILES, state.getStage());
-        ReplicationCollection.ReplicationRef<SegmentReplicationTarget> segmentReplicationTargetReplicationRef = targetService.get(
-            state.getReplicationId()
-        );
-        final SegmentReplicationTarget segmentReplicationTarget = segmentReplicationTargetReplicationRef.get();
-        // close the target ref here otherwise it will hold a refcount
-        segmentReplicationTargetReplicationRef.close();
+        SegmentReplicationTarget segmentReplicationTarget = targetService.get(indexShard.shardId());
         assertNotNull(segmentReplicationTarget);
+        assertEquals(SegmentReplicationState.Stage.GET_FILES, segmentReplicationTarget.state().getStage());
         assertTrue(segmentReplicationTarget.refCount() > 0);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
-        assertBusy(() -> {
-            assertTrue(indexShard.routingEntry().primary());
-            assertNull(targetService.getOngoingEventSegmentReplicationState(indexShard.shardId()));
-            assertEquals("Target should be closed", 0, segmentReplicationTarget.refCount());
-        });
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+        assertNull(targetService.getOngoingEventSegmentReplicationState(indexShard.shardId()));
+        assertEquals("Target should be closed", 0, segmentReplicationTarget.refCount());
         unblockNode(REPOSITORY_NAME, replicaNode);
         cleanupRepo();
     }
@@ -85,7 +81,6 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
 
         final Set<String> dataNodeNames = internalCluster().getDataNodeNames();
         final String replicaNode = getNode(dataNodeNames, false);
-        final String primaryNode = getNode(dataNodeNames, true);
 
         SegmentReplicationTargetService targetService = internalCluster().getInstance(SegmentReplicationTargetService.class, replicaNode);
         ensureGreen(INDEX_NAME);
@@ -94,22 +89,18 @@ public class SegmentReplicationUsingRemoteStoreDisruptionIT extends AbstractRemo
         indexSingleDoc();
         refresh(INDEX_NAME);
         waitForBlock(replicaNode, REPOSITORY_NAME, TimeValue.timeValueSeconds(10));
-        final SegmentReplicationState state = targetService.getOngoingEventSegmentReplicationState(indexShard.shardId());
-        assertEquals(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO, state.getStage());
-        ReplicationCollection.ReplicationRef<SegmentReplicationTarget> segmentReplicationTargetReplicationRef = targetService.get(
-            state.getReplicationId()
-        );
-        final SegmentReplicationTarget segmentReplicationTarget = segmentReplicationTargetReplicationRef.get();
-        // close the target ref here otherwise it will hold a refcount
-        segmentReplicationTargetReplicationRef.close();
+        SegmentReplicationTarget segmentReplicationTarget = targetService.get(indexShard.shardId());
         assertNotNull(segmentReplicationTarget);
+        assertEquals(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO, segmentReplicationTarget.state().getStage());
         assertTrue(segmentReplicationTarget.refCount() > 0);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
-        assertBusy(() -> {
-            assertTrue(indexShard.routingEntry().primary());
-            assertNull(targetService.getOngoingEventSegmentReplicationState(indexShard.shardId()));
-            assertEquals("Target should be closed", 0, segmentReplicationTarget.refCount());
-        });
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(INDEX_NAME)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+        assertNull(targetService.get(indexShard.shardId()));
+        assertEquals("Target should be closed", 0, segmentReplicationTarget.refCount());
         unblockNode(REPOSITORY_NAME, replicaNode);
         cleanupRepo();
     }

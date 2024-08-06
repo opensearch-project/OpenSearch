@@ -74,7 +74,14 @@ public abstract class TranslogManagerTestCase extends OpenSearchTestCase {
     }
 
     protected Translog createTranslog(Path translogPath, LongSupplier primaryTermSupplier) throws IOException {
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "");
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            INDEX_SETTINGS,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
         String translogUUID = Translog.createEmptyTranslog(
             translogPath,
             SequenceNumbers.NO_OPS_PERFORMED,

@@ -1,7 +1,7 @@
 {
   "scroll":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll",
+      "url":"https://opensearch.org/docs/latest/api-reference/scroll/",
       "description":"Allows to retrieve a large numbers of results from a single search request."
     },
     "stability":"stable",

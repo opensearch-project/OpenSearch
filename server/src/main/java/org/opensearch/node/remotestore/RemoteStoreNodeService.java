@@ -11,21 +11,27 @@ package org.opensearch.node.remotestore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
 
 /**
  * Contains all the method needed for a remote store backed node lifecycle.
@@ -36,9 +42,26 @@ public class RemoteStoreNodeService {
     private final Supplier<RepositoriesService> repositoriesService;
     private final ThreadPool threadPool;
     public static final Setting<CompatibilityMode> REMOTE_STORE_COMPATIBILITY_MODE_SETTING = new Setting<>(
-        "remote_store.compatibility_mode",
+        "cluster.remote_store.compatibility_mode",
         CompatibilityMode.STRICT.name(),
         CompatibilityMode::parseString,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Direction> MIGRATION_DIRECTION_SETTING = new Setting<>(
+        "cluster.migration.direction",
+        Direction.NONE.name(),
+        Direction::parseString,
+        value -> {
+            if (value == Direction.DOCREP && FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL_SETTING) == false) {
+                throw new IllegalArgumentException(
+                    " remote store to docrep migration.direction is under an experimental feature and can be activated only by enabling "
+                        + REMOTE_STORE_MIGRATION_EXPERIMENTAL
+                        + " feature flag in the JVM options "
+                );
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -49,7 +72,8 @@ public class RemoteStoreNodeService {
      * @opensearch.internal
      */
     public enum CompatibilityMode {
-        STRICT("strict");
+        STRICT("strict"),
+        MIXED("mixed");
 
         public final String mode;
 
@@ -66,9 +90,34 @@ public class RemoteStoreNodeService {
                         + compatibilityMode
                         + "] compatibility mode is not supported. "
                         + "supported modes are ["
-                        + CompatibilityMode.values().toString()
+                        + Arrays.toString(CompatibilityMode.values())
                         + "]"
                 );
+            }
+        }
+    }
+
+    /**
+     * Migration Direction intended for docrep to remote store migration and vice versa
+     *
+     * @opensearch.internal
+     */
+    public enum Direction {
+        REMOTE_STORE("remote_store"),
+        NONE("none"),
+        DOCREP("docrep");
+
+        public final String direction;
+
+        Direction(String d) {
+            this.direction = d;
+        }
+
+        public static Direction parseString(String direction) {
+            try {
+                return Direction.valueOf(direction.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("[" + direction + "] migration.direction is not supported.");
             }
         }
     }
@@ -165,5 +214,39 @@ public class RemoteStoreNodeService {
         } else {
             return existingRepositories;
         }
+    }
+
+    /**
+     * Returns <code>true</code> iff current cluster settings have:
+     * <br>
+     * - <code>remote_store.compatibility_mode</code> set to <code>mixed</code>
+     * <br>
+     * - <code>migration.direction</code> set to <code>remote_store</code>
+     * <br>
+     * <code>false</code> otherwise
+     *
+     * @param clusterSettings cluster level settings
+     * @return
+     * <code>true</code> For <code>REMOTE_STORE</code> migration direction and <code>MIXED</code> compatibility mode,
+     * <code>false</code> otherwise
+     */
+    public static boolean isMigratingToRemoteStore(ClusterSettings clusterSettings) {
+        boolean isMixedMode = clusterSettings.get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED);
+        boolean isRemoteStoreMigrationDirection = clusterSettings.get(MIGRATION_DIRECTION_SETTING).equals(Direction.REMOTE_STORE);
+
+        return (isMixedMode && isRemoteStoreMigrationDirection);
+    }
+
+    /**
+     * To check if the cluster is undergoing remote store migration using clusterState metadata
+     * @return
+     * <code>true</code> For <code>REMOTE_STORE</code> migration direction and <code>MIXED</code> compatibility mode,
+     * <code>false</code> otherwise
+     */
+    public static boolean isMigratingToRemoteStore(Metadata metadata) {
+        boolean isMixedMode = REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(metadata.settings()).equals(CompatibilityMode.MIXED);
+        boolean isRemoteStoreMigrationDirection = MIGRATION_DIRECTION_SETTING.get(metadata.settings()).equals(Direction.REMOTE_STORE);
+
+        return (isMixedMode && isRemoteStoreMigrationDirection);
     }
 }

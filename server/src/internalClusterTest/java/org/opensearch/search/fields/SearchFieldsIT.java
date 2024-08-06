@@ -40,6 +40,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.document.DocumentField;
+import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateUtils;
@@ -51,6 +52,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
@@ -188,6 +190,20 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             scripts.put("doc['md']", vars -> docScript(vars, "md"));
             scripts.put("doc['s']", vars -> docScript(vars, "s"));
             scripts.put("doc['ms']", vars -> docScript(vars, "ms"));
+
+            scripts.put("doc['keyword_field']", vars -> sourceScript(vars, "keyword_field"));
+            scripts.put("doc['multi_keyword_field']", vars -> sourceScript(vars, "multi_keyword_field"));
+            scripts.put("doc['long_field']", vars -> sourceScript(vars, "long_field"));
+            scripts.put("doc['multi_long_field']", vars -> sourceScript(vars, "multi_long_field"));
+            scripts.put("doc['double_field']", vars -> sourceScript(vars, "double_field"));
+            scripts.put("doc['multi_double_field']", vars -> sourceScript(vars, "multi_double_field"));
+            scripts.put("doc['date_field']", vars -> sourceScript(vars, "date_field"));
+            scripts.put("doc['multi_date_field']", vars -> sourceScript(vars, "multi_date_field"));
+            scripts.put("doc['ip_field']", vars -> sourceScript(vars, "ip_field"));
+            scripts.put("doc['multi_ip_field']", vars -> sourceScript(vars, "multi_ip_field"));
+            scripts.put("doc['boolean_field']", vars -> sourceScript(vars, "boolean_field"));
+            scripts.put("doc['geo_field']", vars -> sourceScript(vars, "geo_field"));
+            scripts.put("doc['multi_geo_field']", vars -> sourceScript(vars, "multi_geo_field"));
 
             return scripts;
         }
@@ -1296,6 +1312,147 @@ public class SearchFieldsIT extends ParameterizedStaticSettingsOpenSearchIntegTe
             assertThat(fields.get("ms").getValues(), equalTo(Arrays.<Object>asList(Integer.toString(id), Integer.toString(id + 1))));
             assertThat(fields.get("ml").getValues(), equalTo(Arrays.<Object>asList((long) id, id + 1L)));
             assertThat(fields.get("md").getValues(), equalTo(Arrays.<Object>asList((double) id, id + 1d)));
+        }
+    }
+
+    public void testDerivedFields() throws Exception {
+        assertAcked(
+            prepareCreate("index").setMapping(
+                "keyword_field",
+                "type=keyword",
+                "multi_keyword_field",
+                "type=keyword",
+                "long_field",
+                "type=long",
+                "multi_long_field",
+                "type=long",
+                "double_field",
+                "type=double",
+                "multi_double_field",
+                "type=double",
+                "date_field",
+                "type=date",
+                "multi_date_field",
+                "type=date",
+                "ip_field",
+                "type=ip",
+                "multi_ip_field",
+                "type=ip",
+                "boolean_field",
+                "type=boolean",
+                "geo_field",
+                "type=geo_point",
+                "multi_geo_field",
+                "type=geo_point"
+            ).get()
+        );
+        final int numDocs = randomIntBetween(3, 8);
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+
+        DateTime date1 = new DateTime(1990, 12, 29, 0, 0, DateTimeZone.UTC);
+        DateTime date2 = new DateTime(1990, 12, 30, 0, 0, DateTimeZone.UTC);
+
+        for (int i = 0; i < numDocs; ++i) {
+            reqs.add(
+                client().prepareIndex("index")
+                    .setId(Integer.toString(i))
+                    .setSource(
+                        "keyword_field",
+                        Integer.toString(i),
+                        "multi_keyword_field",
+                        new String[] { Integer.toString(i), Integer.toString(i + 1) },
+                        "long_field",
+                        (long) i,
+                        "multi_long_field",
+                        new long[] { i, i + 1 },
+                        "double_field",
+                        (double) i,
+                        "multi_double_field",
+                        new double[] { i, i + 1 },
+                        "date_field",
+                        date1.getMillis(),
+                        "multi_date_field",
+                        new Long[] { date1.getMillis(), date2.getMillis() },
+                        "ip_field",
+                        "172.16.1.10",
+                        "multi_ip_field",
+                        new String[] { "172.16.1.10", "172.16.1.11" },
+                        "boolean_field",
+                        true,
+                        "geo_field",
+                        new GeoPoint(12.0, 10.0),
+                        "multi_geo_field",
+                        new GeoPoint[] { new GeoPoint(12.0, 10.0), new GeoPoint(13.0, 10.0) }
+                    )
+            );
+        }
+        indexRandom(true, reqs);
+        indexRandomForConcurrentSearch("index");
+        ensureSearchable();
+        SearchRequestBuilder req = client().prepareSearch("index");
+        String[][] fieldLookup = new String[][] {
+            { "keyword_field", "keyword" },
+            { "multi_keyword_field", "keyword" },
+            { "long_field", "long" },
+            { "multi_long_field", "long" },
+            { "double_field", "double" },
+            { "multi_double_field", "double" },
+            { "date_field", "date" },
+            { "multi_date_field", "date" },
+            { "ip_field", "ip" },
+            { "multi_ip_field", "ip" },
+            { "boolean_field", "boolean" },
+            { "geo_field", "geo_point" },
+            { "multi_geo_field", "geo_point" } };
+        for (String[] field : fieldLookup) {
+            req.addDerivedField(
+                "derived_" + field[0],
+                field[1],
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field[0] + "']", Collections.emptyMap())
+            );
+        }
+        req.addFetchField("derived_*");
+        SearchResponse resp = req.get();
+        assertSearchResponse(resp);
+        for (SearchHit hit : resp.getHits().getHits()) {
+            final int id = Integer.parseInt(hit.getId());
+            Map<String, DocumentField> fields = hit.getFields();
+
+            assertEquals(fields.get("derived_keyword_field").getValues().get(0), Integer.toString(id));
+            assertEquals(fields.get("derived_multi_keyword_field").getValues().get(0), Integer.toString(id));
+            assertEquals(fields.get("derived_multi_keyword_field").getValues().get(1), Integer.toString(id + 1));
+
+            assertEquals(fields.get("derived_long_field").getValues().get(0), id);
+            assertEquals(fields.get("derived_multi_long_field").getValues().get(0), id);
+            assertEquals(fields.get("derived_multi_long_field").getValues().get(1), (id + 1));
+
+            assertEquals(fields.get("derived_double_field").getValues().get(0), (double) id);
+            assertEquals(fields.get("derived_multi_double_field").getValues().get(0), (double) id);
+            assertEquals(fields.get("derived_multi_double_field").getValues().get(1), (double) (id + 1));
+
+            assertEquals(
+                fields.get("derived_date_field").getValues().get(0),
+                DateFieldMapper.getDefaultDateTimeFormatter().formatJoda(date1)
+            );
+            assertEquals(
+                fields.get("derived_multi_date_field").getValues().get(0),
+                DateFieldMapper.getDefaultDateTimeFormatter().formatJoda(date1)
+            );
+            assertEquals(
+                fields.get("derived_multi_date_field").getValues().get(1),
+                DateFieldMapper.getDefaultDateTimeFormatter().formatJoda(date2)
+            );
+
+            assertEquals(fields.get("derived_ip_field").getValues().get(0), "172.16.1.10");
+            assertEquals(fields.get("derived_multi_ip_field").getValues().get(0), "172.16.1.10");
+            assertEquals(fields.get("derived_multi_ip_field").getValues().get(1), "172.16.1.11");
+
+            assertEquals(fields.get("derived_boolean_field").getValues().get(0), true);
+
+            assertEquals(fields.get("derived_geo_field").getValues().get(0), new GeoPoint(12.0, 10.0));
+            assertEquals(fields.get("derived_multi_geo_field").getValues().get(0), new GeoPoint(12.0, 10.0));
+            assertEquals(fields.get("derived_multi_geo_field").getValues().get(1), new GeoPoint(13.0, 10.0));
+
         }
     }
 

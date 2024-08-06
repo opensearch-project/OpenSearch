@@ -29,6 +29,8 @@
 
 package org.opensearch.common.inject;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Injects dependencies into the fields and methods on instances of type {@code T}. Ignores the
  * presence or absence of an injectable constructor.
@@ -38,8 +40,9 @@ package org.opensearch.common.inject;
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface MembersInjector<T> {
 
     /**

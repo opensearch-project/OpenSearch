@@ -139,6 +139,7 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("patterncapturegroup", MovedToAnalysisCommon.class)
         .put("patternreplace", MovedToAnalysisCommon.class)
         .put("persiannormalization", MovedToAnalysisCommon.class)
+        .put("persianstem", MovedToAnalysisCommon.class)
         .put("porterstem", MovedToAnalysisCommon.class)
         .put("portuguesestem", MovedToAnalysisCommon.class)
         .put("portugueselightstem", MovedToAnalysisCommon.class)
@@ -219,9 +220,11 @@ public abstract class AnalysisFactoryTestCase extends OpenSearchTestCase {
         .put("spanishpluralstem", Void.class)
         // LUCENE-10352
         .put("daitchmokotoffsoundex", Void.class)
-        .put("persianstem", Void.class)
         // https://github.com/apache/lucene/pull/12169
         .put("word2vecsynonym", Void.class)
+        // https://github.com/apache/lucene/pull/12915
+        .put("japanesehiraganauppercase", Void.class)
+        .put("japanesekatakanauppercase", Void.class)
         .immutableMap();
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String, Class<?>>()

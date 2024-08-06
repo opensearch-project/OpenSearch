@@ -115,11 +115,16 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     }
 
     /**
-     * The refresh request works against *all* shards.
+     * The force merge request works against *all* shards by default, but it can work against all primary shards only
+     * by setting primary_only to true.
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, ForceMergeRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allShards(concreteIndices);
+        if (request.primaryOnly()) {
+            return clusterState.routingTable().allShardsSatisfyingPredicate(concreteIndices, ShardRouting::primary);
+        } else {
+            return clusterState.routingTable().allShards(concreteIndices);
+        }
     }
 
     @Override

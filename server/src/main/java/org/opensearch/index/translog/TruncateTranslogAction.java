@@ -195,7 +195,8 @@ public class TruncateTranslogAction {
                 translogPath,
                 indexSettings,
                 BigArrays.NON_RECYCLING_INSTANCE,
-                ""
+                "",
+                false
             );
             long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardPath.getShardId().id());
             // We open translog to check for corruption, do not clean anything.

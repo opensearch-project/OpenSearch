@@ -132,6 +132,9 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.cluster.SnapshotsInProgress.completed;
+import static org.opensearch.common.util.IndexUtils.filterIndices;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.repositories.blobstore.BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY;
 import static org.opensearch.snapshots.SnapshotUtils.validateSnapshotsBackingAnyIndex;
 
@@ -521,6 +524,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
 
                 boolean remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
+                logger.debug("remote_store_index_shallow_copy setting is set as [{}]", remoteStoreIndexShallowCopy);
+                if (remoteStoreIndexShallowCopy
+                    && clusterService.getClusterSettings().get(REMOTE_STORE_COMPATIBILITY_MODE_SETTING).equals(CompatibilityMode.MIXED)) {
+                    // don't allow shallow snapshots if compatibility mode is not strict
+                    logger.warn("Shallow snapshots are not supported during migration. Falling back to full snapshot.");
+                    remoteStoreIndexShallowCopy = false;
+                }
                 newEntry = SnapshotsInProgress.startedEntry(
                     new Snapshot(repositoryName, snapshotId),
                     request.includeGlobalState(),
@@ -644,11 +654,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         indicesForSnapshot.add(indexId.getName());
                     }
                 }
-                final List<String> matchingIndices = SnapshotUtils.filterIndices(
-                    indicesForSnapshot,
-                    request.indices(),
-                    request.indicesOptions()
-                );
+                final List<String> matchingIndices = filterIndices(indicesForSnapshot, request.indices(), request.indicesOptions());
                 if (matchingIndices.isEmpty()) {
                     throw new SnapshotException(
                         new Snapshot(repositoryName, sourceSnapshotId),

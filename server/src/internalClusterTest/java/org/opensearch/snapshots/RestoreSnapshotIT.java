@@ -39,6 +39,7 @@ import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRe
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.client.Client;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -149,6 +150,62 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(restoredIndexName1, restoredIndexName2);
         assertThat(client.prepareGet(restoredIndexName1, docId).get().isExists(), equalTo(true));
         assertThat(client.prepareGet(restoredIndexName2, docId2).get().isExists(), equalTo(true));
+    }
+
+    /**
+     * In this test, we test that an index created does not have any remote_store custom data in index metadata at the
+     * time of index creation and after snapshot restore.
+     */
+    public void testNoRemoteStoreCustomDataOnIndexCreationAndRestore() {
+        String indexName1 = "testindex1";
+        String repoName = "test-restore-snapshot-repo";
+        String snapshotName1 = "test-restore-snapshot1";
+        Path absolutePath = randomRepoPath().toAbsolutePath();
+        logger.info("Path [{}]", absolutePath);
+        String restoredIndexName1 = indexName1 + "-restored";
+        String expectedValue = "expected";
+
+        Client client = client();
+        // Write a document
+        String docId = Integer.toString(randomInt());
+        index(indexName1, "_doc", docId, "value", expectedValue);
+
+        createRepository(repoName, "fs", absolutePath);
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1)
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+
+        // Validate that the remote_store custom data is not present in index metadata for the created index.
+        assertNull(state.metadata().index(indexName1).getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY));
+
+        RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, snapshotName1)
+            .setWaitForCompletion(false)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .get();
+        assertThat(restoreSnapshotResponse1.status(), equalTo(RestStatus.ACCEPTED));
+        ensureGreen(restoredIndexName1);
+        assertThat(client.prepareGet(restoredIndexName1, docId).get().isExists(), equalTo(true));
+
+        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+
+        // Validate that the remote_store custom data is not present in index metadata for the restored index.
+        assertNull(state.metadata().index(restoredIndexName1).getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY));
     }
 
     public void testParallelRestoreOperationsFromSingleSnapshot() throws Exception {

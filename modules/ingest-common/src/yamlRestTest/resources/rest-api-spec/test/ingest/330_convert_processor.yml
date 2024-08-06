@@ -1,0 +1,83 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test convert processor with ip type":
+  - skip:
+      version: " - 2.13.99"
+      reason: "introduced in 2.14.0"
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "convert" : {
+                  "field" : "raw_ip",
+                  "type": "ip"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /\[1.1.1.\] is not a valid ipv4\/ipv6 address/
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          raw_ip: "1.1.1."
+        }
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "convert" : {
+                  "field" : "raw_ip",
+                  "target_field" : "ip_field",
+                  "type" : "ip",
+                  "ignore_failure" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          raw_ip: "1.1.1."
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { raw_ip: "1.1.1."} }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          raw_ip: "1.1.1.1"
+        }
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source: { raw_ip: "1.1.1.1", ip_field: "1.1.1.1"} }

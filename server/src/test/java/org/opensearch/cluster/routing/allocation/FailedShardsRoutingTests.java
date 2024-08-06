@@ -40,6 +40,7 @@ import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -47,13 +48,18 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
@@ -61,6 +67,11 @@ import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_STORE_MIGRATION_EXPERIMENTAL;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.MIGRATION_DIRECTION_SETTING;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -811,5 +822,137 @@ public class FailedShardsRoutingTests extends OpenSearchAllocationTestCase {
                 );
             }
         }
+    }
+
+    public void testPreferReplicaOnRemoteNodeForPrimaryPromotion() {
+        FeatureFlags.initializeFeatureFlags(Settings.builder().put(REMOTE_STORE_MIGRATION_EXPERIMENTAL, "true").build());
+        AllocationService allocation = createAllocationService(Settings.builder().build());
+
+        // segment replication enabled
+        Settings.Builder settingsBuilder = settings(Version.CURRENT).put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+
+        // remote store migration metadata settings
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settingsBuilder).numberOfShards(1).numberOfReplicas(4))
+            .persistentSettings(
+                Settings.builder()
+                    .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED.mode)
+                    .put(MIGRATION_DIRECTION_SETTING.getKey(), RemoteStoreNodeService.Direction.REMOTE_STORE.direction)
+                    .build()
+            )
+            .build();
+
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(initialRoutingTable)
+            .build();
+
+        ShardId shardId = new ShardId(metadata.index("test").getIndex(), 0);
+
+        // add a remote node and start primary shard
+        Map<String, String> remoteStoreNodeAttributes = Map.of(
+            REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            "REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_VALUE",
+            REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY,
+            "REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_VALUE"
+        );
+        DiscoveryNode remoteNode1 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(remoteNode1)).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(allocation.reroute(clusterState, "reroute").routingTable()).build();
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(4));
+
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
+        assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(4));
+
+        // add remote and non-remote nodes and start replica shards
+        DiscoveryNode remoteNode2 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        DiscoveryNode remoteNode3 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            remoteStoreNodeAttributes,
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        DiscoveryNode nonRemoteNode1 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode nonRemoteNode2 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        List<DiscoveryNode> replicaShardNodes = List.of(remoteNode2, remoteNode3, nonRemoteNode1, nonRemoteNode2);
+
+        for (int i = 0; i < 4; i++) {
+            clusterState = ClusterState.builder(clusterState)
+                .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(replicaShardNodes.get(i)))
+                .build();
+
+            clusterState = allocation.reroute(clusterState, "reroute");
+            assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1 + i));
+            assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+            assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(4 - (i + 1)));
+
+            clusterState = startInitializingShardsAndReroute(allocation, clusterState);
+            assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1 + (i + 1)));
+            assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(4 - (i + 1)));
+        }
+
+        // fail primary shard
+        ShardRouting primaryShard0 = clusterState.routingTable().index("test").shard(0).primaryShard();
+        ClusterState newState = allocation.applyFailedShard(clusterState, primaryShard0, randomBoolean());
+        assertNotEquals(clusterState, newState);
+        clusterState = newState;
+
+        // verify that promoted replica exists on a remote node
+        assertEquals(4, clusterState.getRoutingNodes().shardsWithState(STARTED).size());
+        ShardRouting primaryShardRouting1 = clusterState.routingTable().index("test").shard(0).primaryShard();
+        assertNotEquals(primaryShard0, primaryShardRouting1);
+        assertTrue(
+            primaryShardRouting1.currentNodeId().equals(remoteNode2.getId())
+                || primaryShardRouting1.currentNodeId().equals(remoteNode3.getId())
+        );
+
+        // fail primary shard again
+        newState = allocation.applyFailedShard(clusterState, primaryShardRouting1, randomBoolean());
+        assertNotEquals(clusterState, newState);
+        clusterState = newState;
+
+        // verify that promoted replica again exists on a remote node
+        assertEquals(3, clusterState.getRoutingNodes().shardsWithState(STARTED).size());
+        ShardRouting primaryShardRouting2 = clusterState.routingTable().index("test").shard(0).primaryShard();
+        assertNotEquals(primaryShardRouting1, primaryShardRouting2);
+        assertTrue(
+            primaryShardRouting2.currentNodeId().equals(remoteNode2.getId())
+                || primaryShardRouting2.currentNodeId().equals(remoteNode3.getId())
+        );
+        assertNotEquals(primaryShardRouting1.currentNodeId(), primaryShardRouting2.currentNodeId());
+
+        ShardRouting expectedCandidateForSegRep = clusterState.getRoutingNodes().activeReplicaWithOldestVersion(shardId);
+
+        // fail primary shard again
+        newState = allocation.applyFailedShard(clusterState, primaryShardRouting2, randomBoolean());
+        assertNotEquals(clusterState, newState);
+        clusterState = newState;
+
+        // verify that promoted replica exists on a non-remote node
+        assertEquals(2, clusterState.getRoutingNodes().shardsWithState(STARTED).size());
+        ShardRouting primaryShardRouting3 = clusterState.routingTable().index("test").shard(0).primaryShard();
+        assertNotEquals(primaryShardRouting2, primaryShardRouting3);
+        assertTrue(
+            primaryShardRouting3.currentNodeId().equals(nonRemoteNode1.getId())
+                || primaryShardRouting3.currentNodeId().equals(nonRemoteNode2.getId())
+        );
+        assertEquals(expectedCandidateForSegRep.allocationId(), primaryShardRouting3.allocationId());
     }
 }

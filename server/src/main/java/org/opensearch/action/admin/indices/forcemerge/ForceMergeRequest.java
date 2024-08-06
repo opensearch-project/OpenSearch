@@ -70,11 +70,13 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         public static final int MAX_NUM_SEGMENTS = -1;
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
+        public static final boolean PRIMARY_ONLY = false;
     }
 
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
+    private boolean primaryOnly = Defaults.PRIMARY_ONLY;
 
     private static final Version FORCE_MERGE_UUID_VERSION = LegacyESVersion.V_7_7_0;
 
@@ -102,6 +104,9 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_13_0)) {
+            primaryOnly = in.readBoolean();
+        }
         if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
             forceMergeUUID = in.readOptionalString();
         } else {
@@ -168,6 +173,21 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     }
 
     /**
+     * Should force merge only performed on primary shards. Defaults to {@code false}.
+     */
+    public boolean primaryOnly() {
+        return primaryOnly;
+    }
+
+    /**
+     * Should force merge only performed on primary shards. Defaults to {@code false}.
+     */
+    public ForceMergeRequest primaryOnly(boolean primaryOnly) {
+        this.primaryOnly = primaryOnly;
+        return this;
+    }
+
+    /**
      * Should this task store its result after it has finished?
      */
     public void setShouldStoreResult(boolean shouldStoreResult) {
@@ -189,6 +209,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
             + onlyExpungeDeletes
             + "], flush["
             + flush
+            + "], primaryOnly["
+            + primaryOnly
             + "]";
     }
 
@@ -198,6 +220,9 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
+        if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
+            out.writeBoolean(primaryOnly);
+        }
         if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
             out.writeOptionalString(forceMergeUUID);
         }
@@ -212,6 +237,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
             + onlyExpungeDeletes
             + ", flush="
             + flush
+            + ", primaryOnly="
+            + primaryOnly
             + '}';
     }
 }

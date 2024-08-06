@@ -32,14 +32,17 @@
 
 package org.opensearch.core.common.breaker;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Locale;
 
 /**
  * Interface for an object that can be incremented, breaking after some
  * configured limit has been reached.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface CircuitBreaker {
 
     /**
@@ -72,8 +75,10 @@ public interface CircuitBreaker {
     /**
      * The type of breaker
      * can be {@link #MEMORY}, {@link #PARENT}, or {@link #NOOP}
-     * @opensearch.internal
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     enum Type {
         /** A regular or ChildMemoryCircuitBreaker */
         MEMORY,

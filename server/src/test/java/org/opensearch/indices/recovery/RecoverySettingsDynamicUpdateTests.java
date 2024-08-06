@@ -35,6 +35,8 @@ package org.opensearch.indices.recovery;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.TimeUnit;
@@ -47,7 +49,27 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         clusterSettings.applySettings(
             Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
         );
-        assertEquals(null, recoverySettings.rateLimiter());
+        assertNull(recoverySettings.recoveryRateLimiter());
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), 0).build()
+        );
+        assertNull(recoverySettings.replicationRateLimiter());
+    }
+
+    public void testSetReplicationMaxBytesPerSec() {
+        assertEquals(40, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), new ByteSizeValue(60, ByteSizeUnit.MB))
+                .build()
+        );
+        assertEquals(60, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.getKey(), new ByteSizeValue(80, ByteSizeUnit.MB))
+                .build()
+        );
+        assertEquals(80, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
     }
 
     public void testRetryDelayStateSync() {
@@ -97,48 +119,22 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionLongTimeout());
     }
 
-    public void testSegmentMetadataRetention() {
-        // Default value
-        assertEquals(10, recoverySettings.getMinRemoteSegmentMetadataFiles());
-
-        // Setting value < default (10)
+    public void testChunkSize() {
+        ByteSizeValue chunkSize = new ByteSizeValue(between(1, 1000), ByteSizeUnit.BYTES);
         clusterSettings.applySettings(
-            Settings.builder().put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), 5).build()
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING.getKey(), chunkSize).build()
         );
-        assertEquals(5, recoverySettings.getMinRemoteSegmentMetadataFiles());
+        assertEquals(chunkSize, recoverySettings.getChunkSize());
+    }
 
-        // Setting min value
+    public void testInternalActionRetryTimeout() {
+        long duration = between(1, 1000);
+        TimeUnit timeUnit = randomFrom(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
         clusterSettings.applySettings(
-            Settings.builder().put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), -1).build()
+            Settings.builder()
+                .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.getKey(), duration, timeUnit)
+                .build()
         );
-        assertEquals(-1, recoverySettings.getMinRemoteSegmentMetadataFiles());
-
-        // Setting value > default (10)
-        clusterSettings.applySettings(
-            Settings.builder().put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), 15).build()
-        );
-        assertEquals(15, recoverySettings.getMinRemoteSegmentMetadataFiles());
-
-        // Setting value to 0 should fail and retain the existing value
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(
-                Settings.builder()
-                    .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), 0)
-                    .build()
-            )
-        );
-        assertEquals(15, recoverySettings.getMinRemoteSegmentMetadataFiles());
-
-        // Setting value < -1 should fail and retain the existing value
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> clusterSettings.applySettings(
-                Settings.builder()
-                    .put(RecoverySettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING.getKey(), -5)
-                    .build()
-            )
-        );
-        assertEquals(15, recoverySettings.getMinRemoteSegmentMetadataFiles());
+        assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionRetryTimeout());
     }
 }

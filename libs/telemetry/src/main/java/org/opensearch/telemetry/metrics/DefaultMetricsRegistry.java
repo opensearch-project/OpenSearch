@@ -8,7 +8,11 @@
 
 package org.opensearch.telemetry.metrics;
 
+import org.opensearch.telemetry.metrics.tags.Tags;
+
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * Default implementation for {@link MetricsRegistry}
@@ -37,6 +41,16 @@ class DefaultMetricsRegistry implements MetricsRegistry {
     @Override
     public Histogram createHistogram(String name, String description, String unit) {
         return metricsTelemetry.createHistogram(name, description, unit);
+    }
+
+    @Override
+    public Closeable createGauge(String name, String description, String unit, Supplier<Double> valueProvider, Tags tags) {
+        return metricsTelemetry.createGauge(name, description, unit, valueProvider, tags);
+    }
+
+    @Override
+    public Closeable createGauge(String name, String description, String unit, Supplier<TaggedMeasurement> value) {
+        return metricsTelemetry.createGauge(name, description, unit, value);
     }
 
     @Override

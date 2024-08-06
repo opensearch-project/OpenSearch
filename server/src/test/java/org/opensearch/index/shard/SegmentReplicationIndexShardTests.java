@@ -256,7 +256,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                         assertEquals(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), "Expected failure");
                     }
-                }),
+                }, threadPool),
                 true,
                 true,
                 replicatePrimaryFunction
@@ -1019,24 +1019,14 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     }
 
     protected void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
-        final CopyState copyState;
-        try {
-            copyState = new CopyState(
-                ReplicationCheckpoint.empty(primary.shardId, primary.getLatestReplicationCheckpoint().getCodec()),
-                primary
+        try (final CopyState copyState = new CopyState(primary)) {
+            listener.onResponse(
+                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );
         } catch (IOException e) {
             logger.error("Unexpected error computing CopyState", e);
             Assert.fail("Failed to compute copyState");
             throw new UncheckedIOException(e);
-        }
-
-        try {
-            listener.onResponse(
-                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
-            );
-        } finally {
-            copyState.decRef();
         }
     }
 

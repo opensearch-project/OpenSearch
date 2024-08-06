@@ -100,6 +100,24 @@ public class ForceMergeIT extends OpenSearchIntegTestCase {
         assertThat(primaryForceMergeUUID, is(replicaForceMergeUUID));
     }
 
+    public void testForceMergeOnlyOnPrimaryShards() throws IOException {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final String index = "test-index";
+        createIndex(
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+        ensureGreen(index);
+        final ForceMergeResponse forceMergeResponse = client().admin()
+            .indices()
+            .prepareForceMerge(index)
+            .setMaxNumSegments(1)
+            .setPrimaryOnly(true)
+            .get();
+        assertThat(forceMergeResponse.getFailedShards(), is(0));
+        assertThat(forceMergeResponse.getSuccessfulShards(), is(1));
+    }
+
     private static String getForceMergeUUID(IndexShard indexShard) throws IOException {
         try (GatedCloseable<IndexCommit> wrappedIndexCommit = indexShard.acquireLastIndexCommit(true)) {
             return wrappedIndexCommit.get().getUserData().get(Engine.FORCE_MERGE_UUID_KEY);

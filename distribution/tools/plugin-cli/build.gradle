@@ -38,13 +38,13 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:opensearch-cli")
   api "org.bouncycastle:bcpg-fips:1.0.7.1"
-  api "org.bouncycastle:bc-fips:1.0.2.4"
+  api "org.bouncycastle:bc-fips:1.0.2.5"
   testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.3.0'
   testRuntimeOnly("com.google.guava:guava:${versions.guava}") {
     transitive = false
   }
-
+  api "commons-io:commons-io:${versions.commonsio}"
   implementation "org.apache.commons:commons-compress:${versions.commonscompress}"
 }
 
@@ -104,5 +104,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.tukaani.xz.MemoryLimitException',
   'org.tukaani.xz.UnsupportedOptionsException',
   'org.tukaani.xz.XZ',
-  'org.tukaani.xz.XZOutputStream'
+  'org.tukaani.xz.XZOutputStream',
+  'org.apache.commons.codec.digest.PureJavaCrc32C',
+  'org.apache.commons.codec.digest.XXHash32',
+  'org.apache.commons.lang3.reflect.FieldUtils'
 )

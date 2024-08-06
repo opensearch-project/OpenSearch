@@ -101,15 +101,14 @@ repositories {
 dependencies {
 
   api localGroovy()
-
-  api 'commons-codec:commons-codec:1.16.0'
-  api 'org.apache.commons:commons-compress:1.25.0'
-  api 'org.apache.ant:ant:1.10.13'
+  api "commons-codec:commons-codec:${props.getProperty('commonscodec')}"
+  api "org.apache.commons:commons-compress:${props.getProperty('commonscompress')}"
+  api 'org.apache.ant:ant:1.10.14'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:10.0.0'
   api 'com.netflix.nebula:nebula-publishing-plugin:21.0.0'
   api 'com.netflix.nebula:gradle-info-plugin:12.1.6'
   api 'org.apache.rat:apache-rat:0.15'
-  api 'commons-io:commons-io:2.15.1'
+  api "commons-io:commons-io:${props.getProperty('commonsio')}"
   api "net.java.dev.jna:jna:5.14.0"
   api 'com.github.johnrengelman:shadow:8.1.1'
   api 'org.jdom:jdom2:2.0.6.1'
@@ -128,7 +127,7 @@ dependencies {
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testFixturesApi gradleApi()
   testFixturesApi gradleTestKit()
-  testImplementation 'org.wiremock:wiremock-standalone:3.3.1'
+  testImplementation 'org.wiremock:wiremock-standalone:3.6.0'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
   integTestImplementation('org.spockframework:spock-core:2.3-groovy-3.0') {
     exclude module: "groovy"

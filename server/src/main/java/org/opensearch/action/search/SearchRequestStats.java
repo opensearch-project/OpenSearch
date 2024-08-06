@@ -85,7 +85,7 @@ public final class SearchRequestStats extends SearchRequestOperationsListener {
     }
 
     @Override
-    protected void onPhaseFailure(SearchPhaseContext context) {
+    protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
         phaseStatsMap.get(context.getCurrentPhase().getSearchPhaseName()).current.dec();
     }
 

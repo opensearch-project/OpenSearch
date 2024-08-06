@@ -385,7 +385,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @return {@link Map} map file name to {@link StoreFileMetadata}.
      */
     public Map<String, StoreFileMetadata> getSegmentMetadataMap(SegmentInfos segmentInfos) throws IOException {
-        assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabledOrRemoteNode();
         failIfCorrupted();
         try {
             return loadMetadata(segmentInfos, directory, logger, true).fileMetadata;
@@ -893,7 +893,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IOException when there is an IO error committing.
      */
     public void commitSegmentInfos(SegmentInfos latestSegmentInfos, long maxSeqNo, long processedCheckpoint) throws IOException {
-        assert indexSettings.isSegRepEnabled();
+        assert indexSettings.isSegRepEnabledOrRemoteNode() || indexSettings.isAssignedOnRemoteNode();
         metadataLock.writeLock().lock();
         try {
             final Map<String, String> userData = new HashMap<>(latestSegmentInfos.getUserData());

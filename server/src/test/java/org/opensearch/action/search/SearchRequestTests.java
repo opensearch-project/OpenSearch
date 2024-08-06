@@ -40,6 +40,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.geometry.LinearRing;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.Scroll;
@@ -276,6 +278,19 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertThat(
             toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
             equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]")
+        );
+    }
+
+    public void testDescriptionOnSourceError() {
+        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
+        GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("geo", linearRing);
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().query(queryBuilder));
+        assertThat(
+            toDescription(request),
+            equalTo(
+                "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson>]"
+            )
         );
     }
 

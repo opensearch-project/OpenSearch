@@ -776,7 +776,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             snapshot.writeTo(out);
             out.writeBoolean(includeGlobalState);
             out.writeBoolean(partial);
-            out.writeByte(state.value());
+            if ((out.getVersion().before(Version.V_2_14_0)) && state == State.PARTIAL) {
+                // Setting to SUCCESS for partial snapshots in older versions to maintain backward compatibility
+                out.writeByte(State.SUCCESS.value());
+            } else {
+                out.writeByte(state.value());
+            }
             out.writeList(indices);
             out.writeLong(startTime);
             out.writeMap(shards, (o, v) -> v.writeTo(o), (o, v) -> v.writeTo(o));
@@ -983,7 +988,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         STARTED((byte) 1, false),
         SUCCESS((byte) 2, true),
         FAILED((byte) 3, true),
-        ABORTED((byte) 4, false);
+        ABORTED((byte) 4, false),
+        PARTIAL((byte) 5, false);
 
         private final byte value;
 
@@ -1014,6 +1020,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     return FAILED;
                 case 4:
                     return ABORTED;
+                case 5:
+                    return PARTIAL;
                 default:
                     throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
             }

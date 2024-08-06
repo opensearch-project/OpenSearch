@@ -1,7 +1,7 @@
 {
   "cat.repositories":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-repositories.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/cat/cat-repositories/",
       "description":"Returns information about snapshot repositories registered in the cluster."
     },
     "stability":"stable",

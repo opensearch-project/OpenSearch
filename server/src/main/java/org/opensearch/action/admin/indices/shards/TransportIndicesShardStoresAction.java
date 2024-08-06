@@ -105,7 +105,8 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             threadPool,
             actionFilters,
             IndicesShardStoresRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            true
         );
         this.listShardStoresInfo = listShardStoresInfo;
     }
@@ -195,7 +196,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
             } else {
                 for (Tuple<ShardId, String> shard : shards) {
                     InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), listShardStoresInfo);
-                    fetch.fetchData(nodes, Collections.<String>emptySet());
+                    fetch.fetchData(nodes, Collections.emptyMap());
                 }
             }
         }
@@ -223,7 +224,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
                 List<FailedNodeException> failures,
                 long fetchingRound
             ) {
-                fetchResponses.add(new Response(shardId, responses, failures));
+                fetchResponses.add(new Response(shardAttributesMap.keySet().iterator().next(), responses, failures));
                 if (expectedOps.countDown()) {
                     finish();
                 }
@@ -258,9 +259,9 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
                             storeStatuses.add(
                                 new IndicesShardStoresResponse.StoreStatus(
                                     response.getNode(),
-                                    response.allocationId(),
+                                    response.getGatewayShardStarted().allocationId(),
                                     allocationStatus,
-                                    response.storeException()
+                                    response.getGatewayShardStarted().storeException()
                                 )
                             );
                         }
@@ -308,11 +309,12 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
              * A shard exists/existed in a node only if shard state file exists in the node
              */
             private boolean shardExistsInNode(final NodeGatewayStartedShards response) {
-                return response.storeException() != null || response.allocationId() != null;
+                return response.getGatewayShardStarted().storeException() != null
+                    || response.getGatewayShardStarted().allocationId() != null;
             }
 
             @Override
-            protected void reroute(ShardId shardId, String reason) {
+            protected void reroute(String shardId, String reason) {
                 // no-op
             }
 

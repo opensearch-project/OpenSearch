@@ -71,7 +71,16 @@ public class BucketCollectorProcessor {
                     collectors.offer(innerCollector);
                 }
             } else if (currentCollector instanceof BucketCollector) {
-                ((BucketCollector) currentCollector).postCollection();
+                // Perform build aggregation during post collection
+                if (currentCollector instanceof Aggregator) {
+                    // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
+                    ((BucketCollector) currentCollector).postCollection();
+                    ((Aggregator) currentCollector).buildTopLevel();
+                } else if (currentCollector instanceof MultiBucketCollector) {
+                    for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
+                        collectors.offer(innerCollector);
+                    }
+                }
             }
         }
     }
@@ -105,5 +114,32 @@ public class BucketCollectorProcessor {
             }
         }
         return aggregators;
+    }
+
+    /**
+     * Unwraps the input collection of {@link Collector} to get the list of the {@link InternalAggregation}. The
+     * input is expected to contain the collectors related to Aggregations only as that is passed to {@link AggregationCollectorManager}
+     * during the reduce phase. This list of {@link InternalAggregation} is used to optionally perform reduce at shard level before
+     * returning response to coordinator
+     * @param collectors collection of aggregation collectors to reduce
+     * @return list of unwrapped {@link InternalAggregation}
+     */
+    public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors) throws IOException {
+        List<InternalAggregation> internalAggregations = new ArrayList<>();
+
+        final Deque<Collector> allCollectors = new LinkedList<>(collectors);
+        while (!allCollectors.isEmpty()) {
+            Collector currentCollector = allCollectors.pop();
+            if (currentCollector instanceof InternalProfileCollector) {
+                currentCollector = ((InternalProfileCollector) currentCollector).getCollector();
+            }
+
+            if (currentCollector instanceof Aggregator) {
+                internalAggregations.add(((Aggregator) currentCollector).getPostCollectionAggregation());
+            } else if (currentCollector instanceof MultiBucketCollector) {
+                allCollectors.addAll(Arrays.asList(((MultiBucketCollector) currentCollector).getCollectors()));
+            }
+        }
+        return internalAggregations;
     }
 }

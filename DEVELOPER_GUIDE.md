@@ -57,6 +57,7 @@
       - [Developer API](#developer-api)
       - [User API](#user-api)
       - [Experimental Development](#experimental-development)
+      - [API Compatibility Checks](#api-compatibility-checks)
     - [Backports](#backports)
     - [LineLint](#linelint)
     - [Lucene Snapshots](#lucene-snapshots)
@@ -606,6 +607,20 @@ uses an Experimental Development process leveraging [Feature Flags](https://feat
 a LTS feature but with additional guard rails and communication mechanisms to signal to the users and development community the feature is not yet stable, may change in a future
 release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with `@ExperimentalApi` (or documented as
 `@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
+
+#### API Compatibility Checks
+
+The compatibility checks for public APIs are performed using [japicmp](https://siom79.github.io/japicmp/) and are available as separate Gradle tasks (those are run on demand at the moment):
+
+```
+./gradlew japicmp
+```
+
+By default, the API compatibility checks are run against the latest released version of the OpenSearch, however the target version to compare to could be provided using system property during the build, fe.:
+
+```
+./gradlew japicmp  -Djapicmp.compare.version=2.14.0-SNAPSHOT
+```
 
 ### Backports
 

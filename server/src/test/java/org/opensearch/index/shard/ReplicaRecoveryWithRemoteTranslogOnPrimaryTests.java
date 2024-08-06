@@ -86,7 +86,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             );
             shards.addReplica(newReplicaShard);
             AtomicBoolean assertDone = new AtomicBoolean(false);
-            shards.recoverReplica(newReplicaShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener) {
+            shards.recoverReplica(newReplicaShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, threadPool) {
                 @Override
                 public IndexShard indexShard() {
                     IndexShard idxShard = super.indexShard();

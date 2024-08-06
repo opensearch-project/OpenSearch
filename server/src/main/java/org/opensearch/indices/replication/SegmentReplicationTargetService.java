@@ -84,10 +84,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     private final ClusterService clusterService;
     private final TransportService transportService;
 
-    public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
-        return onGoingReplications.get(replicationId);
-    }
-
     /**
      * The internal actions
      *
@@ -158,6 +154,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     @Override
     protected void doStop() {
         if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            assert onGoingReplications.size() == 0 : "Replication collection should be empty on shutdown";
             clusterService.removeListener(this);
         }
     }
@@ -171,7 +168,8 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.routingTableChanged()) {
             for (IndexService indexService : indicesService) {
-                if (indexService.getIndexSettings().isSegRepEnabled() && event.indexRoutingTableChanged(indexService.index().getName())) {
+                if (indexService.getIndexSettings().isSegRepEnabledOrRemoteNode()
+                    && event.indexRoutingTableChanged(indexService.index().getName())) {
                     for (IndexShard shard : indexService) {
                         if (shard.routingEntry().primary() == false) {
                             // for this shard look up its primary routing, if it has completed a relocation trigger replication
@@ -200,8 +198,8 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
      */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
-            onGoingReplications.requestCancel(indexShard.shardId(), "Shard closing");
+        if (indexShard != null && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
+            onGoingReplications.cancelForShard(indexShard.shardId(), "Shard closing");
             latestReceivedCheckpoint.remove(shardId);
         }
     }
@@ -212,7 +210,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
      */
     @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
-        if (indexShard.indexSettings().isSegRepEnabled() && indexShard.routingEntry().primary() == false) {
+        if (indexShard.indexSettings().isSegRepEnabledOrRemoteNode() && indexShard.routingEntry().primary() == false) {
             processLatestReceivedCheckpoint(indexShard, Thread.currentThread());
         }
     }
@@ -222,8 +220,11 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
      */
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-        if (oldRouting != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
-            onGoingReplications.requestCancel(indexShard.shardId(), "Shard has been promoted to primary");
+        if (oldRouting != null
+            && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()
+            && oldRouting.primary() == false
+            && newRouting.primary()) {
+            onGoingReplications.cancelForShard(indexShard.shardId(), "Shard has been promoted to primary");
             latestReceivedCheckpoint.remove(indexShard.shardId());
         }
     }
@@ -253,6 +254,14 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     public SegmentReplicationState getSegmentReplicationState(ShardId shardId) {
         return Optional.ofNullable(getOngoingEventSegmentReplicationState(shardId))
             .orElseGet(() -> getlatestCompletedEventSegmentReplicationState(shardId));
+    }
+
+    public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
+        return onGoingReplications.get(replicationId);
+    }
+
+    public SegmentReplicationTarget get(ShardId shardId) {
+        return onGoingReplications.getOngoingReplicationTarget(shardId);
     }
 
     /**
@@ -375,7 +384,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     protected void updateVisibleCheckpoint(long replicationId, IndexShard replicaShard) {
         // Update replication checkpoint on source via transport call only supported for remote store integration. For node-
         // node communication, checkpoint update is piggy-backed to GET_SEGMENT_FILES transport call
-        if (replicaShard.indexSettings().isRemoteStoreEnabled() == false) {
+        if (replicaShard.indexSettings().isAssignedOnRemoteNode() == false) {
             return;
         }
         ShardRouting primaryShard = clusterService.state().routingTable().shardRoutingTable(replicaShard.shardId()).primaryShard();
@@ -454,7 +463,13 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
                     latestPublishedCheckpoint
                 )
             );
-            Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+            Runnable runnable = () -> {
+                // if we retry ensure the shard is not in the process of being closed.
+                // it will be removed from indexService's collection before the shard is actually marked as closed.
+                if (indicesService.getShardOrNull(replicaShard.shardId()) != null) {
+                    onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
+                }
+            };
             // Checks if we are using same thread and forks if necessary.
             if (thread == Thread.currentThread()) {
                 threadPool.generic().execute(runnable);
@@ -548,9 +563,6 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
 
         @Override
         public void onFailure(Exception e) {
-            try (final ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.get(replicationId)) {
-                logger.error(() -> new ParameterizedMessage("Error during segment replication, {}", ref.get().description()), e);
-            }
             onGoingReplications.fail(replicationId, new ReplicationFailedException("Unexpected Error during replication", e), false);
         }
 
@@ -623,7 +635,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             try (ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.getSafe(request.recoveryId(), request.shardId())) {
                 final SegmentReplicationTarget target = ref.get();
                 final ActionListener<Void> listener = target.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
-                target.handleFileChunk(request, target, bytesSinceLastPause, recoverySettings.rateLimiter(), listener);
+                target.handleFileChunk(request, target, bytesSinceLastPause, recoverySettings.replicationRateLimiter(), listener);
             }
         }
     }

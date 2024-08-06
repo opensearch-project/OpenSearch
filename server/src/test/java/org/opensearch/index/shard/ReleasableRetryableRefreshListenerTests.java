@@ -316,7 +316,32 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
     public void testScheduleRetryAfterClose() throws Exception {
         // This tests that once the listener has been closed, even the retries would not be scheduled.
         final AtomicLong runCount = new AtomicLong();
-        ReleasableRetryableRefreshListener testRefreshListener = new ReleasableRetryableRefreshListener(threadPool) {
+        ReleasableRetryableRefreshListener testRefreshListener = getRetryableRefreshListener(runCount);
+        Thread thread1 = new Thread(() -> {
+            try {
+                testRefreshListener.afterRefresh(true);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        Thread thread2 = new Thread(() -> {
+            try {
+                Thread.sleep(500);
+                testRefreshListener.drainRefreshes();
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+        });
+        thread1.start();
+        thread2.start();
+        thread1.join();
+        thread2.join();
+        assertBusy(() -> assertEquals(1, runCount.get()));
+        assertRefreshListenerClosed(testRefreshListener);
+    }
+
+    private ReleasableRetryableRefreshListener getRetryableRefreshListener(AtomicLong runCount) {
+        return new ReleasableRetryableRefreshListener(threadPool) {
             @Override
             protected boolean performAfterRefreshWithPermit(boolean didRefresh) {
                 try {
@@ -342,6 +367,11 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
             }
 
             @Override
+            protected boolean isRetryEnabled() {
+                return true;
+            }
+
+            @Override
             protected TimeValue getNextRetryInterval() {
                 try {
                     Thread.sleep(1000);
@@ -351,6 +381,12 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
                 return TimeValue.timeValueMillis(100);
             }
         };
+    }
+
+    public void testScheduleRetryAfterThreadpoolShutdown() throws Exception {
+        // This tests that once the thread-pool is shut down, the exception is handled.
+        final AtomicLong runCount = new AtomicLong();
+        ReleasableRetryableRefreshListener testRefreshListener = getRetryableRefreshListener(runCount);
         Thread thread1 = new Thread(() -> {
             try {
                 testRefreshListener.afterRefresh(true);
@@ -361,7 +397,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         Thread thread2 = new Thread(() -> {
             try {
                 Thread.sleep(500);
-                testRefreshListener.drainRefreshes();
+                threadPool.shutdown();
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
@@ -371,7 +407,7 @@ public class ReleasableRetryableRefreshListenerTests extends OpenSearchTestCase 
         thread1.join();
         thread2.join();
         assertBusy(() -> assertEquals(1, runCount.get()));
-        assertRefreshListenerClosed(testRefreshListener);
+        assertFalse(testRefreshListener.getRetryScheduledStatus());
     }
 
     public void testConcurrentScheduleRetry() throws Exception {

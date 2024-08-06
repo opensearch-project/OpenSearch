@@ -12,13 +12,28 @@ permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
+  check-files:
+    runs-on: ubuntu-latest
+    outputs:
+      RUN_GRADLE_CHECK: ${{ steps.changed-files-specific.outputs.any_changed }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Get changed files
+      id: changed-files-specific
+      uses: tj-actions/changed-files@v44
+      with:
+        files_ignore: |
+          release-notes/*.md
+          .github/**
+          *.md
+
   gradle-check:
-    if: github.repository == 'opensearch-project/OpenSearch'
+    needs: check-files
+    if: github.repository == 'opensearch-project/OpenSearch' && needs.check-files.outputs.RUN_GRADLE_CHECK == 'true'
     permissions:
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
       issues: write # To create an issue if check fails on push.
-
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
@@ -30,11 +45,31 @@ jobs:
       - name: Setup environment variables (PR)
         if: github.event_name == 'pull_request_target'
         run: |
+          echo "event_name=pull_request_target" >> $GITHUB_ENV
+          echo "branch_name=$(jq --raw-output .pull_request.base.ref $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_to_clone_url=$(jq --raw-output .pull_request.base.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_owner=$(jq --raw-output .pull_request.user.login $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_or_commit_description=$(jq --ascii-output .pull_request.body $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "post_merge_action=false" >> $GITHUB_ENV
+
+      # to get the PR data that can be used for post merge actions
+      - uses: actions/github-script@v7
+        if: github.event_name == 'push'
+        id: get_pr_data
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            return (
+              await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                commit_sha: context.sha,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              })
+            ).data[0];
 
       - name: Setup environment variables (Push)
         if: github.event_name == 'push'
@@ -43,11 +78,15 @@ jobs:
           ref_id=$(git rev-parse HEAD)
           branch_name=$(git rev-parse --abbrev-ref HEAD)
           echo "branch_name=$branch_name" >> $GITHUB_ENV
+          echo "event_name=push" >> $GITHUB_ENV
           echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
           echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
           echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
           echo "pr_title=Push trigger $branch_name $ref_id $repo_url" >> $GITHUB_ENV
-          echo "pr_number=Null" >> $GITHUB_ENV
+          echo "pr_owner=$(jq --raw-output '.commits[0].author.username' $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo 'pr_number=${{ fromJson(steps.get_pr_data.outputs.result).number }}' >> $GITHUB_ENV
+          echo "pr_or_commit_description=$(jq --ascii-output .head_commit.message $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "post_merge_action=true" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
         uses: actions/checkout@v4
@@ -74,6 +113,7 @@ jobs:
         if: success()
         uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./codeCoverage.xml
 
       - name: Create Comment Success
@@ -119,11 +159,11 @@ jobs:
 
             Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
-      - name: Create Issue On Push Failure
-        if: ${{ github.event_name == 'push' && failure() }}
-        uses: dblock/create-a-github-issue@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          assignees: ${{ github.event.head_commit.author.username }}, ${{ github.triggering_actor }}
-          filename: .github/ISSUE_TEMPLATE/failed_check.md
+  check-result:
+    needs: [check-files, gradle-check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if gradle-check fails
+        if: ${{ needs.check-files.outputs.RUN_GRADLE_CHECK && needs.gradle-check.result == 'failure' }}
+        run: exit 1

@@ -38,10 +38,10 @@ opensearchplugin {
 }
 
 versions << [
-  'tika'  : '2.6.0',
-  'pdfbox': '2.0.27',
-  'poi'   : '5.2.3',
-  'mime4j': '0.8.8'
+  'tika'  : '2.9.2',
+  'pdfbox': '2.0.31',
+  'poi'   : '5.2.5',
+  'mime4j': '0.8.11'
 ]
 
 dependencies {
@@ -50,14 +50,24 @@ dependencies {
   api "org.apache.tika:tika-parsers:${versions.tika}"
   // Required for the various document parsers
   api "org.apache.tika:tika-parsers-standard-package:${versions.tika}"
+  api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-html-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-microsoft-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-miscoffice-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-pdf-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-text-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-xml-module:${versions.tika}"
+  // Utilities consumed by document parsers
+  api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
+  api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
   // Required for language detection
   api "org.apache.tika:tika-langdetect-optimaize:${versions.tika}"
   // Optimaize libraries/dependencies
   runtimeOnly "com.optimaize.languagedetector:language-detector:0.6"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
-  api 'org.tukaani:xz:1.9'
-  api 'commons-io:commons-io:2.15.1'
+  api 'org.tukaani:xz:1.10'
+  api "commons-io:commons-io:${versions.commonsio}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -79,7 +89,7 @@ dependencies {
   api "org.apache.poi:poi:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:5.2.0'
+  api 'org.apache.xmlbeans:xmlbeans:5.2.1'
   api 'org.apache.commons:commons-collections4:4.4'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
