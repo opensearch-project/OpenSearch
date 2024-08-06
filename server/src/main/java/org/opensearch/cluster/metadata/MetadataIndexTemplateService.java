@@ -944,7 +944,7 @@ public class MetadataIndexTemplateService {
 
     static Set<String> dataStreamsUsingTemplate(final ClusterState state, final String templateName) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
-        if (template == null) {
+        if (template == null || template.getDataStreamTemplate() == null) {
             return Collections.emptySet();
         }
         final Set<String> dataStreams = state.metadata().dataStreams().keySet();
