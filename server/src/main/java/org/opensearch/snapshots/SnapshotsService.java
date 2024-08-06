@@ -300,7 +300,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot creation listener
      */
     public void createSnapshot(final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
-
         final String repositoryName = request.repository();
         final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
@@ -518,7 +517,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
                     dataStreams,
                     pinnedTimestamp,
-                    "",
+                    null,
                     System.currentTimeMillis(),
                     shardGenerations.totalShards(),
                     Collections.emptyList(),
@@ -532,10 +531,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
                 pinnedTimestampListener.whenComplete(
-                    repoData -> completeListenersIgnoringException(
+
+                        repoData -> {completeListenersIgnoringException(
                         endAndGetListenersToResolve(snapshot),
                         Tuple.tuple(repoData, snapshotInfo)
-                    ),
+                    );
+                    listener.onResponse(snapshot);
+                    },
+
                     e -> failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()))
                 );
 
@@ -545,7 +548,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     metadataForSnapshot(currentState.metadata(), request.includeGlobalState(), false, dataStreams, indexIds),
                     snapshotInfo,
                     version,
-                    (Function<ClusterState, ClusterState>) currentState,
+                    state -> stateWithoutSnapshot(clusterService.state(), snapshot),
                     new ActionListener<RepositoryData>() {
                         @Override
                         public void onResponse(RepositoryData repositoryData) {
@@ -583,6 +586,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         long timestampToPin,
         ActionListener<RepositoryData> listener
     ) {
+        listener.onResponse(repositoryData);
         // remoteStorePinnedTimestampService.pinTimestamp(
         // timestampToPin,
         // snapshot.getRepository() + "__" + snapshot.getSnapshotId(),

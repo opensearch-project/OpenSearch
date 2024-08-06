@@ -125,7 +125,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         private Boolean includeGlobalState = null;
 
         private Boolean remoteStoreIndexShallowCopy = null;
-        private long pinnedTimestamp;
+        private long pinnedTimestamp = 0L;
         private Map<String, Object> userMetadata = null;
         private int version = -1;
         private List<SnapshotShardFailure> shardFailures = null;
@@ -351,7 +351,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             entry.includeGlobalState(),
             entry.userMetadata(),
             entry.remoteStoreIndexShallowCopy(),
-            0
+            0L
         );
     }
 
@@ -443,7 +443,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             remoteStoreIndexShallowCopy = in.readOptionalBoolean();
         }
         if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
-            pinnedTimestamp = in.readLong();
+            pinnedTimestamp = in.readVLong();
         }
     }
 
@@ -667,9 +667,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (remoteStoreIndexShallowCopy != null) {
             builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
         }
-        if (pinnedTimestamp != 0) {
-            builder.field(PINNED_TIMESTAMP);
-        }
+        builder.field(PINNED_TIMESTAMP);
+
         builder.startArray(INDICES);
         for (String index : indices) {
             builder.value(index);

@@ -256,7 +256,7 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled(),
-                    0
+                    123456
                 );
             case 9:
                 return new SnapshotInfo(
@@ -271,7 +271,7 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     Boolean.FALSE.equals(instance.isRemoteStoreIndexShallowCopyEnabled()),
-                    0
+                    123456
                 );
             default:
                 throw new IllegalArgumentException("invalid randomization case");
