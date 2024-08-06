@@ -526,17 +526,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     remoteStoreIndexShallowCopy,
                     pinnedTimestamp
                 );
-                if (!currentState.nodes().isLocalNodeElectedClusterManager()) {
+                if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
                     throw new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager");
                 }
                 final StepListener<RepositoryData> pinnedTimestampListener = new StepListener<>();
                 pinnedTimestampListener.whenComplete(
 
-                        repoData -> {completeListenersIgnoringException(
-                        endAndGetListenersToResolve(snapshot),
-                        Tuple.tuple(repoData, snapshotInfo)
-                    );
-                    listener.onResponse(snapshot);
+                    repoData -> {
+                        completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(repoData, snapshotInfo));
+                        listener.onResponse(snapshot);
                     },
 
                     e -> failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()))
@@ -552,13 +550,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     new ActionListener<RepositoryData>() {
                         @Override
                         public void onResponse(RepositoryData repositoryData) {
-                            if (!currentState.nodes().isLocalNodeElectedClusterManager()) {
+                            if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
                                 failSnapshotCompletionListeners(
                                     snapshot,
                                     new SnapshotException(snapshot, "Aborting Snapshot, no longer cluster manager")
                                 );
-                                throw new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager");
-
+                                listener.onFailure(
+                                    new SnapshotException(repositoryName, snapshotName, "Aborting Snapshot, no longer cluster manager")
+                                );
+                                return;
                             }
                             updateSnapshotPinnedTimestamp(repositoryData, snapshot, pinnedTimestamp, pinnedTimestampListener);
                         }
@@ -577,6 +577,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert false : new AssertionError(e);
             logger.error("Snapshot {} creation failed with exception {}", snapshot.getSnapshotId().getName(), e);
             failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, e.toString()));
+            listener.onFailure(e);
         }
     }
 
