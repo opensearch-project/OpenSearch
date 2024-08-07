@@ -87,8 +87,8 @@ final class SystemJvmOptions {
     }
 
     private static String loadJavaSecurityProperties(final Path config) {
-        var securityFile = config.resolve("fips_java.security").toFile();
-        return "-Djava.security.properties=" + securityFile.getAbsolutePath();
+        var securityFile = config.resolve("fips_java.security");
+        return "-Djava.security.properties=" + securityFile.toAbsolutePath();
     }
 
     private static String allowSecurityManagerOption() {

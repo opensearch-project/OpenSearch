@@ -198,14 +198,13 @@ final class Bootstrap {
         );
 
         var isFipsEnabled = FipsSettings.FIPS_ENABLED.get(settings);
-        var isRunningInFipsMode = CryptoServicesRegistrar.setApprovedOnlyMode(isFipsEnabled);
-
-        if (!isRunningInFipsMode && isFipsEnabled){
-            throw new BootstrapException(new RuntimeException("cannot enable FIPS mode"));
-        }
-
-        if (isRunningInFipsMode) {
-            LogManager.getLogger(Bootstrap.class).info("running in FIPS mode");
+        try {
+            var isRunningInFipsMode = CryptoServicesRegistrar.setApprovedOnlyMode(isFipsEnabled);
+            if (isRunningInFipsMode) {
+                LogManager.getLogger(Bootstrap.class).info("running in FIPS mode");
+            }
+        } catch (Exception e) {
+            throw new BootstrapException(e);
         }
 
         // initialize probes before the security manager is installed
