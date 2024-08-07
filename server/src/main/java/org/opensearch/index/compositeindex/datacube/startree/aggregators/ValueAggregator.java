@@ -61,4 +61,9 @@ public interface ValueAggregator<A> {
      * Converts an aggregated value from a Long type.
      */
     A toStarTreeNumericTypeValue(Long rawValue);
+
+    /**
+     * Fetches a value that does not alter the result of aggregations
+     */
+    A getIdentityMetricValue();
 }
