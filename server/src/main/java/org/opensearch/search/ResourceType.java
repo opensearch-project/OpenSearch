@@ -51,7 +51,6 @@ public enum ResourceType {
     }
 
     public String getName() {
-        
         return name;
     }
 
