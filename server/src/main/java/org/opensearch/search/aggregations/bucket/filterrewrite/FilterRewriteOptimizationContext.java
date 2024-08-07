@@ -18,6 +18,8 @@ import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -36,16 +38,16 @@ public final class FilterRewriteOptimizationContext {
     private final boolean canOptimize;
     private boolean preparedAtShardLevel = false;
 
-    final AggregatorBridge aggregatorBridge;
+    private final AggregatorBridge aggregatorBridge;
     int maxAggRewriteFilters;
-    String shardId;
+    private String shardId;
 
     private Ranges ranges;
-    private Ranges rangesFromSegment;
+    private final Map<Integer, Ranges> rangesFromSegment = new HashMap<>(); // map of segment ordinal to its ranges
 
     // debug info related fields
-    private int leaf;
-    private int inner;
+    private int leafNodeVisited;
+    private int innerNodeVisited;
     private int segments;
     private int optimizedSegments;
 
@@ -59,6 +61,10 @@ public final class FilterRewriteOptimizationContext {
         this.canOptimize = this.canOptimize(parent, subAggLength, context);
     }
 
+    /**
+     * common logic for checking whether the optimization can be applied and prepare at shard level
+     * if the aggregation has any special logic, it should be done using {@link AggregatorBridge}
+     */
     private boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) throws IOException {
         if (context.maxAggRewriteFilters() == 0) return false;
 
@@ -69,31 +75,32 @@ public final class FilterRewriteOptimizationContext {
             aggregatorBridge.setOptimizationContext(this);
             this.maxAggRewriteFilters = context.maxAggRewriteFilters();
             this.shardId = context.indexShard().shardId().toString();
-            this.prepare();
+
+            assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
+            aggregatorBridge.prepare();
+            if (ranges != null) {
+                preparedAtShardLevel = true;
+            }
         }
         logger.debug("Fast filter rewriteable: {} for shard {}", canOptimize, shardId);
 
         return canOptimize;
     }
 
-    private void prepare() throws IOException {
-        assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
-        aggregatorBridge.prepare();
-        if (ranges != null) {
-            preparedAtShardLevel = true;
-        }
-    }
-
     void setRanges(Ranges ranges) {
         this.ranges = ranges;
     }
 
-    void setRangesFromSegment(Ranges ranges) {
-        this.rangesFromSegment = ranges;
+    void setRangesFromSegment(int leafOrd, Ranges ranges) {
+        this.rangesFromSegment.put(leafOrd, ranges);
     }
 
-    Ranges getRanges() {
-        if (rangesFromSegment != null) return rangesFromSegment;
+    void clearRangesFromSegment(int leafOrd) {
+        this.rangesFromSegment.remove(leafOrd);
+    }
+
+    Ranges getRanges(int leafOrd) {
+        if (!preparedAtShardLevel) return rangesFromSegment.get(leafOrd);
         return ranges;
     }
 
@@ -132,13 +139,13 @@ public final class FilterRewriteOptimizationContext {
         Ranges ranges = tryBuildRangesFromSegment(leafCtx, segmentMatchAll);
         if (ranges == null) return false;
 
-        aggregatorBridge.tryOptimize(values, incrementDocCount);
+        aggregatorBridge.tryOptimize(values, incrementDocCount, leafCtx.ord);
 
         optimizedSegments++;
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
-        logger.debug("crossed leaf nodes: {}, inner nodes: {}", leaf, inner);
+        logger.debug("Crossed leaf nodes: {}, inner nodes: {}", leafNodeVisited, innerNodeVisited);
 
-        rangesFromSegment = null;
+        clearRangesFromSegment(leafCtx.ord);
         return true;
     }
 
@@ -151,41 +158,40 @@ public final class FilterRewriteOptimizationContext {
             return null;
         }
 
-        if (ranges == null) { // not built at shard level but segment match all
+        if (!preparedAtShardLevel) { // not built at shard level but segment match all
             logger.debug("Shard {} segment {} functionally match all documents. Build the fast filter", shardId, leafCtx.ord);
             aggregatorBridge.prepareFromSegment(leafCtx);
-            return rangesFromSegment;
         }
-        return ranges;
+        return getRanges(leafCtx.ord);
     }
 
     /**
      * Contains debug info of BKD traversal to show in profile
      */
     static class DebugInfo {
-        private int leaf = 0; // leaf node visited
-        private int inner = 0; // inner node visited
+        private int leafNodeVisited = 0; // leaf node visited
+        private int innerNodeVisited = 0; // inner node visited
 
         void visitLeaf() {
-            leaf++;
+            leafNodeVisited++;
         }
 
         void visitInner() {
-            inner++;
+            innerNodeVisited++;
         }
     }
 
     void consumeDebugInfo(DebugInfo debug) {
-        leaf += debug.leaf;
-        inner += debug.inner;
+        leafNodeVisited += debug.leafNodeVisited;
+        innerNodeVisited += debug.innerNodeVisited;
     }
 
     public void populateDebugInfo(BiConsumer<String, Object> add) {
         if (optimizedSegments > 0) {
             add.accept("optimized_segments", optimizedSegments);
             add.accept("unoptimized_segments", segments - optimizedSegments);
-            add.accept("leaf_visited", leaf);
-            add.accept("inner_visited", inner);
+            add.accept("leaf_node_visited", leafNodeVisited);
+            add.accept("inner_node_visited", innerNodeVisited);
         }
     }
 }

@@ -55,12 +55,13 @@ public abstract class AggregatorBridge {
 
     /**
      * Prepares the optimization at shard level after checking aggregator is optimizable.
+     * <p>
      * For example, figure out what are the ranges from the aggregation to do the optimization later
      */
     protected abstract void prepare() throws IOException;
 
     /**
-     * Prepares the optimization for a specific segment and ignore whatever built at shard level
+     * Prepares the optimization for a specific segment when the segment is functionally matching all docs
      *
      * @param leaf the leaf reader context for the segment
      */
@@ -69,8 +70,9 @@ public abstract class AggregatorBridge {
     /**
      * Attempts to build aggregation results for a segment
      *
-     * @param values              the point values (index structure for numeric values) for a segment
-     * @param incrementDocCount   a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
+     * @param values            the point values (index structure for numeric values) for a segment
+     * @param incrementDocCount a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
+     * @param leafOrd
      */
-    protected abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException;
+    protected abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, int leafOrd) throws IOException;
 }

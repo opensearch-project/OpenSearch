@@ -53,7 +53,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     @Override
     protected void prepareFromSegment(LeafReaderContext leaf) throws IOException {
         long[] bounds = Helper.getSegmentBounds(leaf, fieldType.name());
-        filterRewriteOptimizationContext.setRangesFromSegment(buildRanges(bounds));
+        filterRewriteOptimizationContext.setRangesFromSegment(leaf.ord, buildRanges(bounds));
     }
 
     private Ranges buildRanges(long[] bounds) {
@@ -123,19 +123,20 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    protected final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
+    protected final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, int leafOrd) throws IOException {
         int size = getSize();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
+        Ranges ranges = filterRewriteOptimizationContext.getRanges(leafOrd);
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
-            long rangeStart = LongPoint.decodeDimension(filterRewriteOptimizationContext.getRanges().lowers[activeIndex], 0);
+            long rangeStart = LongPoint.decodeDimension(ranges.lowers[activeIndex], 0);
             rangeStart = fieldType.convertNanosToMillis(rangeStart);
-            long ord = getBucketOrd(bucketOrdProducer().apply(rangeStart));
-            incrementDocCount.accept(ord, (long) docCount);
+            long bucketOrd = getBucketOrd(bucketOrdProducer().apply(rangeStart));
+            incrementDocCount.accept(bucketOrd, (long) docCount);
         };
 
         filterRewriteOptimizationContext.consumeDebugInfo(
-            multiRangesTraverse(values.getPointTree(), filterRewriteOptimizationContext.getRanges(), incrementFunc, size)
+            multiRangesTraverse(values.getPointTree(), filterRewriteOptimizationContext.getRanges(leafOrd), incrementFunc, size)
         );
     }
 
