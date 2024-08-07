@@ -26,7 +26,7 @@ public class CountValueAggregator implements ValueAggregator<Long> {
 
     @Override
     public MetricStat getAggregationType() {
-        return MetricStat.COUNT;
+        return MetricStat.VALUE_COUNT;
     }
 
     @Override
