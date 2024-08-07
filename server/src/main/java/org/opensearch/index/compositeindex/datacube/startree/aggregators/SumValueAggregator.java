@@ -68,10 +68,10 @@ class SumValueAggregator implements ValueAggregator<Double> {
         // add takes care of the sum and compensation internally
         if (value != null) {
             if (value != null) {
-            kahanSummation.add(value);
-        } else {
-            kahanSummation.add(getIdentityMetricValue());
-        }
+                kahanSummation.add(value);
+            } else {
+                kahanSummation.add(getIdentityMetricValue());
+            }
         } else {
             kahanSummation.add(getIdentityMetricValue());
         }

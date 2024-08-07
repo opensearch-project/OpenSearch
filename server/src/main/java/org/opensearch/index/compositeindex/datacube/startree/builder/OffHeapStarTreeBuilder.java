@@ -58,7 +58,13 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @param state         stores the segment write state
      * @param mapperService helps to find the original type of the field
      */
-    protected OffHeapStarTreeBuilder(IndexOutput metaOut, IndexOutput dataOut, StarTreeField starTreeField, SegmentWriteState state, MapperService mapperService) throws IOException {
+    protected OffHeapStarTreeBuilder(
+        IndexOutput metaOut,
+        IndexOutput dataOut,
+        StarTreeField starTreeField,
+        SegmentWriteState state,
+        MapperService mapperService
+    ) throws IOException {
         super(metaOut, dataOut, starTreeField, state, mapperService);
         segmentDocumentFileManager = new SegmentDocsFileManager(state, starTreeField, metricAggregatorInfos);
         try {
@@ -81,8 +87,11 @@ public class OffHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * @param starTreeValuesSubs contains the star tree values from multiple segments
      */
     @Override
-    public void build(List<StarTreeValues> starTreeValuesSubs, AtomicInteger fieldNumberAcrossStarTrees,
-                      DocValuesConsumer starTreeDocValuesConsumer) throws IOException {
+    public void build(
+        List<StarTreeValues> starTreeValuesSubs,
+        AtomicInteger fieldNumberAcrossStarTrees,
+        DocValuesConsumer starTreeDocValuesConsumer
+    ) throws IOException {
         boolean success = false;
         try {
             build(mergeStarTrees(starTreeValuesSubs), fieldNumberAcrossStarTrees, starTreeDocValuesConsumer);
