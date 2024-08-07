@@ -153,8 +153,6 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
     protected final ConcurrentMap<String, ShardsBatch> batchIdToStoreShardBatch = ConcurrentCollections.newConcurrentMap();
     private final TransportNodesListGatewayStartedShardsBatch batchStartedAction;
     private final TransportNodesListShardStoreMetadataBatch batchStoreAction;
-    private Set<ShardId> timedOutPrimaryShardIds;
-    private Set<ShardId> timedOutReplicaShardIds;
 
     @Inject
     public ShardsBatchGatewayAllocator(
@@ -279,7 +277,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         }
         List<TimeoutAwareRunnable> runnables = new ArrayList<>();
         if (primary) {
-            timedOutPrimaryShardIds = new HashSet<>();
+            Set<ShardId> timedOutPrimaryShardIds = new HashSet<>();
             batchIdToStartedShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
@@ -302,7 +300,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
                 }
             };
         } else {
-            timedOutReplicaShardIds = new HashSet<>();
+            Set<ShardId> timedOutReplicaShardIds = new HashSet<>();
             batchIdToStoreShardBatch.values()
                 .stream()
                 .filter(batch -> batchesToAssign.contains(batch.batchId))
@@ -864,14 +862,5 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
 
     protected void setReplicaBatchAllocatorTimeout(TimeValue replicaShardsBatchGatewayAllocatorTimeout) {
         this.replicaShardsBatchGatewayAllocatorTimeout = replicaShardsBatchGatewayAllocatorTimeout;
-    }
-
-    // for tests
-    public Set<ShardId> getTimedOutPrimaryShardIds() {
-        return timedOutPrimaryShardIds;
-    }
-
-    public Set<ShardId> getTimedOutReplicaShardIds() {
-        return timedOutReplicaShardIds;
     }
 }
