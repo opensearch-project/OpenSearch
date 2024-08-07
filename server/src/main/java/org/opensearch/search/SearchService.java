@@ -91,6 +91,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.script.FieldScript;
@@ -170,6 +171,17 @@ import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
  */
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
+
+    // changed: for performComputeIntensiveTask
+    public static final Setting<Integer> COMPUTE_INTENSIVE_DURATION_SECONDS =
+        Setting.intSetting("search.service.experimental.compute_intensive.duration_seconds", 0, Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    public static final Setting<Integer> MEMORY_OVERHEAD_PER_ITERATION =
+        Setting.intSetting("search.service.experimental.memory_overhead.per_iteration", 0, Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    // changed: new setting
+    private volatile int computeIntensiveDurationSeconds;
+    private volatile int memoryOverheadPerIteration;
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
@@ -374,6 +386,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         TaskResourceTrackingService taskResourceTrackingService
     ) {
         Settings settings = clusterService.getSettings();
+        // changed: new setting
+        this.computeIntensiveDurationSeconds = SearchService.COMPUTE_INTENSIVE_DURATION_SECONDS.get(settings);
+        this.memoryOverheadPerIteration = SearchService.MEMORY_OVERHEAD_PER_ITERATION.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SearchService.COMPUTE_INTENSIVE_DURATION_SECONDS, this::setComputeIntensiveDurationSeconds);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SearchService.MEMORY_OVERHEAD_PER_ITERATION, this::setMemoryOverheadPerIteration);
+
+
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -427,6 +446,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
     }
+
+    // changed: new setting to line 468
+    private void setComputeIntensiveDurationSeconds(int time) {
+        this.computeIntensiveDurationSeconds = time;
+    }
+
+    private void setMemoryOverheadPerIteration(int overhead) {
+        this.memoryOverheadPerIteration = overhead;
+    }
+
+    public void performComputeIntensiveTask() {
+        long endTime = System.currentTimeMillis() + computeIntensiveDurationSeconds * 1000;
+        logger.info("Starting compute-intensive task for {} seconds and {} bytes per iteration",
+            computeIntensiveDurationSeconds, memoryOverheadPerIteration);
+
+        int iterations = 0;
+        while (System.currentTimeMillis() < endTime) {
+            byte[] memoryHog = new byte[memoryOverheadPerIteration];
+            for (int j = 0; j < memoryOverheadPerIteration; j++) {
+                memoryHog[j] = (byte) (j % 256);
+            }
+            iterations++;
+            if (iterations % 1000 == 0) {
+                logger.info("[ CPU_AND_MEMORY_INTENSIVE ] Performed {} iterations", iterations);
+            }
+        }
+        logger.info("Completed compute-intensive task");
+    }
+
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
         if (defaultKeepAlive.millis() > maxKeepAlive.millis()) {
@@ -630,8 +678,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         return;
                     }
                 }
+                performComputeIntensiveTask();
                 // fork the execution in the search thread pool
-                runAsync(getExecutor(shard), () -> executeQueryPhase(orig, task, keepStatesInContext), listener);
+                runAsync(getExecutor(shard), () ->
+                    // changed: Compute- and memory-intensive logic
+//                    performComputeIntensiveTask();
+                    executeQueryPhase(orig, task, keepStatesInContext), listener);
             }
 
             @Override
@@ -640,6 +692,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         });
     }
+
 
     private IndexShard getShard(ShardSearchRequest request) {
         if (request.readerId() != null) {

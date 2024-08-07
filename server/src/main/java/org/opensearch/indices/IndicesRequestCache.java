@@ -146,6 +146,8 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         Property.NodeScope
     );
 
+
+
     private final static long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
@@ -161,6 +163,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
     // These values determine the valid names for levels in the cache stats API
     public static final String SHARD_ID_DIMENSION_NAME = "shards";
     public static final String INDEX_DIMENSION_NAME = "indices";
+
 
     IndicesRequestCache(
         Settings settings,
@@ -182,6 +185,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         this.clusterService = clusterService;
         this.clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(INDICES_REQUEST_CACHE_STALENESS_THRESHOLD_SETTING, this::setStalenessThreshold);
+
         this.cache = cacheService.createCache(
             new CacheConfig.Builder<Key, BytesReference>().setSettings(settings)
                 .setWeigher(weigher)
