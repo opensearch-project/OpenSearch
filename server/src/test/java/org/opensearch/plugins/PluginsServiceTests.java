@@ -39,6 +39,7 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.JarHell;
+import org.opensearch.client.node.PluginNodeClient;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
@@ -926,6 +927,15 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         RuntimeException exception = expectThrows(RuntimeException.class, () -> newPluginsService(settings));
         assertTrue(exception.getCause() instanceof ClassNotFoundException);
         assertThat(exception, hasToString(containsString("Unable to load plugin class [DummyClass]")));
+    }
+
+    public void testSetPluginNodeClient() {
+        TestPlugin testPlugin = new TestPlugin();
+        PluginNodeClient pluginNodeClient = new PluginNodeClient(Settings.EMPTY, null, testPlugin);
+        testPlugin.setPluginNodeClient(pluginNodeClient); // should succeed
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginNodeClient(pluginNodeClient));
+        assertThat(e.getMessage(), containsString("pluginNodeClient can only be set once"));
+
     }
 
     public void testExtensiblePlugin() {
