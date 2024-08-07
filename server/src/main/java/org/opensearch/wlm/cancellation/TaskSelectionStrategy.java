@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm.cancellation;
 
+import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
@@ -28,5 +29,5 @@ public interface TaskSelectionStrategy {
      *
      * @return List of tasks that should be cancelled.
      */
-    List<TaskCancellation> selectTasksForCancellation(List<Task> tasks, long limit, ResourceType resourceType);
+    List<TaskCancellation> selectTasksForCancellation(QueryGroup queryGroup, List<Task> tasks, long limit, ResourceType resourceType);
 }
