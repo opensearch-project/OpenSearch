@@ -8,6 +8,7 @@
 
 package org.opensearch.wlm.cancellation;
 
+import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
@@ -45,9 +46,14 @@ public abstract class AbstractTaskSelectionStrategy implements TaskSelectionStra
      * @throws IllegalArgumentException If the limit is less than zero
      */
     @Override
-    public List<TaskCancellation> selectTasksForCancellation(List<Task> tasks, long limit, ResourceType resourceType) {
+    public List<TaskCancellation> selectTasksForCancellation(
+        QueryGroup querygroup,
+        List<Task> tasks,
+        long limit,
+        ResourceType resourceType
+    ) {
         if (limit < 0) {
-            throw new IllegalArgumentException("reduceBy has to be greater than zero");
+            throw new IllegalArgumentException("limit has to be greater than zero");
         }
         if (limit == 0) {
             return Collections.emptyList();
@@ -60,7 +66,8 @@ public abstract class AbstractTaskSelectionStrategy implements TaskSelectionStra
 
         for (Task task : sortedTasks) {
             if (task instanceof CancellableTask) {
-                selectedTasks.add(createTaskCancellation((CancellableTask) task));
+                String cancellationReason = createCancellationReason(querygroup, resourceType);
+                selectedTasks.add(createTaskCancellation((CancellableTask) task, cancellationReason));
                 accumulated += resourceType.getResourceUsage(task);
                 if (accumulated >= limit) {
                     break;
@@ -70,12 +77,25 @@ public abstract class AbstractTaskSelectionStrategy implements TaskSelectionStra
         return selectedTasks;
     }
 
-    private TaskCancellation createTaskCancellation(CancellableTask task) {
-        // TODO add correct reason and callbacks
-        return new TaskCancellation(task, List.of(new TaskCancellation.Reason("limits exceeded", 5)), List.of(this::callbackOnCancel));
+    private String createCancellationReason(QueryGroup querygroup, ResourceType resourceType) {
+        Double thresholdInPercent = getThresholdInPercent(querygroup, resourceType);
+        return "[Workload Management] QueryGroup ID : "
+            + querygroup.get_id()
+            + " breached the resource limit of : "
+            + thresholdInPercent
+            + " for resource type : "
+            + resourceType.getName();
+    }
+
+    private Double getThresholdInPercent(QueryGroup querygroup, ResourceType resourceType) {
+        return ((Double) (querygroup.getResourceLimits().get(resourceType))) * 100;
+    }
+
+    private TaskCancellation createTaskCancellation(CancellableTask task, String cancellationReason) {
+        return new TaskCancellation(task, List.of(new TaskCancellation.Reason(cancellationReason, 5)), List.of(this::callbackOnCancel));
     }
 
     private void callbackOnCancel() {
-        // todo Implement callback logic here mostly used for Stats
+        // TODO Implement callback logic here mostly used for Stats
     }
 }
