@@ -542,6 +542,19 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         });
     }
 
+    public void testVisit() {
+        NestedQueryBuilder queryBuilder = new NestedQueryBuilder(
+            "nested1",
+            new BoolQueryBuilder().must(new TermQueryBuilder("must_field1", "value1"))
+                .filter(new TermQueryBuilder("must_field2", "value2")),
+            ScoreMode.None
+        );
+        List<QueryBuilder> visitorQueries = new ArrayList<>();
+        queryBuilder.visit(createTestVisitor(visitorQueries));
+
+        assertEquals(4, visitorQueries.size());
+    }
+
     void doWithDepth(int depth, ThrowingConsumer<QueryShardContext> test) throws Exception {
         QueryShardContext context = createShardContext();
         int defLimit = context.getIndexSettings().getMaxNestedQueryDepth();

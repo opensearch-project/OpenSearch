@@ -372,6 +372,14 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
     }
 
+    @Override
+    public void visit(QueryBuilderVisitor visitor) {
+        visitor.accept(this);
+        if (query != null) {
+            query.visit(visitor.getChildVisitor(BooleanClause.Occur.MUST));
+        }
+    }
+
     /**
      * Context builder for nested inner hits
      *
