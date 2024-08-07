@@ -17,20 +17,26 @@ import org.opensearch.common.annotation.ExperimentalApi;
  */
 @ExperimentalApi
 public enum MetricStat {
-    VALUE_COUNT("value_count"),
-    AVG("avg"),
-    SUM("sum"),
-    MIN("min"),
-    MAX("max");
+    VALUE_COUNT("value_count", 0),
+    AVG("avg", 1),
+    SUM("sum", 2),
+    MIN("min", 3),
+    MAX("max", 4);
 
     private final String typeName;
+    private final int metricOrdinal;
 
-    MetricStat(String typeName) {
+    MetricStat(String typeName, int metricOrdinal) {
         this.typeName = typeName;
+        this.metricOrdinal = metricOrdinal;
     }
 
     public String getTypeName() {
         return typeName;
+    }
+
+    public int getMetricOrdinal() {
+        return metricOrdinal;
     }
 
     public static MetricStat fromTypeName(String typeName) {
@@ -40,5 +46,14 @@ public enum MetricStat {
             }
         }
         throw new IllegalArgumentException("Invalid metric stat: " + typeName);
+    }
+
+    public static MetricStat fromMetricOrdinal(int metricOrdinal) {
+        for (MetricStat metric : MetricStat.values()) {
+            if (metric.getMetricOrdinal() == metricOrdinal) {
+                return metric;
+            }
+        }
+        throw new IllegalArgumentException("Invalid metric stat: " + metricOrdinal);
     }
 }

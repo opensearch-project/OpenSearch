@@ -20,7 +20,6 @@ import java.util.Iterator;
  */
 @ExperimentalApi
 public interface StarTreeNode {
-    long ALL = -1l;
 
     /**
      * Returns the dimension ID of the current star-tree node.
@@ -86,12 +85,12 @@ public interface StarTreeNode {
     boolean isLeaf();
 
     /**
-     * Checks if the current node is a star node.
+     * Checks if the current node is a star node, null node or a node with actual dimension value.
      *
-     * @return true if the node is a star node, false otherwise
-     * @throws IOException if an I/O error occurs while reading the star node status
+     * @return the node type value based on the star-tree node type
+     * @throws IOException if an I/O error occurs while reading the node type
      */
-    boolean isStarNode() throws IOException;
+    byte getStarTreeNodeType() throws IOException;
 
     /**
      * Returns the child star-tree node for the given dimension value.
@@ -100,7 +99,7 @@ public interface StarTreeNode {
      * @return the child node for the given dimension value or null if child is not present
      * @throws IOException if an I/O error occurs while retrieving the child node
      */
-    StarTreeNode getChildForDimensionValue(long dimensionValue) throws IOException;
+    StarTreeNode getChildForDimensionValue(long dimensionValue, boolean isStar) throws IOException;
 
     /**
      * Returns an iterator over the children of the current star-tree node.

@@ -7,8 +7,8 @@
  */
 
 /**
- * Holds classes associated with star tree node
+ * File formats for star tree
  *
  * @opensearch.experimental
  */
-package org.opensearch.index.compositeindex.datacube.startree.node;
+package org.opensearch.index.codec.composite.datacube.startree.fileformats;
