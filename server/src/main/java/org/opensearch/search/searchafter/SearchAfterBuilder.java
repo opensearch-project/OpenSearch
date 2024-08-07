@@ -44,11 +44,13 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.common.text.Text;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
@@ -146,6 +148,13 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
          * the field values.
          */
         return new FieldDoc(Integer.MAX_VALUE, 0, fieldValues);
+    }
+
+    public static Object getPrimarySearchAfterFieldOrNull(SearchSourceBuilder source) {
+        if (source == null || CollectionUtils.isEmpty(source.searchAfter())) {
+            return null;
+        }
+        return source.searchAfter()[0];
     }
 
     /**

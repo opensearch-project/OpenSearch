@@ -47,6 +47,7 @@ import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.core.xcontent.XContent;
@@ -599,7 +600,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * is an instance of this class, null otherwise.
      */
     public static FieldSortBuilder getPrimaryFieldSortOrNull(SearchSourceBuilder source) {
-        if (source == null || source.sorts() == null || source.sorts().isEmpty()) {
+        if (source == null || CollectionUtils.isEmpty(source.sorts())) {
             return null;
         }
         return source.sorts().get(0) instanceof FieldSortBuilder ? (FieldSortBuilder) source.sorts().get(0) : null;
