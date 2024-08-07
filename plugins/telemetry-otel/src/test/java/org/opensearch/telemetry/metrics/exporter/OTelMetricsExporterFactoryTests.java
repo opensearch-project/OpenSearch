@@ -8,11 +8,12 @@
 
 package org.opensearch.telemetry.metrics.exporter;
 
+import io.opentelemetry.exporter.logging.otlp.OtlpJsonLoggingMetricExporter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import io.opentelemetry.exporter.logging.LoggingMetricExporter;
+import io.opentelemetry.exporter.logging.OtlpJsonLoggingMetricExporter;
 import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 
@@ -21,18 +22,18 @@ public class OTelMetricsExporterFactoryTests extends OpenSearchTestCase {
     public void testMetricsExporterDefault() {
         Settings settings = Settings.builder().build();
         MetricExporter metricExporter = OTelMetricsExporterFactory.create(settings);
-        assertTrue(metricExporter instanceof LoggingMetricExporter);
+        assertTrue(metricExporter instanceof OtlpJsonLoggingMetricExporter);
     }
 
     public void testMetricsExporterLogging() {
         Settings settings = Settings.builder()
             .put(
                 OTelTelemetrySettings.OTEL_METRICS_EXPORTER_CLASS_SETTING.getKey(),
-                "io.opentelemetry.exporter.logging.LoggingMetricExporter"
+                "io.opentelemetry.exporter.logging.OtlpJsonLoggingMetricExporter"
             )
             .build();
         MetricExporter metricExporter = OTelMetricsExporterFactory.create(settings);
-        assertTrue(metricExporter instanceof LoggingMetricExporter);
+        assertTrue(metricExporter instanceof OtlpJsonLoggingMetricExporter);
     }
 
     public void testMetricExporterInvalid() {

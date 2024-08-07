@@ -23,7 +23,7 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.List;
 
-import io.opentelemetry.exporter.logging.LoggingMetricExporter;
+import io.opentelemetry.exporter.logging.otlp.OtlpJsonLoggingMetricExporter;
 import io.opentelemetry.exporter.logging.LoggingSpanExporter;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
@@ -99,7 +99,7 @@ public final class OTelTelemetrySettings {
     @SuppressWarnings({ "unchecked", "removal" })
     public static final Setting<Class<MetricExporter>> OTEL_METRICS_EXPORTER_CLASS_SETTING = new Setting<>(
         "telemetry.otel.metrics.exporter.class",
-        LoggingMetricExporter.class.getName(),
+        OtlpJsonLoggingMetricExporter.class.getName(),
         className -> {
             // Check we ourselves are not being called by unprivileged code.
             SpecialPermission.check();
