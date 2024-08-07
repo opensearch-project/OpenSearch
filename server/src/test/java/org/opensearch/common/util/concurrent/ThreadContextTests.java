@@ -34,6 +34,7 @@ package org.opensearch.common.util.concurrent;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -71,6 +72,17 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testStashContextWithPluginInfo() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("foo", "bar");
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext(Plugin.class)) {
+            assertNull(threadContext.getHeader("foo"));
+            assertEquals(Plugin.class.getCanonicalName(), threadContext.getHeader("_plugin_execution_context"));
+        }
+
+        assertNull(threadContext.getHeader("_plugin_execution_context"));
     }
 
     public void testStashContextWithPersistentHeaders() {

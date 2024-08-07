@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Test a rest action that sets special response headers
+ * Test to ensure that plugin execution context is set when plugin uses pluginNodeClient
  */
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class ExecutionContextPluginGetIT extends HttpSmokeTestCase {
