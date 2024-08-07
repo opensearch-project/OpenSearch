@@ -8,6 +8,8 @@
 
 package org.opensearch.index.codec.composite.datacube.startree;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
@@ -47,11 +49,11 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
-import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 
 /**
  * Star tree doc values Lucene tests
@@ -59,6 +61,19 @@ import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
     MapperService mapperService = null;
+    StarTreeFieldConfiguration.StarTreeBuildMode buildMode;
+
+    public StarTreeDocValuesFormatTests(StarTreeFieldConfiguration.StarTreeBuildMode buildMode) {
+        this.buildMode = buildMode;
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        List<Object[]> parameters = new ArrayList<>();
+        parameters.add(new Object[] { StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP });
+        parameters.add(new Object[] { StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP });
+        return parameters;
+    }
 
     @BeforeClass
     public static void createMapper() throws Exception {
@@ -99,17 +114,13 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         return new StarTreeMapper.StarTreeFieldType("star_tree", starTreeField);
     }
 
-    private static StarTreeField getStarTreeField(List<Rounding.DateTimeUnit> d1CalendarIntervals, Metric metric1) {
+    private StarTreeField getStarTreeField(List<Rounding.DateTimeUnit> d1CalendarIntervals, Metric metric1) {
         DateDimension d1 = new DateDimension("field", d1CalendarIntervals);
         NumericDimension d2 = new NumericDimension("dv");
 
         List<Metric> metrics = List.of(metric1);
         List<Dimension> dims = List.of(d1, d2);
-        StarTreeFieldConfiguration config = new StarTreeFieldConfiguration(
-            100,
-            Collections.emptySet(),
-            randomFrom(StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP) // TODO : change it
-        );
+        StarTreeFieldConfiguration config = new StarTreeFieldConfiguration(100, Collections.emptySet(), buildMode);
 
         return new StarTreeField("starTree", dims, metrics, config);
     }

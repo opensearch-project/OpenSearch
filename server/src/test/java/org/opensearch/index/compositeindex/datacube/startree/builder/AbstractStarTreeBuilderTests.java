@@ -70,9 +70,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 
 public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
     protected MapperService mapperService;
@@ -533,7 +533,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             assertEquals(expectedStarTreeDocument.metrics[3], resultStarTreeDocument.metrics[3]);
             assertEquals(expectedStarTreeDocument.metrics[4], resultStarTreeDocument.metrics[4]);
         }
-        builder.build(segmentStarTreeDocumentIterator);
+        builder.build(segmentStarTreeDocumentIterator, new AtomicInteger(), docValuesConsumer);
         validateStarTree(builder.getRootNode(), 4, 1, builder.getStarTreeDocuments());
     }
 
@@ -590,7 +590,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         }
         SequentialDocValuesIterator[] dimsIterators = getDimensionIterators(segmentStarTreeDocuments);
         List<SequentialDocValuesIterator> metricsIterators = getMetricIterators(segmentStarTreeDocuments);
-        builder = getStarTreeBuilder(compositeField, writeState, mapperService);
+        builder = getStarTreeBuilder(metaOut, dataOut, compositeField, writeState, mapperService);
         Iterator<StarTreeDocument> segmentStarTreeDocumentIterator = builder.sortAndAggregateSegmentDocuments(
             dimsIterators,
             metricsIterators
@@ -2773,7 +2773,12 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         validateStarTree(builder.getRootNode(), 4, 1, builder.getStarTreeDocuments());
     }
 
-    private void validateStarTree(InMemoryTreeNode root, int totalDimensions, int maxLeafDocuments, List<StarTreeDocument> starTreeDocuments) {
+    private void validateStarTree(
+        InMemoryTreeNode root,
+        int totalDimensions,
+        int maxLeafDocuments,
+        List<StarTreeDocument> starTreeDocuments
+    ) {
         Queue<Object[]> queue = new LinkedList<>();
         queue.offer(new Object[] { root, false });
         while (!queue.isEmpty()) {

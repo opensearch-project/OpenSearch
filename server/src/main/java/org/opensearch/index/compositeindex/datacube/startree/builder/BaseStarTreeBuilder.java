@@ -545,7 +545,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * @param segmentDocument           segment star-tree document
      * @return merged star-tree document
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     protected StarTreeDocument reduceSegmentStarTreeDocuments(
         StarTreeDocument aggregatedSegmentDocument,
         StarTreeDocument segmentDocument,
@@ -560,9 +560,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     if (isMerge) {
                         metrics[i] = metricValueAggregator.getInitialAggregatedValue(segmentDocument.metrics[i]);
                     } else {
-                        metrics[i] = metricValueAggregator.getInitialAggregatedValueForSegmentDocValue(
-                            getLong(segmentDocument.metrics[i])
-                        );
+                        metrics[i] = metricValueAggregator.getInitialAggregatedValueForSegmentDocValue(getLong(segmentDocument.metrics[i]));
                     }
 
                 } catch (Exception e) {
