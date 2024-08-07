@@ -259,4 +259,77 @@ public class RemoteStorePathStrategy {
         }
     }
 
+    /**
+     * Wrapper class for the snapshot aware input required to generate path for optimised snapshot paths. This input is
+     * composed of the parent inputs, shard id, and static indices.
+     *
+     * @opensearch.internal
+     */
+    @PublicApi(since = "2.14.0")
+    @ExperimentalApi
+    public static class SnapshotShardPathInput extends BasePathInput {
+        private final String shardId;
+
+        public SnapshotShardPathInput(BlobPath basePath, String indexUUID, String shardId) {
+            super(basePath, indexUUID);
+            this.shardId = shardId;
+        }
+
+        public SnapshotShardPathInput(Builder builder) {
+            super(builder);
+            this.shardId = Objects.requireNonNull(builder.shardId);
+        }
+
+        String shardId() {
+            return shardId;
+        }
+
+        @Override
+        BlobPath fixedSubPath() {
+            return BlobPath.cleanPath().add("indices").add(shardId).add(super.fixedSubPath());
+        }
+
+        /**
+         * Returns a new builder for {@link PathInput}.
+         */
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * Builder for {@link PathInput}.
+         *
+         * @opensearch.internal
+         */
+        @PublicApi(since = "2.14.0")
+        @ExperimentalApi
+        public static class Builder extends BasePathInput.Builder<Builder> {
+            private String shardId;
+
+            public Builder basePath(BlobPath basePath) {
+                super.basePath = basePath;
+                return this;
+            }
+
+            public Builder indexUUID(String indexUUID) {
+                super.indexUUID = indexUUID;
+                return this;
+            }
+
+            public Builder shardId(String shardId) {
+                this.shardId = shardId;
+                return this;
+            }
+
+            @Override
+            protected Builder self() {
+                return this;
+            }
+
+            public SnapshotShardPathInput build() {
+                return new SnapshotShardPathInput(this);
+            }
+        }
+    }
+
 }

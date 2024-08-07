@@ -110,6 +110,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStorePathStrategy.BasePathInput;
+import org.opensearch.index.remote.RemoteStorePathStrategy.SnapshotShardPathInput;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -389,6 +390,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final Object lock = new Object();
 
     private final SetOnce<BlobContainer> blobContainer = new SetOnce<>();
+
+    private final SetOnce<BlobContainer> rootBlobContainer = new SetOnce<>();
 
     private final SetOnce<BlobStore> blobStore = new SetOnce<>();
 
@@ -813,6 +816,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return blobContainer;
     }
 
+    private BlobContainer rootBlobContainer() {
+        assertSnapshotOrGenericThread();
+
+        BlobContainer rootBlobContainer = this.rootBlobContainer.get();
+        if (rootBlobContainer == null) {
+            synchronized (lock) {
+                rootBlobContainer = this.rootBlobContainer.get();
+                if (rootBlobContainer == null) {
+                    rootBlobContainer = blobStore().blobContainer(BlobPath.cleanPath());
+                    this.rootBlobContainer.set(rootBlobContainer);
+                }
+            }
+        }
+        return rootBlobContainer;
+    }
+
     /**
      * Maintains single lazy instance of {@link BlobStore}.
      * Public for testing.
@@ -1087,6 +1106,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     foundIndices,
                     rootBlobs,
                     updatedRepoData,
+                    repositoryData,
                     remoteStoreLockManagerFactory,
                     afterCleanupsListener
                 );
@@ -1112,6 +1132,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     foundIndices,
                     rootBlobs,
                     newRepoData,
+                    repositoryData,
                     remoteStoreLockManagerFactory,
                     afterCleanupsListener
                 );
@@ -1142,6 +1163,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> foundIndices,
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData updatedRepoData,
+        RepositoryData oldRepoData,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<Void> listener
     ) {
@@ -1150,6 +1172,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             foundIndices,
             rootBlobs,
             updatedRepoData,
+            oldRepoData,
             remoteStoreLockManagerFactory,
             ActionListener.map(listener, ignored -> null)
         );
@@ -1181,7 +1204,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
 
             // Start as many workers as fit into the snapshot pool at once at the most
-            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), staleFilesToDeleteInBatch.size());
+            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT_DELETION).getMax(), staleFilesToDeleteInBatch.size());
             for (int i = 0; i < workers; ++i) {
                 executeStaleShardDelete(staleFilesToDeleteInBatch, remoteStoreLockManagerFactory, groupedListener);
             }
@@ -1280,21 +1303,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         GroupedActionListener<Void> listener
     ) throws InterruptedException {
+        final String basePath = basePath().buildAsString();
+        final int basePathLen = basePath.length();
         List<String> filesToDelete = staleFilesToDeleteInBatch.poll(0L, TimeUnit.MILLISECONDS);
         if (filesToDelete != null) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.wrap(listener, l -> {
                 try {
                     // filtering files for which remote store lock release and cleanup succeeded,
                     // remaining files for which it failed will be retried in next snapshot delete run.
                     List<String> eligibleFilesToDelete = new ArrayList<>();
                     for (String fileToDelete : filesToDelete) {
                         if (fileToDelete.contains(SHALLOW_SNAPSHOT_PREFIX)) {
-                            String[] fileToDeletePath = fileToDelete.split("/");
+                            String relativeFileToDeletePath = fileToDelete.substring(basePathLen);
+                            String[] fileToDeletePath = relativeFileToDeletePath.split("/");
                             String indexId = fileToDeletePath[1];
                             String shardId = fileToDeletePath[2];
                             String shallowSnapBlob = fileToDeletePath[3];
                             String snapshotUUID = extractShallowSnapshotUUID(shallowSnapBlob).orElseThrow();
-                            BlobContainer shardContainer = blobStore().blobContainer(indicesPath().add(indexId).add(shardId));
+                            BlobContainer shardContainer = shardContainer(indexId, shardId);
                             try {
                                 releaseRemoteStoreLockAndCleanup(shardId, snapshotUUID, shardContainer, remoteStoreLockManagerFactory);
                                 eligibleFilesToDelete.add(fileToDelete);
@@ -1311,7 +1337,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }
                     // Deleting the shard blobs
-                    deleteFromContainer(blobContainer(), eligibleFilesToDelete);
+                    deleteFromContainer(rootBlobContainer(), eligibleFilesToDelete);
                     l.onResponse(null);
                 } catch (Exception e) {
                     logger.warn(
@@ -1338,7 +1364,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
     ) {
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION);
         final List<IndexId> indices = oldRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds);
 
         if (indices.isEmpty()) {
@@ -1474,7 +1500,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<ShardSnapshotMetaDeleteResult> deleteResults
     ) {
         final String basePath = basePath().buildAsString();
-        final int basePathLen = basePath.length();
+        // final int basePathLen = basePath.length();
         final Map<IndexId, Collection<String>> indexMetaGenerations = oldRepositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(
             snapshotIds
         );
@@ -1484,10 +1510,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }), indexMetaGenerations.entrySet().stream().flatMap(entry -> {
             final String indexContainerPath = indexContainer(entry.getKey()).path().buildAsString();
             return entry.getValue().stream().map(id -> indexContainerPath + INDEX_METADATA_FORMAT.blobName(id));
-        })).map(absolutePath -> {
-            assert absolutePath.startsWith(basePath);
-            return absolutePath.substring(basePathLen);
-        }).collect(Collectors.toList());
+        })).collect(Collectors.toList());
+        // .map(absolutePath -> {
+        // assert absolutePath.startsWith(basePath);
+        // return absolutePath.substring(basePathLen);
+        // }).collect(Collectors.toList());
     }
 
     /**
@@ -1509,6 +1536,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> foundIndices,
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData newRepoData,
+        RepositoryData oldRepoData,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<DeleteResult> listener
     ) {
@@ -1520,7 +1548,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onResponse(deleteResult);
         }, listener::onFailure), 2);
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION);
         final List<String> staleRootBlobs = staleRootBlobs(newRepoData, rootBlobs.keySet());
         if (staleRootBlobs.isEmpty()) {
             groupedListener.onResponse(DeleteResult.ZERO);
@@ -1535,7 +1563,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (foundIndices.keySet().equals(survivingIndexIds)) {
             groupedListener.onResponse(DeleteResult.ZERO);
         } else {
-            cleanupStaleIndices(foundIndices, survivingIndexIds, remoteStoreLockManagerFactory, groupedListener);
+            cleanupStaleIndices(
+                foundIndices,
+                survivingIndexIds,
+                remoteStoreLockManagerFactory,
+                groupedListener,
+                oldRepoData,
+                deletedSnapshots
+            );
         }
     }
 
@@ -1588,6 +1623,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             Collections.emptyList(),
                             foundIndices,
                             rootBlobs,
+                            repositoryData,
                             repositoryData,
                             remoteStoreLockManagerFactory,
                             ActionListener.map(listener, RepositoryCleanupResult::new)
@@ -1682,7 +1718,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> foundIndices,
         Set<String> survivingIndexIds,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
-        GroupedActionListener<DeleteResult> listener
+        GroupedActionListener<DeleteResult> listener,
+        RepositoryData oldRepoData,
+        Collection<SnapshotId> deletedSnapshots
     ) {
         final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
@@ -1702,11 +1740,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // Start as many workers as fit into the snapshot pool at once at the most
             final int workers = Math.min(
-                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+                threadPool.info(ThreadPool.Names.SNAPSHOT_DELETION).getMax(),
                 foundIndices.size() - survivingIndexIds.size()
             );
             for (int i = 0; i < workers; ++i) {
-                executeOneStaleIndexDelete(staleIndicesToDelete, remoteStoreLockManagerFactory, groupedListener);
+                executeOneStaleIndexDelete(
+                    staleIndicesToDelete,
+                    remoteStoreLockManagerFactory,
+                    groupedListener,
+                    oldRepoData,
+                    deletedSnapshots
+                );
             }
         } catch (Exception e) {
             // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
@@ -1729,12 +1773,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void executeOneStaleIndexDelete(
         BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
-        GroupedActionListener<DeleteResult> listener
+        GroupedActionListener<DeleteResult> listener,
+        RepositoryData oldRepoData,
+        Collection<SnapshotId> deletedSnapshots
     ) throws InterruptedException {
         Map.Entry<String, BlobContainer> indexEntry = staleIndicesToDelete.poll(0L, TimeUnit.MILLISECONDS);
         if (indexEntry != null) {
             final String indexSnId = indexEntry.getKey();
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT_DELETION).execute(ActionRunnable.supply(listener, () -> {
                 DeleteResult deleteResult = DeleteResult.ZERO;
                 try {
                     logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
@@ -1753,9 +1799,41 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 }
                             }
                         }
+                    } else {
+                        String indexToBeDeleted = indexEntry.getKey();
+                        // The indices map within RepositoryData should have just 1 IndexId which has same id as the one
+                        // being deleted. Hence we are adding an assertion here. We still let the deletion happen as
+                        // usual considering there can be more than 1 matching IndexIds.
+                        List<IndexId> indexIds = oldRepoData.getIndices()
+                            .values()
+                            .stream()
+                            .filter(idx -> idx.getId().equals(indexToBeDeleted))
+                            .collect(Collectors.toList());
+                        if (indexIds.size() > 1) {
+                            logger.warn("There are more than 1 matching index ids [{}]", indexIds);
+                        }
+                        assert indexIds.size() == 1 : "There should be exact 1 match of IndexId";
+                        for (SnapshotId snId : deletedSnapshots) {
+                            for (IndexId idx : indexIds) {
+                                String indexMetaGeneration = oldRepoData.indexMetaDataGenerations().indexMetaBlobId(snId, idx);
+                                final BlobContainer indexContainer = indexContainer(idx);
+                                IndexMetadata indexMetadata = INDEX_METADATA_FORMAT.read(
+                                    indexContainer,
+                                    indexMetaGeneration,
+                                    namedXContentRegistry
+                                );
+                                int numOfShards = indexMetadata.getNumberOfShards();
+                                for (int i = 0; i < numOfShards; i++) {
+                                    deleteResult.add(shardContainer(idx, i).delete());
+                                }
+                            }
+                        }
                     }
+                    // TODO - We need to do a metadata lookup and delete the shard level folders.
+                    // TODO - Shallow snapshot only has shallow snap file. Need to check if there will be more changes
+                    // to handle shallow snapshot deletion.
                     // Deleting the index folder
-                    deleteResult = indexEntry.getValue().delete();
+                    deleteResult.add(indexEntry.getValue().delete());
                     logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
                 } catch (IOException e) {
                     logger.warn(
@@ -1772,7 +1850,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(new ParameterizedMessage("[{}] Exception during single stale index delete", metadata.name()), e);
                 }
 
-                executeOneStaleIndexDelete(staleIndicesToDelete, remoteStoreLockManagerFactory, listener);
+                executeOneStaleIndexDelete(staleIndicesToDelete, remoteStoreLockManagerFactory, listener, oldRepoData, deletedSnapshots);
                 return deleteResult;
             }));
         }
@@ -1893,18 +1971,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data
     private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) {
         final List<String> toDelete = new ArrayList<>();
-        final int prefixPathLen = basePath().buildAsString().length();
         updatedRepositoryData.shardGenerations()
             .obsoleteShardGenerations(existingRepositoryData.shardGenerations())
             .forEach(
                 (indexId, gens) -> gens.forEach(
-                    (shardId, oldGen) -> toDelete.add(
-                        shardContainer(indexId, shardId).path().buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
-                    )
+                    (shardId, oldGen) -> toDelete.add(shardContainer(indexId, shardId).path().buildAsString() + INDEX_FILE_PREFIX + oldGen)
                 )
             );
         try {
-            deleteFromContainer(blobContainer(), toDelete);
+            logger.info("{} shards generations to be deleted as part of cleanupOldShardGens", toDelete);
+            deleteFromContainer(rootBlobContainer(), toDelete);
         } catch (Exception e) {
             logger.warn("Failed to clean up old shard generation blobs", e);
         }
@@ -1963,7 +2039,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     public BlobContainer shardContainer(IndexId indexId, int shardId) {
-        return blobStore().blobContainer(indicesPath().add(indexId.getId()).add(Integer.toString(shardId)));
+        return shardContainer(indexId.getId(), String.valueOf(shardId));
+    }
+
+    private BlobContainer shardContainer(String indexId, String shardId) {
+        BasePathInput pathInput = SnapshotShardPathInput.builder().basePath(basePath()).indexUUID(indexId).shardId(shardId).build();
+        BlobPath shardPath = HASHED_PREFIX.path(pathInput, FNV_1A_COMPOSITE_1);
+        return blobStore().blobContainer(shardPath);
     }
 
     /**

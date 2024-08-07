@@ -914,6 +914,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 )
                             ),
                             e -> {
+                                logger.error("Clone failed during development", e);
                                 logger.warn("Exception [{}] while trying to clone shard [{}]", e, repoShardId);
                                 failCloneShardAndUpdateClusterState(target, sourceSnapshot, repoShardId);
                             }
