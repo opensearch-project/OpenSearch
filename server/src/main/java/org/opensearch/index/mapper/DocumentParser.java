@@ -571,6 +571,7 @@ final class DocumentParser {
                     Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
                     objectMapper = builder.build(builderContext);
                     context.addDynamicMapper(objectMapper);
+                    increaseDynamicFieldCountIfNeed(context);
                     context.path().add(currentFieldName);
                     parseObjectOrField(context, objectMapper);
                     context.path().remove();
@@ -586,18 +587,36 @@ final class DocumentParser {
         }
     }
 
+    /**
+     * if the setting `index.mapping.total_fields.unmap_fields_beyond_limit` is true, we check if the current total fields count exceed the
+     * total fields limit
+     * @param context the parse context
+     * @return true if `index.mapping.total_fields.unmap_fields_beyond_limit` is true and the current total fields count exceed the limit
+     */
     private static boolean checkIfUnmapFieldsBeyondTotalFieldsLimit(ParseContext context) {
-        return context.indexSettings().getUnmapFieldsBeyondTotalFieldsLimit()
-            && context.docMapper()
-                .mappers()
-                .exceedTotalFieldsLimit(context.indexSettings().getMappingTotalFieldsLimit(), context.getDynamicMappers());
+        return context.getUnmapFieldsBeyondLimit() && context.docMapper().mappers().exceedTotalFieldsLimit(context.getTotalFieldsLimit());
     }
 
-    private static boolean checkUnmapFieldsOrNotIfAddNewField(ParseContext context, Mapper mapper) {
-        return context.indexSettings().getUnmapFieldsBeyondTotalFieldsLimit()
-            && context.docMapper()
-                .mappers()
-                .exceedTotalFieldsLimitIfAddNewField(context.indexSettings().getMappingTotalFieldsLimit(), mapper);
+    /**
+     * if the setting `index.mapping.total_fields.unmap_fields_beyond_limit` is true, increase the dynamic field count by 1
+     * @param context the parse context
+     */
+    private static void increaseDynamicFieldCountIfNeed(ParseContext context) {
+        if (context.getUnmapFieldsBeyondLimit()) {
+            context.docMapper().mappers().increaseDynamicFieldCount();
+        }
+    }
+
+    /**
+     * if the setting `index.mapping.total_fields.unmap_fields_beyond_limit` is true, increase the dynamic field count by the specified
+     * field count
+     * @param context the parse context
+     * @param fieldCount the field count
+     */
+    private static void increaseDynamicFieldCountIfNeed(ParseContext context, long fieldCount) {
+        if (context.getUnmapFieldsBeyondLimit()) {
+            context.docMapper().mappers().increaseDynamicFieldCount(fieldCount);
+        }
     }
 
     private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName, String[] paths)
@@ -650,6 +669,7 @@ final class DocumentParser {
                             assert mapper != null;
                             if (parsesArrayValue(mapper)) {
                                 context.addDynamicMapper(mapper);
+                                increaseDynamicFieldCountIfNeed(context);
                                 context.path().add(arrayFieldName);
                                 parseObjectOrField(context, mapper);
                                 context.path().remove();
@@ -891,12 +911,18 @@ final class DocumentParser {
         final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName, dynamic, parentMapper.fullPath());
         Mapper mapper = builder.build(builderContext);
 
-        // edge case, if index.mapping.total_fields.unmap_fields_beyond_limit is true,
-        // then we check if adding a new field will cause the field count to exceed the total fields limit, if so we don't add it
-        if (checkUnmapFieldsOrNotIfAddNewField(context, mapper)) {
-            return;
+        // edge case, adding a new field may increase the dynamic field count by 2 or more,
+        // so we check if adding a new field will cause the total field count to exceed the total fields limit, if so we don't add it
+        long fieldCount = 0;
+        if (context.getUnmapFieldsBeyondLimit()) {
+            fieldCount = context.docMapper().mappers().countFields(mapper);
+            if (context.docMapper().mappers().exceedTotalFieldsLimitIfAddNewField(context.getTotalFieldsLimit(), fieldCount)) {
+                return;
+            }
         }
+
         context.addDynamicMapper(mapper);
+        increaseDynamicFieldCountIfNeed(context, fieldCount);
 
         parseObjectOrField(context, mapper);
     }
@@ -1013,6 +1039,7 @@ final class DocumentParser {
                             );
                         }
                         context.addDynamicMapper(mapper);
+                        increaseDynamicFieldCountIfNeed(context);
                         break;
                     case FALSE:
                         // Should not dynamically create any more mappers so return the last mapper

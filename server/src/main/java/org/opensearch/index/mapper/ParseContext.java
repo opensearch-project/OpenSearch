@@ -59,6 +59,10 @@ import java.util.Set;
 @PublicApi(since = "1.0.0")
 public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
+    public abstract boolean getUnmapFieldsBeyondLimit();
+
+    public abstract long getTotalFieldsLimit();
+
     /**
      * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
      *
@@ -346,6 +350,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         public void checkFieldArrayDepthLimit() {
             in.checkFieldArrayDepthLimit();
         }
+
+        @Override
+        public boolean getUnmapFieldsBeyondLimit() {
+            return in.getUnmapFieldsBeyondLimit();
+        }
+
+        @Override
+        public long getTotalFieldsLimit() {
+            return in.getTotalFieldsLimit();
+        }
     }
 
     /**
@@ -392,6 +406,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private boolean docsReversed = false;
 
         private final Set<String> ignoredFields = new HashSet<>();
+        private final boolean unmapFieldsBeyondLimit;
+        private final long totalFieldsLimit;
 
         public InternalParseContext(
             IndexSettings indexSettings,
@@ -417,6 +433,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
             this.currentArrayDepth = 0L;
             this.maxAllowedFieldDepth = indexSettings.getMappingDepthLimit();
             this.maxAllowedArrayDepth = indexSettings.getMappingDepthLimit();
+            this.unmapFieldsBeyondLimit = indexSettings.getUnmapFieldsBeyondTotalFieldsLimit();
+            this.totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
         }
 
         @Override
@@ -621,6 +639,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
                         + "] index level setting."
                 );
             }
+        }
+
+        @Override
+        public boolean getUnmapFieldsBeyondLimit() {
+            return this.unmapFieldsBeyondLimit;
+        }
+
+        @Override
+        public long getTotalFieldsLimit() {
+            return this.totalFieldsLimit;
         }
     }
 

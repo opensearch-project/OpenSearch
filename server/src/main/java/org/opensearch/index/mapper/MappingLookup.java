@@ -60,11 +60,9 @@ public final class MappingLookup implements Iterable<Mapper> {
     private final Map<String, ObjectMapper> objectMappers;
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
-    private final int metadataFieldCount;
     private final FieldNameAnalyzer indexAnalyzer;
     private final int nonMetadataFieldCount;
     private int dynamicFieldCount;
-    private int dynamicObjectFieldCount;
 
     private static void put(Map<String, Analyzer> analyzers, String key, Analyzer value, Analyzer defaultValue) {
         if (value == null) {
@@ -141,7 +139,6 @@ public final class MappingLookup implements Iterable<Mapper> {
             MappedFieldType fieldType = mapper.fieldType();
             put(indexAnalyzers, fieldType.name(), fieldType.indexAnalyzer(), defaultIndex);
         }
-        this.metadataFieldCount = metadataFieldCount;
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
             if (objects.containsKey(aliasMapper.name())) {
@@ -158,6 +155,7 @@ public final class MappingLookup implements Iterable<Mapper> {
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
         this.objectMappers = Collections.unmodifiableMap(objects);
         this.nonMetadataFieldCount = fieldMappers.size() + objectMappers.size() - metadataFieldCount;
+        this.dynamicFieldCount = this.nonMetadataFieldCount;
     }
 
     /**
@@ -197,42 +195,51 @@ public final class MappingLookup implements Iterable<Mapper> {
     /**
      *
      * @param limit the value of the setting index.mapping.total_fields_limit
-     * @param dynamicMappers mappers of the new fields detected by dynamic mapping
      * @return true if adding new fields will cause to exceed the total fields limit
      */
-    public boolean exceedTotalFieldsLimit(long limit, List<Mapper> dynamicMappers) {
-        if (nonMetadataFieldCount > limit) {
-            return true;
-        }
-
-        List<ObjectMapper> newObjectMappers = new ArrayList<>();
-        List<FieldMapper> newFieldMappers = new ArrayList<>();
-        List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
-        dynamicMappers.forEach(dynamicMapper -> collect(dynamicMapper, newObjectMappers, newFieldMappers, newFieldAliasMappers));
-        this.dynamicFieldCount = newFieldMappers.size();
-        this.dynamicObjectFieldCount = newObjectMappers.size();
-
-        return nonMetadataFieldCount + dynamicFieldCount + dynamicObjectFieldCount >= limit;
+    public boolean exceedTotalFieldsLimit(long limit) {
+        return nonMetadataFieldCount + dynamicFieldCount >= limit;
     }
 
     /**
      *
      * @param limit the value of the setting index.mapping.total_fields_limit
-     * @param mapper mapper of the new field detected by dynamic mapping
+     * @param fieldCount the field count in the new detected field
      * @return true if adding a new field will cause to exceed the total fields limit
      */
-    public boolean exceedTotalFieldsLimitIfAddNewField(long limit, Mapper mapper) {
-        if (nonMetadataFieldCount > limit) {
-            return true;
+    public boolean exceedTotalFieldsLimitIfAddNewField(long limit, long fieldCount) {
+        return nonMetadataFieldCount + dynamicFieldCount + fieldCount > limit;
+    }
+
+    /**
+     * increase the dynamic field count by 1
+     */
+    public void increaseDynamicFieldCount() {
+        this.dynamicFieldCount++;
+    }
+
+    /**
+     * increase the dynamic field count by the given field count
+     * @param fieldCount the field count in the new detected field
+     */
+    public void increaseDynamicFieldCount(long fieldCount) {
+        this.dynamicFieldCount += fieldCount;
+    }
+
+    /**
+     * count the total fields in the specified field mapper
+     * @param mapper the field mapper
+     * @return the field count in the specified field mapper
+     */
+    public long countFields(Mapper mapper) {
+        long count = 0;
+        if (mapper instanceof ObjectMapper || mapper instanceof FieldMapper) {
+            count++;
         }
-
-        List<ObjectMapper> newObjectMappers = new ArrayList<>();
-        List<FieldMapper> newFieldMappers = new ArrayList<>();
-        List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
-        collect(mapper, newObjectMappers, newFieldMappers, newFieldAliasMappers);
-
-        return nonMetadataFieldCount + dynamicFieldCount + dynamicObjectFieldCount + newObjectMappers.size() + newFieldMappers
-            .size() > limit;
+        for (Mapper child : mapper) {
+            count += countFields(child);
+        }
+        return count;
     }
 
     private void checkFieldLimit(long limit) {

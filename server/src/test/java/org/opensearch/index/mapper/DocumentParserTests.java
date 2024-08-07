@@ -1408,6 +1408,33 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals(0, doc.rootDoc().getFields("test.test1").length);
     }
 
+    public void testCannotAddNewFieldWithUnmapFieldsBeyondTotalLimit() throws Exception {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("foo");
+                b.field("type", "keyword");
+                b.endObject();
+                b.startObject("bar");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }
+
+        ), settings);
+
+        // Add a string type field will add two fields into the mapping(text+keyword), so the field `test`
+        // will not be added to the mapping because of the total fields limit
+        ParsedDocument doc = mapper.parse(source(b -> b.field("test", "baz")));
+        assertEquals(0, doc.rootDoc().getFields("test").length);
+    }
+
     public void testDynamicStrictAllowTemplatesNull() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "strict_allow_templates")));
         StrictDynamicMappingException exception = expectThrows(

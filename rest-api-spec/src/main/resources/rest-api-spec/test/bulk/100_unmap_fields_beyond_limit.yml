@@ -42,13 +42,15 @@
           field3: {
             "field4": "field4"
           },
-          "field5": 100
+          "field5": 100,
+          "dateField": "2024-07-25T05:11:51.243Z",
+          "booleanField": true
         }
   - do:
       get:
         index: test_index_1
         id: 2
-  - match: { _source:  {  field3: { field4: "field4" }, field5: 100 }}
+  - match: { _source:  {  field3: { field4: "field4" }, field5: 100, "dateField": "2024-07-25T05:11:51.243Z", "booleanField": true }}
 
   - do:
       indices.get_mapping:
@@ -58,6 +60,8 @@
   - match: {test_index_1.mappings.properties.field2.type:     long}
   - match: {test_index_1.mappings.properties.field3: null}
   - match: {test_index_1.mappings.properties.field5: null}
+  - match: {test_index_1.mappings.properties.dateField.type:     null}
+  - match: {test_index_1.mappings.properties.booleanField.type:     null}
 
   - do:
       indices.put_settings:
@@ -80,13 +84,15 @@
           field3: {
             "field4": "field4"
           },
-          "field5": 100
+          "field5": 100,
+          "dateField": "2024-07-25T05:11:51.243Z",
+          "booleanField": true
         }
   - do:
       get:
         index: test_index_1
         id: 2
-  - match: { _source:  {  field1: "field1", field2: [1,2,3], field3: { field4: "field4" }, field5: 100 }}
+  - match: { _source:  {  field1: "field1", field2: [1,2,3], field3: { field4: "field4" }, field5: 100, "dateField": "2024-07-25T05:11:51.243Z", "booleanField": true }}
 
   - do:
       indices.get_mapping:
@@ -97,3 +103,5 @@
   - match: {test_index_1.mappings.properties.field3.properties.field4.type:     text}
   - match: {test_index_1.mappings.properties.field3.properties.field4.fields.keyword.type:     keyword}
   - match: {test_index_1.mappings.properties.field5.type:     long}
+  - match: {test_index_1.mappings.properties.dateField.type:     date}
+  - match: {test_index_1.mappings.properties.booleanField.type:     boolean}
