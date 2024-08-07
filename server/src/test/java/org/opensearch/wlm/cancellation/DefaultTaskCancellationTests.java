@@ -161,7 +161,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testCancelTasks_cancelsGivenTasks() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000L;
+        long usage = 150_000_000_000L;
         Double threshold = 0.01;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -194,7 +194,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testCancelTasks_cancelsGivenTasks_WhenNodeInDuress() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000L;
+        long usage = 150_000_000_000L;
         Double threshold = 0.01;
 
         QueryGroup queryGroup1 = new QueryGroup(
@@ -269,7 +269,7 @@ public class DefaultTaskCancellationTests extends OpenSearchTestCase {
 
     public void testGetAllCancellableTasks_ReturnsTasksFromWhenBreachingThresholds() {
         ResourceType resourceType = ResourceType.CPU;
-        long usage = 150_000_000L;
+        long usage = 150_000_000_000L;
         Double threshold = 0.01;
 
         QueryGroup queryGroup1 = new QueryGroup(
