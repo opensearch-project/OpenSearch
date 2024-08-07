@@ -138,6 +138,7 @@ import org.opensearch.search.query.ScrollQuerySearchResult;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.FieldStats;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
@@ -1698,7 +1699,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final SortAndFormats primarySort = sortBuilder != null
                     ? SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get()
                     : null;
-                MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+                FieldStats stats = sortBuilder != null ? FieldSortBuilder.getFieldStatsForShard(context, sortBuilder) : FieldStats.UNKNOWN;
                 boolean canMatch;
                 if (canRewriteToMatchNone(request.source())) {
                     QueryBuilder queryBuilder = request.source().query();
@@ -1709,9 +1710,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 final FieldDoc searchAfterFieldDoc = getSearchAfterFieldDoc(request, context);
                 final Integer trackTotalHitsUpto = request.source() == null ? null : request.source().trackTotalHitsUpTo();
-                canMatch = canMatch && canMatchSearchAfter(searchAfterFieldDoc, minMax, primarySort, trackTotalHitsUpto);
+                canMatch = canMatch
+                    && canMatchSearchAfter(
+                        searchAfterFieldDoc,
+                        stats.getMinAndMax(),
+                        primarySort,
+                        trackTotalHitsUpto,
+                        stats.allDocsNonMissing()
+                    );
 
-                return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
+                return new CanMatchResponse(canMatch || hasRefreshPending, stats.getMinAndMax());
             }
         }
     }
@@ -1720,7 +1728,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FieldDoc searchAfter,
         MinAndMax<?> minMax,
         SortAndFormats primarySort,
-        Integer trackTotalHitsUpto
+        Integer trackTotalHitsUpto,
+        boolean allDocsNonMissing
     ) {
         // Check for sort.missing == null, since in case of missing values sort queries, if segment/shard's min/max
         // is out of search_after range, it still should be printed and hence we should not skip segment/shard.
@@ -1736,12 +1745,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (primarySortField.getReverse()) {
                 if (minMax.compareMin(searchAfterPrimary) > 0) {
                     // In Desc order, if segment/shard minimum is gt search_after, the segment/shard won't be competitive
-                    return canMatchMissingValue(primarySortField, searchAfterPrimary);
+                    return allDocsNonMissing == false && canMatchMissingValue(primarySortField, searchAfterPrimary);
                 }
             } else {
                 if (minMax.compareMax(searchAfterPrimary) < 0) {
                     // In ASC order, if segment/shard maximum is lt search_after, the segment/shard won't be competitive
-                    return canMatchMissingValue(primarySortField, searchAfterPrimary);
+                    return allDocsNonMissing == false && canMatchMissingValue(primarySortField, searchAfterPrimary);
                 }
             }
         }

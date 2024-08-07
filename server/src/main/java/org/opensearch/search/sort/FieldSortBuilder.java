@@ -613,30 +613,30 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
     }
 
     /**
-     * Return the {@link MinAndMax} indexed value for shard from the provided {@link FieldSortBuilder} or <code>null</code> if unknown.
+     * Return the {@link FieldStats} indexed value for shard from the provided {@link FieldSortBuilder} or {@link FieldStats#UNKNOWN} if unknown.
      * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
-     * and configurations return <code>null</code>.
+     * and configurations return {@link FieldStats#UNKNOWN}.
      */
-    public static MinAndMax<?> getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
+    public static FieldStats getFieldStatsForShard(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
         final SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
-        return getMinMaxOrNullInternal(context.getIndexReader(), context, sortBuilder, sort);
+        return getFieldStatsInternal(context.getIndexReader(), context, sortBuilder, sort);
     }
 
     /**
-     * Return the {@link MinAndMax} indexed value for segment from the provided {@link FieldSortBuilder} or <code>null</code> if unknown.
+     * Return the {@link FieldStats} indexed value for segment from the provided {@link FieldSortBuilder} or {@link FieldStats#UNKNOWN} if unknown.
      * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
-     * and configurations return <code>null</code>.
+     * and configurations return {@link FieldStats#UNKNOWN}.
      */
-    public static MinAndMax<?> getMinMaxOrNullForSegment(
+    public static FieldStats getFieldStatsForSegment(
         QueryShardContext context,
         LeafReaderContext ctx,
         FieldSortBuilder sortBuilder,
         SortAndFormats sort
     ) throws IOException {
-        return getMinMaxOrNullInternal(ctx.reader(), context, sortBuilder, sort);
+        return getFieldStatsInternal(ctx.reader(), context, sortBuilder, sort);
     }
 
-    private static MinAndMax<?> getMinMaxOrNullInternal(
+    private static FieldStats getFieldStatsInternal(
         IndexReader reader,
         QueryShardContext context,
         FieldSortBuilder sortBuilder,
@@ -644,43 +644,47 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
     ) throws IOException {
         SortField sortField = sort.sort.getSort()[0];
         if (sortField.getField() == null) {
-            return null;
+            return FieldStats.UNKNOWN;
         }
         MappedFieldType fieldType = context.fieldMapper(sortField.getField());
         if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
-            return null;
+            return FieldStats.UNKNOWN;
         }
         switch (IndexSortConfig.getSortFieldType(sortField)) {
             case LONG:
             case INT:
             case DOUBLE:
             case FLOAT:
-                return extractNumericMinAndMax(reader, sortField, fieldType, sortBuilder);
+                return extractNumericFieldStats(reader, sortField, fieldType, sortBuilder);
             case STRING:
             case STRING_VAL:
                 if (fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
                     Terms terms = MultiTerms.getTerms(reader, fieldType.name());
                     if (terms == null) {
-                        return null;
+                        return FieldStats.UNKNOWN;
                     }
-                    return terms.getMin() != null ? new MinAndMax<>(terms.getMin(), terms.getMax()) : null;
+                    MinAndMax<?> minAndMax = terms.getMin() != null ? new MinAndMax<>(terms.getMin(), terms.getMax()) : null;
+                    return new FieldStats(minAndMax, terms.getDocCount() == reader.maxDoc());
                 }
                 break;
         }
-        return null;
+        return FieldStats.UNKNOWN;
     }
 
-    private static MinAndMax<?> extractNumericMinAndMax(
+    private static FieldStats extractNumericFieldStats(
         IndexReader reader,
         SortField sortField,
         MappedFieldType fieldType,
         FieldSortBuilder sortBuilder
     ) throws IOException {
         String fieldName = fieldType.name();
-        if (PointValues.size(reader, fieldName) == 0) {
-            return null;
+        final int docCount = PointValues.getDocCount(reader, fieldName);
+        if (docCount == 0) {
+            return FieldStats.UNKNOWN;
         }
-        if (fieldType.unwrap() instanceof NumberFieldType) {
+        final boolean allDocsNonMissing = docCount == reader.maxDoc();
+        MinAndMax<?> minAndMax = null;
+        if (fieldType instanceof NumberFieldType) {
             NumberFieldType numberFieldType = (NumberFieldType) fieldType;
             Number minPoint = numberFieldType.parsePoint(PointValues.getMinPackedValue(reader, fieldName));
             Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(reader, fieldName));
@@ -688,27 +692,31 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements W
                 case LONG:
                     if (numberFieldType.numericType() == NumericType.UNSIGNED_LONG) {
                         // The min and max are expected to be BigInteger numbers
-                        return new MinAndMax<>((BigInteger) minPoint, (BigInteger) maxPoint);
+                        minAndMax = new MinAndMax<>((BigInteger) minPoint, (BigInteger) maxPoint);
                     } else {
-                        return new MinAndMax<>(minPoint.longValue(), maxPoint.longValue());
+                        minAndMax = new MinAndMax<>(minPoint.longValue(), maxPoint.longValue());
                     }
+                    break;
                 case INT:
-                    return new MinAndMax<>(minPoint.intValue(), maxPoint.intValue());
+                    minAndMax = new MinAndMax<>(minPoint.intValue(), maxPoint.intValue());
+                    break;
                 case DOUBLE:
-                    return new MinAndMax<>(minPoint.doubleValue(), maxPoint.doubleValue());
+                    minAndMax = new MinAndMax<>(minPoint.doubleValue(), maxPoint.doubleValue());
+                    break;
                 case FLOAT:
-                    return new MinAndMax<>(minPoint.floatValue(), maxPoint.floatValue());
+                    minAndMax = new MinAndMax<>(minPoint.floatValue(), maxPoint.floatValue());
+                    break;
                 default:
-                    return null;
+                    // no-op
             }
         } else if (fieldType.unwrap() instanceof DateFieldType) {
             DateFieldType dateFieldType = (DateFieldType) fieldType;
             Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
             Long min = dateConverter.apply(PointValues.getMinPackedValue(reader, fieldName));
             Long max = dateConverter.apply(PointValues.getMaxPackedValue(reader, fieldName));
-            return new MinAndMax<>(min, max);
+            minAndMax = new MinAndMax<>(min, max);
         }
-        return null;
+        return new FieldStats(minAndMax, allDocsNonMissing);
     }
 
     private static Function<byte[], Long> createDateConverter(FieldSortBuilder sortBuilder, DateFieldType dateFieldType) {
