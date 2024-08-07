@@ -63,8 +63,8 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
         Objects.requireNonNull(resiliencyMode, "QueryGroup.resiliencyMode can't be null");
         Objects.requireNonNull(_id, "QueryGroup._id can't be null");
 
-        if (name.length() > MAX_CHARS_ALLOWED_IN_NAME) {
-            throw new IllegalArgumentException("QueryGroup.name shouldn't be more than 50 chars long");
+        if (name.length() > MAX_CHARS_ALLOWED_IN_NAME || name.isEmpty()) {
+            throw new IllegalArgumentException("QueryGroup.name shouldn't be empty or more than 50 chars long");
         }
 
         if (resourceLimits.isEmpty()) {

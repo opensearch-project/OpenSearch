@@ -9,6 +9,9 @@
  * GitHub history for details.
  */
 
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
+
 opensearchplugin {
   description 'OpenSearch Workload Management Plugin.'
   classname 'org.opensearch.plugin.wlm.WorkloadManagementPlugin'
