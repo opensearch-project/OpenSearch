@@ -9,7 +9,7 @@
 package org.opensearch.search;
 
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -45,7 +45,8 @@ public class ResourceTypeTests extends OpenSearchTestCase {
 
     private <T extends CancellableTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage) {
         T task = mock(type);
-        when(task.getTotalResourceStats()).thenReturn(new TaskResourceUsage(cpuUsage, heapUsage));
+        when(task.getTotalResourceUtilization(ResourceStats.CPU)).thenReturn(cpuUsage);
+        when(task.getTotalResourceUtilization(ResourceStats.MEMORY)).thenReturn(cpuUsage);
         return task;
     }
 }
