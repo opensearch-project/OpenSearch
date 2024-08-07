@@ -998,7 +998,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Consumer<List<IngestDocumentWrapper>> handler
     ) {
         if (pipeline.getProcessors().isEmpty()) {
-            handler.accept(null);
+            handler.accept(toIngestDocumentWrappers(slots, indexRequests));
             return;
         }
 
@@ -1274,6 +1274,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     private static IngestDocumentWrapper toIngestDocumentWrapper(int slot, IndexRequest indexRequest) {
         return new IngestDocumentWrapper(slot, toIngestDocument(indexRequest), null);
+    }
+
+    private static List<IngestDocumentWrapper> toIngestDocumentWrappers(List<Integer> slots, List<IndexRequest> indexRequests) {
+        List<IngestDocumentWrapper> ingestDocumentWrappers = new ArrayList<>();
+        for (int i = 0; i < slots.size(); ++i) {
+            ingestDocumentWrappers.add(toIngestDocumentWrapper(slots.get(i), indexRequests.get(i)));
+        }
+        return ingestDocumentWrappers;
     }
 
     private static Map<Integer, IndexRequest> createSlotIndexRequestMap(List<Integer> slots, List<IndexRequest> indexRequests) {
