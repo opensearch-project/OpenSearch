@@ -14,6 +14,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * This interface provides a bridge between an aggregator and the optimization context, allowing
@@ -32,21 +33,20 @@ import java.util.function.BiConsumer;
 public abstract class AggregatorBridge {
 
     /**
-     * The optimization context associated with this aggregator bridge.
-     */
-    FilterRewriteOptimizationContext filterRewriteOptimizationContext;
-
-    /**
      * The field type associated with this aggregator bridge.
      */
     MappedFieldType fieldType;
 
-    void setOptimizationContext(FilterRewriteOptimizationContext context) {
-        this.filterRewriteOptimizationContext = context;
+    Consumer<Ranges> setRanges;
+
+    void setRangesConsumer(Consumer<Ranges> setRanges) {
+        this.setRanges = setRanges;
     }
 
     /**
      * Checks whether the aggregator can be optimized.
+     * <p>
+     * This method is supposed to be implemented in a specific aggregator to take in fields from there
      *
      * @return {@code true} if the aggregator can be optimized, {@code false} otherwise.
      * The result will be saved in the optimization context.
@@ -57,6 +57,8 @@ public abstract class AggregatorBridge {
      * Prepares the optimization at shard level after checking aggregator is optimizable.
      * <p>
      * For example, figure out what are the ranges from the aggregation to do the optimization later
+     * <p>
+     * This method is supposed to be implemented in a specific aggregator to take in fields from there
      */
     protected abstract void prepare() throws IOException;
 
@@ -65,14 +67,18 @@ public abstract class AggregatorBridge {
      *
      * @param leaf the leaf reader context for the segment
      */
-    protected abstract void prepareFromSegment(LeafReaderContext leaf) throws IOException;
+    abstract Ranges prepareFromSegment(LeafReaderContext leaf) throws IOException;
 
     /**
      * Attempts to build aggregation results for a segment
      *
      * @param values            the point values (index structure for numeric values) for a segment
      * @param incrementDocCount a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
-     * @param leafOrd
+     * @param ranges
      */
-    protected abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, int leafOrd) throws IOException;
+    abstract FilterRewriteOptimizationContext.DebugInfo tryOptimize(
+        PointValues values,
+        BiConsumer<Long, Long> incrementDocCount,
+        Ranges ranges
+    ) throws IOException;
 }

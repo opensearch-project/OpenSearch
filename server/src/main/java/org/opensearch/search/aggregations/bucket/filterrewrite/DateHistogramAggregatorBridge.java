@@ -32,6 +32,8 @@ import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeT
  */
 public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
 
+    int maxRewriteFilters;
+
     protected boolean canOptimize(ValuesSourceConfig config) {
         if (config.script() == null && config.missing() == null) {
             MappedFieldType fieldType = config.fieldType();
@@ -47,16 +49,17 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
 
     protected void buildRanges(SearchContext context) throws IOException {
         long[] bounds = Helper.getDateHistoAggBounds(context, fieldType.name());
-        filterRewriteOptimizationContext.setRanges(buildRanges(bounds));
+        this.maxRewriteFilters = context.maxAggRewriteFilters();
+        setRanges.accept(buildRanges(bounds, maxRewriteFilters));
     }
 
     @Override
-    protected void prepareFromSegment(LeafReaderContext leaf) throws IOException {
+    final Ranges prepareFromSegment(LeafReaderContext leaf) throws IOException {
         long[] bounds = Helper.getSegmentBounds(leaf, fieldType.name());
-        filterRewriteOptimizationContext.setRangesFromSegment(leaf.ord, buildRanges(bounds));
+        return buildRanges(bounds, maxRewriteFilters);
     }
 
-    private Ranges buildRanges(long[] bounds) {
+    private Ranges buildRanges(long[] bounds, int maxRewriteFilters) {
         bounds = processHardBounds(bounds);
         if (bounds == null) {
             return null;
@@ -79,7 +82,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
             getRoundingPrepared(),
             bounds[0],
             bounds[1],
-            filterRewriteOptimizationContext.maxAggRewriteFilters
+            maxRewriteFilters
         );
     }
 
@@ -123,11 +126,14 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    protected final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, int leafOrd) throws IOException {
+    final FilterRewriteOptimizationContext.DebugInfo tryOptimize(
+        PointValues values,
+        BiConsumer<Long, Long> incrementDocCount,
+        Ranges ranges
+    ) throws IOException {
         int size = getSize();
 
         DateFieldMapper.DateFieldType fieldType = getFieldType();
-        Ranges ranges = filterRewriteOptimizationContext.getRanges(leafOrd);
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
             long rangeStart = LongPoint.decodeDimension(ranges.lowers[activeIndex], 0);
             rangeStart = fieldType.convertNanosToMillis(rangeStart);
@@ -135,9 +141,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
             incrementDocCount.accept(bucketOrd, (long) docCount);
         };
 
-        filterRewriteOptimizationContext.consumeDebugInfo(
-            multiRangesTraverse(values.getPointTree(), filterRewriteOptimizationContext.getRanges(leafOrd), incrementFunc, size)
-        );
+        return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
     }
 
     private static long getBucketOrd(long bucketOrd) {

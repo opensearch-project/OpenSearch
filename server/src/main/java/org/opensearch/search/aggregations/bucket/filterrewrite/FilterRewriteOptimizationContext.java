@@ -39,7 +39,6 @@ public final class FilterRewriteOptimizationContext {
     private boolean preparedAtShardLevel = false;
 
     private final AggregatorBridge aggregatorBridge;
-    int maxAggRewriteFilters;
     private String shardId;
 
     private Ranges ranges;
@@ -72,8 +71,8 @@ public final class FilterRewriteOptimizationContext {
 
         boolean canOptimize = aggregatorBridge.canOptimize();
         if (canOptimize) {
-            aggregatorBridge.setOptimizationContext(this);
-            this.maxAggRewriteFilters = context.maxAggRewriteFilters();
+            aggregatorBridge.setRangesConsumer(this::setRanges);
+
             this.shardId = context.indexShard().shardId().toString();
 
             assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
@@ -139,7 +138,7 @@ public final class FilterRewriteOptimizationContext {
         Ranges ranges = tryBuildRangesFromSegment(leafCtx, segmentMatchAll);
         if (ranges == null) return false;
 
-        aggregatorBridge.tryOptimize(values, incrementDocCount, leafCtx.ord);
+        consumeDebugInfo(aggregatorBridge.tryOptimize(values, incrementDocCount, getRanges(leafCtx.ord)));
 
         optimizedSegments++;
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
@@ -160,7 +159,7 @@ public final class FilterRewriteOptimizationContext {
 
         if (!preparedAtShardLevel) { // not built at shard level but segment match all
             logger.debug("Shard {} segment {} functionally match all documents. Build the fast filter", shardId, leafCtx.ord);
-            aggregatorBridge.prepareFromSegment(leafCtx);
+            setRangesFromSegment(leafCtx.ord, aggregatorBridge.prepareFromSegment(leafCtx));
         }
         return getRanges(leafCtx.ord);
     }
@@ -190,8 +189,8 @@ public final class FilterRewriteOptimizationContext {
         if (optimizedSegments > 0) {
             add.accept("optimized_segments", optimizedSegments);
             add.accept("unoptimized_segments", segments - optimizedSegments);
-            add.accept("leaf_node_visited", leafNodeVisited);
-            add.accept("inner_node_visited", innerNodeVisited);
+            add.accept("leaf_visited", leafNodeVisited);
+            add.accept("inner_visited", innerNodeVisited);
         }
     }
 }

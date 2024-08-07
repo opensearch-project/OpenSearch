@@ -65,16 +65,20 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             uppers[i] = upper;
         }
 
-        filterRewriteOptimizationContext.setRanges(new Ranges(lowers, uppers));
+        setRanges.accept(new Ranges(lowers, uppers));
     }
 
     @Override
-    public void prepareFromSegment(LeafReaderContext leaf) {
+    final Ranges prepareFromSegment(LeafReaderContext leaf) {
         throw new UnsupportedOperationException("Range aggregation should not build ranges at segment level");
     }
 
     @Override
-    protected final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, int leafOrd) throws IOException {
+    final FilterRewriteOptimizationContext.DebugInfo tryOptimize(
+        PointValues values,
+        BiConsumer<Long, Long> incrementDocCount,
+        Ranges ranges
+    ) throws IOException {
         int size = Integer.MAX_VALUE;
 
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
@@ -82,9 +86,7 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             incrementDocCount.accept(bucketOrd, (long) docCount);
         };
 
-        filterRewriteOptimizationContext.consumeDebugInfo(
-            multiRangesTraverse(values.getPointTree(), filterRewriteOptimizationContext.getRanges(leafOrd), incrementFunc, size)
-        );
+        return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
     }
 
     /**
