@@ -58,7 +58,10 @@ reactivestreams   = "1.0.4"
 # when updating this version, you need to ensure compatibility with:
 #  - plugins/ingest-attachment (transitive dependency, check the upstream POM)
 #  - distribution/tools/plugin-cli
-bouncycastle="1.78"
+bouncycastle_jce  = "1.0.2.4"
+bouncycastle_tls  = "1.0.19"
+bouncycastle_pkix = "1.0.7"
+bouncycastle_pg   = "1.0.7.1"
 # test dependencies
 randomizedrunner  = "2.7.1"
 junit             = "4.13.2"

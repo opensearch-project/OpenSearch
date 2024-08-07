@@ -123,11 +123,11 @@ public class SecureNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 try {
                     final KeyStore keyStore = KeyStore.getInstance("PKCS12");
                     keyStore.load(
-                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure.jks"),
+                        SecureNetty4HttpServerTransportTests.class.getResourceAsStream("/netty4-secure.p12"),
                         "password".toCharArray()
                     );
 
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
                     keyManagerFactory.init(keyStore, "password".toCharArray());
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)

@@ -167,5 +167,5 @@ grant {
   permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
   permission org.opensearch.secure_sm.ThreadContextPermission "stashAndMergeHeaders";
   permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
-  permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
+  permission org.bouncycastle.crypto.CryptoServicesPermission "changeToApprovedModeEnabled";
 };
