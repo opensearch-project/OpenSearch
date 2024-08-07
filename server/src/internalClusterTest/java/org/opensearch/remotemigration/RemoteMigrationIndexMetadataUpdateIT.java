@@ -275,7 +275,6 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
      * After shard relocation completes, shuts down the docrep nodes and asserts remote
      * index settings are applied even when the index is in YELLOW state
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13737")
     public void testIndexSettingsUpdatedEvenForMisconfiguredReplicas() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
 
@@ -332,7 +331,6 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
      * After shard relocation completes, restarts the docrep node holding extra replica shard copy
      * and asserts remote index settings are applied as soon as the docrep replica copy is unassigned
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/13871")
     public void testIndexSettingsUpdatedWhenDocrepNodeIsRestarted() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
 
@@ -546,6 +544,73 @@ public class RemoteMigrationIndexMetadataUpdateIT extends MigrationBaseTestCase 
         files = FileSystemUtils.files(segmentRepoPath.resolve(RemoteIndexPath.DIR));
         assertEquals(1, files.length);
         assertTrue(Arrays.stream(files).anyMatch(file -> file.toString().contains(fileNamePrefix)));
+    }
+
+    /**
+     * Scenario:
+     * Creates an index with 1 pri 1 rep setup with 3 docrep nodes (1 cluster manager + 2 data nodes),
+     * initiate migration and create 3 remote nodes (1 cluster manager + 2 data nodes) and moves over
+     * only primary shard copy of the index
+     * After the primary shard copy is relocated, decrease replica count to 0, stop all docrep nodes
+     * and conclude migration. Remote store index settings should be applied to the index at this point.
+     */
+    public void testIndexSettingsUpdateDuringReplicaCountDecrement() throws Exception {
+        String indexName = "migration-index-replica-decrement";
+        String docrepClusterManager = internalCluster().startClusterManagerOnlyNode();
+
+        logger.info("---> Starting 2 docrep nodes");
+        List<String> docrepNodeNames = internalCluster().startDataOnlyNodes(2);
+        internalCluster().validateClusterFormed();
+
+        logger.info("---> Creating index with 1 primary and 1 replica");
+        Settings oneReplica = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        createIndexAndAssertDocrepProperties(indexName, oneReplica);
+
+        int docsToIndex = randomIntBetween(10, 100);
+        logger.info("---> Indexing {} on both indices", docsToIndex);
+        indexBulk(indexName, docsToIndex);
+
+        logger.info(
+            "---> Stopping shard rebalancing to ensure shards do not automatically move over to newer nodes after they are launched"
+        );
+        stopShardRebalancing();
+
+        logger.info("---> Starting 3 remote store enabled nodes");
+        initDocRepToRemoteMigration();
+        setAddRemote(true);
+        internalCluster().startClusterManagerOnlyNode();
+        List<String> remoteNodeNames = internalCluster().startDataOnlyNodes(2);
+        internalCluster().validateClusterFormed();
+
+        String primaryNode = primaryNodeName(indexName);
+
+        logger.info("---> Moving over primary to remote store enabled nodes");
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareReroute()
+                .add(new MoveAllocationCommand(indexName, 0, primaryNode, remoteNodeNames.get(0)))
+                .execute()
+                .actionGet()
+        );
+        waitForRelocation();
+        waitNoPendingTasksOnAll();
+
+        logger.info("---> Reducing replica count to 0 for the index");
+        changeReplicaCountAndEnsureGreen(0, indexName);
+
+        logger.info("---> Stopping all docrep nodes");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(docrepClusterManager));
+        for (String node : docrepNodeNames) {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node));
+        }
+        internalCluster().validateClusterFormed();
+        completeDocRepToRemoteMigration();
+        waitNoPendingTasksOnAll();
+        assertRemoteProperties(indexName);
     }
 
     private void createIndexAndAssertDocrepProperties(String index, Settings settings) {

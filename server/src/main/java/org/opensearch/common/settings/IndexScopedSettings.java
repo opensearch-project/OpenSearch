@@ -52,6 +52,7 @@ import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.SearchSlowLog;
 import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.FieldMapper;
@@ -190,7 +191,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
-                IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS,
                 IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS,
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
@@ -239,6 +239,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Settings for concurrent segment search
                 IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_SETTING,
                 IndexSettings.ALLOW_DERIVED_FIELDS,
+
+                // Settings for star tree index
+                StarTreeIndexSettings.STAR_TREE_DEFAULT_MAX_LEAF_DOCS,
+                StarTreeIndexSettings.STAR_TREE_MAX_DIMENSIONS_SETTING,
+                StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING,
+                StarTreeIndexSettings.DEFAULT_METRICS_LIST,
+                StarTreeIndexSettings.DEFAULT_DATE_INTERVALS,
+                StarTreeIndexSettings.STAR_TREE_MAX_DATE_INTERVALS_SETTING,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();
@@ -263,7 +272,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      */
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
         FeatureFlags.TIERED_REMOTE_INDEX,
-        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING)
+        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE)
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

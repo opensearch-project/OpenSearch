@@ -50,6 +50,7 @@ import java.util.function.Supplier;
 
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
+import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V3;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedIndexMetadata;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadataAttribute;
 import static org.opensearch.gateway.remote.RemoteClusterStateCleanupManager.AsyncStaleFileDeletion;
@@ -296,6 +297,74 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
         verify(remoteRoutingTableService).deleteStaleIndexRoutingPaths(List.of(index3Metadata.getUploadedFilename()));
     }
 
+    public void testDeleteStaleIndicesRoutingDiffFile() throws IOException {
+        String clusterUUID = "clusterUUID";
+        String clusterName = "test-cluster";
+        List<BlobMetadata> inactiveBlobs = Arrays.asList(new PlainBlobMetadata("manifest1.dat", 1L));
+        List<BlobMetadata> activeBlobs = Arrays.asList(new PlainBlobMetadata("manifest2.dat", 1L));
+
+        UploadedMetadataAttribute coordinationMetadata = new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination_metadata");
+        UploadedMetadataAttribute templateMetadata = new UploadedMetadataAttribute(TEMPLATES_METADATA, "template_metadata");
+        UploadedMetadataAttribute settingMetadata = new UploadedMetadataAttribute(SETTING_METADATA, "settings_metadata");
+        UploadedMetadataAttribute coordinationMetadataUpdated = new UploadedMetadataAttribute(
+            COORDINATION_METADATA,
+            "coordination_metadata_updated"
+        );
+
+        UploadedIndexMetadata index1Metadata = new UploadedIndexMetadata("index1", "indexUUID1", "index_metadata1__2");
+        UploadedIndexMetadata index2Metadata = new UploadedIndexMetadata("index2", "indexUUID2", "index_metadata2__2");
+        List<UploadedIndexMetadata> indicesRouting1 = List.of(index1Metadata);
+        List<UploadedIndexMetadata> indicesRouting2 = List.of(index2Metadata);
+        ClusterStateDiffManifest diffManifest1 = ClusterStateDiffManifest.builder().indicesRoutingDiffPath("index1RoutingDiffPath").build();
+        ClusterStateDiffManifest diffManifest2 = ClusterStateDiffManifest.builder().indicesRoutingDiffPath("index2RoutingDiffPath").build();
+
+        ClusterMetadataManifest manifest1 = ClusterMetadataManifest.builder()
+            .indices(List.of(index1Metadata))
+            .coordinationMetadata(coordinationMetadataUpdated)
+            .templatesMetadata(templateMetadata)
+            .settingMetadata(settingMetadata)
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .codecVersion(CODEC_V3)
+            .stateUUID(randomAlphaOfLength(10))
+            .clusterUUID(clusterUUID)
+            .nodeId("nodeA")
+            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
+            .previousClusterUUID(ClusterState.UNKNOWN_UUID)
+            .committed(true)
+            .routingTableVersion(0L)
+            .indicesRouting(indicesRouting1)
+            .diffManifest(diffManifest1)
+            .build();
+        ClusterMetadataManifest manifest2 = ClusterMetadataManifest.builder(manifest1)
+            .indices(List.of(index2Metadata))
+            .indicesRouting(indicesRouting2)
+            .diffManifest(diffManifest2)
+            .build();
+
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        doThrow(IOException.class).when(blobContainer).delete();
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        BlobPath blobPath = new BlobPath().add("random-path");
+        when((blobStoreRepository.basePath())).thenReturn(blobPath);
+        remoteClusterStateCleanupManager.start();
+        when(remoteManifestManager.getManifestFolderPath(eq(clusterName), eq(clusterUUID))).thenReturn(
+            new BlobPath().add(encodeString(clusterName)).add(CLUSTER_STATE_PATH_TOKEN).add(clusterUUID).add(MANIFEST)
+        );
+        when(remoteManifestManager.fetchRemoteClusterMetadataManifest(eq(clusterName), eq(clusterUUID), any())).thenReturn(
+            manifest2,
+            manifest1
+        );
+        remoteClusterStateCleanupManager = new RemoteClusterStateCleanupManager(
+            remoteClusterStateService,
+            clusterService,
+            remoteRoutingTableService
+        );
+        remoteClusterStateCleanupManager.start();
+        remoteClusterStateCleanupManager.deleteClusterMetadata(clusterName, clusterUUID, activeBlobs, inactiveBlobs);
+        verify(remoteRoutingTableService).deleteStaleIndexRoutingDiffPaths(List.of("index1RoutingDiffPath"));
+    }
+
     public void testDeleteClusterMetadataNoOpsRoutingTableService() throws IOException {
         String clusterUUID = "clusterUUID";
         String clusterName = "test-cluster";
@@ -512,6 +581,83 @@ public class RemoteClusterStateCleanupManagerTests extends OpenSearchTestCase {
             // wait for stats to get updated
             assertNotNull(remoteClusterStateCleanupManager.getStats());
             assertEquals(1, remoteClusterStateCleanupManager.getStats().getIndexRoutingFilesCleanupAttemptFailedCount());
+        });
+    }
+
+    public void testIndicesRoutingDiffFilesCleanupFailureStats() throws Exception {
+        String clusterUUID = "clusterUUID";
+        String clusterName = "test-cluster";
+        List<BlobMetadata> inactiveBlobs = Arrays.asList(new PlainBlobMetadata("manifest1.dat", 1L));
+        List<BlobMetadata> activeBlobs = Arrays.asList(new PlainBlobMetadata("manifest2.dat", 1L));
+
+        UploadedMetadataAttribute coordinationMetadata = new UploadedMetadataAttribute(COORDINATION_METADATA, "coordination_metadata");
+        UploadedMetadataAttribute templateMetadata = new UploadedMetadataAttribute(TEMPLATES_METADATA, "template_metadata");
+        UploadedMetadataAttribute settingMetadata = new UploadedMetadataAttribute(SETTING_METADATA, "settings_metadata");
+        UploadedMetadataAttribute coordinationMetadataUpdated = new UploadedMetadataAttribute(
+            COORDINATION_METADATA,
+            "coordination_metadata_updated"
+        );
+
+        UploadedIndexMetadata index1Metadata = new UploadedIndexMetadata("index1", "indexUUID1", "index_metadata1__2");
+        UploadedIndexMetadata index2Metadata = new UploadedIndexMetadata("index2", "indexUUID2", "index_metadata2__2");
+        List<UploadedIndexMetadata> indicesRouting1 = List.of(index1Metadata);
+        List<UploadedIndexMetadata> indicesRouting2 = List.of(index2Metadata);
+        ClusterStateDiffManifest diffManifest1 = ClusterStateDiffManifest.builder().indicesRoutingDiffPath("index1RoutingDiffPath").build();
+        ClusterStateDiffManifest diffManifest2 = ClusterStateDiffManifest.builder().indicesRoutingDiffPath("index2RoutingDiffPath").build();
+
+        ClusterMetadataManifest manifest1 = ClusterMetadataManifest.builder()
+            .indices(List.of(index1Metadata))
+            .coordinationMetadata(coordinationMetadataUpdated)
+            .templatesMetadata(templateMetadata)
+            .settingMetadata(settingMetadata)
+            .clusterTerm(1L)
+            .stateVersion(1L)
+            .codecVersion(CODEC_V3)
+            .stateUUID(randomAlphaOfLength(10))
+            .clusterUUID(clusterUUID)
+            .nodeId("nodeA")
+            .opensearchVersion(VersionUtils.randomOpenSearchVersion(random()))
+            .previousClusterUUID(ClusterState.UNKNOWN_UUID)
+            .committed(true)
+            .routingTableVersion(0L)
+            .indicesRouting(indicesRouting1)
+            .diffManifest(diffManifest1)
+            .build();
+        ClusterMetadataManifest manifest2 = ClusterMetadataManifest.builder(manifest1)
+            .indices(List.of(index2Metadata))
+            .indicesRouting(indicesRouting2)
+            .diffManifest(diffManifest2)
+            .build();
+
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        doThrow(IOException.class).when(blobContainer).delete();
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+
+        BlobPath blobPath = new BlobPath().add("random-path");
+        when((blobStoreRepository.basePath())).thenReturn(blobPath);
+        remoteClusterStateCleanupManager.start();
+        when(remoteManifestManager.getManifestFolderPath(eq(clusterName), eq(clusterUUID))).thenReturn(
+            new BlobPath().add(encodeString(clusterName)).add(CLUSTER_STATE_PATH_TOKEN).add(clusterUUID).add(MANIFEST)
+        );
+        when(remoteManifestManager.fetchRemoteClusterMetadataManifest(eq(clusterName), eq(clusterUUID), any())).thenReturn(
+            manifest1,
+            manifest2
+        );
+        doNothing().when(remoteRoutingTableService).deleteStaleIndexRoutingDiffPaths(any());
+
+        remoteClusterStateCleanupManager.deleteClusterMetadata(clusterName, clusterUUID, activeBlobs, inactiveBlobs);
+        assertBusy(() -> {
+            // wait for stats to get updated
+            assertNotNull(remoteClusterStateCleanupManager.getStats());
+            assertEquals(0, remoteClusterStateCleanupManager.getStats().getIndicesRoutingDiffFileCleanupAttemptFailedCount());
+        });
+
+        doThrow(IOException.class).when(remoteRoutingTableService).deleteStaleIndexRoutingDiffPaths(any());
+        remoteClusterStateCleanupManager.deleteClusterMetadata(clusterName, clusterUUID, activeBlobs, inactiveBlobs);
+        assertBusy(() -> {
+            // wait for stats to get updated
+            assertNotNull(remoteClusterStateCleanupManager.getStats());
+            assertEquals(1, remoteClusterStateCleanupManager.getStats().getIndicesRoutingDiffFileCleanupAttemptFailedCount());
         });
     }
 

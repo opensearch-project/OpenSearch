@@ -1,6 +1,6 @@
 <img src="https://opensearch.org/assets/img/opensearch-logo-themed.svg" height="64px">
 
-The maintainers of the OpenSearch Repo seek to promote an inclusive and engaged community of contributors. In order to facilitate this, weekly triage meetings are open-to-all and attendance is encouraged for anyone who hopes to contribute, discuss an issue, or learn more about the project. There are several weekly triage meetings scoped to the following component areas: Search, Storage, Cluster Manager, and finally "Core" as a catch-all for all other issues. To learn more about contributing to the OpenSearch Repo visit the [Contributing](./CONTRIBUTING.md) documentation.
+The maintainers of the OpenSearch Repo seek to promote an inclusive and engaged community of contributors. In order to facilitate this, weekly triage meetings are open-to-all and attendance is encouraged for anyone who hopes to contribute, discuss an issue, or learn more about the project. There are several weekly triage meetings scoped to the following component areas: Search, Storage, and Cluster Manager. To learn more about contributing to the OpenSearch Repo visit the [Contributing](./CONTRIBUTING.md) documentation.
 
 ### Do I need to attend for my issue to be addressed/triaged?
 
@@ -14,7 +14,7 @@ Each meeting we seek to address all new issues. However, should we run out of ti
 
 ### How do I join a Triage meeting?
 
- Check the [OpenSearch Meetup Group](https://www.meetup.com/opensearch/) for the latest schedule and details for joining each meeting. Each component area has its own meetup series: [Search](https://www.meetup.com/opensearch/events/300929493/), [Storage](https://www.meetup.com/opensearch/events/299907409/), [Cluster Manager](https://www.meetup.com/opensearch/events/301082218/), and [Core](https://www.meetup.com/opensearch/events/301061009/).
+ Check the [OpenSearch Meetup Group](https://www.meetup.com/opensearch/) for the latest schedule and details for joining each meeting. Each component area has its own meetup series: [Search](https://www.meetup.com/opensearch/events/300929493/), [Storage](https://www.meetup.com/opensearch/events/299907409/), [Cluster Manager](https://www.meetup.com/opensearch/events/301082218/), and [Indexing](https://www.meetup.com/opensearch/events/301734024/).
 
 After joining the virtual meeting, you can enable your video / voice to join the discussion.  If you do not have a webcam or microphone available, you can still join in via the text chat.
 
@@ -29,12 +29,13 @@ Meeting structure may vary slightly, but the general structure is as follows:
 3. **Announcements:** Any announcements will be made at the beginning of the meeting.
 4. **Review of New Issues:** We start by reviewing all untriaged issues. Each meeting has a label-based search to find relevant issues:
    - [Search](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3Auntriaged+label%3A%22Search%22%2C%22Search%3ARemote+Search%22%2C%22Search%3AResiliency%22%2C%22Search%3APerformance%22%2C%22Search%3ARelevance%22%2C%22Search%3AAggregations%22%2C%22Search%3AQuery+Capabilities%22%2C%22Search%3AQuery+Insights%22%2C%22Search%3ASearchable+Snapshots%22%2C%22Search%3AUser+Behavior+Insights%22)
+   - [Indexing](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3Auntriaged+label%3A%22Indexing%3AReplication%22%2C%22Indexing%22%2C%22Indexing%3APerformance%22%2C%22Indexing+%26+Search%22%2C)
    - [Storage](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3Auntriaged+label%3AStorage%2C%22Storage%3AResiliency%22%2C%22Storage%3APerformance%22%2C%22Storage%3ASnapshots%22%2C%22Storage%3ARemote%22%2C%22Storage%3ADurability%22)
    - [Cluster Manager](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3Auntriaged+label%3A%22Cluster+Manager%22%2C%22ClusterManager%3ARemoteState%22)
-   - [Core](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3Auntriaged+-label%3A%22Search%22%2C%22Search%3ARemote+Search%22%2C%22Search%3AResiliency%22%2C%22Search%3APerformance%22%2C%22Search%3ARelevance%22%2C%22Search%3AAggregations%22%2C%22Search%3AQuery+Capabilities%22%2C%22Search%3AQuery+Insights%22%2C%22Search%3ASearchable+Snapshots%22%2C%22Search%3AUser+Behavior+Insights%22%2C%22Storage%22%2C%22Storage%3AResiliency%22%2C%22Storage%3APerformance%22%2C%22Storage%3ASnapshots%22%2C%22Storage%3ARemote%22%2C%22Storage%3ADurability%22%2C%22Cluster+Manager%22%2C%22ClusterManager%3ARemoteState%22)
+   - [Core](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3Auntriaged+-label%3A%22Search%22%2C%22Search%3ARemote+Search%22%2C%22Search%3AResiliency%22%2C%22Search%3APerformance%22%2C%22Search%3ARelevance%22%2C%22Search%3AAggregations%22%2C%22Search%3AQuery+Capabilities%22%2C%22Search%3AQuery+Insights%22%2C%22Search%3ASearchable+Snapshots%22%2C%22Search%3AUser+Behavior+Insights%22%2C%22Storage%22%2C%22Storage%3AResiliency%22%2C%22Storage%3APerformance%22%2C%22Storage%3ASnapshots%22%2C%22Storage%3ARemote%22%2C%22Storage%3ADurability%22%2C%22Cluster+Manager%22%2C%22ClusterManager%3ARemoteState%22%2C%22Indexing%3AReplication%22%2C%22Indexing%22%2C%22Indexing%3APerformance%22%2C%22Indexing+%26+Search%22)
 5. **Attendee Requests:** An opportunity for any meeting member to request consideration of an issue or pull request.
 6. **Open Discussion:** Attendees can bring up any topics not already covered by filed issues or pull requests.
-7. **Review of Old Untriaged Issues:** Time permitting, each meeting will look at all [untriaged issues older than 14 days](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3Auntriaged+created%3A%3C2024-05-20) to prevent issues from falling through the cracks (note the GitHub API does not allow for relative times, so the date in this search must be updated every meeting).
+7. **Review of Old Untriaged Issues:** Look at all [untriaged issues older than 14 days](https://peternied.github.io/redirect/issue_search.html?owner=opensearch-project&repo=OpenSearch&tag=untriaged&created-since-days=14) to prevent issues from falling through the cracks.
 
 ### What is the role of the facilitator?
 
