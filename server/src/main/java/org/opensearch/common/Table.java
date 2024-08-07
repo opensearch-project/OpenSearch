@@ -43,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import reactor.util.annotation.NonNull;
+
 import static java.util.Collections.emptyMap;
 
 /**
@@ -59,8 +61,18 @@ public class Table {
     private List<Cell> currentCells;
     private boolean inHeaders = false;
     private boolean withTime = false;
+    private PaginationMetadata paginationMetadata = new PaginationMetadata(false, null, null);
+
     public static final String EPOCH = "epoch";
     public static final String TIMESTAMP = "timestamp";
+
+    public Table() {}
+
+    public Table(@Nullable PaginationMetadata paginationMetadata) {
+        if (paginationMetadata != null) {
+            this.paginationMetadata = paginationMetadata;
+        }
+    }
 
     public Table startHeaders() {
         inHeaders = true;
@@ -230,6 +242,18 @@ public class Table {
         return headerAliasMap;
     }
 
+    public boolean isTablePaginated() {
+        return paginationMetadata.isResponsePaginated;
+    }
+
+    public String getNextTokenForTable() {
+        return paginationMetadata.nextToken;
+    }
+
+    public String getPaginatedElementForTable() {
+        return paginationMetadata.paginatedElement;
+    }
+
     /**
      * Cell in a table
      *
@@ -252,6 +276,36 @@ public class Table {
         public Cell(Object value, Map<String, String> attr) {
             this.value = value;
             this.attr = attr;
+        }
+    }
+
+    /**
+     * Pagination metadata for a table.
+     *
+     * @opensearch.internal
+     */
+    public static class PaginationMetadata {
+
+        /**
+         * boolean denoting whether the table is paginated or not.
+         */
+        public final boolean isResponsePaginated;
+
+        /**
+         * String denoting the element which is being paginated (for e.g. shards, indices..).
+         */
+        public final String paginatedElement;
+
+        /**
+         * String denoting the nextToken of paginated response, which will be used to fetch nextPage (if any).
+         */
+        public final String nextToken;
+
+        public PaginationMetadata(@NonNull boolean isResponsePaginated, @Nullable String paginatedElement, @Nullable String nextToken) {
+            this.isResponsePaginated = isResponsePaginated;
+            assert !isResponsePaginated || paginatedElement != null : "paginatedElement must be specified for a table which is paginated";
+            this.paginatedElement = paginatedElement;
+            this.nextToken = nextToken;
         }
     }
 }

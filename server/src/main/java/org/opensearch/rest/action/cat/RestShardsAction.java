@@ -39,6 +39,7 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.Table;
@@ -65,11 +66,17 @@ import org.opensearch.rest.action.RestActionListener;
 import org.opensearch.rest.action.RestResponseListener;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
@@ -106,24 +113,53 @@ public class RestShardsAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+
+        String[] indices = new String[0];
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
+        if (request.hasParam("nextToken")) {
+            // ToDo: Add validation on the nextToken passed in the request
+            // Need to get the metadata as well
+            request.param("nextToken");
+            clusterStateRequest.clear().nodes(true).routingTable(true).metadata(true);
+        } else {
+            // Only parse the "index" param if the request is not-paginated.
+            indices = Strings.splitStringByCommaToArray(request.param("index"));
+            clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
+        }
+
+        String[] finalIndices = indices;
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                 indicesStatsRequest.all();
-                indicesStatsRequest.indices(indices);
+                final List<ShardRouting> shardRoutingResponseList = new ArrayList<>();
+                final Table.PaginationMetadata paginationMetadata;
+                if (request.hasParam("nextToken")) {
+                    List<String> indicesToBeQueried = new ArrayList<>();
+                    paginationMetadata = new Table.PaginationMetadata(
+                        true,
+                        "shards",
+                        getNextTokenForPaginatedResponse(request, clusterStateResponse, indicesToBeQueried, shardRoutingResponseList)
+                    );
+                    indicesStatsRequest.indices(indicesToBeQueried.toArray(new String[0]));
+                } else {
+                    shardRoutingResponseList.addAll(clusterStateResponse.getState().routingTable().allShards());
+                    indicesStatsRequest.indices(finalIndices);
+                    paginationMetadata = null;
+                }
                 client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
-                        return RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), channel);
+                        return RestTable.buildResponse(
+                            buildTable(request, clusterStateResponse, indicesStatsResponse, shardRoutingResponseList, paginationMetadata),
+                            channel
+                        );
                     }
                 });
             }
@@ -132,7 +168,11 @@ public class RestShardsAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        return getTableWithHeader(request, null);
+    }
+
+    protected Table getTableWithHeader(final RestRequest request, Table.PaginationMetadata paginationMetadata) {
+        Table table = new Table(paginationMetadata);
         table.startHeaders()
             .addCell("index", "default:true;alias:i,idx;desc:index name")
             .addCell("shard", "default:true;alias:s,sh;desc:shard name")
@@ -301,10 +341,15 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     // package private for testing
-    Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
-        Table table = getTableWithHeader(request);
-
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+    Table buildTable(
+        RestRequest request,
+        ClusterStateResponse state,
+        IndicesStatsResponse stats,
+        List<ShardRouting> shardRoutingList,
+        Table.PaginationMetadata paginationMetadata
+    ) {
+        Table table = getTableWithHeader(request, paginationMetadata);
+        for (ShardRouting shard : shardRoutingList) {
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
             CommitStats commitStats = null;
@@ -453,7 +498,106 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.endRow();
         }
-
         return table;
+    }
+
+    private List<String> getListOfIndicesSortedByCreateTime(final ClusterStateResponse clusterStateResponse) {
+        List<String> indicesList = new ArrayList<String>(clusterStateResponse.getState().getRoutingTable().getIndicesRouting().keySet());
+        indicesList.sort((index1, index2) -> {
+            Long index1CreationTimeStamp = clusterStateResponse.getState().metadata().indices().get(index1).getCreationDate();
+            Long index2CreationTimeStamp = clusterStateResponse.getState().metadata().indices().get(index2).getCreationDate();
+            if (index1CreationTimeStamp.equals(index2CreationTimeStamp)) {
+                return index1.compareTo(index2);
+            }
+            return (index1CreationTimeStamp - index2CreationTimeStamp) > 0 ? 1 : -1;
+        });
+        return indicesList;
+    }
+
+    private String getNextTokenForPaginatedResponse(
+        final RestRequest request,
+        ClusterStateResponse clusterStateResponse,
+        List<String> indicesToBeQueried,
+        List<ShardRouting> shardRoutingResponseList
+    ) {
+        final long defaultPageSize = (long) clusterStateResponse.getState().nodes().getDataNodes().size() + 1;
+
+        // Get the nextToken provided in the request
+        final String nextTokenInRequest = Objects.equals(request.param("nextToken"), "null")
+            ? null
+            : new String(Base64.getDecoder().decode(request.param("nextToken")), UTF_8);
+
+        List<String> sortedIndicesList = getListOfIndicesSortedByCreateTime(clusterStateResponse);
+
+        // Since all the shards for last ID would have already been sent in the last response,
+        // start iterating from the next shard for current page
+        int newPageStartShardID = nextTokenInRequest == null ? 0 : Integer.parseInt(nextTokenInRequest.split("\\$")[0]) + 1;
+
+        // Since all the shards corresponding to the last processed index might not have been included in the last page,
+        // start iterating from the last index number itself
+        int newPageStartIndexNumber = nextTokenInRequest == null ? 0 : Integer.parseInt(nextTokenInRequest.split("\\$")[1]);
+
+        // Get the number of shards upto the maxPageSize
+        long shardCountSoFar = 0L;
+        int lastProcessedShardNumber = -1;
+        int lastProcessedIndexNumber = -1;
+
+        // ToDo: Handle case when index gets deleted. Select the first index with creationTime just greater than the last index's
+        // creationTime
+        int indexNumberInSortedList = newPageStartIndexNumber;
+        for (; indexNumberInSortedList < sortedIndicesList.size(); indexNumberInSortedList++) {
+            String index = sortedIndicesList.get(indexNumberInSortedList);
+            Map<Integer, IndexShardRoutingTable> indexShards = clusterStateResponse.getState()
+                .getRoutingTable()
+                .getIndicesRouting()
+                .get(index)
+                .getShards();
+            // If all the shards corresponding to the last index were already processed, move to the next Index
+            if (indexNumberInSortedList == newPageStartIndexNumber && (newPageStartShardID > indexShards.size() - 1)) {
+                // ToDo: Add validation that the newPageStartShardID should not be greater than the newPageStartIndexShards.size()
+                newPageStartShardID = 0;
+                continue;
+            }
+            int lastProcessedShardNumberForCurrentIndex = -1;
+            int shardID = (indexNumberInSortedList == newPageStartIndexNumber) ? newPageStartShardID : 0;
+            for (; shardID < indexShards.size(); shardID++) {
+                shardCountSoFar += indexShards.get(shardID).shards().size();
+                if (shardCountSoFar > defaultPageSize) {
+                    break;
+                }
+                shardRoutingResponseList.addAll(indexShards.get(shardID).shards());
+                lastProcessedShardNumberForCurrentIndex = shardID;
+            }
+
+            if (shardCountSoFar > defaultPageSize) {
+                if (lastProcessedShardNumberForCurrentIndex != -1) {
+                    indicesToBeQueried.add(index);
+                    lastProcessedIndexNumber = indexNumberInSortedList;
+                    lastProcessedShardNumber = lastProcessedShardNumberForCurrentIndex;
+                }
+                break;
+            }
+            indicesToBeQueried.add(index);
+            lastProcessedShardNumber = lastProcessedShardNumberForCurrentIndex;
+            lastProcessedIndexNumber = indexNumberInSortedList;
+        }
+
+        // nextToken = "lastProcessedShardNumber$LastProcessedIndexNumber$CreateTimeOfLastProcessedIndex$NameOfLastProcessedIndex"
+        return indexNumberInSortedList >= sortedIndicesList.size()
+            ? null
+            : Base64.getEncoder()
+                .encodeToString(
+                    (lastProcessedShardNumber
+                        + "$"
+                        + (lastProcessedIndexNumber)
+                        + "$"
+                        + clusterStateResponse.getState()
+                            .metadata()
+                            .indices()
+                            .get(sortedIndicesList.get(lastProcessedIndexNumber))
+                            .getCreationDate()
+                        + "$"
+                        + sortedIndicesList.get(lastProcessedIndexNumber)).getBytes(StandardCharsets.UTF_8)
+                );
     }
 }
