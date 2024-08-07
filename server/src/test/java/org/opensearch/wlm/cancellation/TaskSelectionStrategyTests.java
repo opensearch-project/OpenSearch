@@ -10,6 +10,7 @@ package org.opensearch.wlm.cancellation;
 
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchTask;
+import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
 import org.opensearch.core.tasks.resourcetracker.ResourceStatsType;
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 public class TaskSelectionStrategyTests extends OpenSearchTestCase {
 
@@ -35,39 +37,79 @@ public class TaskSelectionStrategyTests extends OpenSearchTestCase {
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsGreaterThanZero() {
         TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
-        long threshold = 100L;
+        long thresholdInLong = 100L;
+        Double threshold = 0.1;
         long reduceBy = 50L;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<Task> tasks = getListOfTasks(threshold);
+        List<Task> tasks = getListOfTasks(thresholdInLong);
 
-        List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
+        QueryGroup queryGroup = new QueryGroup(
+            "testQueryGroup",
+            "queryGroupId1",
+            QueryGroup.ResiliencyMode.ENFORCED,
+            Map.of(resourceType, threshold),
+            1L
+        );
+
+        List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(
+            queryGroup,
+            tasks,
+            reduceBy,
+            resourceType
+        );
         assertFalse(selectedTasks.isEmpty());
+        assertEquals(
+            "[Workload Management] QueryGroup ID : queryGroupId1 breached the resource limit of : 10.0 for resource type : memory",
+            selectedTasks.get(0).getReasonString()
+        );
+        assertEquals(5, selectedTasks.get(0).getReasons().get(0).getCancellationScore());
         assertTrue(tasksUsageMeetsThreshold(selectedTasks, reduceBy));
     }
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsLesserThanZero() {
         TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
-        long threshold = 100L;
+        long thresholdInLong = 100L;
+        Double threshold = 0.1;
         long reduceBy = -50L;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<Task> tasks = getListOfTasks(threshold);
+        List<Task> tasks = getListOfTasks(thresholdInLong);
+        QueryGroup queryGroup = new QueryGroup(
+            "testQueryGroup",
+            "queryGroupId1",
+            QueryGroup.ResiliencyMode.ENFORCED,
+            Map.of(resourceType, threshold),
+            1L
+        );
 
         try {
-            testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
+            testTaskSelectionStrategy.selectTasksForCancellation(queryGroup, tasks, reduceBy, resourceType);
         } catch (Exception e) {
             assertTrue(e instanceof IllegalArgumentException);
-            assertEquals("reduceBy has to be greater than zero", e.getMessage());
+            assertEquals("limit has to be greater than zero", e.getMessage());
         }
     }
 
     public void testSelectTasksToCancelSelectsTasksMeetingThreshold_ifReduceByIsEqualToZero() {
         TaskSelectionStrategy testTaskSelectionStrategy = new TestTaskSelectionStrategy();
-        long threshold = 100L;
+        long thresholdInLong = 100L;
+        Double threshold = 0.1;
         long reduceBy = 0;
         ResourceType resourceType = ResourceType.MEMORY;
-        List<Task> tasks = getListOfTasks(threshold);
+        List<Task> tasks = getListOfTasks(thresholdInLong);
+        QueryGroup queryGroup = new QueryGroup(
+            "testQueryGroup",
+            "queryGroupId1",
+            QueryGroup.ResiliencyMode.ENFORCED,
+            Map.of(resourceType, threshold),
+            1L
+        );
 
-        List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(tasks, reduceBy, resourceType);
+        List<TaskCancellation> selectedTasks = testTaskSelectionStrategy.selectTasksForCancellation(
+            queryGroup,
+            tasks,
+            reduceBy,
+            resourceType
+        );
         assertTrue(selectedTasks.isEmpty());
     }
 

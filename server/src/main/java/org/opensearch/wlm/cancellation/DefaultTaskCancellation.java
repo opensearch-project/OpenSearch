@@ -147,6 +147,7 @@ public class DefaultTaskCancellation {
 
     private List<TaskCancellation> getTaskCancellations(QueryGroup queryGroup, ResourceType resourceType) {
         return taskSelectionStrategy.selectTasksForCancellation(
+            queryGroup,
             // get the active tasks in the query group
             queryGroupLevelResourceUsageViews.get(queryGroup.get_id()).getActiveTasks(),
             getReduceBy(queryGroup, resourceType),
