@@ -46,7 +46,7 @@ public class ResourceTypeTests extends OpenSearchTestCase {
     private <T extends CancellableTask> T createMockTask(Class<T> type, long cpuUsage, long heapUsage) {
         T task = mock(type);
         when(task.getTotalResourceUtilization(ResourceStats.CPU)).thenReturn(cpuUsage);
-        when(task.getTotalResourceUtilization(ResourceStats.MEMORY)).thenReturn(cpuUsage);
+        when(task.getTotalResourceUtilization(ResourceStats.MEMORY)).thenReturn(heapUsage);
         return task;
     }
 }
