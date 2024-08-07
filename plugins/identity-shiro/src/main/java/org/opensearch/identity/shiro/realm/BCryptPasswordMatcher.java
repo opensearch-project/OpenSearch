@@ -12,14 +12,14 @@ import org.apache.shiro.authc.AuthenticationInfo;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.authc.credential.CredentialsMatcher;
-import com.password4j.BcryptFunction;
-import com.password4j.Password;
 import org.opensearch.SpecialPermission;
 
 import java.nio.CharBuffer;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
+
+import com.password4j.BcryptFunction;
+import com.password4j.Password;
 
 import static org.opensearch.core.common.Strings.isNullOrEmpty;
 
@@ -49,23 +49,13 @@ public class BCryptPasswordMatcher implements CredentialsMatcher {
             throw new IllegalStateException("Hash cannot be empty or null");
         }
         CharBuffer passwordBuffer = CharBuffer.wrap(password);
-        try {
-            SecurityManager securityManager = System.getSecurityManager();
-            if (securityManager != null) {
-                securityManager.checkPermission(new SpecialPermission());
-            }
-            return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> Password.check(passwordBuffer, hash)
-                .with(BcryptFunction.getInstanceFromHash(hash)));
-        } finally {
-            cleanup(passwordBuffer);
+        SecurityManager securityManager = System.getSecurityManager();
+        if (securityManager != null) {
+            securityManager.checkPermission(new SpecialPermission());
         }
-    }
-
-    private void cleanup(CharBuffer password) {
-        password.clear();
-        char[] passwordOverwrite = new char[password.capacity()];
-        Arrays.fill(passwordOverwrite, '\0');
-        password.put(passwordOverwrite);
+        return AccessController.doPrivileged(
+            (PrivilegedAction<Boolean>) () -> Password.check(passwordBuffer, hash).with(BcryptFunction.getInstanceFromHash(hash))
+        );
     }
 
 }

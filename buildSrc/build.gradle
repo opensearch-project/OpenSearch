@@ -123,7 +123,7 @@ dependencies {
   api 'org.jruby.joni:joni:2.2.1'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.2.1"
-  api "org.bouncycastle:bc-fips:1.0.2.5"
+  api "org.bouncycastle:bc-fips:${props.getProperty('bouncycastle_jce')}"
 
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"

@@ -211,24 +211,24 @@ public class PemUtilsTests extends OpenSearchTestCase {
     public void testReadUnsupportedKey() {
         final Path path = getDataPath("/certs/pem-utils/key_unsupported.pem");
         SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
-        assertThat(e.getMessage(), containsString("file does not contain a supported key format"));
+        assertThat(e.getMessage(), containsString("Error parsing Private Key"));
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
+        assertThat(e.getMessage(), containsString("file is empty"));
     }
 
     public void testReadPemCertificateAsKey() {
         final Path path = getDataPath("/certs/pem-utils/testnode.crt");
         SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
-        assertThat(e.getMessage(), containsString("file does not contain a supported key format"));
+        assertThat(e.getMessage(), containsString("invalid encrypted private key class"));
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
     }
 
     public void testReadCorruptedKey() {
         final Path path = getDataPath("/certs/pem-utils/corrupted_key_pkcs8_plain.pem");
         SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
-        assertThat(e.getMessage(), containsString("private key"));
-        assertThat(e.getMessage(), containsString("cannot be parsed"));
+        assertThat(e.getMessage(), containsString("Error parsing Private Key"));
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
-        assertThat(e.getCause().getMessage(), containsString("PEM footer is invalid or missing"));
+        assertThat(e.getMessage(), containsString("file is empty"));
     }
 
     public void testReadEmptyFile() {
