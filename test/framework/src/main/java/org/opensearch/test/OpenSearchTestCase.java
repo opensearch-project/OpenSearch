@@ -815,6 +815,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
     }
 
+    /**
+     * @return a <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        int randomInt = randomInt();
+        return randomInt == Integer.MIN_VALUE ? 0 : Math.abs(randomInt);
+    }
+
     public static float randomFloat() {
         return random().nextFloat();
     }

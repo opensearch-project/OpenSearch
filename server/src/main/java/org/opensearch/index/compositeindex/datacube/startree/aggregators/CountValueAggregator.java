@@ -46,7 +46,17 @@ public class CountValueAggregator implements ValueAggregator<Long> {
 
     @Override
     public Long mergeAggregatedValues(Long value, Long aggregatedValue) {
-        return value + aggregatedValue;
+
+        long totalCount = getIdentityMetricValue();
+        if (value != null) {
+            totalCount += value;
+        }
+
+        if (aggregatedValue != null) {
+            totalCount += aggregatedValue;
+        }
+
+        return totalCount;
     }
 
     @Override

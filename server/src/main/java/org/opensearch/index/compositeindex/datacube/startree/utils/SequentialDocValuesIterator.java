@@ -9,6 +9,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -29,6 +30,11 @@ public class SequentialDocValuesIterator {
     private final DocIdSetIterator docIdSetIterator;
 
     /**
+     * The value associated with the latest document.
+     */
+    private Long docValue;
+
+    /**
      * The id of the latest document.
      */
     private int docId = -1;
@@ -43,12 +49,47 @@ public class SequentialDocValuesIterator {
     }
 
     /**
+     * Constructs a new SequentialDocValuesIterator instance with an empty sorted numeric.
+     *
+     */
+    public SequentialDocValuesIterator() {
+        this.docIdSetIterator = DocValues.emptySortedNumeric();
+    }
+
+    /**
+     * Returns the value associated with the latest document.
+     *
+     * @return the value associated with the latest document
+     */
+    public Long getDocValue() {
+        return docValue;
+    }
+
+    /**
+     * Sets the value associated with the latest document.
+     *
+     * @param docValue the value to be associated with the latest document
+     */
+    public void setDocValue(Long docValue) {
+        this.docValue = docValue;
+    }
+
+    /**
      * Returns the id of the latest document.
      *
      * @return the id of the latest document
      */
-    int getDocId() {
+    public int getDocId() {
         return docId;
+    }
+
+    /**
+     * Sets the id of the latest document.
+     *
+     * @param docId the ID of the latest document
+     */
+    public void setDocId(int docId) {
+        this.docId = docId;
     }
 
     /**
@@ -65,7 +106,7 @@ public class SequentialDocValuesIterator {
         if (docId >= currentDocId) {
             return docId;
         }
-        docId = this.docIdSetIterator.nextDoc();
+        setDocId(this.docIdSetIterator.nextDoc());
         return docId;
     }
 
@@ -81,7 +122,12 @@ public class SequentialDocValuesIterator {
             if (docId == DocIdSetIterator.NO_MORE_DOCS || docId != currentDocId) {
                 return null;
             }
-            return sortedNumericDocValues.nextValue();
+            if (docValue == null) {
+                docValue = sortedNumericDocValues.nextValue();
+            }
+            Long nextValue = docValue;
+            docValue = null;
+            return nextValue;
 
         } else {
             throw new IllegalStateException("Unsupported Iterator requested for SequentialDocValuesIterator");

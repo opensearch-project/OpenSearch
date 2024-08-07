@@ -23,6 +23,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.Rounding;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -30,16 +31,27 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.MapperTestUtils;
 import org.opensearch.index.codec.composite.Composite99Codec;
+import org.opensearch.index.compositeindex.datacube.DateDimension;
+import org.opensearch.index.compositeindex.datacube.Dimension;
+import org.opensearch.index.compositeindex.datacube.Metric;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.NumericDimension;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.indices.IndicesModule;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
+import static org.opensearch.test.OpenSearchTestCase.randomFrom;
 
 /**
  * Star tree doc values Lucene tests
@@ -68,12 +80,38 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         final Logger testLogger = LogManager.getLogger(StarTreeDocValuesFormatTests.class);
 
         try {
-            createMapperService(getExpandedMapping("status", "size"));
+            createMapperService(getExpandedMapping());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         Codec codec = new Composite99Codec(Lucene99Codec.Mode.BEST_SPEED, mapperService, testLogger);
         return codec;
+    }
+
+    private StarTreeMapper.StarTreeFieldType getStarTreeFieldType() {
+        List<MetricStat> m1 = new ArrayList<>();
+        m1.add(MetricStat.MAX);
+        Metric metric = new Metric("sndv", m1);
+        List<Rounding.DateTimeUnit> d1CalendarIntervals = new ArrayList<>();
+        d1CalendarIntervals.add(Rounding.DateTimeUnit.HOUR_OF_DAY);
+        StarTreeField starTreeField = getStarTreeField(d1CalendarIntervals, metric);
+
+        return new StarTreeMapper.StarTreeFieldType("star_tree", starTreeField);
+    }
+
+    private static StarTreeField getStarTreeField(List<Rounding.DateTimeUnit> d1CalendarIntervals, Metric metric1) {
+        DateDimension d1 = new DateDimension("field", d1CalendarIntervals);
+        NumericDimension d2 = new NumericDimension("dv");
+
+        List<Metric> metrics = List.of(metric1);
+        List<Dimension> dims = List.of(d1, d2);
+        StarTreeFieldConfiguration config = new StarTreeFieldConfiguration(
+            100,
+            Collections.emptySet(),
+            randomFrom(StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP) // TODO : change it
+        );
+
+        return new StarTreeField("starTree", dims, metrics, config);
     }
 
     public void testStarTreeDocValues() throws IOException {
@@ -106,7 +144,7 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         directory.close();
     }
 
-    private XContentBuilder getExpandedMapping(String dim, String metric) throws IOException {
+    private XContentBuilder getExpandedMapping() throws IOException {
         return topMapping(b -> {
             b.startObject("composite");
             b.startObject("startree");

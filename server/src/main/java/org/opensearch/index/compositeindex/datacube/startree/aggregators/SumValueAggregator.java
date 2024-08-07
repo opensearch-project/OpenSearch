@@ -63,7 +63,11 @@ public class SumValueAggregator implements ValueAggregator<Double> {
     public Double mergeAggregatedValues(Double value, Double aggregatedValue) {
         assert kahanSummation.value() == aggregatedValue;
         kahanSummation.reset(sum, compensation);
-        kahanSummation.add(value);
+        if (value != null) {
+            kahanSummation.add(value);
+        } else {
+            kahanSummation.add(getIdentityMetricValue());
+        }
         compensation = kahanSummation.delta();
         sum = kahanSummation.value();
         return kahanSummation.value();
