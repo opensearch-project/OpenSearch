@@ -19,7 +19,7 @@ import org.opensearch.threadpool.ThreadPool;
  * Plugin for providing TaskWorkers for Offline Nodes
  */
 @ExperimentalApi
-public interface OfflineTaskWorkerPlugin {
+public interface TaskWorkerPlugin {
 
     /**
      * Get the new TaskWorker for a TaskType
