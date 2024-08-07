@@ -52,7 +52,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     }
 
     public void testValidStarTree() throws IOException {
-        MapperService mapperService = createMapperService(getExpandedMapping("status", "size"));
+        MapperService mapperService = createMapperService(getExpandedMappingWithJustAvg("status", "size"));
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
         for (CompositeMappedFieldType type : compositeFieldTypes) {
             StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
@@ -66,7 +66,37 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(expectedTimeUnits, dateDim.getIntervals());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
-            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.SUM, MetricStat.AVG);
+
+            // Assert COUNT and SUM gets added when AVG is mentioned
+            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.COUNT, MetricStat.SUM);
+            assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
+            assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
+            assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
+            assertEquals(
+                new HashSet<>(Arrays.asList("@timestamp", "status")),
+                starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims()
+            );
+        }
+    }
+
+    public void testMetricsWithJustSum() throws IOException {
+        MapperService mapperService = createMapperService(getExpandedMappingWithJustSum("status", "size"));
+        Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();
+        for (CompositeMappedFieldType type : compositeFieldTypes) {
+            StarTreeMapper.StarTreeFieldType starTreeFieldType = (StarTreeMapper.StarTreeFieldType) type;
+            assertEquals("@timestamp", starTreeFieldType.getDimensions().get(0).getField());
+            assertTrue(starTreeFieldType.getDimensions().get(0) instanceof DateDimension);
+            DateDimension dateDim = (DateDimension) starTreeFieldType.getDimensions().get(0);
+            List<Rounding.DateTimeUnit> expectedTimeUnits = Arrays.asList(
+                Rounding.DateTimeUnit.DAY_OF_MONTH,
+                Rounding.DateTimeUnit.MONTH_OF_YEAR
+            );
+            assertEquals(expectedTimeUnits, dateDim.getIntervals());
+            assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
+            assertEquals("size", starTreeFieldType.getMetrics().get(0).getField());
+
+            // Assert COUNT gets added for any metric field
+            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.COUNT, MetricStat.SUM);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(100, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
@@ -92,13 +122,7 @@ public class StarTreeMapperTests extends MapperTestCase {
             assertEquals(expectedTimeUnits, dateDim.getIntervals());
             assertEquals("status", starTreeFieldType.getDimensions().get(1).getField());
             assertEquals("status", starTreeFieldType.getMetrics().get(0).getField());
-            List<MetricStat> expectedMetrics = Arrays.asList(
-                MetricStat.AVG,
-                MetricStat.COUNT,
-                MetricStat.SUM,
-                MetricStat.MAX,
-                MetricStat.MIN
-            );
+            List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.COUNT, MetricStat.SUM);
             assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
             assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
             assertEquals(StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP, starTreeFieldType.getStarTreeConfig().getBuildMode());
@@ -109,7 +133,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     public void testInvalidDim() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(getExpandedMapping("invalid", "size"))
+            () -> createMapperService(getExpandedMappingWithJustAvg("invalid", "size"))
         );
         assertEquals("Failed to parse mapping [_doc]: unknown dimension field [invalid]", ex.getMessage());
     }
@@ -117,7 +141,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     public void testInvalidMetric() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(getExpandedMapping("status", "invalid"))
+            () -> createMapperService(getExpandedMappingWithJustAvg("status", "invalid"))
         );
         assertEquals("Failed to parse mapping [_doc]: unknown metric field [invalid]", ex.getMessage());
     }
@@ -232,6 +256,10 @@ public class StarTreeMapperTests extends MapperTestCase {
         assertEquals(MetricStat.MIN, MetricStat.fromTypeName("min"));
         assertEquals(MetricStat.SUM, MetricStat.fromTypeName("sum"));
         assertEquals(MetricStat.AVG, MetricStat.fromTypeName("avg"));
+
+        assertEquals(Set.of(MetricStat.COUNT), MetricStat.getRequiredMetrics());
+        assertEquals(List.of(MetricStat.COUNT, MetricStat.SUM), MetricStat.AVG.getDerivedFromMetrics());
+
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> MetricStat.fromTypeName("invalid"));
         assertEquals("Invalid metric stat: invalid", ex.getMessage());
     }
@@ -310,7 +338,7 @@ public class StarTreeMapperTests extends MapperTestCase {
     }
 
     public void testValidations() throws IOException {
-        MapperService mapperService = createMapperService(getExpandedMapping("status", "size"));
+        MapperService mapperService = createMapperService(getExpandedMappingWithJustAvg("status", "size"));
         Settings settings = Settings.builder().put(CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(), true).build();
         CompositeIndexSettings enabledCompositeIndexSettings = new CompositeIndexSettings(
             settings,
@@ -370,7 +398,57 @@ public class StarTreeMapperTests extends MapperTestCase {
         );
     }
 
-    private XContentBuilder getExpandedMapping(String dim, String metric) throws IOException {
+    private XContentBuilder getExpandedMappingWithJustAvg(String dim, String metric) throws IOException {
+        return topMapping(b -> {
+            b.startObject("composite");
+            b.startObject("startree");
+            b.field("type", "star_tree");
+            b.startObject("config");
+            b.field("max_leaf_docs", 100);
+            b.startArray("skip_star_node_creation_for_dimensions");
+            {
+                b.value("@timestamp");
+                b.value("status");
+            }
+            b.endArray();
+            b.startArray("ordered_dimensions");
+            b.startObject();
+            b.field("name", "@timestamp");
+            b.startArray("calendar_intervals");
+            b.value("day");
+            b.value("month");
+            b.endArray();
+            b.endObject();
+            b.startObject();
+            b.field("name", dim);
+            b.endObject();
+            b.endArray();
+            b.startArray("metrics");
+            b.startObject();
+            b.field("name", metric);
+            b.startArray("stats");
+            b.value("avg");
+            b.endArray();
+            b.endObject();
+            b.endArray();
+            b.endObject();
+            b.endObject();
+            b.endObject();
+            b.startObject("properties");
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.endObject();
+            b.startObject("status");
+            b.field("type", "integer");
+            b.endObject();
+            b.startObject("size");
+            b.field("type", "integer");
+            b.endObject();
+            b.endObject();
+        });
+    }
+
+    private XContentBuilder getExpandedMappingWithJustSum(String dim, String metric) throws IOException {
         return topMapping(b -> {
             b.startObject("composite");
             b.startObject("startree");
@@ -400,7 +478,6 @@ public class StarTreeMapperTests extends MapperTestCase {
             b.field("name", metric);
             b.startArray("stats");
             b.value("sum");
-            b.value("avg");
             b.endArray();
             b.endObject();
             b.endArray();

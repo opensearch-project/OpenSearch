@@ -265,13 +265,9 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals(expectedTimeUnits, dateDim.getIntervals());
                     assertEquals("numeric_dv", starTreeFieldType.getDimensions().get(1).getField());
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
-                    List<MetricStat> expectedMetrics = Arrays.asList(
-                        MetricStat.AVG,
-                        MetricStat.COUNT,
-                        MetricStat.SUM,
-                        MetricStat.MAX,
-                        MetricStat.MIN
-                    );
+
+                    // Assert default metrics
+                    List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.COUNT, MetricStat.SUM);
                     assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
                     assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
                     assertEquals(
@@ -349,13 +345,9 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals(expectedTimeUnits, dateDim.getIntervals());
                     assertEquals("numeric_dv", starTreeFieldType.getDimensions().get(1).getField());
                     assertEquals("numeric_dv", starTreeFieldType.getMetrics().get(0).getField());
-                    List<MetricStat> expectedMetrics = Arrays.asList(
-                        MetricStat.AVG,
-                        MetricStat.COUNT,
-                        MetricStat.SUM,
-                        MetricStat.MAX,
-                        MetricStat.MIN
-                    );
+
+                    // Assert default metrics
+                    List<MetricStat> expectedMetrics = Arrays.asList(MetricStat.COUNT, MetricStat.SUM);
                     assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
                     assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
                     assertEquals(

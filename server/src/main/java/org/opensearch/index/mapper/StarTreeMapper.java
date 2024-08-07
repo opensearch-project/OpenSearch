@@ -262,14 +262,19 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                 .collect(Collectors.toList());
             metric.remove(STATS);
             if (metricStrings.isEmpty()) {
-                metricTypes = new ArrayList<>(StarTreeIndexSettings.DEFAULT_METRICS_LIST.get(context.getSettings()));
-            } else {
-                Set<MetricStat> metricSet = new LinkedHashSet<>();
-                for (String metricString : metricStrings) {
-                    metricSet.add(MetricStat.fromTypeName(metricString));
-                }
-                metricTypes = new ArrayList<>(metricSet);
+                metricStrings = new ArrayList<>(StarTreeIndexSettings.DEFAULT_METRICS_LIST.get(context.getSettings()));
             }
+            // Add all required field initially
+            Set<MetricStat> metricSet = new LinkedHashSet<>(MetricStat.getRequiredMetrics());
+            for (String metricString : metricStrings) {
+                MetricStat metricStat = MetricStat.fromTypeName(metricString);
+                if (metricStat.isDerivedMetric()) {
+                    metricSet.addAll(metricStat.getDerivedFromMetrics());
+                } else {
+                    metricSet.add(metricStat);
+                }
+            }
+            metricTypes = new ArrayList<>(metricSet);
             return new Metric(name, metricTypes);
         }
 
