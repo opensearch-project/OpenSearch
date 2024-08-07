@@ -133,17 +133,13 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
             SecurityException.class,
             () -> loadedKeystore.decrypt(new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' })
         );
-        if (inFipsJvm()) {
-            assertThat(
-                exception.getMessage(),
-                anyOf(
-                    containsString("Provided keystore password was incorrect"),
-                    containsString("Keystore has been corrupted or tampered with")
-                )
-            );
-        } else {
-            assertThat(exception.getMessage(), containsString("Provided keystore password was incorrect"));
-        }
+        assertThat(
+            exception.getMessage(),
+            anyOf(
+                containsString("Provided keystore password was incorrect"),
+                containsString("Keystore has been corrupted or tampered with")
+            )
+        );
     }
 
     public void testCannotReadStringFromClosedKeystore() throws Exception {
@@ -374,8 +370,8 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
             output.writeString("PKCS12");
             output.writeString("PBE");
 
-            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12");
+            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE", "SunJCE");
+            KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
             keystore.load(null, null);
             SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
             KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);
@@ -415,8 +411,8 @@ public class KeyStoreWrapperTests extends OpenSearchTestCase {
             output.writeString("file_setting");
             output.writeString("FILE");
 
-            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE");
-            KeyStore keystore = KeyStore.getInstance("PKCS12");
+            SecretKeyFactory secretFactory = SecretKeyFactory.getInstance("PBE", "SunJCE");
+            KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
             keystore.load(null, null);
             SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec("stringSecretValue".toCharArray()));
             KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(new char[0]);

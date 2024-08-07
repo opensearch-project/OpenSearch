@@ -115,8 +115,8 @@ dependencies {
   api libs.roaringbitmap
 
   // bouncyCastle
-  api 'org.bouncycastle:bc-fips:1.0.2.5'
-  api 'org.bouncycastle:bctls-fips:1.0.19'
+  api "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  api "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
 
   testImplementation 'org.awaitility:awaitility:4.2.2'
   testImplementation(project(":test:framework")) {
@@ -152,6 +152,10 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.binary'
     exclude '**/*.st'
     exclude '**/*.meta'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 tasks.named("testingConventions").configure {
@@ -345,6 +349,18 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
             'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
+            'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
+            'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2',
             'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
     )
 }

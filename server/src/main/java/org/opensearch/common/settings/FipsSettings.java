@@ -15,9 +15,6 @@ import org.opensearch.common.settings.Setting.Property;
  */
 public class FipsSettings {
 
-    public static final Setting<Boolean> FIPS_ENABLED = Setting.boolSetting(
-        "fips.approved",
-        false,
-        Property.NodeScope);
+    public static final Setting<Boolean> FIPS_ENABLED = Setting.boolSetting("fips.approved", false, Property.NodeScope);
 
 }

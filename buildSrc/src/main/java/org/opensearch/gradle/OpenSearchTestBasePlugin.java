@@ -164,6 +164,11 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 test.systemProperty("tests.seed", BuildParams.getTestSeed());
             }
 
+            test.systemProperty(
+                "java.security.properties",
+                project.getRootProject().getLayout().getProjectDirectory() + "/distribution/src/config/fips_java.security"
+            );
+
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             File gradleHome = project.getGradle().getGradleUserHomeDir();
             String gradleVersion = project.getGradle().getGradleVersion();
