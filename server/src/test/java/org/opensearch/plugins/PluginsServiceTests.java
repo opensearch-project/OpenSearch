@@ -935,7 +935,6 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         testPlugin.setPluginNodeClient(pluginNodeClient); // should succeed
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginNodeClient(pluginNodeClient));
         assertThat(e.getMessage(), containsString("pluginNodeClient can only be set once"));
-
     }
 
     public void testExtensiblePlugin() {
