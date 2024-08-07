@@ -30,20 +30,15 @@ import org.opensearch.transport.TransportService;
  */
 public class TransportCatShardsAction extends HandledTransportAction<CatShardsRequest, CatShardsResponse> {
 
-    private final TransportService transportService;
-    private final ClusterService clusterService;
     private final NodeClient client;
 
     @Inject
     public TransportCatShardsAction(
         NodeClient client,
         TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService
+        ActionFilters actionFilters
     ) {
         super(CatShardsAction.NAME, transportService, actionFilters, CatShardsRequest::new);
-        this.clusterService = clusterService;
-        this.transportService = transportService;
         this.client = client;
     }
 
