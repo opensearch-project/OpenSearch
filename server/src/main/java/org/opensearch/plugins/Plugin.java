@@ -34,6 +34,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginNodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -46,8 +47,6 @@ import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.PluginContextSwitcher;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -95,7 +94,7 @@ import java.util.function.UnaryOperator;
 @PublicApi(since = "1.0.0")
 public abstract class Plugin implements Closeable {
 
-    protected ContextSwitcher contextSwitcher;
+    protected PluginNodeClient pluginNodeClient;
 
     /**
      * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link Metadata.Custom}; see
@@ -124,15 +123,15 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Setter for PluginContextSwitcher.
+     * Setter for PluginNodeClient.
      *
-     * @param contextSwitcher A client for switching to plugin system context
+     * @param pluginNodeClient A client for executing transport actions as the plugin
      */
-    final void setContextSwitcher(PluginContextSwitcher contextSwitcher) {
-        if (this.contextSwitcher != null) {
-            throw new IllegalStateException("contextSwitcher can only be set once");
+    final void setPluginNodeClient(PluginNodeClient pluginNodeClient) {
+        if (this.pluginNodeClient != null) {
+            throw new IllegalStateException("pluginNodeClient can only be set once");
         }
-        this.contextSwitcher = contextSwitcher;
+        this.pluginNodeClient = pluginNodeClient;
     }
 
     /**

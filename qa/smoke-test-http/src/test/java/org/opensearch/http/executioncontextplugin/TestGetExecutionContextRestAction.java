@@ -6,16 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.http;
+package org.opensearch.http.executioncontextplugin;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.util.concurrent.ContextSwitcher;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.rest.RestStatus;
+import org.opensearch.client.node.PluginNodeClient;
 import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -25,11 +22,11 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class TestGetExecutionContextRestAction extends BaseRestHandler {
 
-    private final ContextSwitcher contextSwitcher;
+    private final PluginNodeClient pluginNodeClient;
     private final ThreadPool threadPool;
 
-    public TestGetExecutionContextRestAction(ContextSwitcher contextSwitcher, ThreadPool threadPool) {
-        this.contextSwitcher = contextSwitcher;
+    public TestGetExecutionContextRestAction(PluginNodeClient pluginNodeClient, ThreadPool threadPool) {
+        this.pluginNodeClient = pluginNodeClient;
         this.threadPool = threadPool;
     }
 
@@ -45,11 +42,7 @@ public class TestGetExecutionContextRestAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String stashedContext;
-        try (ThreadContext.StoredContext storedContext = contextSwitcher.switchContext()) {
-            stashedContext = threadPool.getThreadContext().getHeader(ThreadContext.PLUGIN_EXECUTION_CONTEXT);
-        }
-        RestResponse response = new BytesRestResponse(RestStatus.OK, stashedContext);
-        return channel -> channel.sendResponse(response);
+        final TestGetExecutionContextRequest getExecutionContextRequest = new TestGetExecutionContextRequest();
+        return channel -> pluginNodeClient.executeLocally(TestGetExecutionContextAction.INSTANCE, getExecutionContextRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -42,21 +42,24 @@ import org.apache.lucene.util.SPIClassIterator;
 import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionModule;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.bootstrap.JarHell;
+import org.opensearch.client.node.PluginNodeClient;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.PluginContextSwitcher;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.semver.SemverRange;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -83,6 +86,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.opensearch.core.util.FileSystemUtils.isAccessibleDirectory;
@@ -777,11 +781,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    public void initializePlugins(ThreadPool threadPool) {
+    public void initializePlugins(
+        Settings settings,
+        ThreadPool threadPool,
+        ActionModule.DynamicActionRegistry actionRegistry,
+        Supplier<String> localNodeId,
+        RemoteClusterService remoteClusterService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
         List<Plugin> pluginList = filterPlugins(Plugin.class);
         for (Plugin p : pluginList) {
-            PluginContextSwitcher contextSwitcher = new PluginContextSwitcher(threadPool, p);
-            p.setContextSwitcher(contextSwitcher);
+            PluginNodeClient client = new PluginNodeClient(settings, threadPool, p);
+            client.initialize(actionRegistry, localNodeId, remoteClusterService, namedWriteableRegistry);
+            p.setPluginNodeClient(client);
         }
     }
 

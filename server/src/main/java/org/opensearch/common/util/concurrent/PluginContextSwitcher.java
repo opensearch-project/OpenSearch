@@ -8,7 +8,6 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -16,9 +15,8 @@ import org.opensearch.threadpool.ThreadPool;
  * ContextSwitcher that is passed to plugins in order to switch to a fresh context
  * from any existing context
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "2.17.0")
 public class PluginContextSwitcher implements ContextSwitcher {
 
     private final ThreadPool threadPool;

@@ -8,14 +8,11 @@
 
 package org.opensearch.common.util.concurrent;
 
-import org.opensearch.common.annotation.PublicApi;
-
 /**
  * ContextSwitcher interface
  *
- * @opensearch.api
+ * @opensearch.internal
  */
-@PublicApi(since = "2.17.0")
 public interface ContextSwitcher {
     ThreadContext.StoredContext switchContext();
 }
