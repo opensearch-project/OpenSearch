@@ -13,6 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingPool;
@@ -60,6 +61,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
     private final boolean preferPrimaryBalance;
     private final boolean preferPrimaryRebalance;
+
+    private final boolean ignoreThrottleInRestore;
     private final BalancedShardsAllocator.WeightFunction weight;
 
     private final float threshold;
@@ -77,7 +80,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         BalancedShardsAllocator.WeightFunction weight,
         float threshold,
         boolean preferPrimaryBalance,
-        boolean preferPrimaryRebalance
+        boolean preferPrimaryRebalance,
+        boolean ignoreThrottleInRestore
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -94,6 +98,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.preferPrimaryBalance = preferPrimaryBalance;
         this.preferPrimaryRebalance = preferPrimaryRebalance;
         this.shardMovementStrategy = shardMovementStrategy;
+        this.ignoreThrottleInRestore = ignoreThrottleInRestore;
     }
 
     /**
@@ -918,7 +923,15 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 nodeExplanationMap.put(node.getNodeId(), new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
                 nodeWeights.add(Tuple.tuple(node.getNodeId(), currentWeight));
             }
-            if (currentDecision.type() == Decision.Type.YES || currentDecision.type() == Decision.Type.THROTTLE) {
+
+            // For REMOTE_STORE recoveries, THROTTLE is as good as NO as we want faster recoveries
+            // The side effect of this are increased relocations post these allocations.
+            boolean considerThrottleAsNo = ignoreThrottleInRestore
+                && shard.recoverySource().getType() == RecoverySource.Type.REMOTE_STORE
+                && shard.primary();
+
+            if (currentDecision.type() == Decision.Type.YES
+                || (currentDecision.type() == Decision.Type.THROTTLE && considerThrottleAsNo == false)) {
                 final boolean updateMinNode;
                 if (currentWeight == minWeight) {
                     /*  we have an equal weight tie breaking:
