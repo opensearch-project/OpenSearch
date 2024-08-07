@@ -275,7 +275,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
                     assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
                     assertEquals(
-                        StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP,
+                        StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP,
                         starTreeFieldType.getStarTreeConfig().getBuildMode()
                     );
                     assertEquals(Collections.emptySet(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());
@@ -359,7 +359,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                     assertEquals(expectedMetrics, starTreeFieldType.getMetrics().get(0).getMetrics());
                     assertEquals(10000, starTreeFieldType.getStarTreeConfig().maxLeafDocs());
                     assertEquals(
-                        StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP,
+                        StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP,
                         starTreeFieldType.getStarTreeConfig().getBuildMode()
                     );
                     assertEquals(Collections.emptySet(), starTreeFieldType.getStarTreeConfig().getSkipStarNodeCreationInDims());

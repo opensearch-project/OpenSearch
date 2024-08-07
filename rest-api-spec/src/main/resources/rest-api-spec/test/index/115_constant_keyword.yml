@@ -70,8 +70,8 @@
 ---
 "Queries":
   - skip:
-      version: " - 2.99.99"
-      reason: "rangeQuery and regexpQuery are supported in 3.0.0 in main branch"
+      version: " - 2.16.99"
+      reason: "rangeQuery and regexpQuery are introduced in 2.17.0"
 
   - do:
       indices.create:

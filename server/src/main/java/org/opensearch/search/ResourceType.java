@@ -10,21 +10,26 @@ package org.opensearch.search;
 
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.resourcetracker.ResourceStats;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 /**
  * Enum to hold the resource type
  */
 @PublicApi(since = "2.x")
 public enum ResourceType {
-    CPU("cpu"),
-    MEMORY("memory");
+    CPU("cpu", task -> task.getTotalResourceUtilization(ResourceStats.CPU)),
+    MEMORY("memory", task -> task.getTotalResourceUtilization(ResourceStats.MEMORY));
 
     private final String name;
+    private final Function<Task, Long> getResourceUsage;
 
-    ResourceType(String name) {
+    ResourceType(String name, Function<Task, Long> getResourceUsage) {
         this.name = name;
+        this.getResourceUsage = getResourceUsage;
     }
 
     /**
@@ -47,5 +52,15 @@ public enum ResourceType {
 
     public String getName() {
         return name;
+    }
+
+    /**
+     * Gets the resource usage for a given resource type and task.
+     *
+     * @param task the task for which to calculate resource usage
+     * @return the resource usage
+     */
+    public long getResourceUsage(Task task) {
+        return getResourceUsage.apply(task);
     }
 }
