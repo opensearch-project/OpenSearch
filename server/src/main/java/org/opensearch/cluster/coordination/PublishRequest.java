@@ -32,6 +32,7 @@
 package org.opensearch.cluster.coordination;
 
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
 
 import java.util.Objects;
 
@@ -44,13 +45,24 @@ import java.util.Objects;
 public class PublishRequest {
 
     private final ClusterState acceptedState;
+    private final ClusterMetadataManifest manifest;
 
     public PublishRequest(ClusterState acceptedState) {
         this.acceptedState = acceptedState;
+        this.manifest = null;
+    }
+
+    public PublishRequest(ClusterState acceptedState, ClusterMetadataManifest manifest) {
+        this.acceptedState = acceptedState;
+        this.manifest = manifest;
     }
 
     public ClusterState getAcceptedState() {
         return acceptedState;
+    }
+
+    public ClusterMetadataManifest getManifest() {
+        return manifest;
     }
 
     @Override
@@ -70,6 +82,13 @@ public class PublishRequest {
 
     @Override
     public String toString() {
-        return "PublishRequest{term=" + acceptedState.term() + ", version=" + acceptedState.version() + ", state=" + acceptedState + '}';
+        return "PublishRequest{term="
+            + acceptedState.term()
+            + ", version="
+            + acceptedState.version()
+            + ", state="
+            + acceptedState
+            + (manifest != null ? ", manifest=" + manifest : "")
+            + '}';
     }
 }

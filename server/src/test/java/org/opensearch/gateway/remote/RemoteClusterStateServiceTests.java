@@ -580,14 +580,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertEquals(0, remoteClusterStateService.getStats().getSuccessCount());
     }
 
-    public void testFailWriteIncrementalMetadataWhenTermChanged() {
+    public void testFailWriteIncrementalMetadataWhenManifestNull() {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(2L).build();
         final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
             .build();
         assertThrows(
-            AssertionError.class,
+            NullPointerException.class,
             () -> remoteClusterStateService.writeIncrementalMetadata(previousClusterState, clusterState, null)
         );
     }
