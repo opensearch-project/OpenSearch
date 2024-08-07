@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.optimization.filterrewrite;
+package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,7 +18,6 @@ import org.opensearch.common.CheckedRunnable;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 
-import static org.opensearch.search.optimization.filterrewrite.Helper.loggerName;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
@@ -32,10 +31,10 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * PointValues.IntersectVisitor} implementation is responsible for the actual visitation and
  * document count collection.
  */
-final class TreeTraversal {
-    private TreeTraversal() {}
+final class PointTreeTraversal {
+    private PointTreeTraversal() {}
 
-    private static final Logger logger = LogManager.getLogger(loggerName);
+    private static final Logger logger = LogManager.getLogger(Helper.loggerName);
 
     /**
      * Traverses the given {@link PointValues.PointTree} and collects document counts for the intersecting ranges.
@@ -44,15 +43,15 @@ final class TreeTraversal {
      * @param ranges               the set of ranges to intersect with
      * @param incrementDocCount    a callback to increment the document count for a range bucket
      * @param maxNumNonZeroRanges  the maximum number of non-zero ranges to collect
-     * @return a {@link OptimizationContext.DebugInfo} object containing debug information about the traversal
+     * @return a {@link FilterRewriteOptimizationContext.DebugInfo} object containing debug information about the traversal
      */
-    static OptimizationContext.DebugInfo multiRangesTraverse(
+    static FilterRewriteOptimizationContext.DebugInfo multiRangesTraverse(
         final PointValues.PointTree tree,
         final Ranges ranges,
         final BiConsumer<Integer, Integer> incrementDocCount,
         final int maxNumNonZeroRanges
     ) throws IOException {
-        OptimizationContext.DebugInfo debugInfo = new OptimizationContext.DebugInfo();
+        FilterRewriteOptimizationContext.DebugInfo debugInfo = new FilterRewriteOptimizationContext.DebugInfo();
         int activeIndex = ranges.firstRangeIndex(tree.getMinPackedValue(), tree.getMaxPackedValue());
         if (activeIndex < 0) {
             logger.debug("No ranges match the query, skip the fast filter optimization");
@@ -74,7 +73,7 @@ final class TreeTraversal {
         PointValues.IntersectVisitor visitor,
         PointValues.PointTree pointTree,
         RangeCollectorForPointTree collector,
-        OptimizationContext.DebugInfo debug
+        FilterRewriteOptimizationContext.DebugInfo debug
     ) throws IOException {
         PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
 

@@ -73,11 +73,11 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketCollector;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.filterrewrite.CompositeAggregatorBridge;
+import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.filterrewrite.CompositeAggregatorBridge;
-import org.opensearch.search.optimization.filterrewrite.OptimizationContext;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 
@@ -94,7 +94,7 @@ import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
-import static org.opensearch.search.optimization.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
+import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
 
 /**
  * Main aggregator that aggregates docs from multiple aggregations
@@ -120,7 +120,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     private boolean earlyTerminated;
 
-    private final OptimizationContext optimizationContext;
+    private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
     private LongKeyedBucketOrds bucketOrds;
 
     CompositeAggregator(
@@ -167,12 +167,12 @@ public final class CompositeAggregator extends BucketsAggregator {
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.rawAfterKey = rawAfterKey;
 
-        optimizationContext = new OptimizationContext(new CompositeAggregatorBridge() {
+        CompositeAggregatorBridge bridge = new CompositeAggregatorBridge() {
             private RoundingValuesSource valuesSource;
             private long afterKey = -1L;
 
             @Override
-            public boolean canOptimize() {
+            protected boolean canOptimize() {
                 if (canOptimize(sourceConfigs)) {
                     this.valuesSource = (RoundingValuesSource) sourceConfigs[0].valuesSource();
                     if (rawAfterKey != null) {
@@ -190,7 +190,7 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            public void prepare() throws IOException {
+            protected void prepare() throws IOException {
                 buildRanges(context);
             }
 
@@ -221,10 +221,8 @@ public final class CompositeAggregator extends BucketsAggregator {
             protected Function<Long, Long> bucketOrdProducer() {
                 return (key) -> bucketOrds.add(0, getRoundingPrepared().round((long) key));
             }
-        });
-        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
-            optimizationContext.prepare();
-        }
+        };
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
     }
 
     @Override
@@ -559,7 +557,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();
@@ -713,6 +711,6 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
-        optimizationContext.populateDebugInfo(add);
+        filterRewriteOptimizationContext.populateDebugInfo(add);
     }
 }

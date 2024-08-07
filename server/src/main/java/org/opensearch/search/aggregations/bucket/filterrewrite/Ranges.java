@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.optimization.filterrewrite;
+package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.util.ArrayUtil;
 

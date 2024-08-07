@@ -16,4 +16,4 @@
  * </ul>
  * More details in https://github.com/opensearch-project/OpenSearch/pull/14464
  */
-package org.opensearch.search.optimization.filterrewrite;
+package org.opensearch.search.aggregations.bucket.filterrewrite;

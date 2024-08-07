@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.optimization.filterrewrite;
+package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,7 +20,6 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 
-import static org.opensearch.search.optimization.filterrewrite.Helper.loggerName;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
@@ -30,11 +29,11 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  *
  * @opensearch.internal
  */
-public final class OptimizationContext {
+public final class FilterRewriteOptimizationContext {
 
-    private static final Logger logger = LogManager.getLogger(loggerName);
+    private static final Logger logger = LogManager.getLogger(Helper.loggerName);
 
-    private boolean canOptimize = false;
+    private final boolean canOptimize;
     private boolean preparedAtShardLevel = false;
 
     final AggregatorBridge aggregatorBridge;
@@ -50,35 +49,39 @@ public final class OptimizationContext {
     private int segments;
     private int optimizedSegments;
 
-    public OptimizationContext(AggregatorBridge aggregatorBridge) {
+    public FilterRewriteOptimizationContext(
+        AggregatorBridge aggregatorBridge,
+        final Object parent,
+        final int subAggLength,
+        SearchContext context
+    ) throws IOException {
         this.aggregatorBridge = aggregatorBridge;
+        this.canOptimize = this.canOptimize(parent, subAggLength, context);
     }
 
-    public boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) {
+    private boolean canOptimize(final Object parent, final int subAggLength, SearchContext context) throws IOException {
         if (context.maxAggRewriteFilters() == 0) return false;
 
         if (parent != null || subAggLength != 0) return false;
 
-        this.canOptimize = aggregatorBridge.canOptimize();
+        boolean canOptimize = aggregatorBridge.canOptimize();
         if (canOptimize) {
             aggregatorBridge.setOptimizationContext(this);
             this.maxAggRewriteFilters = context.maxAggRewriteFilters();
             this.shardId = context.indexShard().shardId().toString();
+            this.prepare();
         }
         logger.debug("Fast filter rewriteable: {} for shard {}", canOptimize, shardId);
+
         return canOptimize;
     }
 
-    public void prepare() throws IOException {
+    private void prepare() throws IOException {
         assert ranges == null : "Ranges should only be built once at shard level, but they are already built";
         aggregatorBridge.prepare();
         if (ranges != null) {
             preparedAtShardLevel = true;
         }
-    }
-
-    public void prepareFromSegment(LeafReaderContext leaf) throws IOException {
-        aggregatorBridge.prepareFromSegment(leaf);
     }
 
     void setRanges(Ranges ranges) {
@@ -150,7 +153,7 @@ public final class OptimizationContext {
 
         if (ranges == null) { // not built at shard level but segment match all
             logger.debug("Shard {} segment {} functionally match all documents. Build the fast filter", shardId, leafCtx.ord);
-            prepareFromSegment(leafCtx);
+            aggregatorBridge.prepareFromSegment(leafCtx);
             return rangesFromSegment;
         }
         return ranges;

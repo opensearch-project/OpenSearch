@@ -48,12 +48,12 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
+import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.filterrewrite.DateHistogramAggregatorBridge;
-import org.opensearch.search.optimization.filterrewrite.OptimizationContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,7 +61,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.opensearch.search.optimization.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
+import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
 
 /**
  * An aggregator for date values. Every date is rounded down using a configured
@@ -86,7 +86,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final LongBounds hardBounds;
     private final LongKeyedBucketOrds bucketOrds;
 
-    private final OptimizationContext optimizationContext;
+    private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
     DateHistogramAggregator(
         String name,
@@ -119,14 +119,14 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
 
-        optimizationContext = new OptimizationContext(new DateHistogramAggregatorBridge() {
+        DateHistogramAggregatorBridge bridge = new DateHistogramAggregatorBridge() {
             @Override
-            public boolean canOptimize() {
+            protected boolean canOptimize() {
                 return canOptimize(valuesSourceConfig);
             }
 
             @Override
-            public void prepare() throws IOException {
+            protected void prepare() throws IOException {
                 buildRanges(context);
             }
 
@@ -149,11 +149,8 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             protected Function<Long, Long> bucketOrdProducer() {
                 return (key) -> bucketOrds.add(0, preparedRounding.round((long) key));
             }
-
-        });
-        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
-            optimizationContext.prepare();
-        }
+        };
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
     }
 
     @Override
@@ -170,7 +167,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);
@@ -257,7 +254,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("total_buckets", bucketOrds.size());
-        optimizationContext.populateDebugInfo(add);
+        filterRewriteOptimizationContext.populateDebugInfo(add);
     }
 
     /**

@@ -53,13 +53,13 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
+import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
+import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.filterrewrite.DateHistogramAggregatorBridge;
-import org.opensearch.search.optimization.filterrewrite.OptimizationContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -68,7 +68,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongToIntFunction;
 
-import static org.opensearch.search.optimization.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
+import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
 
 /**
  * An aggregator for date values that attempts to return a specific number of
@@ -136,7 +136,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected int roundingIdx;
     protected Rounding.Prepared preparedRounding;
 
-    private final OptimizationContext optimizationContext;
+    private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
     private AutoDateHistogramAggregator(
         String name,
@@ -159,14 +159,14 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.roundingPreparer = roundingPreparer;
         this.preparedRounding = prepareRounding(0);
 
-        optimizationContext = new OptimizationContext(new DateHistogramAggregatorBridge() {
+        DateHistogramAggregatorBridge bridge = new DateHistogramAggregatorBridge() {
             @Override
-            public boolean canOptimize() {
+            protected boolean canOptimize() {
                 return canOptimize(valuesSourceConfig);
             }
 
             @Override
-            public void prepare() throws IOException {
+            protected void prepare() throws IOException {
                 buildRanges(context);
             }
 
@@ -203,11 +203,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             protected Function<Long, Long> bucketOrdProducer() {
                 return (key) -> getBucketOrds().add(0, preparedRounding.round((long) key));
             }
-
-        });
-        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
-            optimizationContext.prepare();
-        }
+        };
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
     }
 
     protected abstract LongKeyedBucketOrds getBucketOrds();
@@ -239,7 +236,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);
@@ -307,7 +304,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        optimizationContext.populateDebugInfo(add);
+        filterRewriteOptimizationContext.populateDebugInfo(add);
     }
 
     /**

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.optimization.filterrewrite;
+package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -34,15 +34,15 @@ public abstract class AggregatorBridge {
     /**
      * The optimization context associated with this aggregator bridge.
      */
-    OptimizationContext optimizationContext;
+    FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
     /**
      * The field type associated with this aggregator bridge.
      */
     MappedFieldType fieldType;
 
-    void setOptimizationContext(OptimizationContext context) {
-        this.optimizationContext = context;
+    void setOptimizationContext(FilterRewriteOptimizationContext context) {
+        this.filterRewriteOptimizationContext = context;
     }
 
     /**
@@ -51,20 +51,20 @@ public abstract class AggregatorBridge {
      * @return {@code true} if the aggregator can be optimized, {@code false} otherwise.
      * The result will be saved in the optimization context.
      */
-    public abstract boolean canOptimize();
+    protected abstract boolean canOptimize();
 
     /**
-     * Prepares the optimization at shard level.
+     * Prepares the optimization at shard level after checking aggregator is optimizable.
      * For example, figure out what are the ranges from the aggregation to do the optimization later
      */
-    public abstract void prepare() throws IOException;
+    protected abstract void prepare() throws IOException;
 
     /**
      * Prepares the optimization for a specific segment and ignore whatever built at shard level
      *
      * @param leaf the leaf reader context for the segment
      */
-    public abstract void prepareFromSegment(LeafReaderContext leaf) throws IOException;
+    protected abstract void prepareFromSegment(LeafReaderContext leaf) throws IOException;
 
     /**
      * Attempts to build aggregation results for a segment
@@ -72,5 +72,5 @@ public abstract class AggregatorBridge {
      * @param values              the point values (index structure for numeric values) for a segment
      * @param incrementDocCount   a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
      */
-    public abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException;
+    protected abstract void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException;
 }

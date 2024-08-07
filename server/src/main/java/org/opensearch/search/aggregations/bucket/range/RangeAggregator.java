@@ -55,11 +55,11 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.NonCollectingAggregator;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
+import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
+import org.opensearch.search.aggregations.bucket.filterrewrite.RangeAggregatorBridge;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.optimization.filterrewrite.OptimizationContext;
-import org.opensearch.search.optimization.filterrewrite.RangeAggregatorBridge;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -251,7 +251,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     final double[] maxTo;
 
-    private final OptimizationContext optimizationContext;
+    private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
     public RangeAggregator(
         String name,
@@ -281,14 +281,14 @@ public class RangeAggregator extends BucketsAggregator {
             maxTo[i] = Math.max(this.ranges[i].to, maxTo[i - 1]);
         }
 
-        optimizationContext = new OptimizationContext(new RangeAggregatorBridge() {
+        RangeAggregatorBridge bridge = new RangeAggregatorBridge() {
             @Override
-            public boolean canOptimize() {
+            protected boolean canOptimize() {
                 return canOptimize(config, ranges);
             }
 
             @Override
-            public void prepare() {
+            protected void prepare() {
                 buildRanges(ranges);
             }
 
@@ -296,10 +296,8 @@ public class RangeAggregator extends BucketsAggregator {
             protected Function<Object, Long> bucketOrdProducer() {
                 return (activeIndex) -> subBucketOrdinal(0, (int) activeIndex);
             }
-        });
-        if (optimizationContext.canOptimize(parent, subAggregators.length, context)) {
-            optimizationContext.prepare();
-        }
+        };
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
     }
 
     @Override
@@ -312,7 +310,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = optimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false);
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
@@ -462,6 +460,6 @@ public class RangeAggregator extends BucketsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        optimizationContext.populateDebugInfo(add);
+        filterRewriteOptimizationContext.populateDebugInfo(add);
     }
 }

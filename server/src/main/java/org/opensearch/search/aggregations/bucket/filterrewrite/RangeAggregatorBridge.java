@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.optimization.filterrewrite;
+package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import static org.opensearch.search.optimization.filterrewrite.TreeTraversal.multiRangesTraverse;
+import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
 
 /**
  * For range aggregation
@@ -65,7 +65,7 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             uppers[i] = upper;
         }
 
-        optimizationContext.setRanges(new Ranges(lowers, uppers));
+        filterRewriteOptimizationContext.setRanges(new Ranges(lowers, uppers));
     }
 
     @Override
@@ -74,7 +74,7 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    public final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
+    protected final void tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount) throws IOException {
         int size = Integer.MAX_VALUE;
 
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
@@ -82,8 +82,8 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             incrementDocCount.accept(ord, (long) docCount);
         };
 
-        optimizationContext.consumeDebugInfo(
-            multiRangesTraverse(values.getPointTree(), optimizationContext.getRanges(), incrementFunc, size)
+        filterRewriteOptimizationContext.consumeDebugInfo(
+            multiRangesTraverse(values.getPointTree(), filterRewriteOptimizationContext.getRanges(), incrementFunc, size)
         );
     }
 
