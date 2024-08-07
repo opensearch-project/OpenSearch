@@ -207,6 +207,10 @@ public class RemoteStoreNodeAttribute {
         return isRemoteRoutingTableAttributePresent(settings);
     }
 
+    public static boolean isRemotePublicationEnabled(Settings settings) {
+        return isRemoteRoutingTableEnabled(settings);
+    }
+
     public RepositoriesMetadata getRepositoriesMetadata() {
         return this.repositoriesMetadata;
     }

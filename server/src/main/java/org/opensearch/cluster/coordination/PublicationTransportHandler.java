@@ -199,7 +199,7 @@ public class PublicationTransportHandler {
                 }
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
-                final PublishWithJoinResponse response = acceptState(incomingState);
+                final PublishWithJoinResponse response = acceptState(incomingState, null);
                 lastSeenClusterState.set(incomingState);
                 return response;
             } else {
@@ -230,7 +230,7 @@ public class PublicationTransportHandler {
                         incomingState.stateUUID(),
                         request.bytes().length()
                     );
-                    final PublishWithJoinResponse response = acceptState(incomingState);
+                    final PublishWithJoinResponse response = acceptState(incomingState, null);
                     lastSeenClusterState.compareAndSet(lastSeen, incomingState);
                     return response;
                 }
@@ -281,7 +281,7 @@ public class PublicationTransportHandler {
                     true
                 );
                 fullClusterStateReceivedCount.incrementAndGet();
-                final PublishWithJoinResponse response = acceptState(clusterState);
+                final PublishWithJoinResponse response = acceptState(clusterState, manifest);
                 lastSeenClusterState.set(clusterState);
                 return response;
             } else {
@@ -300,7 +300,7 @@ public class PublicationTransportHandler {
                     transportService.getLocalNode().getId()
                 );
                 compatibleClusterStateDiffReceivedCount.incrementAndGet();
-                final PublishWithJoinResponse response = acceptState(clusterState);
+                final PublishWithJoinResponse response = acceptState(clusterState, manifest);
                 lastSeenClusterState.compareAndSet(lastSeen, clusterState);
                 return response;
             }
@@ -314,7 +314,7 @@ public class PublicationTransportHandler {
         }
     }
 
-    private PublishWithJoinResponse acceptState(ClusterState incomingState) {
+    private PublishWithJoinResponse acceptState(ClusterState incomingState, ClusterMetadataManifest manifest) {
         // if the state is coming from the current node, use original request instead (see currentPublishRequestToSelf for explanation)
         if (transportService.getLocalNode().equals(incomingState.nodes().getClusterManagerNode())) {
             final PublishRequest publishRequest = currentPublishRequestToSelf.get();
@@ -323,6 +323,9 @@ public class PublicationTransportHandler {
             } else {
                 return handlePublishRequest.apply(publishRequest);
             }
+        }
+        if (manifest != null) {
+            return handlePublishRequest.apply(new PublishRequest(incomingState, manifest));
         }
         return handlePublishRequest.apply(new PublishRequest(incomingState));
     }

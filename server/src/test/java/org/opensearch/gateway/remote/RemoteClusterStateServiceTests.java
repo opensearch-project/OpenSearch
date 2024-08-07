@@ -611,20 +611,20 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         final RemoteClusterStateManifestInfo manifestDetails = remoteClusterStateService.writeIncrementalMetadata(
             clusterState,
             clusterState,
-            null
+            ClusterMetadataManifest.builder().build()
         );
         Assert.assertThat(manifestDetails, nullValue());
         assertEquals(0, remoteClusterStateService.getUploadStats().getSuccessCount());
     }
 
-    public void testFailWriteIncrementalMetadataWhenTermChanged() {
+    public void testFailWriteIncrementalMetadataWhenManifestNull() {
         final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
         final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(2L).build();
         final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
             .build();
         assertThrows(
-            AssertionError.class,
+            IllegalArgumentException.class,
             () -> remoteClusterStateService.writeIncrementalMetadata(previousClusterState, clusterState, null)
         );
     }
@@ -2524,7 +2524,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         List<UploadedIndexMetadata> indices = List.of(uploadedIndexMetadata);
         final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder().indices(indices).build();
 
-        final ClusterMetadataManifest manifest = remoteClusterStateService.markLastStateAsCommitted(clusterState, previousManifest)
+        final ClusterMetadataManifest manifest = remoteClusterStateService.markLastStateAsCommitted(clusterState, previousManifest, false)
             .getClusterMetadataManifest();
 
         final ClusterMetadataManifest expectedManifest = ClusterMetadataManifest.builder()
