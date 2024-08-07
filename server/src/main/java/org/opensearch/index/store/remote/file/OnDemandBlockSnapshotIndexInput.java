@@ -96,7 +96,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         );
     }
 
-    OnDemandBlockSnapshotIndexInput(
+    public OnDemandBlockSnapshotIndexInput(
         OnDemandBlockIndexInput.Builder builder,
         FileInfo fileInfo,
         FSDirectory directory,
