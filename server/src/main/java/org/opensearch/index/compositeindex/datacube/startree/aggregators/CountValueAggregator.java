@@ -18,9 +18,15 @@ class CountValueAggregator implements ValueAggregator<Long> {
 
     public static final long DEFAULT_INITIAL_VALUE = 1L;
     private final StarTreeNumericType starTreeNumericType;
+    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.LONG;
 
     public CountValueAggregator(StarTreeNumericType starTreeNumericType) {
         this.starTreeNumericType = starTreeNumericType;
+    }
+
+    @Override
+    public StarTreeNumericType getAggregatedValueType() {
+        return VALUE_AGGREGATOR_TYPE;
     }
 
     @Override
@@ -35,10 +41,11 @@ class CountValueAggregator implements ValueAggregator<Long> {
 
     @Override
     public Long mergeAggregatedValueAndSegmentValue(Long value, Long segmentDocValue) {
-        if (value == null) {
-            return getIdentityMetricValue();
+        assert value != null;
+        if (segmentDocValue != null) {
+            return value + 1;
         }
-        return value + 1;
+        return value;
     }
 
     @Override

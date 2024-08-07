@@ -19,10 +19,16 @@ abstract class StatelessDoubleValueAggregator implements ValueAggregator<Double>
 
     protected final StarTreeNumericType starTreeNumericType;
     protected final Double identityValue;
+    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
 
     public StatelessDoubleValueAggregator(StarTreeNumericType starTreeNumericType, Double identityValue) {
         this.starTreeNumericType = starTreeNumericType;
         this.identityValue = identityValue;
+    }
+
+    @Override
+    public StarTreeNumericType getAggregatedValueType() {
+        return VALUE_AGGREGATOR_TYPE;
     }
 
     @Override

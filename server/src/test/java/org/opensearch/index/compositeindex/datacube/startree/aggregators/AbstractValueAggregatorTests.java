@@ -48,7 +48,11 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
     }
 
     public void testMergeAggregatedNullValueAndSegmentNullValue() {
-        assertEquals(aggregator.getIdentityMetricValue(), aggregator.mergeAggregatedValueAndSegmentValue(null, null));
+        if (aggregator instanceof CountValueAggregator) {
+            assertThrows(AssertionError.class, () -> aggregator.mergeAggregatedValueAndSegmentValue(null, null));
+        } else {
+            assertEquals(aggregator.getIdentityMetricValue(), aggregator.mergeAggregatedValueAndSegmentValue(null, null));
+        }
     }
 
     public void testMergeAggregatedNullValues() {

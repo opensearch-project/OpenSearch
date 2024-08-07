@@ -392,8 +392,14 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
             new Long[] { 2L, null, 3L, 4L },
             new Double[] { 12.0, null, randomDouble(), 8.0, 20.0 }
         );
-        starTreeDocuments[1] = new StarTreeDocument(new Long[] { null, 4L, 2L, 1L }, new Double[] { 10.0, null, randomDouble(), 12.0, 10.0 });
-        starTreeDocuments[2] = new StarTreeDocument(new Long[] { null, 4L, 2L, 1L }, new Double[] { 14.0, null, randomDouble(), 6.0, 24.0 });
+        starTreeDocuments[1] = new StarTreeDocument(
+            new Long[] { null, 4L, 2L, 1L },
+            new Double[] { 10.0, null, randomDouble(), 12.0, 10.0 }
+        );
+        starTreeDocuments[2] = new StarTreeDocument(
+            new Long[] { null, 4L, 2L, 1L },
+            new Double[] { 14.0, null, randomDouble(), 6.0, 24.0 }
+        );
         starTreeDocuments[3] = new StarTreeDocument(new Long[] { 2L, null, 3L, 4L }, new Double[] { 9.0, null, randomDouble(), 9.0, 12.0 });
         starTreeDocuments[4] = new StarTreeDocument(new Long[] { -1L, 4L, 2L, 1L }, new Double[] { 11.0, null, randomDouble(), 8.0, 13.0 });
 
@@ -453,7 +459,7 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
         starTreeDocuments[4] = new StarTreeDocument(new Long[] { null, null, null, null }, new Double[] { null, null, null, null, null });
 
         List<StarTreeDocument> inorderStarTreeDocuments = List.of(
-            new StarTreeDocument(new Long[] { null, null, null, null }, new Object[] { 0.0, 0.0, 5L })
+            new StarTreeDocument(new Long[] { null, null, null, null }, new Object[] { 0.0, 0.0, 0L, null, null })
         );
         Iterator<StarTreeDocument> expectedStarTreeDocumentIterator = inorderStarTreeDocuments.iterator();
 
@@ -469,10 +475,86 @@ public abstract class AbstractStarTreeBuilderTests extends OpenSearchTestCase {
                 ? NumericUtils.doubleToSortableLong((Double) starTreeDocuments[i].metrics[2])
                 : null;
             Long metric4 = starTreeDocuments[i].metrics[3] != null
-                ? NumericUtils.doubleToSortableLong((Double) starTreeDocuments[i].metrics[2])
+                ? NumericUtils.doubleToSortableLong((Double) starTreeDocuments[i].metrics[3])
                 : null;
             Long metric5 = starTreeDocuments[i].metrics[4] != null
+                ? NumericUtils.doubleToSortableLong((Double) starTreeDocuments[i].metrics[4])
+                : null;
+            segmentStarTreeDocuments[i] = new StarTreeDocument(
+                starTreeDocuments[i].dimensions,
+                new Object[] { metric1, metric2, metric3, metric4, metric5 }
+            );
+        }
+        SequentialDocValuesIterator[] dimsIterators = getDimensionIterators(segmentStarTreeDocuments);
+        List<SequentialDocValuesIterator> metricsIterators = getMetricIterators(segmentStarTreeDocuments);
+        builder = getStarTreeBuilder(compositeField, writeState, mapperService);
+        Iterator<StarTreeDocument> segmentStarTreeDocumentIterator = builder.sortAndAggregateSegmentDocuments(
+            dimsIterators,
+            metricsIterators
+        );
+
+        while (segmentStarTreeDocumentIterator.hasNext() && expectedStarTreeDocumentIterator.hasNext()) {
+            StarTreeDocument resultStarTreeDocument = segmentStarTreeDocumentIterator.next();
+            StarTreeDocument expectedStarTreeDocument = expectedStarTreeDocumentIterator.next();
+            assertEquals(expectedStarTreeDocument.dimensions[0], resultStarTreeDocument.dimensions[0]);
+            assertEquals(expectedStarTreeDocument.dimensions[1], resultStarTreeDocument.dimensions[1]);
+            assertEquals(expectedStarTreeDocument.dimensions[2], resultStarTreeDocument.dimensions[2]);
+            assertEquals(expectedStarTreeDocument.dimensions[3], resultStarTreeDocument.dimensions[3]);
+            assertEquals(expectedStarTreeDocument.metrics[0], resultStarTreeDocument.metrics[0]);
+            assertEquals(expectedStarTreeDocument.metrics[1], resultStarTreeDocument.metrics[1]);
+            assertEquals(expectedStarTreeDocument.metrics[2], resultStarTreeDocument.metrics[2]);
+            assertEquals(expectedStarTreeDocument.metrics[3], resultStarTreeDocument.metrics[3]);
+            assertEquals(expectedStarTreeDocument.metrics[4], resultStarTreeDocument.metrics[4]);
+        }
+        builder.build(segmentStarTreeDocumentIterator);
+        validateStarTree(builder.getRootNode(), 4, 1, builder.getStarTreeDocuments());
+    }
+
+    public void test_sortAndAggregateStarTreeDocuments_nullDimensionsAndFewNullMetrics() throws IOException {
+        int noOfStarTreeDocuments = 5;
+        StarTreeDocument[] starTreeDocuments = new StarTreeDocument[noOfStarTreeDocuments];
+
+        double sumValue = randomDouble();
+        double minValue = randomDouble();
+        double maxValue = randomDouble();
+
+        // Setting second metric iterator as empty sorted numeric , indicating a metric field is null
+        starTreeDocuments[0] = new StarTreeDocument(
+            new Long[] { null, null, null, null },
+            new Double[] { null, null, randomDouble(), null, maxValue }
+        );
+        starTreeDocuments[1] = new StarTreeDocument(new Long[] { null, null, null, null }, new Double[] { null, null, null, null, null });
+        starTreeDocuments[2] = new StarTreeDocument(
+            new Long[] { null, null, null, null },
+            new Double[] { null, null, null, minValue, null }
+        );
+        starTreeDocuments[3] = new StarTreeDocument(new Long[] { null, null, null, null }, new Double[] { null, null, null, null, null });
+        starTreeDocuments[4] = new StarTreeDocument(
+            new Long[] { null, null, null, null },
+            new Double[] { sumValue, null, randomDouble(), null, null }
+        );
+
+        List<StarTreeDocument> inorderStarTreeDocuments = List.of(
+            new StarTreeDocument(new Long[] { null, null, null, null }, new Object[] { sumValue, 0.0, 2L, minValue, maxValue })
+        );
+        Iterator<StarTreeDocument> expectedStarTreeDocumentIterator = inorderStarTreeDocuments.iterator();
+
+        StarTreeDocument[] segmentStarTreeDocuments = new StarTreeDocument[noOfStarTreeDocuments];
+        for (int i = 0; i < noOfStarTreeDocuments; i++) {
+            Long metric1 = starTreeDocuments[i].metrics[0] != null
+                ? NumericUtils.doubleToSortableLong((Double) starTreeDocuments[i].metrics[0])
+                : null;
+            Long metric2 = starTreeDocuments[i].metrics[1] != null
+                ? NumericUtils.doubleToSortableLong((Double) starTreeDocuments[i].metrics[1])
+                : null;
+            Long metric3 = starTreeDocuments[i].metrics[2] != null
                 ? NumericUtils.doubleToSortableLong((Double) starTreeDocuments[i].metrics[2])
+                : null;
+            Long metric4 = starTreeDocuments[i].metrics[3] != null
+                ? NumericUtils.doubleToSortableLong((Double) starTreeDocuments[i].metrics[3])
+                : null;
+            Long metric5 = starTreeDocuments[i].metrics[4] != null
+                ? NumericUtils.doubleToSortableLong((Double) starTreeDocuments[i].metrics[4])
                 : null;
             segmentStarTreeDocuments[i] = new StarTreeDocument(
                 starTreeDocuments[i].dimensions,

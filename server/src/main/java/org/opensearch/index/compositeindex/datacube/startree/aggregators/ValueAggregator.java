@@ -7,12 +7,19 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
+import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
+
 /**
  * A value aggregator that pre-aggregates on the input values for a specific type of aggregation.
  *
  * @opensearch.experimental
  */
 public interface ValueAggregator<A> {
+
+    /**
+     * Returns the data type of the aggregated value.
+     */
+    StarTreeNumericType getAggregatedValueType();
 
     /**
      * Returns the initial aggregated value.

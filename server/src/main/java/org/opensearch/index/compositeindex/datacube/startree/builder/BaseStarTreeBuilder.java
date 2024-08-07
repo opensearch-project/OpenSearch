@@ -474,14 +474,10 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 if (metricFieldInfo == null) {
                     metricFieldInfo = getFieldInfo(metric.getField());
                 }
-                // TODO
-                // if (metricStat != MetricStat.COUNT) {
-                // Need not initialize the metric reader for COUNT metric type
+
                 SequentialDocValuesIterator metricReader = new SequentialDocValuesIterator(
                     fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
                 );
-                // }
-
                 metricReaders.add(metricReader);
             }
         }

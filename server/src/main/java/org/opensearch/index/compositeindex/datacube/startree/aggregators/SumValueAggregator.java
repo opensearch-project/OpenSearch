@@ -23,11 +23,17 @@ import org.opensearch.search.aggregations.metrics.CompensatedSum;
 class SumValueAggregator implements ValueAggregator<Double> {
 
     private final StarTreeNumericType starTreeNumericType;
+    private static final StarTreeNumericType VALUE_AGGREGATOR_TYPE = StarTreeNumericType.DOUBLE;
 
     private CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
     public SumValueAggregator(StarTreeNumericType starTreeNumericType) {
         this.starTreeNumericType = starTreeNumericType;
+    }
+
+    @Override
+    public StarTreeNumericType getAggregatedValueType() {
+        return VALUE_AGGREGATOR_TYPE;
     }
 
     @Override
