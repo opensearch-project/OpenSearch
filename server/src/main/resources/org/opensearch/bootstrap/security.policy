@@ -94,24 +94,21 @@ grant codeBase "${codebase.reactor-core}" {
 
 // security
 grant {
+    permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
+    permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.lang.RuntimePermission "getProtectionDomain";
+    permission java.io.FilePermission "${java.home}/lib/security/jssecacerts", "read";
+    permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";
     permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
     permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
     permission java.security.SecurityPermission "getProperty.keystore.type.compat";
     permission java.security.SecurityPermission "getProperty.org.bouncycastle.*";
     permission java.security.SecurityPermission "putProviderProperty.BCFIPS";
     permission java.security.SecurityPermission "putProviderProperty.BCJSSE";
-    permission java.lang.RuntimePermission "getProtectionDomain";
     permission java.util.PropertyPermission "java.runtime.name", "read";
-    permission org.bouncycastle.crypto.CryptoServicesPermission "changeToApprovedModeEnabled";
-    permission org.bouncycastle.crypto.CryptoServicesPermission "tlsAlgorithmsEnabled";
-    //io.netty.handler.codec.DecoderException
-    permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
-    //java.security.InvalidAlgorithmParameterException: Cannot process GCMParameterSpec
-    permission java.lang.RuntimePermission "accessDeclaredMembers";
     permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
     permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
-    permission java.io.FilePermission "${javax.net.ssl.trustStore}", "read";
-    permission java.io.FilePermission "${javaHome}/lib/security/jssecacerts", "read";
+    permission java.security.SecurityPermission "getProperty.jdk.tls.server.defaultDHEParameters";
 };
 
 //// Everything else:

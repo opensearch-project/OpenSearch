@@ -79,11 +79,11 @@ public class SimpleSecureNetty4TransportTests extends AbstractSimpleTransportTes
                 try {
                     final KeyStore keyStore = KeyStore.getInstance("PKCS12");
                     keyStore.load(
-                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure.jks"),
+                        SimpleSecureNetty4TransportTests.class.getResourceAsStream("/netty4-secure.p12"),
                         "password".toCharArray()
                     );
 
-                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("SunX509");
+                    final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
                     keyManagerFactory.init(keyStore, "password".toCharArray());
 
                     SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)

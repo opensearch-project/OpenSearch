@@ -36,8 +36,8 @@ dependencies {
   api project(':libs:opensearch-common')
 
   // bouncyCastle
-  implementation 'org.bouncycastle:bcpkix-fips:1.0.7'
-  compileOnly 'org.bouncycastle:bc-fips:1.0.2.5'
+  implementation "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
+  compileOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-ssl-config'

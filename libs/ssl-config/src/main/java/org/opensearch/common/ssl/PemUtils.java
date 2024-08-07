@@ -43,20 +43,24 @@ import org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo;
 import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.pkcs.jcajce.JcePKCSPBEInputDecryptorProviderBuilder;
 
-import java.security.PrivateKey;
-
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 final class PemUtils {
+
+    protected static final String BCFIPS = "BCFIPS";
 
     private PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -71,9 +75,9 @@ final class PemUtils {
      * @return a private key from the contents of the file
      */
     public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, PKCSException {
-            PrivateKeyInfo pki = loadPrivateKeyFromFile(keyPath, passwordSupplier);
-            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
-            return converter.getPrivateKey(pki);
+        PrivateKeyInfo pki = loadPrivateKeyFromFile(keyPath, passwordSupplier);
+        JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+        return converter.getPrivateKey(pki);
     }
 
     static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
@@ -102,22 +106,20 @@ final class PemUtils {
      * @return {@link PrivateKey}
      * @throws IOException If the file can't be read
      */
-    private static PrivateKeyInfo loadPrivateKeyFromFile(Path keyPath, Supplier<char[]> passwordSupplier)
-        throws IOException, PKCSException {
-        try (PEMParser pemParser = new PEMParser(new FileReader(keyPath.toFile()))) {
+    private static PrivateKeyInfo loadPrivateKeyFromFile(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException,
+        PKCSException {
+
+        try (PEMParser pemParser = new PEMParser(Files.newBufferedReader(keyPath, StandardCharsets.UTF_8))) {
             Object object = readObject(keyPath, pemParser);
 
             if (object instanceof PKCS8EncryptedPrivateKeyInfo) { // encrypted private key in pkcs8-format
                 var privateKeyInfo = (PKCS8EncryptedPrivateKeyInfo) object;
-                var inputDecryptorProvider = new JcePKCSPBEInputDecryptorProviderBuilder()
-                    .setProvider("BCFIPS")
+                var inputDecryptorProvider = new JcePKCSPBEInputDecryptorProviderBuilder().setProvider(BCFIPS)
                     .build(passwordSupplier.get());
                 return privateKeyInfo.decryptPrivateKeyInfo(inputDecryptorProvider);
             } else if (object instanceof PEMEncryptedKeyPair) { // encrypted private key
                 var encryptedKeyPair = (PEMEncryptedKeyPair) object;
-                var decryptorProvider = new JcePEMDecryptorProviderBuilder()
-                    .setProvider("BCFIPS")
-                    .build(passwordSupplier.get());
+                var decryptorProvider = new JcePEMDecryptorProviderBuilder().setProvider(BCFIPS).build(passwordSupplier.get());
                 var keyPair = encryptedKeyPair.decryptKeyPair(decryptorProvider);
                 return keyPair.getPrivateKeyInfo();
             } else if (object instanceof PEMKeyPair) { // unencrypted private key
@@ -125,11 +127,14 @@ final class PemUtils {
             } else if (object instanceof PrivateKeyInfo) { // unencrypted private key in pkcs8-format
                 return (PrivateKeyInfo) object;
             } else {
-                throw new SslConfigException(String.format(
-                    "error parsing private key [%s], invalid encrypted private key class: [%s]",
-                    keyPath.toAbsolutePath(),
-                    object.getClass().getName()
-                ));
+                throw new SslConfigException(
+                    String.format(
+                        Locale.ROOT,
+                        "error parsing private key [%s], invalid encrypted private key class: [%s]",
+                        keyPath.toAbsolutePath(),
+                        object.getClass().getName()
+                    )
+                );
             }
         }
     }

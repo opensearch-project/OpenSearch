@@ -43,7 +43,7 @@ import org.junit.BeforeClass;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
@@ -95,15 +95,14 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
                 try {
                     client.performRequest(new Request("GET", "/"));
-                    fail("connection should have been rejected due to SSL handshake");
+                    fail("connection should have been rejected due to SSL failure");
                 } catch (Exception e) {
-                    assertThat(e, instanceOf(SSLHandshakeException.class));
+                    assertThat(e.getCause(), instanceOf(SSLException.class));
                 }
             }
 
