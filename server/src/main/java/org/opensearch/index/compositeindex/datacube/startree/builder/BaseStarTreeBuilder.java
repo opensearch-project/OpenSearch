@@ -597,6 +597,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
     /**
      * Safely converts the metric value of object type to long.
+     * Nulls are handled during aggregation
      *
      * @param metric value of the metric
      * @return converted metric value to long
@@ -607,7 +608,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         if (metric instanceof Long) {
             metricValue = (long) metric;
         }
-
         return metricValue;
     }
 

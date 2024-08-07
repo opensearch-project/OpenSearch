@@ -7,7 +7,6 @@
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
-import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 /**
@@ -16,11 +15,6 @@ import org.opensearch.index.compositeindex.datacube.startree.aggregators.numeric
  * @opensearch.experimental
  */
 public interface ValueAggregator<A> {
-
-    /**
-     * Returns the type of the aggregation.
-     */
-    MetricStat getAggregationType();
 
     /**
      * Returns the data type of the aggregated value.
@@ -35,7 +29,10 @@ public interface ValueAggregator<A> {
     /**
      * Applies a segment doc value to the current aggregated value.
      */
-    A mergeAggregatedValueAndSegmentValue(A value, Long segmentDocValue);
+    default A mergeAggregatedValueAndSegmentValue(A value, Long segmentDocValue) {
+        A aggregatedValue = getInitialAggregatedValueForSegmentDocValue(segmentDocValue);
+        return mergeAggregatedValues(value, aggregatedValue);
+    }
 
     /**
      * Applies an aggregated value to the current aggregated value.
@@ -45,17 +42,12 @@ public interface ValueAggregator<A> {
     /**
      * Clones an aggregated value.
      */
-    A getInitialAggregatedValue(A value);
-
-    /**
-     * Returns the maximum size in bytes of the aggregated values seen so far.
-     */
-    int getMaxAggregatedValueByteSize();
-
-    /**
-     * Converts an aggregated value into a Long type.
-     */
-    Long toLongValue(A value);
+    default A getInitialAggregatedValue(A value) {
+        if (value == null) {
+            return getIdentityMetricValue();
+        }
+        return value;
+    }
 
     /**
      * Converts an aggregated value from a Long type.

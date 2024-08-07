@@ -16,6 +16,7 @@ import java.util.Objects;
 
 /**
  * Builds aggregation function and doc values field pair to support various aggregations
+ *
  * @opensearch.experimental
  */
 public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
@@ -83,6 +84,9 @@ public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
 
     }
 
+    /**
+     * @return field name with star-tree field name metric type and field
+     */
     public static String toFieldName(String starFieldName, String field, String metricName) {
         return starFieldName + DELIMITER + field + DELIMITER + metricName;
     }
