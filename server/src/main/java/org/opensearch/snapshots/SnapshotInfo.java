@@ -667,7 +667,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (remoteStoreIndexShallowCopy != null) {
             builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
         }
-        builder.field(PINNED_TIMESTAMP);
+        builder.field(PINNED_TIMESTAMP, pinnedTimestamp);
 
         builder.startArray(INDICES);
         for (String index : indices) {
