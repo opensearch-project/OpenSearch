@@ -67,7 +67,7 @@ public abstract class AggregatorBridge {
      *
      * @param leaf the leaf reader context for the segment
      */
-    abstract Ranges prepareFromSegment(LeafReaderContext leaf) throws IOException;
+    abstract Ranges tryBuildRangesFromSegment(LeafReaderContext leaf) throws IOException;
 
     /**
      * Attempts to build aggregation results for a segment

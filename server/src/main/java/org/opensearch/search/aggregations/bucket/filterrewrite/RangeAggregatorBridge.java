@@ -69,7 +69,7 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    final Ranges prepareFromSegment(LeafReaderContext leaf) {
+    final Ranges tryBuildRangesFromSegment(LeafReaderContext leaf) {
         throw new UnsupportedOperationException("Range aggregation should not build ranges at segment level");
     }
 

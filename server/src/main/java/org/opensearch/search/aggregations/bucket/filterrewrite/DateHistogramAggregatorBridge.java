@@ -54,7 +54,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
     }
 
     @Override
-    final Ranges prepareFromSegment(LeafReaderContext leaf) throws IOException {
+    final Ranges tryBuildRangesFromSegment(LeafReaderContext leaf) throws IOException {
         long[] bounds = Helper.getSegmentBounds(leaf, fieldType.name());
         return buildRanges(bounds, maxRewriteFilters);
     }
