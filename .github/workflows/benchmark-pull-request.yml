@@ -60,6 +60,9 @@ jobs:
             for (const [key, value] of Object.entries(clusterBenchmarkConfigs)) {
               core.exportVariable(key, value);
             }
+            if (benchmarkConfigs[configId].hasOwnProperty('baseline_cluster_config')) {
+              core.exportVariable('BASELINE_CLUSTER_CONFIG', benchmarkConfigs[configId]['baseline_cluster_config']);
+            }
       - name: Post invalid format comment
         if: steps.check_comment.outputs.invalid == 'true'
         uses: actions/github-script@v7
