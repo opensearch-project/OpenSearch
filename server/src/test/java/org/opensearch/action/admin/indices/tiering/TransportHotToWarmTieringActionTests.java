@@ -109,7 +109,7 @@ public class TransportHotToWarmTieringActionTests extends OpenSearchIntegTestCas
     public void testNoAcceptedIndices() {
         TieringIndexRequest request = new TieringIndexRequest(TARGET_TIER, "test-idx-*", "idx-*");
         HotToWarmTieringResponse response = client().admin().indices().execute(HotToWarmTieringAction.INSTANCE, request).actionGet();
-        assertFalse(response.isAcknowledged());
+        assertTrue(response.isAcknowledged());
         assertEquals(2, response.getFailedIndices().size());
         for (HotToWarmTieringResponse.IndexResult result : response.getFailedIndices()) {
             assertEquals("index is not backed up by the remote store", result.getFailureReason());

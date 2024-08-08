@@ -12,8 +12,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.Index;
 
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -48,14 +46,6 @@ public class TieringValidationResult {
     public void addToRejected(Index index, String reason) {
         acceptedIndices.remove(index);
         rejectedIndices.put(index, reason);
-    }
-
-    public HotToWarmTieringResponse constructResponse() {
-        final List<HotToWarmTieringResponse.IndexResult> indicesResult = new LinkedList<>();
-        for (Map.Entry<Index, String> rejectedIndex : rejectedIndices.entrySet()) {
-            indicesResult.add(new HotToWarmTieringResponse.IndexResult(rejectedIndex.getKey().getName(), rejectedIndex.getValue()));
-        }
-        return new HotToWarmTieringResponse(acceptedIndices.size() > 0, indicesResult);
     }
 
     @Override

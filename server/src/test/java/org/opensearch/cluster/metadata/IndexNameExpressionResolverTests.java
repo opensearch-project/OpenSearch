@@ -49,6 +49,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndexClosedException;
@@ -70,6 +71,7 @@ import static org.opensearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.opensearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -889,6 +891,44 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
             () -> indexNameExpressionResolver.concreteIndices(context, new String[] {})
         );
         assertThat(infe.getMessage(), is("no such index [_all] and no indices exist"));
+    }
+
+    public void testConcreteIndicesWithHotTier() {
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(
+                indexBuilder("test-hot", Settings.builder().put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name()).build())
+                    .state(State.OPEN)
+            )
+            .put(
+                indexBuilder(
+                    "test-warm",
+                    Settings.builder().put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.WARM.name()).build()
+                ).state(State.OPEN)
+            );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        SearchRequest request = new SearchRequest("test*");
+        Index[] indices = indexNameExpressionResolver.concreteIndicesInTier(state, request, IndexModule.TieringState.HOT);
+        assertEquals(1, indices.length);
+        assertEquals("test-hot", indices[0].getName());
+    }
+
+    public void testConcreteIndicesWithWarmTier() {
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(
+                indexBuilder("test-hot", Settings.builder().put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.HOT.name()).build())
+                    .state(State.OPEN)
+            )
+            .put(
+                indexBuilder(
+                    "test-warm",
+                    Settings.builder().put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.WARM.name()).build()
+                ).state(State.OPEN)
+            );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        SearchRequest request = new SearchRequest("test*");
+        Index[] indices = indexNameExpressionResolver.concreteIndicesInTier(state, request, IndexModule.TieringState.WARM);
+        assertEquals(1, indices.length);
+        assertEquals("test-warm", indices[0].getName());
     }
 
     public void testConcreteIndicesWildcardExpansion() {
