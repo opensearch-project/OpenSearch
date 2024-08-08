@@ -38,6 +38,7 @@ dependencies {
   // bouncyCastle
   implementation "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
   compileOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  compileOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
