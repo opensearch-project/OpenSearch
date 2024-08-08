@@ -1416,7 +1416,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return queryGroups(existing);
         }
 
-        private Map<String, QueryGroup> getQueryGroups() {
+        public Map<String, QueryGroup> getQueryGroups() {
             return Optional.ofNullable(this.customs.get(QueryGroupMetadata.TYPE))
                 .map(o -> (QueryGroupMetadata) o)
                 .map(QueryGroupMetadata::queryGroups)
