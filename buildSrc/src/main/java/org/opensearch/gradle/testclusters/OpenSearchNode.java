@@ -1187,7 +1187,6 @@ public class OpenSearchNode implements TestClusterConfiguration {
         baseConfig.put("indices.breaker.total.use_real_memory", "false");
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
         baseConfig.put("discovery.initial_state_timeout", "0s");
-        baseConfig.put("fips.approved", "false");
 
         HashSet<String> overriden = new HashSet<>(baseConfig.keySet());
         overriden.retainAll(settings.keySet());
