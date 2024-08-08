@@ -144,6 +144,7 @@ import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotMissingException;
+import org.opensearch.snapshots.SnapshotType;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -1752,7 +1753,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     Version.CURRENT,
                     shardGenerations,
                     indexMetas,
-                    indexMetaIdentifiers
+                    indexMetaIdentifiers,
+                    snapshotInfo.getSnapshotType()
                 );
                 writeIndexGen(
                     updatedRepositoryData,
@@ -2384,22 +2386,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         // Step 2: Write new index-N blob to repository and update index.latest
         setPendingStep.whenComplete(newGen -> threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-            // BwC logic: Load snapshot version information if any snapshot is missing a version in RepositoryData so that the new
-            // RepositoryData contains a version for every snapshot
-            final List<SnapshotId> snapshotIdsWithoutVersion = repositoryData.getSnapshotIds()
+            // BwC logic: Load snapshot version or snapshot type information if any snapshot is missing a version or
+            // type in RepositoryData so that the new RepositoryData contains version and type for every snapshot
+            final List<SnapshotId> snapshotIdsWithoutVersionOrType = repositoryData.getSnapshotIds()
                 .stream()
                 .filter(snapshotId -> repositoryData.getVersion(snapshotId) == null)
                 .collect(Collectors.toList());
-            if (snapshotIdsWithoutVersion.isEmpty() == false) {
+            if (snapshotIdsWithoutVersionOrType.isEmpty() == false) {
                 final Map<SnapshotId, Version> updatedVersionMap = new ConcurrentHashMap<>();
-                final GroupedActionListener<Void> loadAllVersionsListener = new GroupedActionListener<>(
+                final Map<SnapshotId, SnapshotType> updatedSnapshotTypeMap = new ConcurrentHashMap<>();
+                final GroupedActionListener<Void> loadMissingDataListener = new GroupedActionListener<>(
                     ActionListener.runAfter(new ActionListener<Collection<Void>>() {
                         @Override
                         public void onResponse(Collection<Void> voids) {
                             logger.info(
-                                "Successfully loaded all snapshot's version information for {} from snapshot metadata",
+                                "Successfully loaded all snapshot's version and type information for {} from snapshot metadata",
                                 AllocationService.firstListElementsToCommaDelimitedString(
-                                    snapshotIdsWithoutVersion,
+                                    snapshotIdsWithoutVersionOrType,
                                     SnapshotId::toString,
                                     logger.isDebugEnabled()
                                 )
@@ -2408,19 +2411,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn("Failure when trying to load missing version information from snapshot metadata", e);
+                            logger.warn("Failure when trying to load missing version or type information from snapshot metadata", e);
                         }
-                    }, () -> filterRepositoryDataStep.onResponse(repositoryData.withVersions(updatedVersionMap))),
-                    snapshotIdsWithoutVersion.size()
+                    },
+                        () -> filterRepositoryDataStep.onResponse(
+                            repositoryData.withVersions(updatedVersionMap).withSnapshotTypes(updatedSnapshotTypeMap)
+                        )
+                    ),
+                    snapshotIdsWithoutVersionOrType.size()
                 );
-                for (SnapshotId snapshotId : snapshotIdsWithoutVersion) {
-                    threadPool().executor(ThreadPool.Names.SNAPSHOT)
-                        .execute(
-                            ActionRunnable.run(
-                                loadAllVersionsListener,
-                                () -> updatedVersionMap.put(snapshotId, getSnapshotInfo(snapshotId).version())
-                            )
-                        );
+                for (SnapshotId snapshotId : snapshotIdsWithoutVersionOrType) {
+                    threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(loadMissingDataListener, () -> {
+                        updatedVersionMap.put(snapshotId, getSnapshotInfo(snapshotId).version());
+                        updatedSnapshotTypeMap.put(snapshotId, getSnapshotInfo(snapshotId).getSnapshotType());
+                    }));
                 }
             } else {
                 filterRepositoryDataStep.onResponse(repositoryData);

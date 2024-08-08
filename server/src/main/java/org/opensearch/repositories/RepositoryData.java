@@ -43,6 +43,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParserUtils;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.SnapshotType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,7 +93,8 @@ public final class RepositoryData {
         Collections.emptyMap(),
         Collections.emptyMap(),
         ShardGenerations.EMPTY,
-        IndexMetaDataGenerations.EMPTY
+        IndexMetaDataGenerations.EMPTY,
+        Collections.emptyMap()
     );
 
     /**
@@ -128,6 +130,11 @@ public final class RepositoryData {
      */
     private final ShardGenerations shardGenerations;
 
+    /**
+     * snapshot UUID to snapshot type map.
+     */
+    private final Map<String, SnapshotType> snapshotTypes;
+
     public RepositoryData(
         long genId,
         Map<String, SnapshotId> snapshotIds,
@@ -135,7 +142,8 @@ public final class RepositoryData {
         Map<String, Version> snapshotVersions,
         Map<IndexId, List<SnapshotId>> indexSnapshots,
         ShardGenerations shardGenerations,
-        IndexMetaDataGenerations indexMetaDataGenerations
+        IndexMetaDataGenerations indexMetaDataGenerations,
+        Map<String, SnapshotType> snapshotTypes
     ) {
         this(
             genId,
@@ -145,7 +153,8 @@ public final class RepositoryData {
             Collections.unmodifiableMap(indexSnapshots.keySet().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()))),
             Collections.unmodifiableMap(indexSnapshots),
             shardGenerations,
-            indexMetaDataGenerations
+            indexMetaDataGenerations,
+            snapshotTypes
         );
     }
 
@@ -157,7 +166,8 @@ public final class RepositoryData {
         Map<String, IndexId> indices,
         Map<IndexId, List<SnapshotId>> indexSnapshots,
         ShardGenerations shardGenerations,
-        IndexMetaDataGenerations indexMetaDataGenerations
+        IndexMetaDataGenerations indexMetaDataGenerations,
+        Map<String, SnapshotType> snapshotTypes
     ) {
         this.genId = genId;
         this.snapshotIds = snapshotIds;
@@ -167,6 +177,7 @@ public final class RepositoryData {
         this.shardGenerations = shardGenerations;
         this.indexMetaDataGenerations = indexMetaDataGenerations;
         this.snapshotVersions = snapshotVersions;
+        this.snapshotTypes = snapshotTypes;
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
             + shardGenerations.indices()
             + " but snapshots only reference indices "
@@ -183,7 +194,8 @@ public final class RepositoryData {
             snapshotVersions,
             indexSnapshots,
             shardGenerations,
-            indexMetaDataGenerations
+            indexMetaDataGenerations,
+            snapshotTypes
         );
     }
 
@@ -205,7 +217,31 @@ public final class RepositoryData {
             newVersions,
             indexSnapshots,
             shardGenerations,
-            indexMetaDataGenerations
+            indexMetaDataGenerations,
+            snapshotTypes
+        );
+    }
+
+    /**
+     * Creates a copy of this instance that contains updated snapshot type data.
+     * @param newSnapshotTypes map of snapshot tp snapshot types
+     * @return copy with updated snapshot type data
+     */
+    public RepositoryData withSnapshotTypes(Map<SnapshotId, SnapshotType> newSnapshotTypes) {
+        if (newSnapshotTypes.isEmpty()) {
+            return this;
+        }
+        final Map<String, SnapshotType> udpatedSnapshotTypes = new HashMap<>(snapshotTypes);
+        newSnapshotTypes.forEach((id, type) -> udpatedSnapshotTypes.put(id.getUUID(), type));
+        return new RepositoryData(
+            genId,
+            snapshotIds,
+            snapshotStates,
+            snapshotVersions,
+            indexSnapshots,
+            shardGenerations,
+            indexMetaDataGenerations,
+            udpatedSnapshotTypes
         );
     }
 
@@ -241,6 +277,13 @@ public final class RepositoryData {
      */
     public Version getVersion(SnapshotId snapshotId) {
         return snapshotVersions.get(snapshotId.getUUID());
+    }
+
+    /**
+     * Returns the {@link SnapshotType} for the given snapshot or {@code null} if unknown.
+     */
+    public SnapshotType getSnapshotType(SnapshotId snapshotId) {
+        return this.snapshotTypes.get(snapshotId.getUUID());
     }
 
     /**
@@ -319,7 +362,8 @@ public final class RepositoryData {
         final Version version,
         final ShardGenerations shardGenerations,
         @Nullable final Map<IndexId, String> indexMetaBlobs,
-        @Nullable final Map<String, String> newIdentifiers
+        @Nullable final Map<String, String> newIdentifiers,
+        final SnapshotType snapshotType
     ) {
         if (snapshotIds.containsKey(snapshotId.getUUID())) {
             // if the snapshot id already exists in the repository data, it means an old master
@@ -333,6 +377,10 @@ public final class RepositoryData {
         newSnapshotStates.put(snapshotId.getUUID(), snapshotState);
         Map<String, Version> newSnapshotVersions = new HashMap<>(snapshotVersions);
         newSnapshotVersions.put(snapshotId.getUUID(), version);
+
+        Map<String, SnapshotType> newSnapshotTypes = new HashMap<>(snapshotTypes);
+        newSnapshotTypes.put(snapshotId.getUUID(), snapshotType);
+
         Map<IndexId, List<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
         for (final IndexId indexId : shardGenerations.indices()) {
             final List<SnapshotId> snapshotIds = allIndexSnapshots.get(indexId);
@@ -369,7 +417,8 @@ public final class RepositoryData {
             newSnapshotVersions,
             allIndexSnapshots,
             ShardGenerations.builder().putAll(this.shardGenerations).putAll(shardGenerations).build(),
-            newIndexMetaGenerations
+            newIndexMetaGenerations,
+            newSnapshotTypes
         );
     }
 
@@ -391,7 +440,8 @@ public final class RepositoryData {
             indices,
             indexSnapshots,
             shardGenerations,
-            indexMetaDataGenerations
+            indexMetaDataGenerations,
+            snapshotTypes
         );
     }
 
@@ -415,9 +465,11 @@ public final class RepositoryData {
         }
         Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
         final Map<String, Version> newSnapshotVersions = new HashMap<>(snapshotVersions);
+        final Map<String, SnapshotType> newSnapshotTypes = new HashMap<>(snapshotTypes);
         for (SnapshotId snapshotId : snapshots) {
             newSnapshotStates.remove(snapshotId.getUUID());
             newSnapshotVersions.remove(snapshotId.getUUID());
+            newSnapshotTypes.remove(snapshotId.getUUID());
         }
         Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>();
         for (final IndexId indexId : indices.values()) {
@@ -445,7 +497,8 @@ public final class RepositoryData {
                 .putAll(updatedShardGenerations)
                 .retainIndicesAndPruneDeletes(indexSnapshots.keySet())
                 .build(),
-            indexMetaDataGenerations.withRemovedSnapshots(snapshots)
+            indexMetaDataGenerations.withRemovedSnapshots(snapshots),
+            newSnapshotTypes
         );
     }
 
@@ -475,7 +528,8 @@ public final class RepositoryData {
             && indices.equals(that.indices)
             && indexSnapshots.equals(that.indexSnapshots)
             && shardGenerations.equals(that.shardGenerations)
-            && indexMetaDataGenerations.equals(that.indexMetaDataGenerations);
+            && indexMetaDataGenerations.equals(that.indexMetaDataGenerations)
+            && snapshotTypes.equals(that.snapshotTypes);
     }
 
     @Override
@@ -487,7 +541,8 @@ public final class RepositoryData {
             indices,
             indexSnapshots,
             shardGenerations,
-            indexMetaDataGenerations
+            indexMetaDataGenerations,
+            snapshotTypes
         );
     }
 
@@ -542,6 +597,7 @@ public final class RepositoryData {
     private static final String UUID = "uuid";
     private static final String STATE = "state";
     private static final String VERSION = "version";
+    private static final String SNAPSHOT_TYPE = "snapshot_type";
     private static final String MIN_VERSION = "min_version";
 
     /**
@@ -569,6 +625,10 @@ public final class RepositoryData {
             final Version version = snapshotVersions.get(snapshotUUID);
             if (version != null) {
                 builder.field(VERSION, version.toString());
+            }
+            final SnapshotType snapshotType = snapshotTypes.get(snapshotUUID);
+            if (snapshotType != null) {
+                builder.field(SNAPSHOT_TYPE, snapshotType.toString());
             }
             builder.endObject();
         }
@@ -611,6 +671,7 @@ public final class RepositoryData {
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
         final Map<String, Version> snapshotVersions = new HashMap<>();
+        final Map<String, SnapshotType> snapshotTypes = new HashMap<>();
         final Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>();
         final Map<String, IndexId> indexLookup = new HashMap<>();
         final ShardGenerations.Builder shardGenerations = ShardGenerations.builder();
@@ -620,7 +681,7 @@ public final class RepositoryData {
             final String field = parser.currentName();
             switch (field) {
                 case SNAPSHOTS:
-                    parseSnapshots(parser, snapshots, snapshotStates, snapshotVersions, indexMetaLookup);
+                    parseSnapshots(parser, snapshots, snapshotStates, snapshotVersions, indexMetaLookup, snapshotTypes);
                     break;
                 case INDICES:
                     parseIndices(parser, snapshots, indexSnapshots, indexLookup, shardGenerations);
@@ -646,7 +707,8 @@ public final class RepositoryData {
             snapshotVersions,
             indexSnapshots,
             shardGenerations.build(),
-            buildIndexMetaGenerations(indexMetaLookup, indexLookup, indexMetaIdentifiers)
+            buildIndexMetaGenerations(indexMetaLookup, indexLookup, indexMetaIdentifiers),
+            snapshotTypes
         );
     }
 
@@ -697,7 +759,8 @@ public final class RepositoryData {
         Map<String, SnapshotId> snapshots,
         Map<String, SnapshotState> snapshotStates,
         Map<String, Version> snapshotVersions,
-        Map<SnapshotId, Map<String, String>> indexMetaLookup
+        Map<SnapshotId, Map<String, String>> indexMetaLookup,
+        Map<String, SnapshotType> snapshotTypes
     ) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
         final Map<String, String> stringDeduplicator = new HashMap<>();
@@ -707,6 +770,7 @@ public final class RepositoryData {
             SnapshotState state = null;
             Map<String, String> metaGenerations = null;
             Version version = null;
+            SnapshotType snapshotType = null;
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String currentFieldName = parser.currentName();
                 parser.nextToken();
@@ -726,6 +790,9 @@ public final class RepositoryData {
                     case VERSION:
                         version = Version.fromString(parser.text());
                         break;
+                    case SNAPSHOT_TYPE:
+                        snapshotType = SnapshotType.fromString(parser.text());
+                        break;
                 }
             }
             final SnapshotId snapshotId = new SnapshotId(name, uuid);
@@ -734,6 +801,9 @@ public final class RepositoryData {
             }
             if (version != null) {
                 snapshotVersions.put(uuid, version);
+            }
+            if (snapshotType != null) {
+                snapshotTypes.put(uuid, snapshotType);
             }
             snapshots.put(uuid, snapshotId);
             if (metaGenerations != null && metaGenerations.isEmpty() == false) {

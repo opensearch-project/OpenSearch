@@ -58,6 +58,7 @@ import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.SnapshotType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
@@ -300,8 +301,12 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
     }
 
     private BlobStoreRepository setupRepo() {
-        final Client client = client();
         final Path location = OpenSearchIntegTestCase.randomRepoPath(node().settings());
+        return setupRepo(location);
+    }
+
+    private BlobStoreRepository setupRepo(Path location) {
+        final Client client = client();
         final String repositoryName = "test-repo";
 
         AcknowledgedResponse putRepositoryResponse = client.admin()
@@ -337,7 +342,8 @@ public class BlobStoreRepositoryTests extends BlobStoreRepositoryHelperTests {
                 Version.CURRENT,
                 shardGenerations,
                 indexLookup,
-                indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
+                indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))),
+                randomFrom(SnapshotType.FULL_COPY, SnapshotType.SHALLOW_COPY)
             );
         }
         return repoData;
