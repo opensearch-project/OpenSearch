@@ -29,11 +29,11 @@ public enum MetricStat {
     AVG("avg", new MetricStat[] { COUNT, SUM });
 
     private final String typeName;
-    private final MetricStat[] derivedFrom;
+    private final MetricStat[] baseMetrics;
 
-    MetricStat(String typeName, MetricStat[] derivedFrom) {
+    MetricStat(String typeName, MetricStat[] baseMetrics) {
         this.typeName = typeName;
-        this.derivedFrom = derivedFrom;
+        this.baseMetrics = baseMetrics;
     }
 
     public String getTypeName() {
@@ -44,8 +44,8 @@ public enum MetricStat {
      * Return the list of metrics that this metric is derived from
      * For example, AVG is derived from COUNT and SUM
      */
-    public List<MetricStat> getDerivedFromMetrics() {
-        return Arrays.asList(derivedFrom);
+    public List<MetricStat> getBaseMetrics() {
+        return Arrays.asList(baseMetrics);
     }
 
     /**
@@ -53,7 +53,7 @@ public enum MetricStat {
      * For example, AVG is derived from COUNT and SUM
      */
     public boolean isDerivedMetric() {
-        return derivedFrom != null;
+        return baseMetrics != null;
     }
 
     /**
