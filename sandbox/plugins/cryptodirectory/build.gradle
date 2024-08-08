@@ -11,11 +11,19 @@
 
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'Encrypts and decrypts index data at rest.'
   classname 'org.opensearch.index.store.CryptoDirectoryPlugin'
 }
+
+dependencies {
+        testImplementation project(path: ':modules:reindex')
+        testImplementation "commons-io:commons-io:2.13.0"
+}
+
 //restResources {
 //  restApi {
 //    includeCore '_common', 'cluster', 'nodes', 'index', 'indices', 'get'
