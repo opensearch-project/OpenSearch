@@ -47,6 +47,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -162,10 +163,10 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         if (caseInsensitive != DEFAULT_CASE_INSENSITIVITY) {
             builder.field(CASE_INSENSITIVE_FIELD.getPreferredName(), caseInsensitive);
         }
+        printBoostAndQueryName(builder);
         if (rewrite_override != null) {
             builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
         }
-        printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
     }
@@ -241,7 +242,13 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
-                Query query = fieldType.prefixQuery(value, null, caseInsensitive, context); // the rewrite method doesn't matter
+                RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+                    rewrite_override,
+                    RewriteOverride.DEFAULT,
+                    LoggingDeprecationHandler.INSTANCE
+                );
+                Query query = fieldType.prefixQuery(value, null, rewriteOverride, caseInsensitive, context); // the rewrite method doesn't
+                                                                                                             // matter
                 if (query instanceof MatchAllDocsQuery) {
                     return new MatchAllQueryBuilder();
                 } else if (query instanceof MatchNoDocsQuery) {

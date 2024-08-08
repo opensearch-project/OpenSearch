@@ -266,7 +266,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             + "      \"prefix_length\" : 0,\n"
             + "      \"max_expansions\" : 100,\n"
             + "      \"transpositions\" : false,\n"
-            + "      \"boost\" : 42.0\n"
+            + "      \"boost\" : 42.0,\n"
+            + "      \"rewrite_override\" : \"index_only\"\n"
             + "    }\n"
             + "  }\n"
             + "}";

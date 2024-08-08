@@ -42,6 +42,7 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
@@ -55,6 +56,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.RewriteOverride;
+import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.indices.TermsLookup;
 
 import java.io.IOException;
@@ -379,9 +382,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (rewrite_override != null) {
-            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
-        }
         if (this.termsLookup != null) {
             builder.startObject(fieldName);
             termsLookup.toXContent(builder, params);
@@ -390,6 +390,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             builder.field(fieldName, convertBack(values));
         }
         printBoostAndQueryName(builder);
+        if (rewrite_override != null) {
+            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
+        }
         builder.endObject();
     }
 
@@ -507,7 +510,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        return fieldType.termsQuery(values, context);
+        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+            rewrite_override,
+            RewriteOverride.DEFAULT,
+            LoggingDeprecationHandler.INSTANCE
+        );
+        return fieldType.termsQuery(values, rewriteOverride, context);
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {

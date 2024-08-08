@@ -35,6 +35,7 @@ package org.opensearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.Version;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
@@ -45,6 +46,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -77,6 +79,10 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     private static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
     private static final ParseField TRANSPOSITIONS_FIELD = new ParseField("transpositions");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
+
+    private static final ParseField REWRITE_OVERRIDE = new ParseField("rewrite_override");
+
+    private String rewrite_override;
 
     private final String fieldName;
 
@@ -181,6 +187,9 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         maxExpansions = in.readVInt();
         transpositions = in.readBoolean();
         rewrite = in.readOptionalString();
+        if (in.getVersion().after(Version.V_2_16_0)) {
+            rewrite_override = in.readOptionalString();
+        }
     }
 
     @Override
@@ -192,6 +201,9 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         out.writeVInt(this.maxExpansions);
         out.writeBoolean(this.transpositions);
         out.writeOptionalString(this.rewrite);
+        if (out.getVersion().after(Version.V_2_16_0)) {
+            out.writeOptionalString(rewrite_override);
+        }
     }
 
     @Override
@@ -248,6 +260,11 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         return this.rewrite;
     }
 
+    private FuzzyQueryBuilder rewrite_override(String rewrite_override) {
+        this.rewrite_override = rewrite_override;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -261,6 +278,9 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             builder.field(REWRITE_FIELD.getPreferredName(), rewrite);
         }
         printBoostAndQueryName(builder);
+        if (rewrite_override != null) {
+            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
+        }
         builder.endObject();
         builder.endObject();
     }
@@ -273,6 +293,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         int maxExpansions = FuzzyQueryBuilder.DEFAULT_MAX_EXPANSIONS;
         boolean transpositions = FuzzyQueryBuilder.DEFAULT_TRANSPOSITIONS;
         String rewrite = null;
+        String rewrite_override = null;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String currentFieldName = null;
@@ -303,6 +324,8 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                             transpositions = parser.booleanValue();
                         } else if (REWRITE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             rewrite = parser.textOrNull();
+                        } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            rewrite_override = parser.textOrNull();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
@@ -330,7 +353,8 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             .transpositions(transpositions)
             .rewrite(rewrite)
             .boost(boost)
-            .queryName(queryName);
+            .queryName(queryName)
+            .rewrite_override(rewrite_override);
     }
 
     @Override
@@ -360,14 +384,28 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         Query query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, null, context);
         if (query instanceof MultiTermQuery) {
             MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
-            QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
+            RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+                rewrite_override,
+                RewriteOverride.DEFAULT,
+                LoggingDeprecationHandler.INSTANCE
+            );
+            query = fieldType.fuzzyQuery(
+                value,
+                fuzziness,
+                prefixLength,
+                maxExpansions,
+                transpositions,
+                rewriteMethod,
+                rewriteOverride,
+                context
+            );
         }
         return query;
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, fuzziness, prefixLength, maxExpansions, transpositions, rewrite);
+        return Objects.hash(fieldName, value, fuzziness, prefixLength, maxExpansions, transpositions, rewrite, rewrite_override);
     }
 
     @Override
@@ -378,6 +416,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             && Objects.equals(prefixLength, other.prefixLength)
             && Objects.equals(maxExpansions, other.maxExpansions)
             && Objects.equals(transpositions, other.transpositions)
-            && Objects.equals(rewrite, other.rewrite);
+            && Objects.equals(rewrite, other.rewrite)
+            && Objects.equals(rewrite_override, other.rewrite_override);
     }
 }

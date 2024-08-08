@@ -730,8 +730,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                         Query indexQuery = super.wildcardQuery(value, method, caseInsensitive, true, context);
                         Query dvQuery = super.wildcardQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, true, context);
                         query = new IndexOrDocValuesQuery(indexQuery, dvQuery);
-                    }
-                    if (hasDocValues()) {
+                    } else if (hasDocValues()) {
                         Term term;
                         value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
                         term = new Term(name(), value);
@@ -739,6 +738,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                             return AutomatonQueries.caseInsensitiveWildcardQuery(term, method);
                         }
                         query = new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                    } else {
+                        query = super.wildcardQuery(value, method, caseInsensitive, true, context);
                     }
                     break;
                 case INDEX_ONLY:

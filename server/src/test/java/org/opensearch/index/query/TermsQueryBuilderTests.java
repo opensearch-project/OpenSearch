@@ -294,6 +294,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             + "  \"terms\" : {\n"
             + "    \"user\" : [ \"foobar\", \"opensearch\" ],\n"
             + "    \"boost\" : 1.0\n"
+            + "     \"rewrite_override\": \"index_only\"\n"
             + "  }\n"
             + "}";
 

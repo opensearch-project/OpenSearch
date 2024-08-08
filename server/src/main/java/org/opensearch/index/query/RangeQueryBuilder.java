@@ -39,6 +39,7 @@ import org.opensearch.Version;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
@@ -48,6 +49,8 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.RewriteOverride;
+import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -359,10 +362,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (relation != null) {
             builder.field(RELATION_FIELD.getPreferredName(), relation.getRelationName());
         }
+        printBoostAndQueryName(builder);
         if (rewrite_override != null) {
             builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
         }
-        printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
     }
@@ -546,7 +549,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             throw new IllegalStateException("Rewrite first");
         }
         DateMathParser forcedDateParser = getForceDateParser();
-        return mapper.rangeQuery(from, to, includeLower, includeUpper, relation, timeZone, forcedDateParser, context);
+        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+            rewrite_override,
+            RewriteOverride.DEFAULT,
+            LoggingDeprecationHandler.INSTANCE
+        );
+        return mapper.rangeQuery(from, to, includeLower, includeUpper, relation, timeZone, forcedDateParser, rewriteOverride, context);
     }
 
     @Override

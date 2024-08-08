@@ -231,11 +231,7 @@ public abstract class MappedFieldType {
     }
 
     public Query termsQuery(List<?> values, @Nullable RewriteOverride rewriteOverride, @Nullable QueryShardContext context) {
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (Object value : values) {
-            builder.add(termQuery(value, context), Occur.SHOULD);
-        }
-        return new ConstantScoreQuery(builder.build());
+        return termsQuery(values, context);
     }
 
     /** Build a constant-scoring query that matches all values. The default implementation uses a
@@ -264,6 +260,20 @@ public abstract class MappedFieldType {
         QueryShardContext context
     ) {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
+    }
+
+    public Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        @Nullable RewriteOverride rewriteOverride,
+        QueryShardContext context
+    ) {
+        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, relation, timeZone, parser, context);
     }
 
     public Query fuzzyQuery(
@@ -304,9 +314,7 @@ public abstract class MappedFieldType {
         @Nullable RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
-        throw new IllegalArgumentException(
-            "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
+        return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
     }
 
     public Query prefixQuery(
@@ -316,10 +324,7 @@ public abstract class MappedFieldType {
         boolean caseInsensitve,
         QueryShardContext context
     ) {
-        throw new QueryShardException(
-            context,
-            "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
+        return prefixQuery(value, method, caseInsensitve, context);
     }
 
     // Case sensitive form of prefix query
@@ -364,10 +369,7 @@ public abstract class MappedFieldType {
         boolean caseInsensitve,
         QueryShardContext context
     ) {
-        throw new QueryShardException(
-            context,
-            "Can only use wildcard queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
+        return wildcardQuery(value, method, caseInsensitve, context);
     }
 
     /** always normalizes the wildcard pattern to lowercase */
@@ -401,10 +403,7 @@ public abstract class MappedFieldType {
         @Nullable RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
-        throw new QueryShardException(
-            context,
-            "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
-        );
+        return regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
     }
 
     public Query existsQuery(QueryShardContext context) {
