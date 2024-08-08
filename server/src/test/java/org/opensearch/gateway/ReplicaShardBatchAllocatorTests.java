@@ -720,9 +720,9 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
     public void testAllocateUnassignedBatchOnTimeoutWithUnassignedReplicaShard() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
-        List<ShardRouting> shards = new ArrayList<>();
+        Set<ShardId> shards = new HashSet<>();
         while (iterator.hasNext()) {
-            shards.add(iterator.next());
+            shards.add(iterator.next().shardId());
         }
         testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
@@ -736,9 +736,9 @@ public class ReplicaShardBatchAllocatorTests extends OpenSearchAllocationTestCas
     public void testAllocateUnassignedBatchOnTimeoutWithAlreadyRecoveringReplicaShard() {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
         final RoutingNodes.UnassignedShards.UnassignedIterator iterator = allocation.routingNodes().unassigned().iterator();
-        List<ShardRouting> shards = new ArrayList<>();
+        Set<ShardId> shards = new HashSet<>();
         while (iterator.hasNext()) {
-            shards.add(iterator.next());
+            shards.add(iterator.next().shardId());
         }
         testBatchAllocator.allocateUnassignedBatchOnTimeout(shards, allocation, false);
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(0));
