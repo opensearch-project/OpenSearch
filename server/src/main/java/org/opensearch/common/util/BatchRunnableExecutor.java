@@ -61,6 +61,13 @@ public class BatchRunnableExecutor implements Runnable {
             "Time taken to execute timed runnables in this cycle:[{}ms]",
             TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime)
         );
+        onComplete();
     }
 
+    /**
+     * Callback method that is invoked after all {@link TimeoutAwareRunnable} instances in the batch have been processed.
+     * By default, this method does nothing, but it can be overridden by subclasses or modified in the implementation if
+     * there is a need to perform additional actions once the batch execution is completed.
+     */
+    public void onComplete() {}
 }
