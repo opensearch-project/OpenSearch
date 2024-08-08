@@ -9,7 +9,7 @@
         index:    test_1
 
   - do:
-      catch: /field name cannot contain only dot/
+      catch: /field name cannot contain only the character \[.\]/
       index:
         index:   test_1
         id:      1
@@ -18,7 +18,7 @@
         }
 
   - do:
-      catch: /field name cannot contain only dot/
+      catch: /field name cannot contain only the character \[.\]/
       index:
         index:   test_1
         id:      1
@@ -27,7 +27,7 @@
         }
 
   - do:
-      catch: /field name cannot contain only dot/
+      catch: /field name cannot contain only the character \[.\]/
       index:
         index:   test_1
         id:      1

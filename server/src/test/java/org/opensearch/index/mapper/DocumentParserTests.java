@@ -1716,7 +1716,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         })));
 
         assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause().getMessage(), containsString("field name cannot contain only dot"));
+        assertThat(e.getCause().getMessage(), containsString("field name cannot contain only the character [.]"));
 
         e = expectThrows(
             MapperParsingException.class,
@@ -1724,12 +1724,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
         );
 
         assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause().getMessage(), containsString("field name cannot contain only dot"));
+        assertThat(e.getCause().getMessage(), containsString("field name cannot contain only the character [.]"));
 
         e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(".", "1234"))));
 
         assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause().getMessage(), containsString("field name cannot contain only dot"));
+        assertThat(e.getCause().getMessage(), containsString("field name cannot contain only the character [.]"));
     }
 
     public void testDynamicFieldsEmptyName() throws Exception {

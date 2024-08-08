@@ -207,7 +207,7 @@ final class DocumentParser {
         if (fullFieldPath.contains(".")) {
             String[] parts = fullFieldPath.split("\\.");
             if (parts.length == 0) {
-                throw new IllegalArgumentException("field name cannot contain only dot");
+                throw new IllegalArgumentException("field name cannot contain only the character [.]");
             }
             for (String part : parts) {
                 if (Strings.hasText(part) == false) {
