@@ -13,7 +13,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import io.opentelemetry.exporter.logging.OtlpJsonLoggingMetricExporter;
 import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 
