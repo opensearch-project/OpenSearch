@@ -48,12 +48,15 @@ public class TermsLookupTests extends OpenSearchTestCase {
         String id = randomAlphaOfLengthBetween(1, 10);
         String path = randomAlphaOfLengthBetween(1, 10);
         String routing = randomAlphaOfLengthBetween(1, 10);
+        boolean store = randomBoolean();
         TermsLookup termsLookup = new TermsLookup(index, id, path);
         termsLookup.routing(routing);
+        termsLookup.store(store);
         assertEquals(index, termsLookup.index());
         assertEquals(id, termsLookup.id());
         assertEquals(path, termsLookup.path());
         assertEquals(routing, termsLookup.routing());
+        assertEquals(store, termsLookup.store());
     }
 
     public void testIllegalArguments() {
@@ -109,6 +112,6 @@ public class TermsLookupTests extends OpenSearchTestCase {
     public static TermsLookup randomTermsLookup() {
         return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10).replace('.', '_')).routing(
             randomBoolean() ? randomAlphaOfLength(10) : null
-        );
+        ).store(randomBoolean());
     }
 }

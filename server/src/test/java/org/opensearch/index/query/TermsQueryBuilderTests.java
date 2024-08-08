@@ -46,6 +46,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
+import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.ParsingException;
@@ -59,14 +60,19 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.roaringbitmap.RoaringBitmap;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -120,10 +126,9 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
-        // Randomly choose between a typeless terms lookup and one with an explicit type to make sure we are
         TermsLookup lookup = new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
-        // testing both cases.
         lookup.routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        lookup.store(randomBoolean());
         return lookup;
     }
 
@@ -245,7 +250,17 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         } catch (IOException ex) {
             throw new OpenSearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(getRequest.index(), getRequest.id(), 0, 1, 0, true, new BytesArray(json), null, null));
+        Map<String, DocumentField> documentField = new HashMap<>();
+        List<Object> nonNullTerms = new ArrayList<>();
+        for (Object obj : randomTerms) {
+            if (obj != null) {
+                nonNullTerms.add(obj);
+            }
+        }
+        documentField.put(termsPath, new DocumentField(termsPath, nonNullTerms));
+        return new GetResponse(
+            new GetResult(getRequest.index(), getRequest.id(), 0, 1, 0, true, new BytesArray(json), documentField, null)
+        );
     }
 
     public void testNumeric() throws IOException {
@@ -388,4 +403,50 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
+    public void testFromJsonWithValueType() throws IOException {
+        String json = "{\n"
+            + "    \"terms\": {\n"
+            + "        \"student_id\": [\"OjAAAAEAAAAAAAEAEAAAAG8A3gA=\"],\n"
+            + "        \"boost\" : 1.0,\n"
+            + "        \"value_type\": \"bitmap\"\n"
+            + "    }\n"
+            + "}";
+
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 1, parsed.values().size());
+    }
+
+    public void testFromJsonWithValueTypeFail() {
+        String json = "{\n"
+            + "    \"terms\": {\n"
+            + "        \"student_id\": [\"OjAAAAEAAAAAAAEAEAAAAG8A3gA=\", \"2\"],\n"
+            + "        \"boost\" : 1.0,\n"
+            + "        \"value_type\": \"bitmap\"\n"
+            + "    }\n"
+            + "}";
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertEquals(
+            "Invalid value for bitmap type: Expected a single-element array with a base64 encoded serialized bitmap.",
+            e.getMessage()
+        );
+    }
+
+    public void testTermsLookupBitmap() throws IOException {
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(111);
+        bitmap.add(333);
+        byte[] array = new byte[bitmap.serializedSizeInBytes()];
+        bitmap.serialize(ByteBuffer.wrap(array));
+        randomTerms = List.of(new BytesArray(array)); // this will be fetched back by terms lookup
+
+        TermsQueryBuilder query = new TermsQueryBuilder(INT_FIELD_NAME, randomTermsLookup().store(true)).valueType(
+            TermsQueryBuilder.ValueType.BITMAP
+        );
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewritten = rewriteQuery(query, new QueryShardContext(context));
+        Query luceneQuery = rewritten.toQuery(context);
+        assertTrue(luceneQuery instanceof IndexOrDocValuesQuery);
+    }
 }
