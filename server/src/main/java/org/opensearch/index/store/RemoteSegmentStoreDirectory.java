@@ -197,7 +197,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             metadataFiles,
             Set.of(timestamp),
             metadataFilePinnedTimestampMap,
-            MetadataFilenameUtils::getTimestamp
+            MetadataFilenameUtils::getTimestamp,
+            MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
         );
         if (lockedMetadataFiles.isEmpty()) {
             return null;
@@ -841,7 +842,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             metadataFilesEligibleToDelete,
             pinnedTimestamps,
             metadataFilePinnedTimestampMap,
-            MetadataFilenameUtils::getTimestamp
+            MetadataFilenameUtils::getTimestamp,
+            MetadataFilenameUtils::getNodeIdByPrimaryTermAndGen
         );
         final Set<String> allLockFiles = new HashSet<>(implicitLockedFiles);
 

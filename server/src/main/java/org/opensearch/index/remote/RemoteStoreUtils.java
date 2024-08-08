@@ -403,7 +403,8 @@ public class RemoteStoreUtils {
         List<String> metadataFiles,
         Set<Long> pinnedTimestampSet,
         Map<Long, String> metadataFilePinnedTimestampMap,
-        Function<String, Long> getTimestampFunction
+        Function<String, Long> getTimestampFunction,
+        Function<String, Tuple<String, String>> prefixFunction
     ) {
         Set<String> implicitLockedFiles = new HashSet<>();
 
@@ -436,8 +437,11 @@ public class RemoteStoreUtils {
         Iterator<Long> timestampIterator = newPinnedTimestamps.iterator();
         Long currentPinnedTimestamp = timestampIterator.next();
         long prevMdTimestamp = Long.MAX_VALUE;
-
+        String previousMetadataFile = null;
         for (String metadataFileName : metadataFiles) {
+            if (previousMetadataFile != null) {
+                RemoteStoreUtils.verifyNoMultipleWriters(List.of(previousMetadataFile, metadataFileName), prefixFunction);
+            }
             long currentMdTimestamp = getTimestampFunction.apply(metadataFileName);
             // We always prefer md file with higher values of prefix like primary term, generation etc.
             if (currentMdTimestamp > prevMdTimestamp) {
@@ -455,9 +459,9 @@ public class RemoteStoreUtils {
                 currentPinnedTimestamp = timestampIterator.next();
             }
             prevMdTimestamp = currentMdTimestamp;
+            previousMetadataFile = metadataFileName;
         }
 
         return implicitLockedFiles;
     }
-
 }
