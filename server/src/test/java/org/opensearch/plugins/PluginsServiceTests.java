@@ -38,11 +38,13 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.action.ActionModule;
 import org.opensearch.bootstrap.JarHell;
 import org.opensearch.client.node.PluginNodeClient;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
@@ -50,6 +52,7 @@ import org.opensearch.semver.SemverRange;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -67,6 +70,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -78,6 +82,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends OpenSearchTestCase {
@@ -933,6 +938,26 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         TestPlugin testPlugin = new TestPlugin();
         PluginNodeClient pluginNodeClient = new PluginNodeClient(Settings.EMPTY, null, testPlugin);
         testPlugin.setPluginNodeClient(pluginNodeClient); // should succeed
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginNodeClient(pluginNodeClient));
+        assertThat(e.getMessage(), containsString("pluginNodeClient can only be set once"));
+    }
+
+    public void testInitializePlugins() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        PluginsService service = newPluginsService(settings, TestPlugin.class);
+
+        service.initializePlugins(
+            Settings.EMPTY,
+            mock(ThreadPool.class),
+            mock(ActionModule.DynamicActionRegistry.class),
+            mock(Supplier.class),
+            null,
+            mock(NamedWriteableRegistry.class)
+        );
+
+        Plugin testPlugin = service.filterPlugins(Plugin.class).get(0);
+        PluginNodeClient pluginNodeClient = new PluginNodeClient(Settings.EMPTY, null, testPlugin);
+        // pluginNodeClient should have previously been set in service.initializePlugins
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginNodeClient(pluginNodeClient));
         assertThat(e.getMessage(), containsString("pluginNodeClient can only be set once"));
     }
