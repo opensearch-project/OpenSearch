@@ -442,7 +442,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             remoteStoreIndexShallowCopy = in.readOptionalBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
             pinnedTimestamp = in.readVLong();
         }
     }
@@ -907,7 +907,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalBoolean(remoteStoreIndexShallowCopy);
         }
-        if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeVLong(pinnedTimestamp);
         }
     }

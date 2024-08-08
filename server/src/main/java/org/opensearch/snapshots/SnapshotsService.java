@@ -534,14 +534,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(repoData, snapshotInfo));
                     listener.onResponse(snapshotInfo);
                 }, listener::onFailure);
-
                 repository.finalizeSnapshot(
                     shardGenerations,
                     repositoryData.getGenId(),
                     metadataForSnapshot(currentState.metadata(), request.includeGlobalState(), false, dataStreams, indexIds),
                     snapshotInfo,
                     version,
-                    state -> stateWithoutSnapshot(clusterService.state(), snapshot),
+                    state -> stateWithoutSnapshot(state, snapshot),
                     new ActionListener<RepositoryData>() {
                         @Override
                         public void onResponse(RepositoryData repositoryData) {
