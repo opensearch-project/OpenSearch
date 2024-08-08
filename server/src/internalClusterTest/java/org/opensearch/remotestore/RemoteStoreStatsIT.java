@@ -286,15 +286,18 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
             zeroStatePrimaryStats.uploadBytesStarted,
             zeroStatePrimaryStats.uploadBytesFailed
         );
-        assertTrue(
-            zeroStatePrimaryStats.totalUploadsStarted == zeroStatePrimaryStats.totalUploadsSucceeded
-                && zeroStatePrimaryStats.totalUploadsSucceeded == 1
-        );
-        assertTrue(
-            zeroStatePrimaryStats.uploadBytesStarted == zeroStatePrimaryStats.uploadBytesSucceeded
-                && zeroStatePrimaryStats.uploadBytesSucceeded > 0
-        );
-        assertTrue(zeroStatePrimaryStats.totalUploadsFailed == 0 && zeroStatePrimaryStats.uploadBytesFailed == 0);
+
+        assertBusy(() -> {
+            assertTrue(
+                zeroStatePrimaryStats.totalUploadsStarted == zeroStatePrimaryStats.totalUploadsSucceeded
+                    && zeroStatePrimaryStats.totalUploadsSucceeded == 1
+            );
+            assertTrue(
+                zeroStatePrimaryStats.uploadBytesStarted == zeroStatePrimaryStats.uploadBytesSucceeded
+                    && zeroStatePrimaryStats.uploadBytesSucceeded > 0
+            );
+            assertTrue(zeroStatePrimaryStats.totalUploadsFailed == 0 && zeroStatePrimaryStats.uploadBytesFailed == 0);
+        });
 
         // Extract and assert zero state replica stats
         RemoteSegmentTransferTracker.Stats zeroStateReplicaStats = Arrays.stream(zeroStateResponse.getRemoteStoreStats())
