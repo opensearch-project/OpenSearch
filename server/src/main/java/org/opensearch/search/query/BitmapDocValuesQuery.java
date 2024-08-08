@@ -45,8 +45,13 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
     public BitmapDocValuesQuery(String field, RoaringBitmap bitmap) {
         this.field = field;
         this.bitmap = bitmap;
-        min = bitmap.first();
-        max = bitmap.last();
+        if (!bitmap.isEmpty()) {
+            min = bitmap.first();
+            max = bitmap.last();
+        } else {
+            min = 0; // final field
+            max = 0;
+        }
     }
 
     @Override
@@ -112,7 +117,7 @@ public class BitmapDocValuesQuery extends Query implements Accountable {
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        if (bitmap.getLongCardinality() == 0) {
+        if (bitmap.isEmpty()) {
             return new MatchNoDocsQuery();
         }
         return super.rewrite(indexSearcher);

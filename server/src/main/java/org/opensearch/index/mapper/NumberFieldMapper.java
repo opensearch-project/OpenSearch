@@ -46,6 +46,7 @@ import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointInSetQuery;
@@ -1463,6 +1464,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                     return encoded;
                 }
             }) {
+                @Override
+                public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+                    if (bitmap.isEmpty()) {
+                        return new MatchNoDocsQuery();
+                    }
+                    return super.rewrite(indexSearcher);
+                }
+
                 @Override
                 protected String toString(byte[] value) {
                     assert value.length == Integer.BYTES;
