@@ -57,8 +57,15 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     private CommonStatsFlags flags = new CommonStatsFlags();
 
+    private boolean isCancellationTaskRequired = false;
+
     public IndicesStatsRequest() {
         super((String[]) null);
+    }
+
+    public IndicesStatsRequest(boolean isCancellationTaskRequired) {
+        super((String[]) null);
+        this.isCancellationTaskRequired = isCancellationTaskRequired;
     }
 
     public IndicesStatsRequest(StreamInput in) throws IOException {
@@ -108,7 +115,12 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     @Override
     public ClusterAdminTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new ClusterAdminTask(id, type, action, parentTaskId, headers);
+        if (this.isCancellationTaskRequired) {
+            return new ClusterAdminTask(id, type, action, parentTaskId, headers);
+        }
+        else {
+            return createTask(id, type, action, parentTaskId, headers);
+        }
     }
 
     public String[] groups() {

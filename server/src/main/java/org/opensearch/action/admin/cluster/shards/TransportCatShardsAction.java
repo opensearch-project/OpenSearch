@@ -44,7 +44,7 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
 
     @Override
     public void doExecute(Task parenTask, CatShardsRequest shardsRequest, ActionListener<CatShardsResponse> listener) {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(true);
         clusterStateRequest.local(shardsRequest.getLocal());
         clusterStateRequest.clusterManagerNodeTimeout(shardsRequest.getClusterManagerNodeTimeout());
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
@@ -63,7 +63,7 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                 @Override
                 public void onResponse(ClusterStateResponse clusterStateResponse) {
                     catShardsResponse.setClusterStateResponse(clusterStateResponse);
-                    IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+                    IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest(true);
                     indicesStatsRequest.all();
                     indicesStatsRequest.indices(shardsRequest.getIndices());
                     indicesStatsRequest.setParentTask(client.getLocalNodeId(), parenTask.getId());
