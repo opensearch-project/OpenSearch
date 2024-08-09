@@ -1995,6 +1995,42 @@ public class IngestServiceTests extends OpenSearchTestCase {
         verify(mockCompoundProcessor, never()).execute(any(), any());
     }
 
+    public void testExecuteEmptyPipelineInBatch() throws Exception {
+        IngestService ingestService = createWithProcessors(emptyMap());
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [], \"description\": \"_description\"}"),
+            MediaTypeRegistry.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest2);
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest3);
+        IndexRequest indexRequest4 = new IndexRequest("_index").id("_id4").source(emptyMap()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest4);
+        bulkRequest.batchSize(4);
+        final Map<Integer, Exception> failureHandler = new HashMap<>();
+        final Map<Thread, Exception> completionHandler = new HashMap<>();
+        ingestService.executeBulkRequest(
+            4,
+            bulkRequest.requests(),
+            failureHandler::put,
+            completionHandler::put,
+            indexReq -> {},
+            Names.WRITE,
+            bulkRequest
+        );
+        assertTrue(failureHandler.isEmpty());
+        assertEquals(Set.of(Thread.currentThread()), completionHandler.keySet());
+    }
+
     public void testPrepareBatches_same_index_pipeline() {
         IngestService.IndexRequestWrapper wrapper1 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
         IngestService.IndexRequestWrapper wrapper2 = createIndexRequestWrapper("index1", Collections.singletonList("p1"));
