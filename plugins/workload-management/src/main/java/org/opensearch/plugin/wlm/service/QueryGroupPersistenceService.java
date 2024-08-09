@@ -17,9 +17,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.rest.RestStatus;
-import org.opensearch.plugin.wlm.action.GetQueryGroupResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -95,27 +92,11 @@ public class QueryGroupPersistenceService {
     }
 
     /**
-     * Get the QueryGroup with the specified name and generate response
-     * @param name - the QueryGroup name we are getting
-     * @param listener - ActionListener for GetQueryGroupResponse
-     */
-    public void getFromClusterStateMetadata(String name, ActionListener<GetQueryGroupResponse> listener) {
-        List<QueryGroup> resultGroups = getQueryGroupsFromClusterState(name, clusterService.state());
-        if (resultGroups.isEmpty() && name != null && !name.isEmpty()) {
-            logger.warn("No QueryGroup exists with the provided name: {}", name);
-            Exception e = new IllegalArgumentException("No QueryGroup exists with the provided name: " + name);
-            listener.onFailure(e);
-            return;
-        }
-        listener.onResponse(new GetQueryGroupResponse(resultGroups, RestStatus.OK));
-    }
-
-    /**
      * Get the QueryGroups with the specified name from cluster state
      * @param name - the QueryGroup name we are getting
      * @param currentState - current cluster state
      */
-    List<QueryGroup> getQueryGroupsFromClusterState(String name, ClusterState currentState) {
+    public static List<QueryGroup> getFromClusterStateMetadata(String name, ClusterState currentState) {
         Map<String, QueryGroup> currentGroups = currentState.getMetadata().queryGroups();
         if (name == null || name.isEmpty()) {
             return new ArrayList<>(currentGroups.values());
