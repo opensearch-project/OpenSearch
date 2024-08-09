@@ -210,9 +210,11 @@ import java.util.stream.Collectors;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_PUBLICATION_EXPERIMENTAL;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
@@ -396,6 +398,14 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     private ReplicationType randomReplicationType;
 
     private String randomStorageType;
+
+    private final String REPOSITORY_NAME = "test-remote-store-repo";
+    private final String REPOSITORY_2_NAME = "test-remote-store-repo-2";
+    private final String REPOSITORY_3_NAME = "test-remote-routing-repo";
+    private Path segmentRepoPath;
+    private Path translogRepoPath;
+    private Path routingRepoPath;
+    private final String repoType = ReloadableFsRepository.TYPE;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -2073,9 +2083,33 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
+                if (segmentRepoPath == null) {
+                    segmentRepoPath = randomRepoPath().toAbsolutePath();
+                }
+                if (translogRepoPath == null) {
+                    translogRepoPath = randomRepoPath().toAbsolutePath();
+                }
+                if (routingRepoPath == null) {
+                    routingRepoPath = randomRepoPath().toAbsolutePath();
+                }
                 return Settings.builder()
                     .put(initialNodeSettings.build())
                     .put(OpenSearchIntegTestCase.this.nodeSettings(nodeOrdinal))
+                    .put(
+                        remoteStoreClusterSettings(
+                            REPOSITORY_NAME,
+                            segmentRepoPath,
+                            repoType,
+                            REPOSITORY_2_NAME,
+                            translogRepoPath,
+                            repoType,
+                            REPOSITORY_3_NAME,
+                            routingRepoPath,
+                            repoType
+                        )
+                    )
+                    .put(REMOTE_PUBLICATION_EXPERIMENTAL, true)
+                    .put(REMOTE_CLUSTER_STATE_ENABLED_SETTING.getKey(), true)
                     .build();
             }
 
