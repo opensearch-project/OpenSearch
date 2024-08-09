@@ -41,8 +41,12 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.rest.action.admin.cluster.ClusterAdminTask;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Transport request for obtaining cluster state
@@ -63,6 +67,8 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
     private TimeValue waitForTimeout = DEFAULT_WAIT_FOR_NODE_TIMEOUT;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+
+    private boolean isCancellationTaskRequired = false;
 
     public ClusterStateRequest() {}
 
@@ -210,5 +216,20 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
         }
         this.waitForMetadataVersion = waitForMetadataVersion;
         return this;
+    }
+
+    public void setIsCancellationTaskRequired(boolean isCancellationTaskRequired) {
+        this.isCancellationTaskRequired = isCancellationTaskRequired;
+    }
+
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        if (this.isCancellationTaskRequired) {
+            return new ClusterAdminTask(id, type, action, parentTaskId, headers);
+        }
+        else {
+            return super.createTask(id, type, action, parentTaskId, headers);
+        }
     }
 }
