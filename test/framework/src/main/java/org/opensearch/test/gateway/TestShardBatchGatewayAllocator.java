@@ -29,11 +29,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator {
 
+    CountDownLatch latch;
+
     public TestShardBatchGatewayAllocator() {
 
+    }
+
+    public TestShardBatchGatewayAllocator(CountDownLatch latch) {
+        this.latch = latch;
     }
 
     public TestShardBatchGatewayAllocator(long maxBatchSize) {
@@ -83,6 +90,13 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
             }
             return new AsyncShardFetch.FetchResult<>(foundShards, shardsToIgnoreNodes);
         }
+
+        @Override
+        protected void allocateUnassignedBatchOnTimeout(Set<ShardId> shardIds, RoutingAllocation allocation, boolean primary) {
+            for (int i = 0; i < shardIds.size(); i++) {
+                latch.countDown();
+            }
+        }
     };
 
     ReplicaShardBatchAllocator replicaBatchShardAllocator = new ReplicaShardBatchAllocator() {
@@ -99,6 +113,13 @@ public class TestShardBatchGatewayAllocator extends ShardsBatchGatewayAllocator 
         @Override
         protected boolean hasInitiatedFetching(ShardRouting shard) {
             return true;
+        }
+
+        @Override
+        protected void allocateUnassignedBatchOnTimeout(Set<ShardId> shardIds, RoutingAllocation allocation, boolean primary) {
+            for (int i = 0; i < shardIds.size(); i++) {
+                latch.countDown();
+            }
         }
     };
 
