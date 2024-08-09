@@ -111,23 +111,55 @@ public class JsonToStringXContentParserTests extends OpenSearchTestCase {
     }
 
     public void testArrayOfObjects() throws IOException {
-        String jsonExample ="{" +
-            "\"field\": {" +
-            "  \"detail\": {" +
-            "    \"foooooooooooo\": [" +
-            "      {\"name\":\"baz\"}," +
-            "      {\"name\":\"baz\"}" +
-            "    ]" +
-            "  }" +
-            "}}";
+        String jsonExample = "{"
+            + "\"field\": {"
+            + "  \"detail\": {"
+            + "    \"foooooooooooo\": ["
+            + "      {\"name\":\"baz\"},"
+            + "      {\"name\":\"baz\"}"
+            + "    ]"
+            + "  }"
+            + "}}";
 
-        assertEquals("{" +
-            "\"flat\":[\"field\",\"detail\",\"foooooooooooo\",\"name\",\"name\"]," +
-            "\"flat._value\":[\"baz\",\"baz\"]," +
-            "\"flat._valueAndPath\":[" +
-            "\"flat.field.detail.foooooooooooo.name=baz\"," +
-            "\"flat.field.detail.foooooooooooo.name=baz\"" +
-            "]}",
+        assertEquals(
+            "{"
+                + "\"flat\":[\"field\",\"detail\",\"foooooooooooo\",\"name\",\"name\"],"
+                + "\"flat._value\":[\"baz\",\"baz\"],"
+                + "\"flat._valueAndPath\":["
+                + "\"flat.field.detail.foooooooooooo.name=baz\","
+                + "\"flat.field.detail.foooooooooooo.name=baz\""
+                + "]}",
+            flattenJsonString("flat", jsonExample)
+        );
+    }
+
+    public void testArraysOfObjectsAndValues() throws IOException {
+        String jsonExample = "{"
+            + "\"field\": {"
+            + "  \"detail\": {"
+            + "    \"foooooooooooo\": ["
+            + "      {\"name\":\"baz\"},"
+            + "      {\"name\":\"baz\"}"
+            + "    ]"
+            + "  },"
+            + "  \"numbers\" : ["
+            + "    1,"
+            + "    2,"
+            + "    3"
+            + "  ]"
+            + "}}";
+
+        assertEquals(
+            "{"
+                + "\"flat\":[\"field\",\"detail\",\"foooooooooooo\",\"name\",\"name\",\"numbers\"],"
+                + "\"flat._value\":[\"baz\",\"baz\",\"1\",\"2\",\"3\"],"
+                + "\"flat._valueAndPath\":["
+                + "\"flat.field.detail.foooooooooooo.name=baz\","
+                + "\"flat.field.detail.foooooooooooo.name=baz\","
+                + "\"flat.field.numbers=1\","
+                + "\"flat.field.numbers=2\","
+                + "\"flat.field.numbers=3\""
+                + "]}",
             flattenJsonString("flat", jsonExample)
         );
     }
