@@ -34,7 +34,7 @@ import java.util.Optional;
  * This class defines the functions for QueryGroup persistence
  */
 public class QueryGroupPersistenceService {
-    private static final String SOURCE = "query-group-persistence-service";
+    static final String SOURCE = "query-group-persistence-service";
     private static final String CREATE_QUERY_GROUP_THROTTLING_KEY = "create-query-group";
     private static final Logger logger = LogManager.getLogger(QueryGroupPersistenceService.class);
     /**
@@ -62,7 +62,7 @@ public class QueryGroupPersistenceService {
     );
     private final ClusterService clusterService;
     private volatile int maxQueryGroupCount;
-    private final ThrottlingKey createQueryGroupThrottlingKey;
+    final ThrottlingKey createQueryGroupThrottlingKey;
 
     /**
      * Constructor for QueryGroupPersistenceService
@@ -190,5 +190,12 @@ public class QueryGroupPersistenceService {
             }
         }
         return map;
+    }
+
+    /**
+     * maxQueryGroupCount getter
+     */
+    public int getMaxQueryGroupCount() {
+        return maxQueryGroupCount;
     }
 }

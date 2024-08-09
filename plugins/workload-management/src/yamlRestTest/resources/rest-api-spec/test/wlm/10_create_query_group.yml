@@ -1,4 +1,4 @@
-"test create a QueryGroup API successfully":
+"test create QueryGroup API":
   - skip:
       version: " - 2.16.99"
       reason: "QueryGroup WorkloadManagement feature was added in 2.17"
@@ -19,12 +19,6 @@
   - match: { resiliency_mode: "monitor" }
   - match: { resource_limits.cpu: 0.4 }
   - match: { resource_limits.memory: 0.2 }
-
----
-"test bad QueryGroup API arguments":
-  - skip:
-      version: " - 2.16.99"
-      reason: "QueryGroup WorkloadManagement feature was added in 2.17"
 
   - do:
       catch: /illegal_argument_exception/
@@ -77,12 +71,6 @@
               "memory": 0.2
             }
           }
-
----
-"test create another QueryGroup API successfully":
-  - skip:
-      version: " - 2.16.99"
-      reason: "QueryGroup WorkloadManagement feature was added in 2.17"
 
   - do:
       create_query_group_context:

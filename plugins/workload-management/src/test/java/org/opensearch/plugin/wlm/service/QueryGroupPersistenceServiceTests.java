@@ -10,12 +10,16 @@ package org.opensearch.plugin.wlm.service;
 
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.plugin.wlm.QueryGroupTestUtils;
+import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.search.ResourceType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -26,6 +30,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.opensearch.cluster.metadata.QueryGroup.builder;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MEMORY_STRING;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.MONITOR_STRING;
@@ -34,18 +40,26 @@ import static org.opensearch.plugin.wlm.QueryGroupTestUtils.NAME_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_ONE;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils._ID_TWO;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.assertEqualQueryGroups;
+import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterSettings;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.clusterSettingsSet;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.preparePersistenceServiceSetup;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupList;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupOne;
 import static org.opensearch.plugin.wlm.QueryGroupTestUtils.queryGroupTwo;
 import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.QUERY_GROUP_COUNT_SETTING_NAME;
+import static org.opensearch.plugin.wlm.service.QueryGroupPersistenceService.SOURCE;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
 
     /**
-     * Test case to validate the creation logic of a single QueryGroup
+     * Test case to validate the creation logic of a QueryGroup
      */
     public void testCreateQueryGroup() {
         Tuple<QueryGroupPersistenceService, ClusterState> setup = preparePersistenceServiceSetup(new HashMap<>());
@@ -136,6 +150,9 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertThrows(RuntimeException.class, () -> queryGroupPersistenceService1.saveQueryGroupInClusterState(toCreate, clusterState));
     }
 
+    /**
+     * Tests the invalid value of {@code node.query_group.max_count}
+     */
     public void testInvalidMaxQueryGroupCount() {
         Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 2).build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
@@ -146,5 +163,85 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
             clusterSettings
         );
         assertThrows(IllegalArgumentException.class, () -> queryGroupPersistenceService.setMaxQueryGroupCount(-1));
+    }
+
+    /**
+     * Tests the valid value of {@code node.query_group.max_count}
+     */
+    public void testValidMaxSandboxCountSetting() {
+        Settings settings = Settings.builder().put(QUERY_GROUP_COUNT_SETTING_NAME, 100).build();
+        ClusterService clusterService = new ClusterService(settings, clusterSettings(), mock(ThreadPool.class));
+        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
+            clusterService,
+            settings,
+            clusterSettings()
+        );
+        queryGroupPersistenceService.setMaxQueryGroupCount(50);
+        assertEquals(50, queryGroupPersistenceService.getMaxQueryGroupCount());
+    }
+
+    /**
+     * Tests PersistInClusterStateMetadata function
+     */
+    public void testPersistInClusterStateMetadata() {
+        ClusterService clusterService = mock(ClusterService.class);
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateQueryGroupResponse> listener = mock(ActionListener.class);
+        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
+            clusterService,
+            QueryGroupTestUtils.settings(),
+            clusterSettings()
+        );
+        queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
+        verify(clusterService).submitStateUpdateTask(eq(SOURCE), any());
+    }
+
+    /**
+     * Tests PersistInClusterStateMetadata function with inner functions
+     */
+    public void testPersistInClusterStateMetadataInner() {
+        ClusterService clusterService = mock(ClusterService.class);
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateQueryGroupResponse> listener = mock(ActionListener.class);
+        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
+            clusterService,
+            QueryGroupTestUtils.settings(),
+            clusterSettings()
+        );
+        ArgumentCaptor<ClusterStateUpdateTask> captor = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
+        queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
+        verify(clusterService, times(1)).submitStateUpdateTask(eq(SOURCE), captor.capture());
+        ClusterStateUpdateTask capturedTask = captor.getValue();
+        assertEquals(queryGroupPersistenceService.createQueryGroupThrottlingKey, capturedTask.getClusterManagerThrottlingKey());
+
+        doAnswer(invocation -> {
+            ClusterStateUpdateTask task = invocation.getArgument(1);
+            task.clusterStateProcessed(SOURCE, mock(ClusterState.class), mock(ClusterState.class));
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any());
+        queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
+        verify(listener).onResponse(any(CreateQueryGroupResponse.class));
+    }
+
+    /**
+     * Tests PersistInClusterStateMetadata function with failure
+     */
+    public void testPersistInClusterStateMetadataFailure() {
+        ClusterService clusterService = mock(ClusterService.class);
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateQueryGroupResponse> listener = mock(ActionListener.class);
+        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
+            clusterService,
+            QueryGroupTestUtils.settings(),
+            clusterSettings()
+        );
+        doAnswer(invocation -> {
+            ClusterStateUpdateTask task = invocation.getArgument(1);
+            Exception exception = new RuntimeException("Test Exception");
+            task.onFailure(SOURCE, exception);
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any());
+        queryGroupPersistenceService.persistInClusterStateMetadata(queryGroupOne, listener);
+        verify(listener).onFailure(any(RuntimeException.class));
     }
 }

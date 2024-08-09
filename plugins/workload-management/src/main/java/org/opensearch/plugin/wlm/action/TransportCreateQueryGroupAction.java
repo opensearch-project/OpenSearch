@@ -51,7 +51,7 @@ public class TransportCreateQueryGroupAction extends HandledTransportAction<Crea
 
     @Override
     protected void doExecute(Task task, CreateQueryGroupRequest request, ActionListener<CreateQueryGroupResponse> listener) {
-        threadPool.executor(ThreadPool.Names.GENERIC)
+        threadPool.executor(ThreadPool.Names.SAME)
             .execute(() -> queryGroupPersistenceService.persistInClusterStateMetadata(request.getQueryGroup(), listener));
     }
 }

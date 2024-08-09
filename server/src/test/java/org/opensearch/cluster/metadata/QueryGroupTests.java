@@ -103,6 +103,29 @@ public class QueryGroupTests extends AbstractSerializingTestCase<QueryGroup> {
         );
     }
 
+    public void testQueryGroupInitiation() {
+        QueryGroup queryGroup = new QueryGroup("analytics", randomMode(), Map.of(ResourceType.MEMORY, 0.4));
+        assertNotNull(queryGroup.getName());
+        assertNotNull(queryGroup.get_id());
+        assertNotNull(queryGroup.getResourceLimits());
+        assertFalse(queryGroup.getResourceLimits().isEmpty());
+        assertEquals(1, queryGroup.getResourceLimits().size());
+        assertTrue(allowedModes.contains(queryGroup.getResiliencyMode()));
+        assertTrue(queryGroup.getUpdatedAtInMillis() != 0);
+    }
+
+    public void testIllegalQueryGroupName() {
+        assertThrows(
+            NullPointerException.class,
+            () -> new QueryGroup("a".repeat(51), "_id", null, Map.of(ResourceType.MEMORY, 0.4), Instant.now().getMillis())
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> new QueryGroup("", "_id", null, Map.of(ResourceType.MEMORY, 0.4), Instant.now().getMillis())
+        );
+
+    }
+
     public void testInvalidResourceLimitWhenInvalidSystemResourceValueIsGiven() {
         assertThrows(
             IllegalArgumentException.class,
