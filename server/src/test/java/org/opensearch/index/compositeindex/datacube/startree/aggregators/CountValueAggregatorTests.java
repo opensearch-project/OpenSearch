@@ -16,7 +16,7 @@ public class CountValueAggregatorTests extends OpenSearchTestCase {
     private final CountValueAggregator aggregator = new CountValueAggregator(StarTreeNumericType.LONG);
 
     public void testGetAggregationType() {
-        assertEquals(MetricStat.COUNT.getTypeName(), aggregator.getAggregationType().getTypeName());
+        assertEquals(MetricStat.VALUE_COUNT.getTypeName(), aggregator.getAggregationType().getTypeName());
     }
 
     public void testGetAggregatedValueType() {

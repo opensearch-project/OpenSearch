@@ -17,7 +17,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
  */
 @ExperimentalApi
 public enum MetricStat {
-    COUNT("count"),
+    VALUE_COUNT("value_count"),
     AVG("avg"),
     SUM("sum"),
     MIN("min"),
