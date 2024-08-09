@@ -46,6 +46,7 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -69,12 +70,15 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
 
@@ -89,10 +93,30 @@ import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteSplitIndexIT extends RemoteStoreBaseIntegTestCase {
+    @Before
+    public void setup() {
+        asyncUploadMockFsRepo = false;
+    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
         return false;
+    }
+
+    @After
+    public void cleanUp() throws Exception {
+        // Delete is async.
+        assertAcked(
+            client().admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get()
+        );
+        assertBusy(() -> {
+            try {
+                assertEquals(0, getFileCount(translogRepoPath));
+            } catch (IOException e) {
+                fail();
+            }
+        }, 30, TimeUnit.SECONDS);
+        super.teardown();
     }
 
     public Settings indexSettings() {

@@ -32,6 +32,7 @@ import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BatchRunnableExecutor;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.shard.ShardId;
@@ -45,6 +46,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.opensearch.gateway.ShardsBatchGatewayAllocator.PRIMARY_BATCH_ALLOCATOR_TIMEOUT_SETTING;
@@ -421,6 +424,24 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         // Valid setting with timeout = -1
         build = Settings.builder().put(REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING_KEY, "-1").build();
         assertEquals(-1, REPLICA_BATCH_ALLOCATOR_TIMEOUT_SETTING.get(build).getMillis());
+    }
+
+    public void testCollectTimedOutShards() throws InterruptedException {
+        createIndexAndUpdateClusterState(2, 5, 2);
+        CountDownLatch latch = new CountDownLatch(10);
+        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(latch);
+        testShardsBatchGatewayAllocator.setPrimaryBatchAllocatorTimeout(TimeValue.ZERO);
+        testShardsBatchGatewayAllocator.setReplicaBatchAllocatorTimeout(TimeValue.ZERO);
+        BatchRunnableExecutor executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, true);
+        executor.run();
+        assertTrue(latch.await(1, TimeUnit.MINUTES));
+        latch = new CountDownLatch(10);
+        testShardsBatchGatewayAllocator = new TestShardBatchGatewayAllocator(latch);
+        testShardsBatchGatewayAllocator.setPrimaryBatchAllocatorTimeout(TimeValue.ZERO);
+        testShardsBatchGatewayAllocator.setReplicaBatchAllocatorTimeout(TimeValue.ZERO);
+        executor = testShardsBatchGatewayAllocator.allocateAllUnassignedShards(testAllocation, false);
+        executor.run();
+        assertTrue(latch.await(1, TimeUnit.MINUTES));
     }
 
     private void createIndexAndUpdateClusterState(int count, int numberOfShards, int numberOfReplicas) {

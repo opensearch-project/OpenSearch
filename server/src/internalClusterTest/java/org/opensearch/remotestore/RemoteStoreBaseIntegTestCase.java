@@ -313,7 +313,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         }
     }
 
-    public static int getFileCount(Path path) throws Exception {
+    public static int getFileCount(Path path) throws IOException {
         final AtomicInteger filesExisting = new AtomicInteger(0);
         Files.walkFileTree(path, new SimpleFileVisitor<>() {
             @Override

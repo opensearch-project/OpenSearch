@@ -62,4 +62,8 @@ public class TreeNode {
      * A map containing the child nodes of this star-tree node, keyed by their dimension id.
      */
     public Map<Long, TreeNode> children;
+
+    public long getDimensionValue() {
+        return dimensionValue;
+    }
 }

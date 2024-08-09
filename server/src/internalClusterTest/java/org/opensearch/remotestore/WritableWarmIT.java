@@ -20,6 +20,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.shard.IndexShard;
@@ -65,11 +67,20 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         return featureSettings.build();
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
+            .build();
+    }
+
     public void testWritableWarmFeatureFlagDisabled() {
         Settings clusterSettings = Settings.builder().put(super.nodeSettings(0)).put(FeatureFlags.TIERED_REMOTE_INDEX, false).build();
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode(clusterSettings);
-        internalTestCluster.startDataOnlyNode(clusterSettings);
+        internalTestCluster.startDataAndSearchNodes(1);
 
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -94,7 +105,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     public void testWritableWarmBasic() throws Exception {
         InternalTestCluster internalTestCluster = internalCluster();
         internalTestCluster.startClusterManagerOnlyNode();
-        internalTestCluster.startDataOnlyNode();
+        internalTestCluster.startDataAndSearchNodes(1);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

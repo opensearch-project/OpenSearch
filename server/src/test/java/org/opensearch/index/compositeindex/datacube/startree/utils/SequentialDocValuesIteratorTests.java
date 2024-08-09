@@ -127,7 +127,5 @@ public class SequentialDocValuesIteratorTests extends OpenSearchTestCase {
         assertNotEquals(0, sequentialDocValuesIterator2.getDocId());
         assertEquals(1, sequentialDocValuesIterator2.getDocId());
         assertEquals(9L, (long) sequentialDocValuesIterator2.value(1));
-
     }
-
 }

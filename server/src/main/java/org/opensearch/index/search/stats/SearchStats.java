@@ -110,7 +110,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Holds requests stats for different phases.
+     * Holds all requests stats.
      *
      * @opensearch.api
      */
@@ -124,6 +124,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         RequestStatsLongHolder() {
+            requestStatsHolder.put(Fields.TOOK, new PhaseStatsLongHolder());
             for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
                 requestStatsHolder.put(searchPhaseName.getName(), new PhaseStatsLongHolder());
             }
@@ -512,6 +513,15 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (requestStatsLongHolder != null) {
                 builder.startObject(Fields.REQUEST);
 
+                PhaseStatsLongHolder tookStatsLongHolder = requestStatsLongHolder.requestStatsHolder.get(Fields.TOOK);
+                if (tookStatsLongHolder != null) {
+                    builder.startObject(Fields.TOOK);
+                    builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(tookStatsLongHolder.timeInMillis));
+                    builder.field(Fields.CURRENT, tookStatsLongHolder.current);
+                    builder.field(Fields.TOTAL, tookStatsLongHolder.total);
+                    builder.endObject();
+                }
+
                 for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
                     PhaseStatsLongHolder statsLongHolder = requestStatsLongHolder.requestStatsHolder.get(searchPhaseName.getName());
                     if (statsLongHolder == null) {
@@ -545,6 +555,17 @@ public class SearchStats implements Writeable, ToXContentFragment {
             totalStats.requestStatsLongHolder = new RequestStatsLongHolder();
         }
 
+        // Set took stats
+        totalStats.requestStatsLongHolder.requestStatsHolder.put(
+            Fields.TOOK,
+            new PhaseStatsLongHolder(
+                searchRequestStats.getTookCurrent(),
+                searchRequestStats.getTookTotal(),
+                searchRequestStats.getTookMetric()
+            )
+        );
+
+        // Set phase stats
         for (SearchPhaseName searchPhaseName : SearchPhaseName.values()) {
             totalStats.requestStatsLongHolder.requestStatsHolder.put(
                 searchPhaseName.getName(),
@@ -678,6 +699,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String CURRENT = "current";
         static final String TOTAL = "total";
         static final String SEARCH_IDLE_REACTIVATE_COUNT_TOTAL = "search_idle_reactivate_count_total";
+        static final String TOOK = "took";
 
     }
 

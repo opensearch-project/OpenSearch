@@ -153,14 +153,25 @@ public class SearchLookup {
         return new SearchLookup(this, newFieldChain);
     }
 
+    /**
+     * SourceLookup is not thread safe, so we create a new instance for each leaf to support concurrent segment search
+     */
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
-        return new LeafSearchLookup(context, docMap.getLeafDocLookup(context), sourceLookup, fieldsLookup.getLeafFieldsLookup(context));
+        return new LeafSearchLookup(
+            context,
+            docMap.getLeafDocLookup(context),
+            new SourceLookup(),
+            fieldsLookup.getLeafFieldsLookup(context)
+        );
     }
 
     public DocLookup doc() {
         return docMap;
     }
 
+    /**
+     * Returned SourceLookup will be unrelated to any created LeafSearchLookups. Instead, use {@link LeafSearchLookup#source()} to access the related {@link SearchLookup}.
+     */
     public SourceLookup source() {
         return sourceLookup;
     }

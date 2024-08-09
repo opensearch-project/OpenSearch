@@ -103,4 +103,9 @@ public class SumValueAggregator implements ValueAggregator<Double> {
             throw new IllegalStateException("Cannot convert " + value + " to sortable aggregation type", e);
         }
     }
+
+    @Override
+    public Double getIdentityMetricValue() {
+        return 0D;
+    }
 }

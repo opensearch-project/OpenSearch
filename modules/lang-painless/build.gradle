@@ -33,6 +33,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
 
 apply plugin: 'opensearch.validate-rest-spec'
 apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'An easy, safe and fast scripting language for OpenSearch'

@@ -84,8 +84,7 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                     List.of(XContentMapValues.nodeStringArrayValue(paramMap.getOrDefault(SKIP_STAR_NODE_IN_DIMS, new ArrayList<String>())))
                 );
                 paramMap.remove(SKIP_STAR_NODE_IN_DIMS);
-                // TODO : change this to off heap once off heap gets implemented
-                StarTreeFieldConfiguration.StarTreeBuildMode buildMode = StarTreeFieldConfiguration.StarTreeBuildMode.ON_HEAP;
+                StarTreeFieldConfiguration.StarTreeBuildMode buildMode = StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP;
 
                 List<Dimension> dimensions = buildDimensions(name, paramMap, context);
                 paramMap.remove(ORDERED_DIMENSIONS);

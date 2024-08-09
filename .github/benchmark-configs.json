@@ -14,7 +14,8 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-single-node-1-shard-0-replica-baseline"
   },
   "id_2": {
     "description": "Indexing only configuration for HTTP_LOGS workload",
@@ -30,7 +31,8 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-single-node-1-shard-0-replica-baseline"
   },
   "id_3": {
     "description": "Search only test-procedure for NYC_TAXIS, uses snapshot to restore the data for OS-3.0.0",
@@ -46,7 +48,8 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_4": {
     "description": "Search only test-procedure for HTTP_LOGS, uses snapshot to restore the data for OS-3.0.0",
@@ -62,10 +65,11 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_5": {
-    "description": "Search only test-procedure for HTTP_LOGS, uses snapshot to restore the data for OS-3.0.0",
+    "description": "Search only test-procedure for big5, uses snapshot to restore the data for OS-3.0.0",
     "supported_major_versions": ["3"],
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
@@ -78,7 +82,8 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_6": {
     "description": "Search only test-procedure for NYC_TAXIS, uses snapshot to restore the data for OS-2.x",
@@ -94,7 +99,8 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_7": {
     "description": "Search only test-procedure for HTTP_LOGS, uses snapshot to restore the data for OS-2.x",
@@ -110,10 +116,11 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_8": {
-    "description": "Search only test-procedure for HTTP_LOGS, uses snapshot to restore the data for OS-2.x",
+    "description": "Search only test-procedure for big5, uses snapshot to restore the data for OS-2.x",
     "supported_major_versions": ["2"],
     "cluster-benchmark-configs": {
       "SINGLE_NODE_CLUSTER": "true",
@@ -126,7 +133,8 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   },
   "id_9": {
     "description": "Indexing and search configuration for pmc workload",
@@ -141,7 +149,8 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-single-node-1-shard-0-replica-baseline"
   },
   "id_10": {
     "description": "Indexing only configuration for stack-overflow workload",
@@ -156,6 +165,7 @@
     "cluster_configuration": {
       "size": "Single-Node",
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
-    }
+    },
+    "baseline_cluster_config": "x64-r5.xlarge-single-node-1-shard-0-replica-baseline"
   }
 }

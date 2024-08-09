@@ -127,34 +127,12 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
                 metricReaders.add(new SequentialDocValuesIterator(metricDocValuesEntry.getValue()));
             }
 
-            boolean endOfDoc = false;
             int currentDocId = 0;
             int numSegmentDocs = Integer.parseInt(
                 starTreeValues.getAttributes().getOrDefault(NUM_SEGMENT_DOCS, String.valueOf(DocIdSetIterator.NO_MORE_DOCS))
             );
             while (currentDocId < numSegmentDocs) {
-                Long[] dims = new Long[dimensionsSplitOrder.size()];
-                int i = 0;
-                for (SequentialDocValuesIterator dimensionDocValueIterator : dimensionReaders) {
-                    dimensionDocValueIterator.nextDoc(currentDocId);
-                    Long val = dimensionDocValueIterator.value(currentDocId);
-                    dims[i] = val;
-                    i++;
-                }
-                i = 0;
-                Object[] metrics = new Object[metricReaders.size()];
-                for (SequentialDocValuesIterator metricDocValuesIterator : metricReaders) {
-                    metricDocValuesIterator.nextDoc(currentDocId);
-                    // As part of merge, we traverse the star tree doc values
-                    // The type of data stored in metric fields is different from the
-                    // actual indexing field they're based on
-                    metrics[i] = metricAggregatorInfos.get(i)
-                        .getValueAggregators()
-                        .toStarTreeNumericTypeValue(metricDocValuesIterator.value(currentDocId));
-                    i++;
-                }
-                StarTreeDocument starTreeDocument = new StarTreeDocument(dims, metrics);
-                starTreeDocuments.add(starTreeDocument);
+                starTreeDocuments.add(getStarTreeDocument(currentDocId, dimensionReaders, metricReaders));
                 currentDocId++;
             }
         }

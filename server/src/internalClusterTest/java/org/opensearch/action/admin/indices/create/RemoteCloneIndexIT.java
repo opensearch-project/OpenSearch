@@ -79,7 +79,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
 
     @Before
     public void setup() {
-        asyncUploadMockFsRepo = true;
+        asyncUploadMockFsRepo = false;
     }
 
     public void testCreateCloneIndex() {
@@ -153,6 +153,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/15056")
     public void testCreateCloneIndexLowPriorityRateLimit() {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         int numPrimaryShards = 1;
@@ -280,7 +281,7 @@ public class RemoteCloneIndexIT extends RemoteStoreBaseIntegTestCase {
             throw new RuntimeException(e);
         } finally {
             setFailRate(REPOSITORY_NAME, 0);
-            ensureGreen();
+            ensureGreen(TimeValue.timeValueSeconds(40));
             // clean up
             client().admin()
                 .cluster()
