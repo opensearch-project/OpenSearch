@@ -46,8 +46,10 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -69,6 +71,8 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
@@ -79,6 +83,7 @@ import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -290,6 +295,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             searchContext.indexShard().getSearchOperationListener().onFailedSliceExecution(searchContext);
             throw t;
         }
+
         searchContext.indexShard().getSearchOperationListener().onSliceExecution(searchContext);
     }
 
@@ -327,6 +333,19 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // catch early terminated exception and rethrow?
         Bits liveDocs = ctx.reader().getLiveDocs();
         BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
+        if (isApproximateableRangeQuery()) {
+            ApproximateScoreQuery query = ((ApproximateScoreQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery());
+            if (searchContext.size() > 10_000) ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSize(searchContext.size());
+            if (searchContext.request() != null && searchContext.request().source() != null) {
+                FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
+                if (primarySortField != null && primarySortField.missing() == null) {
+                    if (primarySortField.order() == SortOrder.DESC) {
+                        ((ApproximatePointRangeQuery) query.getApproximationQuery()).setSortOrder(SortOrder.DESC);
+                    }
+                }
+            }
+            weight = query.getApproximationQueryWeight();
+        }
         if (liveDocsBitSet == null) {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
@@ -416,6 +435,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 return null;
             }
 
+    }
+
+    private boolean isApproximateableRangeQuery() {
+        return searchContext.query() instanceof IndexOrDocValuesQuery
+            && ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery() instanceof ApproximateScoreQuery
+            && ((ApproximateScoreQuery) ((IndexOrDocValuesQuery) searchContext.query()).getIndexQuery())
+                .getOriginalQuery() instanceof PointRangeQuery;
     }
 
     static void intersectScorerAndBitSet(Scorer scorer, BitSet acceptDocs, LeafCollector collector, Runnable checkCancelled)
