@@ -293,7 +293,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         String json = "{\n"
             + "  \"terms\" : {\n"
             + "    \"user\" : [ \"foobar\", \"opensearch\" ],\n"
-            + "    \"boost\" : 1.0\n"
+            + "    \"boost\" : 1.0,\n"
             + "     \"rewrite_override\": \"index_only\"\n"
             + "  }\n"
             + "}";
