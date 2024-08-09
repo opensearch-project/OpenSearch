@@ -1,8 +1,8 @@
 ---
 "Index documents with field name containing only dot fail with an IllegalArgumentException":
   - skip:
-      version: " - 2.99.99"
-      reason: "introduced in 3.0.0"
+      version: " - 2.16.99"
+      reason: "introduced in 2.17.0"
 
   - do:
       indices.create:
