@@ -853,6 +853,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return Optional.ofNullable((ViewMetadata) this.custom(ViewMetadata.TYPE)).map(ViewMetadata::views).orElse(Collections.emptyMap());
     }
 
+    public Map<String, QueryGroup> queryGroups() {
+        return Optional.ofNullable((QueryGroupMetadata) this.custom(QueryGroupMetadata.TYPE))
+            .map(QueryGroupMetadata::queryGroups)
+            .orElse(Collections.emptyMap());
+    }
+
     public DecommissionAttributeMetadata decommissionAttributeMetadata() {
         return custom(DecommissionAttributeMetadata.TYPE);
     }
