@@ -387,6 +387,12 @@ public class Node implements Closeable {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> NODE_SEARCH_CACHE_OVERFLOW_SETTING = Setting.boolSetting(
+        "node.search.cache.overflow",
+        false,
+        Property.NodeScope
+    );
+
     private static final String CLIENT_TYPE = "node";
 
     /**
@@ -2065,6 +2071,7 @@ public class Node implements Closeable {
         fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
         List<Path> fileCacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
         this.fileCache.restoreFromDirectory(fileCacheDataPaths);
+        this.fileCache.enableOverflow(NODE_SEARCH_CACHE_OVERFLOW_SETTING.get(settings));
     }
 
     private static long calculateFileCacheSize(String capacityRaw, long totalSpace) {

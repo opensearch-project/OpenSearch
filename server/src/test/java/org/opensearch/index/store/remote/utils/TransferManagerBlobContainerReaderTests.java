@@ -9,6 +9,7 @@
 package org.opensearch.index.store.remote.utils;
 
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.index.store.remote.filecache.FileCache;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -24,10 +25,10 @@ public class TransferManagerBlobContainerReaderTests extends TransferManagerTest
     private BlobContainer blobContainer;
 
     @Override
-    protected void initializeTransferManager() throws IOException {
+    protected TransferManager initializeTransferManager(FileCache cache) throws IOException {
         blobContainer = mock(BlobContainer.class);
         doAnswer(i -> new ByteArrayInputStream(createData())).when(blobContainer).readBlob(eq("blob"), anyLong(), anyLong());
-        transferManager = new TransferManager(blobContainer::readBlob, fileCache);
+        return new TransferManager(blobContainer::readBlob, cache);
     }
 
     protected void mockExceptionWhileReading() throws IOException {
