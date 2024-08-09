@@ -60,6 +60,7 @@ import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.MultiTermsValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValueType;
+import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.LeafDocLookup;
@@ -102,6 +103,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     private static final String FLOAT_FIELD = "float";
     private static final String DOUBLE_FIELD = "double";
     private static final String KEYWORD_FIELD = "keyword";
+    private static final String KEYWORD_FIELD2 = "keyword2";
     private static final String DATE_FIELD = "date";
     private static final String IP_FIELD = "ip";
     private static final String GEO_POINT_FIELD = "geopoint";
@@ -116,6 +118,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             put(DOUBLE_FIELD, new NumberFieldMapper.NumberFieldType(DOUBLE_FIELD, NumberFieldMapper.NumberType.DOUBLE));
             put(DATE_FIELD, dateFieldType(DATE_FIELD));
             put(KEYWORD_FIELD, new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD));
+            put(KEYWORD_FIELD2, new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD2));
             put(IP_FIELD, new IpFieldMapper.IpFieldType(IP_FIELD));
             put(FIELD_NAME, new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.INTEGER));
             put(UNRELATED_KEYWORD_FIELD, new KeywordFieldMapper.KeywordFieldType(UNRELATED_KEYWORD_FIELD));
@@ -303,6 +306,41 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             MatcherAssert.assertThat(h.getBuckets().get(1).getDocCount(), equalTo(1L));
             MatcherAssert.assertThat(h.getBuckets().get(2).getKey(), contains(equalTo("c"), equalTo(2L), equalTo(2.0)));
             MatcherAssert.assertThat(h.getBuckets().get(2).getDocCount(), equalTo(1L));
+        });
+    }
+
+    public void testKeywordAndKeywordField() throws IOException {
+        testAggregation(new MatchAllDocsQuery(), fieldConfigs(asList(KEYWORD_FIELD, KEYWORD_FIELD2)), NONE_DECORATOR, iw -> {
+            iw.addDocument(
+                asList(
+                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
+                    new StringField(KEYWORD_FIELD, new BytesRef("a"), Field.Store.NO),
+                    new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("n")),
+                    new StringField(KEYWORD_FIELD2, new BytesRef("n"), Field.Store.NO)
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
+                    new StringField(KEYWORD_FIELD, new BytesRef("a"), Field.Store.NO),
+                    new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("n")),
+                    new StringField(KEYWORD_FIELD2, new BytesRef("n"), Field.Store.NO)
+                )
+            );
+            iw.addDocument(
+                asList(
+                    new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
+                    new StringField(KEYWORD_FIELD, new BytesRef("a"), Field.Store.NO),
+                    new SortedSetDocValuesField(KEYWORD_FIELD2, new BytesRef("m")),
+                    new StringField(KEYWORD_FIELD2, new BytesRef("m"), Field.Store.NO)
+                )
+            );
+        }, h -> {
+            MatcherAssert.assertThat(h.getBuckets(), hasSize(2));
+            MatcherAssert.assertThat(h.getBuckets().get(0).getKey(), contains(equalTo("a"), equalTo("n")));
+            MatcherAssert.assertThat(h.getBuckets().get(0).getDocCount(), equalTo(2L));
+            MatcherAssert.assertThat(h.getBuckets().get(1).getKey(), contains(equalTo("a"), equalTo("m")));
+            MatcherAssert.assertThat(h.getBuckets().get(1).getDocCount(), equalTo(1L));
         });
     }
 
@@ -885,6 +923,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         AggregatorFactories factories = AggregatorFactories.EMPTY;
         boolean showTermDocCountError = true;
         MultiTermsAggregator.InternalValuesSource internalValuesSources = mock(MultiTermsAggregator.InternalValuesSource.class);
+        ValuesSource valuesSource = mock(ValuesSource.class);
         DocValueFormat format = mock(DocValueFormat.class);
         BucketOrder order = mock(BucketOrder.class);
         Aggregator.SubAggCollectionMode collectMode = Aggregator.SubAggCollectionMode.BREADTH_FIRST;
@@ -901,6 +940,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             factories,
             showTermDocCountError,
             List.of(internalValuesSources),
+            List.of(valuesSource),
             List.of(format),
             order,
             collectMode,
