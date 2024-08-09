@@ -673,7 +673,10 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIpAndKeyword() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), fieldConfigs(asList(KEYWORD_FIELD, IP_FIELD)), NONE_DECORATOR, iw -> {
+        testAggregation(new MatchAllDocsQuery(), fieldConfigs(asList(KEYWORD_FIELD, IP_FIELD)), multiTermsAggregationBuilder -> {
+            multiTermsAggregationBuilder.minDocCount(0);
+            multiTermsAggregationBuilder.size(100);
+        }, iw -> {
             iw.addDocument(
                 asList(
                     new SortedDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
