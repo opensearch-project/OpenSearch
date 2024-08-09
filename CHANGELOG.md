@@ -32,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 - Add lower limit for primary and replica batch allocators timeout ([#14979](https://github.com/opensearch-project/OpenSearch/pull/14979))
+- Optimize _cat/nodes api by sending request to each node and receiving response separately ([#14853](https://github.com/opensearch-project/OpenSearch/pull/14853))
 
 ### Deprecated
 
