@@ -78,7 +78,7 @@ import org.opensearch.search.profile.query.QueryTimingType;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
-import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.FieldStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -524,17 +524,19 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // Only applied on primary sort field and primary search_after.
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
             if (primarySortField != null) {
-                MinAndMax<?> minMax = FieldSortBuilder.getMinMaxOrNullForSegment(
+                FieldStats stats = FieldSortBuilder.getFieldStatsForSegment(
                     this.searchContext.getQueryShardContext(),
                     ctx,
                     primarySortField,
                     searchContext.sort()
                 );
+                assert stats != null;
                 return SearchService.canMatchSearchAfter(
                     searchContext.searchAfter(),
-                    minMax,
-                    primarySortField,
-                    searchContext.trackTotalHitsUpTo()
+                    stats.getMinAndMax(),
+                    searchContext.sort(),
+                    searchContext.trackTotalHitsUpTo(),
+                    stats.allDocsNonMissing()
                 );
             }
         }

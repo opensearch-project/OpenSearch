@@ -36,9 +36,12 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
+import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.DeletePitResponse;
@@ -54,10 +57,13 @@ import org.opensearch.action.search.UpdatePitContextResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.common.CheckedTriFunction;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -66,6 +72,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
@@ -73,6 +80,8 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.DerivedFieldType;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -106,8 +115,9 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -115,7 +125,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -1169,6 +1181,161 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
+    private Number randomNumber(NumberFieldMapper.NumberType type) {
+        switch (type) {
+            case BYTE:
+                return randomByte();
+            case SHORT:
+                return randomShort();
+            case INTEGER:
+                return randomInt(10000);
+            case LONG:
+                return randomLongBetween(0L, 10000L);
+            case DOUBLE:
+                return randomDoubleBetween(0, 10000, false);
+            case FLOAT:
+            case HALF_FLOAT:
+                return (float) randomDoubleBetween(0, 10000, false);
+            case UNSIGNED_LONG:
+                BigInteger ul = randomUnsignedLong();
+                while (ul.compareTo(Numbers.MIN_UNSIGNED_LONG_VALUE) == 0 || ul.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) == 0) {
+                    ul = randomUnsignedLong();
+                }
+                return ul;
+            default:
+                throw new AssertionError();
+        }
+    }
+
+    private Number incDecNumber(Number number, NumberFieldMapper.NumberType type, boolean inc) {
+        switch (type) {
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+                return number.intValue() + (inc ? 1 : -1);
+            case LONG:
+                return number.longValue() + (inc ? 1 : -1);
+            case DOUBLE:
+                return number.doubleValue() + (inc ? 1 : -1);
+            case FLOAT:
+            case HALF_FLOAT:
+                return number.floatValue() + (inc ? 1 : -1);
+            case UNSIGNED_LONG:
+                return ((BigInteger) number).add(inc ? BigInteger.valueOf(1) : BigInteger.valueOf(-1));
+            default:
+                throw new AssertionError();
+        }
+    }
+
+    private void canMatchSearchAfterNumericTestCase(NumberFieldMapper.NumberType type) throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("num1")
+            .field("type", type.typeName())
+            .endObject()
+            .startObject("num2")
+            .field("type", type.typeName())
+            .endObject()
+            .endObject()
+            .endObject();
+        IndexService indexService = createIndex("test", Settings.EMPTY, MapperService.SINGLE_MAPPING_NAME, mapping);
+        ensureGreen();
+
+        final boolean allDocsNonMissing = randomBoolean();
+        final BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        final int numDocs = randomIntBetween(10, 20);
+        final Number[] nums1 = new Number[allDocsNonMissing ? numDocs : numDocs - 1];
+        final Number[] nums2 = new Number[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            String source;
+            if (i < numDocs - 1 || allDocsNonMissing) {
+                nums1[i] = randomNumber(type);
+                nums2[i] = randomNumber(type);
+                source = String.format(Locale.ROOT, "{\"num1\": %s, \"num2\": %s}", nums1[i].toString(), nums2[i].toString());
+            } else {
+                nums2[i] = randomNumber(type);
+                source = String.format(Locale.ROOT, "{\"num2\": %s}", nums2[i].toString());
+            }
+            bulkRequestBuilder.add(client().prepareIndex("test").setId(String.valueOf(i)).setSource(source, MediaTypeRegistry.JSON));
+        }
+        bulkRequestBuilder.get();
+        client().admin().indices().prepareRefresh().get();
+        Arrays.sort(nums1);
+        Arrays.sort(nums2);
+
+        final IndexShard shard = indexService.getShard(0);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            shard.shardId(),
+            1,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1f,
+            -1,
+            null,
+            null
+        );
+        assertFalse(shard.hasRefreshPending());
+
+        final CheckedTriFunction<Boolean, Boolean, Boolean, Void, Exception> outOfRangeTester = (outOfRange, missingMatch, reverse) -> {
+            Number searchAfter;
+            Object missing;
+            if (outOfRange) {
+                searchAfter = reverse ? incDecNumber(nums1[0], type, false) : incDecNumber(nums1[nums1.length - 1], type, true);
+            } else {
+                searchAfter = randomFrom(nums1);
+            }
+            if (missingMatch) {
+                missing = reverse
+                    ? (randomBoolean() ? "_last" : incDecNumber(searchAfter, type, false))
+                    : (randomBoolean() ? "_last" : incDecNumber(searchAfter, type, true));
+            } else {
+                missing = reverse
+                    ? (randomBoolean() ? "_first" : incDecNumber(searchAfter, type, true))
+                    : (randomBoolean() ? "_first" : incDecNumber(searchAfter, type, false));
+            }
+            shardRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).trackTotalHits(false));
+            shardRequest.source().sort(SortBuilders.fieldSort("num1").missing(missing).order(reverse ? SortOrder.DESC : SortOrder.ASC));
+            List<Object> searchAfterFields = new ArrayList<>();
+            searchAfterFields.add(searchAfter);
+            if (randomBoolean()) {
+                shardRequest.source().sort("num2");
+                searchAfterFields.add(randomFrom(nums2));
+            }
+            shardRequest.source().searchAfter(searchAfterFields.toArray());
+            SearchService.CanMatchResponse response = service.canMatch(shardRequest);
+
+            if (type == NumberFieldMapper.NumberType.HALF_FLOAT || type == NumberFieldMapper.NumberType.UNSIGNED_LONG) {
+                assertTrue(response.canMatch());
+                return null;
+            }
+
+            if (outOfRange == false || (allDocsNonMissing == false && missingMatch)) {
+                assertTrue(response.canMatch());
+            } else {
+                assertFalse(response.canMatch());
+            }
+            return null;
+        };
+        for (boolean outOfRange : new boolean[] { true, false }) {
+            for (boolean missingMatch : new boolean[] { true, false }) {
+                for (boolean reverse : new boolean[] { true, false }) {
+                    outOfRangeTester.apply(outOfRange, missingMatch, reverse);
+                }
+            }
+        }
+        client().admin().indices().prepareDelete("test").get();
+        ensureGreen();
+    }
+
+    public void testNumericCanMatch() throws Exception {
+        for (var type : NumberFieldMapper.NumberType.values()) {
+            canMatchSearchAfterNumericTestCase(type);
+        }
+    }
+
     public void testSetSearchThrottled() {
         createIndex("throttled_threadpool_index");
         client().execute(
@@ -1869,111 +2036,132 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
 
     /**
      * Test for ASC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 10L
+     * Min = 0L, Max = 9L, search_after = 10L, missing = Long.MIN_VALUE
      * Expected result is canMatch = false
      */
-    public void testCanMatchSearchAfterAscGreaterThanMax() throws IOException {
+    public void testCanMatchSearchAfterAscGreaterThanMaxAndMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
+        SortField sortField = new SortField("test", SortField.Type.LONG);
+        sortField.setMissingValue(Long.MIN_VALUE);
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
     }
 
     /**
      * Test for ASC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 7L
+     * Min = 0L, Max = 9L, search_after = 10L, missing = 11L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterAscGreaterThanMaxAndLessThanMissing() throws IOException {
+        FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        SortField sortField = new SortField("test", SortField.Type.LONG);
+        sortField.setMissingValue(11L);
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
+    }
+
+    /**
+     * Test for ASC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 7L, missing = Long.MIN_VALUE/10L
      * Expected result is canMatch = true
      */
     public void testCanMatchSearchAfterAscLessThanMax() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 7L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG);
+        sortField.setMissingValue(randomFrom(Long.MIN_VALUE, 10L));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
     }
 
     /**
      * Test for ASC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 9L
+     * Min = 0L, Max = 9L, search_after = 9L, missing = Long.MIN_VALUE/10L
      * Expected result is canMatch = true
      */
     public void testCanMatchSearchAfterAscEqualMax() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 9L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.ASC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG);
+        sortField.setMissingValue(randomFrom(Long.MIN_VALUE, 10L));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
     }
 
     /**
      * Test for DESC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 10L
+     * Min = 0L, Max = 9L, search_after = 10L, missing = Long.MAX_VALUE/Long.MIN_VALUE
      * Expected result is canMatch = true
      */
     public void testCanMatchSearchAfterDescGreaterThanMin() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomFrom(Long.MAX_VALUE, Long.MIN_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
     }
 
     /**
      * Test for DESC order search_after query.
-     * Min = 0L, Max = 9L, search_after = -1L
+     * Min = 0L, Max = 9L, search_after = -1L, missing > search_after
      * Expected result is canMatch = false
      */
-    public void testCanMatchSearchAfterDescLessThanMin() throws IOException {
+    public void testCanMatchSearchAfterDescLessThanMinAndMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomLongBetween(0L, Long.MAX_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
     }
 
     /**
      * Test for DESC order search_after query.
-     * Min = 0L, Max = 9L, search_after = 0L
+     * Min = 0L, Max = 9L, search_after = 0L, missing > search_after
      * Expected result is canMatch = true
      */
-    public void testCanMatchSearchAfterDescEqualMin() throws IOException {
+    public void testCanMatchSearchAfterDescEqualMinAndLessThanMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 0L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomLongBetween(1L, Long.MAX_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
     }
 
     /**
      * Test canMatchSearchAfter with missing value, even if min/max is out of range
      * Min = 0L, Max = 9L, search_after = -1L
-     * Expected result is canMatch = true
      */
-    public void testCanMatchSearchAfterWithMissing() throws IOException {
+    public void testCanMatchSearchAfterWithMinMaxOutOfRangeAndDifferentMissing() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        // Should be false without missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), false);
-        primarySort.missing("_last");
-        // Should be true with missing values
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomLongBetween(0L, Long.MAX_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        // Should be false with missing values is larger than search_after
+        assertFalse(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
+        sortField.setMissingValue(Long.MIN_VALUE);
+        // Should be true with missing values is less than search_after
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, SearchContext.TRACK_TOTAL_HITS_DISABLED, false));
     }
 
     /**
      * Test for DESC order search_after query with track_total_hits=true.
-     * Min = 0L, Max = 9L, search_after = -1L
+     * Min = 0L, Max = 9L, search_after = -1L, missing > search_after
      * With above min/max and search_after, it should not match, but since
      * track_total_hits = true,
      * Expected result is canMatch = true
      */
-    public void testCanMatchSearchAfterDescLessThanMinWithTrackTotalhits() throws IOException {
+    public void testCanMatchSearchAfterDescLessThanMinAndMissingWithTrackTotalHits() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        FieldSortBuilder primarySort = new FieldSortBuilder("test");
-        primarySort.order(SortOrder.DESC);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000), true);
+        SortField sortField = new SortField("test", SortField.Type.LONG, true);
+        sortField.setMissingValue(randomLongBetween(0L, Long.MAX_VALUE));
+        final SortAndFormats primarySort = new SortAndFormats(new Sort(sortField), new DocValueFormat[] { DocValueFormat.RAW });
+        assertTrue(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort, 1000, false));
     }
 }
