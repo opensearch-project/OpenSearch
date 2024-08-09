@@ -38,6 +38,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.rest.action.admin.cluster.ClusterAdminTask;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.Map;
@@ -61,11 +62,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     public IndicesStatsRequest() {
         super((String[]) null);
-    }
-
-    public IndicesStatsRequest(boolean isCancellationTaskRequired) {
-        super((String[]) null);
-        this.isCancellationTaskRequired = isCancellationTaskRequired;
     }
 
     public IndicesStatsRequest(StreamInput in) throws IOException {
@@ -113,13 +109,17 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return this;
     }
 
+    public void setIsCancellationTaskRequired(boolean isCancellationTaskRequired) {
+        this.isCancellationTaskRequired = isCancellationTaskRequired;
+    }
+
     @Override
-    public ClusterAdminTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         if (this.isCancellationTaskRequired) {
             return new ClusterAdminTask(id, type, action, parentTaskId, headers);
         }
         else {
-            return createTask(id, type, action, parentTaskId, headers);
+            return super.createTask(id, type, action, parentTaskId, headers);
         }
     }
 
