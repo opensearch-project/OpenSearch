@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.builder;
 
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.index.FieldInfo;
@@ -15,6 +16,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
@@ -45,9 +47,13 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
     private StarTreeField starTreeField;
     private Map<String, DocValuesProducer> fieldProducerMap;
     private Directory directory;
+    private IndexOutput dataOut;
+    private IndexOutput metaOut;
 
     public void setUp() throws Exception {
         super.setUp();
+        metaOut = mock(IndexOutput.class);
+        dataOut = mock(IndexOutput.class);
         mapperService = mock(MapperService.class);
         directory = newFSDirectory(createTempDir());
         SegmentInfo segmentInfo = new SegmentInfo(
@@ -89,7 +95,7 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
         when(mapperService.getCompositeFieldTypes()).thenReturn(new HashSet<>());
 
         StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService);
-        starTreesBuilder.build(fieldProducerMap);
+        starTreesBuilder.build(metaOut, dataOut, fieldProducerMap, mock(DocValuesConsumer.class));
 
         verifyNoInteractions(docValuesProducer);
     }
@@ -97,8 +103,18 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
     public void test_getStarTreeBuilder() throws IOException {
         when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
         StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService);
-        StarTreeBuilder starTreeBuilder = starTreesBuilder.getStarTreeBuilder(starTreeField, segmentWriteState, mapperService);
+        StarTreeBuilder starTreeBuilder = starTreesBuilder.getStarTreeBuilder(metaOut, dataOut, starTreeField, segmentWriteState, mapperService);
         assertTrue(starTreeBuilder instanceof OnHeapStarTreeBuilder);
+    }
+
+    public void test_getStarTreeBuilder_illegalArgument() throws IOException {
+        when(mapperService.getCompositeFieldTypes()).thenReturn(Set.of(starTreeFieldType));
+        StarTreeFieldConfiguration starTreeFieldConfiguration = new StarTreeFieldConfiguration(1, new HashSet<>(), StarTreeFieldConfiguration.StarTreeBuildMode.OFF_HEAP);
+        StarTreeField starTreeField = new StarTreeField("star_tree", new ArrayList<>(), new ArrayList<>(), starTreeFieldConfiguration);
+        StarTreesBuilder starTreesBuilder = new StarTreesBuilder(segmentWriteState, mapperService);
+        StarTreeBuilder starTreeBuilder = starTreesBuilder.getStarTreeBuilder(metaOut, dataOut, starTreeField, segmentWriteState, mapperService);
+        assertTrue(starTreeBuilder instanceof OffHeapStarTreeBuilder);
+        starTreeBuilder.close();
     }
 
     public void test_closeWithNoStarTreeFields() throws IOException {
@@ -119,6 +135,8 @@ public class StarTreesBuilderTests extends OpenSearchTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        metaOut.close();
+        dataOut.close();
         directory.close();
     }
 }
