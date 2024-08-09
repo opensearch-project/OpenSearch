@@ -41,7 +41,6 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
@@ -131,7 +130,7 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
 
         Files.copy(cert2, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key2, key, StandardCopyOption.REPLACE_EXISTING);
-        assertPasswordIsIncorrect(keyConfig, key);
+        assertPasswordNotSet(keyConfig, key);
 
         Files.copy(cert1, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key1, key, StandardCopyOption.REPLACE_EXISTING);
@@ -166,7 +165,15 @@ public class PemKeyConfigTests extends OpenSearchTestCase {
         final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
         assertThat(exception.getMessage(), containsString("private key file"));
         assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
-        assertThat(exception.getCause(), instanceOf(GeneralSecurityException.class));
+        assertThat(exception, instanceOf(SslConfigException.class));
+    }
+
+    private void assertPasswordNotSet(PemKeyConfig keyConfig, Path key) {
+        final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
+        assertThat(exception.getMessage(), containsString("cannot read encrypted key"));
+        assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
+        assertThat(exception.getMessage(), containsString("without a password"));
+        assertThat(exception, instanceOf(SslConfigException.class));
     }
 
     private void assertFileNotFound(PemKeyConfig keyConfig, String type, Path file) {

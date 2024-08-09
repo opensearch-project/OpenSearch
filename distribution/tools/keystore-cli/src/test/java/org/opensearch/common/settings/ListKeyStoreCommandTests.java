@@ -90,17 +90,13 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        if (inFipsJvm()) {
-            assertThat(
-                e.getMessage(),
-                anyOf(
-                    containsString("Provided keystore password was incorrect"),
-                    containsString("Keystore has been corrupted or tampered with")
-                )
-            );
-        } else {
-            assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
-        }
+        assertThat(
+            e.getMessage(),
+            anyOf(
+                containsString("Provided keystore password was incorrect"),
+                containsString("Keystore has been corrupted or tampered with")
+            )
+        );
     }
 
     public void testListWithUnprotectedKeystore() throws Exception {
