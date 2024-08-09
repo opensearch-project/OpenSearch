@@ -420,7 +420,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "      \"include_lower\" : true,\n"
             + "      \"include_upper\" : true,\n"
             + "      \"time_zone\" : \"+01:00\",\n"
-            + "      \"boost\" : 1.0\n"
+            + "      \"boost\" : 1.0,\n"
             + "      \"rewrite_override\" : \"index_only\"\n"
             + "    }\n"
             + "  }\n"

@@ -45,6 +45,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.search.AutomatonQueries;
 import org.opensearch.common.unit.Fuzziness;
@@ -110,7 +111,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        MultiTermQuery.RewriteMethod method,
+        @Nullable MultiTermQuery.RewriteMethod method,
         QueryShardContext context
     ) {
         if (!context.allowExpensiveQueries()) {
@@ -130,6 +131,20 @@ public abstract class StringFieldType extends TermBasedFieldType {
             transpositions,
             method
         );
+    }
+
+    @Override
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        @Nullable RewriteOverride rewriteOverride,
+        QueryShardContext context
+    ) {
+        return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
     }
 
     @Override
@@ -186,6 +201,17 @@ public abstract class StringFieldType extends TermBasedFieldType {
     @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
         return wildcardQuery(value, method, caseInsensitive, false, context);
+    }
+
+    @Override
+    public Query wildcardQuery(
+        String value,
+        MultiTermQuery.RewriteMethod method,
+        @Nullable RewriteOverride rewriteOverride,
+        boolean caseInsensitive,
+        QueryShardContext context
+    ) {
+        return wildcardQuery(value, method, caseInsensitive, context);
     }
 
     /** always normalizes the wildcard pattern to lowercase */
@@ -278,5 +304,17 @@ public abstract class StringFieldType extends TermBasedFieldType {
             includeLower,
             includeUpper
         );
+    }
+
+    @Override
+    public Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        @Nullable RewriteOverride rewriteOverride,
+        QueryShardContext context
+    ) {
+        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
     }
 }

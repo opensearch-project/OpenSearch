@@ -77,8 +77,196 @@
         index: test-iodvq
         body:
           query:
+            terms:
+              some_keyword: ["400", "5"]
+
+  - match: {  hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            terms: {
+                some_keyword: ["400", "5"],
+                rewrite_override: "index_only"
+              }
+
+  - match: {  hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            terms: {
+              some_keyword: ["400", "5"],
+              rewrite_override: "doc_values_only"
+            }
+
+  - match: {  hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            fuzzy:
+              some_keyword: {
+               value: "402"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            fuzzy:
+              some_keyword: {
+                value: "402",
+                rewrite_override: "index_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            fuzzy:
+              some_keyword: {
+                value: "402",
+                rewrite_override: "doc_values_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            regexp:
+              some_keyword: {
+                value: "40*"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            regexp:
+              some_keyword: {
+                value: "40*",
+                rewrite_override: "index_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            regexp:
+              some_keyword: {
+                value: "40*",
+                rewrite_override: "doc_values_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            wildcard:
+              some_keyword: {
+                value: "ing*"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            wildcard:
+              some_keyword: {
+                value: "ing*",
+                rewrite_override: "index_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            wildcard:
+              some_keyword: {
+                value: "ing*",
+                rewrite_override: "doc_values_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
             prefix:
               some_keyword: "ing"
+
+  - match: { hits.hits.0._source.some_keyword: "ingesting some random keyword data" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            prefix:
+              some_keyword: {
+                              value: "ing",
+                              rewrite_override: "index_only"
+              }
+
+  - match: { hits.hits.0._source.some_keyword: "ingesting some random keyword data" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            prefix:
+              some_keyword: {
+                value: "ing",
+                rewrite_override: "doc_values_only"
+              }
 
   - match: { hits.hits.0._source.some_keyword: "ingesting some random keyword data" }
 
@@ -91,6 +279,36 @@
             range: {
               "some_keyword": {
                 "lt": 500
+              } }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              "some_keyword": {
+                "lt": 500,
+                rewrite_override: "index_only"
+
+              } }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-iodvq
+        body:
+          query:
+            range: {
+              "some_keyword": {
+                "lt": 500,
+                rewrite_override: "doc_values_only"
+
               } }
 
   - match: { hits.total: 2 }
@@ -614,8 +832,127 @@
         index: test-index
         body:
           query:
+            terms:
+              some_keyword: ["400", "5"]
+
+  - match: {  hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            terms: {
+              some_keyword: ["400", "5"],
+              rewrite_override: "index_only"
+            }
+
+  - match: {  hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            fuzzy:
+              some_keyword: {
+                value: "402"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            fuzzy:
+              some_keyword: {
+                value: "402",
+                rewrite_override: "index_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            regexp:
+              some_keyword: {
+                value: "40*"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            regexp:
+              some_keyword: {
+                value: "40*",
+                rewrite_override: "index_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            wildcard:
+              some_keyword: {
+                value: "ing*"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            wildcard:
+              some_keyword: {
+                value: "ing*",
+                rewrite_override: "index_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
             prefix:
               some_keyword: "ing"
+
+  - match: { hits.hits.0._source.some_keyword: "ingesting some random keyword data" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            prefix:
+              some_keyword: {
+                value: "ing",
+                rewrite_override: "index_only"
+              }
 
   - match: { hits.hits.0._source.some_keyword: "ingesting some random keyword data" }
 
@@ -628,6 +965,21 @@
             range: {
               "some_keyword": {
                 "lt": 500
+              } }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-index
+        body:
+          query:
+            range: {
+              "some_keyword": {
+                "lt": 500,
+                rewrite_override: "index_only"
+
               } }
 
   - match: { hits.total: 2 }
@@ -1156,8 +1508,127 @@
         index: test-doc-values
         body:
           query:
+            terms:
+              some_keyword: ["400", "5"]
+
+  - match: {  hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            terms: {
+              some_keyword: ["400", "5"],
+              rewrite_override: "doc_values_only"
+            }
+
+  - match: {  hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            fuzzy:
+              some_keyword: {
+                value: "402"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            fuzzy:
+              some_keyword: {
+                value: "402",
+                rewrite_override: "doc_values_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            regexp:
+              some_keyword: {
+                value: "40*"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            regexp:
+              some_keyword: {
+                value: "40*",
+                rewrite_override: "doc_values_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            wildcard:
+              some_keyword: {
+                value: "ing*"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            wildcard:
+              some_keyword: {
+                value: "ing*",
+                rewrite_override: "doc_values_only"
+              }
+
+  - match: {  hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
             prefix:
               some_keyword: "ing"
+
+  - match: { hits.hits.0._source.some_keyword: "ingesting some random keyword data" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            prefix:
+              some_keyword: {
+                value: "ing",
+                rewrite_override: "doc_values_only"
+              }
 
   - match: { hits.hits.0._source.some_keyword: "ingesting some random keyword data" }
 
@@ -1170,6 +1641,21 @@
             range: {
               "some_keyword": {
                 "lt": 500
+              } }
+
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-doc-values
+        body:
+          query:
+            range: {
+              "some_keyword": {
+                "lt": 500,
+                rewrite_override: "doc_values_only"
+
               } }
 
   - match: { hits.total: 2 }

@@ -282,7 +282,12 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
 
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
-        return fieldType.wildcardQuery(value, method, caseInsensitive, context);
+        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+            rewrite_override,
+            RewriteOverride.DEFAULT,
+            LoggingDeprecationHandler.INSTANCE
+        );
+        return fieldType.wildcardQuery(value, method, rewriteOverride, caseInsensitive, context);
     }
 
     @Override

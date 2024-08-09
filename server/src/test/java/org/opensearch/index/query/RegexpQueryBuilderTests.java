@@ -122,7 +122,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             + "      \"flags_value\" : 7,\n"
             + "      \"case_insensitive\" : true,\n"
             + "      \"max_determinized_states\" : 20000,\n"
-            + "      \"boost\" : 1.0\n"
+            + "      \"boost\" : 1.0,\n"
             + "      \"rewrite_override\" : \"index_only\"\n"
             + "    }\n"
             + "  }\n"

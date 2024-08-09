@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.index.query.QueryShardContext;
@@ -78,6 +79,27 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
         return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
     }
 
+    @Override
+    public final Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        @Nullable RewriteOverride rewriteOverride,
+        QueryShardContext context
+    ) {
+        if (relation == ShapeRelation.DISJOINT) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support DISJOINT ranges");
+        }
+        // We do not fail on non-null time zones and date parsers
+        // The reasoning is that on query parsers, you might want to set a time zone or format for date fields
+        // but then the API has no way to know which fields are dates and which fields are not dates
+        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, rewriteOverride, context);
+    }
+
     /**
      * Same as {@link #rangeQuery(Object, Object, boolean, boolean, ShapeRelation, ZoneId, DateMathParser, QueryShardContext)}
      * but without the trouble of relations or date-specific options.
@@ -94,7 +116,7 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
         RewriteOverride rewriteOverride,
         QueryShardContext context
     ) {
-        throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support range queries");
+        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
     }
 
 }

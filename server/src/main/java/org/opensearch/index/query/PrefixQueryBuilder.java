@@ -270,7 +270,12 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        return fieldType.prefixQuery(value, method, caseInsensitive, context);
+        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+            rewrite_override,
+            RewriteOverride.DEFAULT,
+            LoggingDeprecationHandler.INSTANCE
+        );
+        return fieldType.prefixQuery(value, method, rewriteOverride, caseInsensitive, context);
     }
 
     @Override
