@@ -344,8 +344,8 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         }
 
         @Override
-        protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
-            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(new DiscoveryNode[0]));
+        protected DiscoveryNode[] resolveRequest(TestNodesRequest request, ClusterState clusterState) {
+            return clusterState.nodes().getDataNodes().values().toArray(new DiscoveryNode[0]);
         }
     }
 
