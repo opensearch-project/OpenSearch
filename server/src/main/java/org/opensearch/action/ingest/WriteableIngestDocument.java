@@ -81,8 +81,11 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             if (a[4] != null) {
                 sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
             }
-            sourceAndMetadata.putAll((Map<String, Object>) a[5]);
-            return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>) a[6]));
+            if (a[5] != null) {
+                sourceAndMetadata.put(Metadata.OP_TYPE.getFieldName(), a[5]);
+            }
+            sourceAndMetadata.putAll((Map<String, Object>) a[6]);
+            return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>) a[7]));
         }
     );
     static {
@@ -91,6 +94,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         INGEST_DOC_PARSER.declareString(optionalConstructorArg(), new ParseField(Metadata.ROUTING.getFieldName()));
         INGEST_DOC_PARSER.declareLong(optionalConstructorArg(), new ParseField(Metadata.VERSION.getFieldName()));
         INGEST_DOC_PARSER.declareString(optionalConstructorArg(), new ParseField(Metadata.VERSION_TYPE.getFieldName()));
+        INGEST_DOC_PARSER.declareString(optionalConstructorArg(), new ParseField(Metadata.OP_TYPE.getFieldName()));
         INGEST_DOC_PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField(SOURCE_FIELD));
         INGEST_DOC_PARSER.declareObject(constructorArg(), (p, c) -> {
             Map<String, Object> ingestMap = p.map();

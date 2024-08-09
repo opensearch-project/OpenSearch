@@ -32,6 +32,7 @@
 
 package org.opensearch.ingest;
 
+import org.opensearch.action.DocWriteRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -1100,4 +1101,9 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         }
     }
 
+    public void testConstructorWithOpType() {
+        Map<String, Object> document = new HashMap<>();
+        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, DocWriteRequest.OpType.CREATE, document);
+        assertThat(ingestDocument.getSourceAndMetadata().get("_op_type"), equalTo(DocWriteRequest.OpType.CREATE.getLowercase()));
+    }
 }

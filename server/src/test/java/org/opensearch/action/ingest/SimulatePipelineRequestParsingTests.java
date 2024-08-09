@@ -33,6 +33,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.DocWriteRequest;
 import org.opensearch.index.VersionType;
 import org.opensearch.ingest.CompoundProcessor;
 import org.opensearch.ingest.IngestDocument;
@@ -58,6 +59,7 @@ import static org.opensearch.ingest.IngestDocument.Metadata.ID;
 import static org.opensearch.ingest.IngestDocument.Metadata.IF_PRIMARY_TERM;
 import static org.opensearch.ingest.IngestDocument.Metadata.IF_SEQ_NO;
 import static org.opensearch.ingest.IngestDocument.Metadata.INDEX;
+import static org.opensearch.ingest.IngestDocument.Metadata.OP_TYPE;
 import static org.opensearch.ingest.IngestDocument.Metadata.ROUTING;
 import static org.opensearch.ingest.IngestDocument.Metadata.VERSION;
 import static org.opensearch.ingest.IngestDocument.Metadata.VERSION_TYPE;
@@ -141,7 +143,16 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             Map<String, Object> expectedDoc = new HashMap<>();
-            List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO, IF_PRIMARY_TERM);
+            List<IngestDocument.Metadata> fields = Arrays.asList(
+                INDEX,
+                ID,
+                ROUTING,
+                VERSION,
+                VERSION_TYPE,
+                IF_SEQ_NO,
+                IF_PRIMARY_TERM,
+                OP_TYPE
+            );
             for (IngestDocument.Metadata field : fields) {
                 if (field == VERSION) {
                     if (randomBoolean()) {
@@ -167,6 +178,10 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
                         doc.put(field.getFieldName(), value);
                         expectedDoc.put(field.getFieldName(), (long) value);
                     }
+                } else if (field == OP_TYPE) {
+                    String value = randomFrom(DocWriteRequest.OpType.values()).getLowercase();
+                    doc.put(field.getFieldName(), value);
+                    expectedDoc.put(field.getFieldName(), value);
                 } else {
                     if (randomBoolean()) {
                         String value = randomAlphaOfLengthBetween(1, 10);
@@ -229,6 +244,7 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
             assertThat(metadataMap.get(VERSION_TYPE), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
             assertThat(metadataMap.get(IF_SEQ_NO), equalTo(expectedDocument.get(IF_SEQ_NO.getFieldName())));
             assertThat(metadataMap.get(IF_PRIMARY_TERM), equalTo(expectedDocument.get(IF_PRIMARY_TERM.getFieldName())));
+            assertThat(metadataMap.get(OP_TYPE), equalTo(expectedDocument.get(OP_TYPE.getFieldName())));
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
 
@@ -325,6 +341,74 @@ public class SimulatePipelineRequestParsingTests extends OpenSearchTestCase {
 
             assertThrows(
                 "Failed to parse parameter [" + metadataFieldName + "], only int or long is accepted",
+                IllegalArgumentException.class,
+                () -> SimulatePipelineRequest.parse(requestContent, false, ingestService)
+            );
+        }
+
+        {
+            String metadataFieldName = OP_TYPE.getFieldName();
+            Map<String, Object> requestContent = new HashMap<>();
+            List<Map<String, Object>> docs = new ArrayList<>();
+            requestContent.put(Fields.DOCS, docs);
+            Map<String, Object> doc = new HashMap<>();
+            String metadataFieldValue = randomAlphaOfLengthBetween(1, 10);
+            doc.put(metadataFieldName, metadataFieldValue);
+            doc.put(Fields.SOURCE, Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            docs.add(doc);
+
+            Map<String, Object> pipelineConfig = new HashMap<>();
+            List<Map<String, Object>> processors = new ArrayList<>();
+            Map<String, Object> processorConfig = new HashMap<>();
+            List<Map<String, Object>> onFailureProcessors = new ArrayList<>();
+            int numOnFailureProcessors = randomIntBetween(0, 1);
+            for (int j = 0; j < numOnFailureProcessors; j++) {
+                onFailureProcessors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
+            }
+            if (numOnFailureProcessors > 0) {
+                processorConfig.put("on_failure", onFailureProcessors);
+            }
+            processors.add(Collections.singletonMap("mock_processor", processorConfig));
+            pipelineConfig.put("processors", processors);
+
+            requestContent.put(Fields.PIPELINE, pipelineConfig);
+
+            assertThrows(
+                "Unknown opType: [" + metadataFieldValue + "]",
+                IllegalArgumentException.class,
+                () -> SimulatePipelineRequest.parse(requestContent, false, ingestService)
+            );
+        }
+
+        {
+            String metadataFieldName = VERSION_TYPE.getFieldName();
+            Map<String, Object> requestContent = new HashMap<>();
+            List<Map<String, Object>> docs = new ArrayList<>();
+            requestContent.put(Fields.DOCS, docs);
+            Map<String, Object> doc = new HashMap<>();
+            String metadataFieldValue = randomAlphaOfLengthBetween(1, 10);
+            doc.put(metadataFieldName, metadataFieldValue);
+            doc.put(Fields.SOURCE, Collections.singletonMap(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            docs.add(doc);
+
+            Map<String, Object> pipelineConfig = new HashMap<>();
+            List<Map<String, Object>> processors = new ArrayList<>();
+            Map<String, Object> processorConfig = new HashMap<>();
+            List<Map<String, Object>> onFailureProcessors = new ArrayList<>();
+            int numOnFailureProcessors = randomIntBetween(0, 1);
+            for (int j = 0; j < numOnFailureProcessors; j++) {
+                onFailureProcessors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
+            }
+            if (numOnFailureProcessors > 0) {
+                processorConfig.put("on_failure", onFailureProcessors);
+            }
+            processors.add(Collections.singletonMap("mock_processor", processorConfig));
+            pipelineConfig.put("processors", processors);
+
+            requestContent.put(Fields.PIPELINE, pipelineConfig);
+
+            assertThrows(
+                "No version type match [" + metadataFieldValue + "]",
                 IllegalArgumentException.class,
                 () -> SimulatePipelineRequest.parse(requestContent, false, ingestService)
             );

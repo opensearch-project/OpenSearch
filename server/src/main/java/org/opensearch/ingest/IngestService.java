@@ -971,8 +971,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         String routing = indexRequest.routing();
         Long version = indexRequest.version();
         VersionType versionType = indexRequest.versionType();
+        DocWriteRequest.OpType opType = indexRequest.opType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, sourceAsMap);
+        IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, opType, sourceAsMap);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
             long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
             totalMetrics.after(ingestTimeInMillis);
@@ -1253,6 +1254,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM) != null) {
             indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
         }
+        if (metadataMap.get(IngestDocument.Metadata.OP_TYPE) != null) {
+            indexRequest.opType((String) metadataMap.get(IngestDocument.Metadata.OP_TYPE));
+        }
         indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
     }
 
@@ -1263,6 +1267,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             indexRequest.routing(),
             indexRequest.version(),
             indexRequest.versionType(),
+            indexRequest.opType(),
             indexRequest.sourceAsMap()
         );
     }

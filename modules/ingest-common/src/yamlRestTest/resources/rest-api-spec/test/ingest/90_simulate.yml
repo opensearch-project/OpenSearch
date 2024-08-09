@@ -1158,3 +1158,40 @@ teardown:
   - match: { docs.0.processor_results.1.doc._source.foo.foo: "bar" }
   - match: { docs.0.processor_results.1.status: "success" }
   - match: { docs.0.processor_results.1.processor_type: "script" }
+
+---
+"Test simulate with modifying op_type by set processor":
+  - skip:
+      version: " - 2.99.99"
+      reason: "introduced in 3.0.0"
+
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "field": "_op_type",
+                    "value": "create"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_op_type": "index",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "index" }
+  - match: { docs.0.doc._op_type: "create" }
+  - match: { docs.0.doc._source.foo: "bar" }

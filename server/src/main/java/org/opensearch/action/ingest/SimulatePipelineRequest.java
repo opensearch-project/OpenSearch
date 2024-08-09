@@ -35,6 +35,7 @@ package org.opensearch.action.ingest;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.DocWriteRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.XContentType;
@@ -233,7 +234,13 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                     ConfigurationUtils.readStringProperty(null, null, dataMap, Metadata.VERSION_TYPE.getFieldName())
                 );
             }
-            IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, document);
+            DocWriteRequest.OpType opType = null;
+            if (dataMap.containsKey(Metadata.OP_TYPE.getFieldName())) {
+                opType = DocWriteRequest.OpType.fromString(
+                    ConfigurationUtils.readStringProperty(null, null, dataMap, Metadata.OP_TYPE.getFieldName())
+                );
+            }
+            IngestDocument ingestDocument = new IngestDocument(index, id, routing, version, versionType, opType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
                 Object ifSeqNoFieldValue = ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
                 if (ifSeqNoFieldValue instanceof Integer || ifSeqNoFieldValue instanceof Long) {
