@@ -30,6 +30,7 @@ import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.plugin.wlm.action.GetQueryGroupResponse;
 import org.opensearch.search.ResourceType;
+import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -257,8 +258,10 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testGetSingleQueryGroup() {
-        List<QueryGroup> groups = QueryGroupTestUtils.queryGroupPersistenceService()
-            .getQueryGroupsFromClusterState(QueryGroupTestUtils.NAME_ONE, QueryGroupTestUtils.clusterState());
+        List<QueryGroup> groups = QueryGroupPersistenceService.getFromClusterStateMetadata(
+            QueryGroupTestUtils.NAME_ONE,
+            QueryGroupTestUtils.clusterState()
+        );
         assertEquals(1, groups.size());
         QueryGroup queryGroup = groups.get(0);
         List<QueryGroup> listOne = new ArrayList<>();
@@ -270,8 +273,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
 
     public void testGetAllQueryGroups() {
         assertEquals(2, QueryGroupTestUtils.clusterState().metadata().queryGroups().size());
-        List<QueryGroup> res = QueryGroupTestUtils.queryGroupPersistenceService()
-            .getQueryGroupsFromClusterState(null, QueryGroupTestUtils.clusterState());
+        List<QueryGroup> res = QueryGroupPersistenceService.getFromClusterStateMetadata(null, QueryGroupTestUtils.clusterState());
         assertEquals(2, res.size());
         Set<String> currentNAME = res.stream().map(QueryGroup::getName).collect(Collectors.toSet());
         assertTrue(currentNAME.contains(QueryGroupTestUtils.NAME_ONE));
@@ -280,14 +282,7 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testGetZeroQueryGroups() {
-        // Settings settings = Settings.builder().build();
-        // ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        QueryGroupPersistenceService queryGroupPersistenceService = new QueryGroupPersistenceService(
-            mock(ClusterService.class),
-            QueryGroupTestUtils.settings(),
-            clusterSettings()
-        );
-        List<QueryGroup> res = queryGroupPersistenceService.getQueryGroupsFromClusterState(
+        List<QueryGroup> res = QueryGroupPersistenceService.getFromClusterStateMetadata(
             QueryGroupTestUtils.NAME_NONE_EXISTED,
             QueryGroupTestUtils.clusterState()
         );
@@ -295,17 +290,11 @@ public class QueryGroupPersistenceServiceTests extends OpenSearchTestCase {
     }
 
     public void testGetNonExistedQueryGroups() {
-        List<QueryGroup> groups = QueryGroupTestUtils.queryGroupPersistenceService()
-            .getQueryGroupsFromClusterState(QueryGroupTestUtils.NAME_NONE_EXISTED, QueryGroupTestUtils.clusterState());
+        List<QueryGroup> groups = QueryGroupPersistenceService.getFromClusterStateMetadata(
+            QueryGroupTestUtils.NAME_NONE_EXISTED,
+            QueryGroupTestUtils.clusterState()
+        );
         assertEquals(0, groups.size());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGet() {
-        QueryGroupPersistenceService queryGroupPersistenceService = QueryGroupTestUtils.queryGroupPersistenceService();
-        ActionListener<GetQueryGroupResponse> mockListener = mock(ActionListener.class);
-        queryGroupPersistenceService.getFromClusterStateMetadata(QueryGroupTestUtils.NAME_ONE, mockListener);
-        queryGroupPersistenceService.getFromClusterStateMetadata(QueryGroupTestUtils.NAME_NONE_EXISTED, mockListener);
     }
 
     public void testMaxQueryGroupCount() {

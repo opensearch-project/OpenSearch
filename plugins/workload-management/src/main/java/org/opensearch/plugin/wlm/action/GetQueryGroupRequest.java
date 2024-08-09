@@ -8,8 +8,8 @@
 
 package org.opensearch.plugin.wlm.action;
 
-import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -20,7 +20,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-public class GetQueryGroupRequest extends ActionRequest {
+public class GetQueryGroupRequest extends ClusterManagerNodeReadRequest<GetQueryGroupRequest> {
     final String name;
 
     /**
