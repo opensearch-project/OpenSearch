@@ -36,6 +36,6 @@ public class RemoteStorePinnedTimestampsBlobStore extends RemoteClusterStateBlob
 
     @Override
     public BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<RemotePinnedTimestamps.PinnedTimestamps> obj) {
-        return blobStoreRepository.basePath();
+        return blobStoreRepository.basePath().add("pinned_timestamps");
     }
 }

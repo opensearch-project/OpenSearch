@@ -47,7 +47,7 @@ import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteS
  */
 public class RemoteStorePinnedTimestampService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteStorePinnedTimestampService.class);
-    private Tuple<Long, Set<Long>> pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
+    private static Tuple<Long, Set<Long>> pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
     public static final int PINNED_TIMESTAMP_FILES_TO_KEEP = 5;
 
     private final Supplier<RepositoriesService> repositoriesService;
@@ -215,6 +215,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
         asyncUpdatePinnedTimestampTask.close();
     }
 
+    // Visible for testing
     public void setPinnedTimestampsSchedulerInterval(TimeValue pinnedTimestampsSchedulerInterval) {
         this.pinnedTimestampsSchedulerInterval = pinnedTimestampsSchedulerInterval;
         rescheduleAsyncUpdatePinnedTimestampTask();
@@ -226,6 +227,10 @@ public class RemoteStorePinnedTimestampService implements Closeable {
             asyncUpdatePinnedTimestampTask.close();
             startAsyncUpdateTask();
         }
+    }
+
+    public static Tuple<Long, Set<Long>> getPinnedTimestamps() {
+        return pinnedTimestampsSet;
     }
 
     /**
