@@ -44,14 +44,18 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 
@@ -333,6 +337,54 @@ public interface Repository extends LifecycleComponent {
         long primaryTerm,
         long startTime,
         ActionListener<String> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     *  Fetches commit checkpoint from remote store segment metadata file
+     *  Adds a lock in the remote store for the segment to be snapshotted,
+     *  so that it is not cleaned during garbage collection of stale segments.
+     *
+     * @param snapshotId                snapshot id
+     * @param indexId                   id for the index being snapshotted
+     * @param shardId                   id for the shard being snapshotted
+     * @param generation                current generation
+     * @param remoteDirectoryFactory    an instance of remoteDirectoryFactory
+     * @param settings                  the cluster settings
+     * @param indexUUID                 index uuid
+     * @param startTime                 start time of the snapshot commit, this will be used as the start time for snapshot.
+     * @param remoteStorePathStrategy   remote store path strategy
+     * @param listener                  listener invoked on completion
+     */
+    default void shardCheckpointUsingRemoteStoreMetadata(
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId shardId,
+        String generation,
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        Settings settings,
+        String indexUUID,
+        long startTime,
+        RemoteStorePathStrategy remoteStorePathStrategy,
+        ActionListener<RemoteStoreShardShallowCopySnapshot> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Creates a snapshot of the shard based on the index commit point.
+     *
+     * @param remoteStoreShardShallowCopySnapshot   object containing shard commit checkpoint details
+     * @param indexId                               id for the index being snapshotted
+     * @param shardId                               id for the shard being snapshotted
+     * @param snapshot                              current snapshot object
+     */
+    default void writeSnapshotShardCheckpoint(
+        RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot,
+        IndexId indexId,
+        ShardId shardId,
+        Snapshot snapshot
     ) {
         throw new UnsupportedOperationException();
     }

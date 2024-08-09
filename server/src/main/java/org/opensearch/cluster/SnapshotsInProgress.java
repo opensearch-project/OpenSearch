@@ -130,7 +130,40 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             null,
             userMetadata,
             version,
-            remoteStoreIndexShallowCopy
+            remoteStoreIndexShallowCopy,
+            false
+        );
+    }
+
+    public static Entry startedEntryThin(
+        Snapshot snapshot,
+        boolean includeGlobalState,
+        boolean partial,
+        List<IndexId> indices,
+        List<String> dataStreams,
+        long startTime,
+        long repositoryStateId,
+        final Map<ShardId, ShardSnapshotStatus> shards,
+        Map<String, Object> userMetadata,
+        Version version,
+        boolean remoteStoreIndexShallowCopy,
+        boolean centralSnap
+    ) {
+        return new SnapshotsInProgress.Entry(
+            snapshot,
+            includeGlobalState,
+            partial,
+            State.STARTED,
+            Collections.emptyList(),
+            dataStreams,
+            startTime,
+            repositoryStateId,
+            Collections.emptyMap(),
+            null,
+            userMetadata,
+            version,
+            remoteStoreIndexShallowCopy,
+            centralSnap
         );
     }
 
@@ -168,8 +201,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             version,
             source,
             Map.of(),
-            false // initialising to false, will be updated in startCloning method of SnapshotsService while updating entry with
-                  // clone jobs
+            false, // initialising to false, will be updated in startCloning method of SnapshotsService while updating entry with
+                   // clone jobs
+            false
         );
     }
 
@@ -184,6 +218,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final boolean includeGlobalState;
         private final boolean remoteStoreIndexShallowCopy;
         private final boolean partial;
+        // centralSnap is set to true for centralized snapshots, snapshots executing completely in the cluster manager node
+        private final boolean centralSnap;
         /**
          * Map of {@link ShardId} to {@link ShardSnapshotStatus} tracking the state of each shard snapshot operation.
          */
@@ -226,7 +262,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             String failure,
             Map<String, Object> userMetadata,
             Version version,
-            boolean remoteStoreIndexShallowCopy
+            boolean remoteStoreIndexShallowCopy,
+            boolean centralSnap
         ) {
             this(
                 snapshot,
@@ -243,7 +280,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 version,
                 null,
                 Map.of(),
-                remoteStoreIndexShallowCopy
+                remoteStoreIndexShallowCopy,
+                centralSnap
             );
         }
 
@@ -262,7 +300,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Version version,
             @Nullable SnapshotId source,
             @Nullable final Map<RepositoryShardId, ShardSnapshotStatus> clones,
-            boolean remoteStoreIndexShallowCopy
+            boolean remoteStoreIndexShallowCopy,
+            boolean centralSnap
         ) {
             this.state = state;
             this.snapshot = snapshot;
@@ -284,7 +323,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 this.clones = Collections.unmodifiableMap(clones);
             }
             this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
-            assert assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.clones);
+            this.centralSnap = centralSnap;
+            if (!centralSnap) {
+                assert assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.clones);
+
+            }
         }
 
         private Entry(StreamInput in) throws IOException {
@@ -306,6 +349,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 remoteStoreIndexShallowCopy = in.readBoolean();
             } else {
                 remoteStoreIndexShallowCopy = false;
+            }
+            if (in.getVersion().onOrAfter(Version.V_2_16_0)) {
+                centralSnap = in.readBoolean();
+            } else {
+                centralSnap = false;
             }
         }
 
@@ -362,7 +410,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final Map<ShardId, ShardSnapshotStatus> shards,
             Map<String, Object> userMetadata,
             Version version,
-            boolean remoteStoreIndexShallowCopy
+            boolean remoteStoreIndexShallowCopy,
+            boolean centralSnap
         ) {
             this(
                 snapshot,
@@ -377,7 +426,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 null,
                 userMetadata,
                 version,
-                remoteStoreIndexShallowCopy
+                remoteStoreIndexShallowCopy,
+                centralSnap
             );
         }
 
@@ -403,7 +453,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 failure,
                 entry.userMetadata,
                 version,
-                entry.remoteStoreIndexShallowCopy
+                entry.remoteStoreIndexShallowCopy,
+                entry.centralSnap
             );
         }
 
@@ -428,7 +479,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 version,
                 source,
                 clones,
-                remoteStoreIndexShallowCopy
+                remoteStoreIndexShallowCopy,
+                centralSnap
             );
         }
 
@@ -451,7 +503,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 version,
                 source,
                 updatedClones,
-                remoteStoreIndexShallowCopy
+                remoteStoreIndexShallowCopy,
+                centralSnap
             );
         }
 
@@ -471,7 +524,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 version,
                 source,
                 clones,
-                remoteStoreIndexShallowCopy
+                remoteStoreIndexShallowCopy,
+                centralSnap
             );
         }
 
@@ -527,7 +581,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 version,
                 source,
                 clones,
-                remoteStoreIndexShallowCopy
+                remoteStoreIndexShallowCopy,
+                centralSnap
             );
         }
 
@@ -554,7 +609,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     failure,
                     userMetadata,
                     version,
-                    remoteStoreIndexShallowCopy
+                    remoteStoreIndexShallowCopy,
+                    centralSnap
                 );
             }
             return withStartedShards(shards);
@@ -578,7 +634,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 failure,
                 userMetadata,
                 version,
-                remoteStoreIndexShallowCopy
+                remoteStoreIndexShallowCopy,
+                centralSnap
             );
             assert updated.state().completed() == false && completed(updated.shards().values()) == false
                 : "Only running snapshots allowed but saw [" + updated + "]";
@@ -612,6 +669,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public boolean remoteStoreIndexShallowCopy() {
             return remoteStoreIndexShallowCopy;
+        }
+
+        public boolean isCentralSnap() {
+            return centralSnap;
         }
 
         public Map<String, Object> userMetadata() {
@@ -678,6 +739,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (Objects.equals(source, ((Entry) o).source) == false) return false;
             if (clones.equals(((Entry) o).clones) == false) return false;
             if (remoteStoreIndexShallowCopy != entry.remoteStoreIndexShallowCopy) return false;
+            if (centralSnap != entry.centralSnap) return false;
             return true;
         }
 
@@ -695,6 +757,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             result = 31 * result + (source == null ? 0 : source.hashCode());
             result = 31 * result + clones.hashCode();
             result = 31 * result + (remoteStoreIndexShallowCopy ? 1 : 0);
+            result = 31 * result + (centralSnap ? 1 : 0);
             return result;
         }
 
@@ -766,6 +829,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
                 out.writeBoolean(remoteStoreIndexShallowCopy);
             }
+            if (out.getVersion().onOrAfter(Version.V_2_16_0)) {
+                out.writeBoolean(centralSnap);
+            }
+
         }
 
         @Override

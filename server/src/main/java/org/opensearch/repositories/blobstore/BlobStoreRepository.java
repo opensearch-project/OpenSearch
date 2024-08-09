@@ -126,6 +126,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.IndexId;
@@ -140,6 +141,7 @@ import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.RepositoryVerificationException;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.snapshots.AbortedSnapshotException;
+import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -662,6 +664,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 compressor
             );
             return newGen;
+
         }));
     }
 
@@ -2773,6 +2776,119 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    @Override
+    public void shardCheckpointUsingRemoteStoreMetadata(
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId shardId,
+        String generation,
+        RemoteSegmentStoreDirectoryFactory remoteDirectoryFactory,
+        Settings settings,
+        String indexUUID,
+        long startTime,
+        RemoteStorePathStrategy remoteStorePathStrategy,
+        ActionListener<RemoteStoreShardShallowCopySnapshot> listener
+    ) {
+        if (isReadOnly()) {
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
+            return;
+        }
+        try {
+            logger.info(
+                "[{}] [{}] fetching snapshot shard commit checkpoint [{}] [{}] from remote store ",
+                shardId,
+                snapshotId,
+                metadata.name(),
+                generation
+            );
+            String remoteStoreRepoForIndex = settings.get(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY);
+            RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
+                remoteStoreRepoForIndex,
+                indexUUID,
+                shardId,
+                remoteStorePathStrategy
+            );
+            RemoteSegmentMetadata remoteSegmentMetadata = remoteSegmentStoreDirectory.readLatestMetadataFile();
+
+            try {
+                remoteSegmentStoreDirectory.acquireLock(
+                    remoteSegmentMetadata.getPrimaryTerm(),
+                    remoteSegmentMetadata.getGeneration(),
+                    snapshotId.getUUID()
+                );
+            } catch (NoSuchFileException e) {
+                logger.error(
+                    "Exception while acquiring lock on primaryTerm = {} and generation = {}",
+                    remoteSegmentMetadata.getPrimaryTerm(),
+                    remoteSegmentMetadata.getGeneration()
+                );
+                throw new IndexShardSnapshotFailedException(
+                    shardId,
+                    "Failed to write shard commit point lock file for snapshot " + snapshotId.getName() + "(" + snapshotId.getUUID() + ")",
+                    e
+                );
+            }
+
+            Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> segmentMetadataMap = remoteSegmentMetadata.getMetadata();
+
+            long indexTotalFileSize = 0;
+            List<String> fileNames = new ArrayList<>();
+            for (RemoteSegmentStoreDirectory.UploadedSegmentMetadata segmentMetadata : segmentMetadataMap.values()) {
+                indexTotalFileSize += segmentMetadata.getLength();
+                fileNames.add(segmentMetadata.getOriginalFilename());
+            }
+
+            RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot = new RemoteStoreShardShallowCopySnapshot(
+                snapshotId.getName(),
+                remoteSegmentMetadata.getGeneration(),
+                remoteSegmentMetadata.getPrimaryTerm(),
+                remoteSegmentMetadata.getGeneration(),
+                startTime,
+                threadPool.absoluteTimeInMillis() - startTime,
+                fileNames.size(),
+                indexTotalFileSize,
+                indexUUID,
+                remoteStoreRepoForIndex,
+                this.basePath().toString(),
+                fileNames,
+                remoteStorePathStrategy.getType(),
+                remoteStorePathStrategy.getHashAlgorithm()
+            );
+            listener.onResponse(remoteStoreShardShallowCopySnapshot);
+
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public void writeSnapshotShardCheckpoint(
+        RemoteStoreShardShallowCopySnapshot remoteStoreShardShallowCopySnapshot,
+        IndexId indexId,
+        ShardId shardId,
+        Snapshot snapshot
+    ) {
+        logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshot.getSnapshotId().getUUID());
+        final BlobContainer shardContainer = shardContainer(indexId, shardId);
+        try {
+            REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
+                remoteStoreShardShallowCopySnapshot,
+                shardContainer,
+                snapshot.getSnapshotId().getUUID(),
+                compressor
+            );
+        } catch (IOException e) {
+            throw new IndexShardSnapshotFailedException(
+                shardId,
+                "Failed to write commit point for snapshot "
+                    + snapshot.getSnapshotId().getName()
+                    + "("
+                    + snapshot.getSnapshotId().getUUID()
+                    + ")",
+                e
+            );
         }
     }
 

@@ -776,6 +776,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
                                     null,
                                     SnapshotInfoTests.randomUserMetadata(),
                                     randomVersion(random()),
+                                    false,
                                     false
                                 )
                             )

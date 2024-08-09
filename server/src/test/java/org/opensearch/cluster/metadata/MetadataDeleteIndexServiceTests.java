@@ -112,6 +112,7 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
                     null,
                     SnapshotInfoTests.randomUserMetadata(),
                     VersionUtils.randomVersion(random()),
+                    false,
                     false
                 )
             )

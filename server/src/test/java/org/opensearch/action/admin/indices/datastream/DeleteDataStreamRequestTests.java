@@ -171,6 +171,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
             Map.of(),
             null,
             null,
+            false,
             false
         );
     }
