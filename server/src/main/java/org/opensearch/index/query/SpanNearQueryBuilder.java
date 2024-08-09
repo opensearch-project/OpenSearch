@@ -306,7 +306,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         if (this.clauses.isEmpty() == false) {
             QueryBuilderVisitor subVisitor = visitor.getChildVisitor(BooleanClause.Occur.MUST);
             for (QueryBuilder subQb : this.clauses) {
-                subVisitor.accept(subQb);
+                subQb.visit(subVisitor);
             }
         }
     }
