@@ -353,13 +353,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     }
 
     protected void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, String indices, int replicaCount, int shardCount) {
-        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes);
-        internalCluster().startDataOnlyNodes(numDataOnlyNodes);
-        for (String index : indices.split(",")) {
-            createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
-            ensureYellowAndNoInitializingShards(index);
-            ensureGreen(index);
-        }
+        prepareCluster(numClusterManagerNodes, numDataOnlyNodes, indices, replicaCount, shardCount, Settings.EMPTY);
     }
 
     protected void prepareCluster(
@@ -370,11 +364,16 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         int shardCount,
         Settings settings
     ) {
-        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes, settings);
-        internalCluster().startDataOnlyNodes(numDataOnlyNodes, settings);
+        prepareCluster(numClusterManagerNodes, numDataOnlyNodes, settings);
         for (String index : indices.split(",")) {
             createIndex(index, remoteStoreIndexSettings(replicaCount, shardCount));
+            ensureYellowAndNoInitializingShards(index);
             ensureGreen(index);
         }
+    }
+
+    protected void prepareCluster(int numClusterManagerNodes, int numDataOnlyNodes, Settings settings) {
+        internalCluster().startClusterManagerOnlyNodes(numClusterManagerNodes, settings);
+        internalCluster().startDataOnlyNodes(numDataOnlyNodes, settings);
     }
 }

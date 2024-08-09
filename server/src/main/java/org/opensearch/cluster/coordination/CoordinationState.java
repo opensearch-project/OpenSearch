@@ -41,6 +41,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.gateway.GatewayMetaState;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -459,6 +460,16 @@ public class CoordinationState {
             clusterState.term()
         );
         persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastAcceptedState(clusterState);
+        // if Remote publication is enabled, we only need to update the accepted state in followers node as elected cluster manager would
+        // have already updated the last accepted state
+        if (isRemotePublicationEnabled
+            && publishRequest.getManifest() != null
+            && localNode.isClusterManagerNode()
+            && clusterState.getNodes().isLocalNodeElectedClusterManager() == false) {
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(clusterState);
+            ((GatewayMetaState.RemotePersistedState) persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE))
+                .setLastAcceptedManifest(publishRequest.getManifest());
+        }
         assert getLastAcceptedState() == clusterState;
 
         return new PublishResponse(clusterState.term(), clusterState.version());
@@ -571,6 +582,9 @@ public class CoordinationState {
         );
 
         persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).markLastAcceptedStateAsCommitted();
+        if (isRemotePublicationEnabled && localNode.isClusterManagerNode()) {
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).markLastAcceptedStateAsCommitted();
+        }
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
@@ -661,14 +675,7 @@ public class CoordinationState {
          */
         default void markLastAcceptedStateAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
-            Metadata.Builder metadataBuilder = null;
-            if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
-                final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
-                    .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
-                    .build();
-                metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
-                metadataBuilder.coordinationMetadata(coordinationMetadata);
-            }
+            Metadata.Builder metadataBuilder = commitVotingConfiguration(lastAcceptedState);
             // if we receive a commit from a Zen1 cluster-manager that has not recovered its state yet,
             // the cluster uuid might not been known yet.
             assert lastAcceptedState.metadata().clusterUUID().equals(Metadata.UNKNOWN_CLUSTER_UUID) == false
@@ -691,6 +698,18 @@ public class CoordinationState {
             if (metadataBuilder != null) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build());
             }
+        }
+
+        default Metadata.Builder commitVotingConfiguration(ClusterState lastAcceptedState) {
+            Metadata.Builder metadataBuilder = null;
+            if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
+                final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder(lastAcceptedState.coordinationMetadata())
+                    .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
+                    .build();
+                metadataBuilder = Metadata.builder(lastAcceptedState.metadata());
+                metadataBuilder.coordinationMetadata(coordinationMetadata);
+            }
+            return metadataBuilder;
         }
 
         default void close() throws IOException {}
