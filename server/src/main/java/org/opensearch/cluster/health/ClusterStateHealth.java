@@ -47,6 +47,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Cluster state health information
@@ -80,9 +81,9 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
      * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and the provided index names.
      *
      * @param clusterState    The current cluster state. Must not be null.
-     * @param concreteIndices An array of index names to consider. Must not be null but may be empty.
+     * @param concreteIndices A set of index names to consider. Must not be null but may be empty.
      */
-    public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
+    public ClusterStateHealth(final ClusterState clusterState, final Set<String> concreteIndices) {
         numberOfNodes = clusterState.nodes().getSize();
         numberOfDataNodes = clusterState.nodes().getDataNodes().size();
         hasDiscoveredClusterManager = clusterState.nodes().getClusterManagerNodeId() != null;
