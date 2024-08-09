@@ -53,6 +53,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
+import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
@@ -293,6 +294,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             + "  \"terms\" : {\n"
             + "    \"user\" : [ \"foobar\", \"opensearch\" ],\n"
             + "    \"boost\" : 1.0\n"
+            + "     \"rewrite_override\": \"index_only\"\n"
             + "  }\n"
             + "}";
 
@@ -363,7 +365,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
-        TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
+        TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist", RewriteOverride.DEFAULT);
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));

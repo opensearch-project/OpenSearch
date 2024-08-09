@@ -230,6 +230,10 @@ public abstract class MappedFieldType {
         );
     }
 
+    public Query termsQuery(List<?> values, @Nullable RewriteOverride rewriteOverride, @Nullable QueryShardContext context) {
+        return termsQuery(values, context);
+    }
+
     /** Build a constant-scoring query that matches all values. The default implementation uses a
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
@@ -258,6 +262,20 @@ public abstract class MappedFieldType {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
+    public Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        @Nullable RewriteOverride rewriteOverride,
+        QueryShardContext context
+    ) {
+        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, relation, timeZone, parser, context);
+    }
+
     public Query fuzzyQuery(
         Object value,
         Fuzziness fuzziness,
@@ -284,6 +302,29 @@ public abstract class MappedFieldType {
         throw new IllegalArgumentException(
             "Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        @Nullable RewriteOverride rewriteOverride,
+        QueryShardContext context
+    ) {
+        return fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
+    }
+
+    public Query prefixQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        @Nullable RewriteOverride rewriteOverride,
+        boolean caseInsensitve,
+        QueryShardContext context
+    ) {
+        return prefixQuery(value, method, caseInsensitve, context);
     }
 
     // Case sensitive form of prefix query
@@ -321,6 +362,16 @@ public abstract class MappedFieldType {
         );
     }
 
+    public Query wildcardQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        @Nullable RewriteOverride rewriteOverride,
+        boolean caseInsensitve,
+        QueryShardContext context
+    ) {
+        return wildcardQuery(value, method, caseInsensitve, context);
+    }
+
     /** always normalizes the wildcard pattern to lowercase */
     public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         throw new QueryShardException(
@@ -341,6 +392,18 @@ public abstract class MappedFieldType {
             context,
             "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
+    }
+
+    public Query regexpQuery(
+        String value,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        @Nullable RewriteOverride rewriteOverride,
+        QueryShardContext context
+    ) {
+        return regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
     }
 
     public Query existsQuery(QueryShardContext context) {

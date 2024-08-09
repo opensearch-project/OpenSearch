@@ -37,11 +37,14 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.ParseField;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
@@ -53,6 +56,8 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.RewriteOverride;
+import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.indices.TermsLookup;
 
 import java.io.IOException;
@@ -81,6 +86,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private final List<?> values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
+
+    private static final ParseField REWRITE_OVERRIDE = new ParseField("rewrite_override");
+
+    private String rewrite_override;
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
         this(fieldName, null, termsLookup);
@@ -194,6 +203,16 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.supplier = supplier;
     }
 
+    private TermsQueryBuilder(String fieldName, Iterable<?> values, String rewrite_override) {
+        this(fieldName, values);
+        this.rewrite_override = rewrite_override;
+    }
+
+    private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier, String rewrite_override) {
+        this(fieldName, supplier);
+        this.rewrite_override = rewrite_override;
+    }
+
     /**
      * Read from a stream.
      */
@@ -203,6 +222,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         termsLookup = in.readOptionalWriteable(TermsLookup::new);
         values = (List<?>) in.readGenericValue();
         this.supplier = null;
+        if (in.getVersion().after(Version.V_2_16_0)) {
+            rewrite_override = in.readOptionalString();
+        }
     }
 
     @Override
@@ -213,6 +235,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
         out.writeGenericValue(values);
+        if (out.getVersion().after(Version.V_2_16_0)) {
+            out.writeOptionalString(rewrite_override);
+        }
     }
 
     public String fieldName() {
@@ -225,6 +250,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     public TermsLookup termsLookup() {
         return this.termsLookup;
+    }
+
+    public TermsQueryBuilder rewrite_override(String rewrite_override) {
+        this.rewrite_override = rewrite_override;
+        return this;
     }
 
     private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
@@ -360,6 +390,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             builder.field(fieldName, convertBack(values));
         }
         printBoostAndQueryName(builder);
+        if (rewrite_override != null) {
+            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
+        }
         builder.endObject();
     }
 
@@ -367,6 +400,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         String fieldName = null;
         List<Object> values = null;
         TermsLookup termsLookup = null;
+
+        String rewrite_override = null;
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -406,6 +441,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     boost = parser.floatValue();
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
+                } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    rewrite_override = parser.textOrNull();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -430,7 +467,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             );
         }
 
-        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
+        return new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName).rewrite_override(rewrite_override);
     }
 
     static List<Object> parseValues(XContentParser parser) throws IOException {
@@ -473,7 +510,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }
-        return fieldType.termsQuery(values, context);
+        RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+            rewrite_override,
+            RewriteOverride.DEFAULT,
+            LoggingDeprecationHandler.INSTANCE
+        );
+        return fieldType.termsQuery(values, rewriteOverride, context);
     }
 
     private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
@@ -491,7 +533,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, values, termsLookup, supplier);
+        return Objects.hash(fieldName, values, termsLookup, rewrite_override, supplier);
     }
 
     @Override
@@ -499,20 +541,21 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(values, other.values)
             && Objects.equals(termsLookup, other.termsLookup)
+            && Objects.equals(rewrite_override, other.rewrite_override)
             && Objects.equals(supplier, other.supplier);
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (supplier != null) {
-            return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
+            return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get(), rewrite_override);
         } else if (this.termsLookup != null) {
             SetOnce<List<?>> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, ActionListener.map(listener, list -> {
                 supplier.set(list);
                 return null;
             })));
-            return new TermsQueryBuilder(this.fieldName, supplier::get);
+            return new TermsQueryBuilder(this.fieldName, supplier::get, rewrite_override);
         }
 
         if (values == null || values.isEmpty()) {

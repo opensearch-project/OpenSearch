@@ -36,6 +36,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.Version;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -46,6 +47,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.RewriteOverride;
 import org.opensearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -61,6 +63,10 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     private static final ParseField PREFIX_FIELD = new ParseField("value");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
+
+    private static final ParseField REWRITE_OVERRIDE = new ParseField("rewrite_override");
+
+    private String rewrite_override;
 
     private final String fieldName;
 
@@ -98,6 +104,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         value = in.readString();
         rewrite = in.readOptionalString();
         caseInsensitive = in.readBoolean();
+        if (in.getVersion().after(Version.V_2_16_0)) {
+            rewrite_override = in.readOptionalString();
+        }
     }
 
     @Override
@@ -106,6 +115,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         out.writeString(value);
         out.writeOptionalString(rewrite);
         out.writeBoolean(caseInsensitive);
+        if (out.getVersion().after(Version.V_2_16_0)) {
+            out.writeOptionalString(rewrite_override);
+        }
     }
 
     @Override
@@ -131,6 +143,11 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         return this;
     }
 
+    public PrefixQueryBuilder rewrite_override(String rewrite_override) {
+        this.rewrite_override = rewrite_override;
+        return this;
+    }
+
     public String rewrite() {
         return this.rewrite;
     }
@@ -147,6 +164,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
             builder.field(CASE_INSENSITIVE_FIELD.getPreferredName(), caseInsensitive);
         }
         printBoostAndQueryName(builder);
+        if (rewrite_override != null) {
+            builder.field(REWRITE_OVERRIDE.getPreferredName(), rewrite_override);
+        }
         builder.endObject();
         builder.endObject();
     }
@@ -155,6 +175,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         String fieldName = null;
         String value = null;
         String rewrite = null;
+        String rewrite_override = null;
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -181,6 +202,8 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                             rewrite = parser.textOrNull();
                         } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             caseInsensitive = parser.booleanValue();
+                        } else if (REWRITE_OVERRIDE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            rewrite_override = parser.textOrNull();
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
@@ -196,7 +219,11 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
             }
         }
 
-        return new PrefixQueryBuilder(fieldName, value).rewrite(rewrite).boost(boost).queryName(queryName).caseInsensitive(caseInsensitive);
+        return new PrefixQueryBuilder(fieldName, value).rewrite(rewrite)
+            .boost(boost)
+            .queryName(queryName)
+            .caseInsensitive(caseInsensitive)
+            .rewrite_override(rewrite_override);
     }
 
     @Override
@@ -215,7 +242,13 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
-                Query query = fieldType.prefixQuery(value, null, caseInsensitive, context); // the rewrite method doesn't matter
+                RewriteOverride rewriteOverride = QueryParsers.parseRewriteOverride(
+                    rewrite_override,
+                    RewriteOverride.DEFAULT,
+                    LoggingDeprecationHandler.INSTANCE
+                );
+                Query query = fieldType.prefixQuery(value, null, rewriteOverride, caseInsensitive, context); // the rewrite method doesn't
+                                                                                                             // matter
                 if (query instanceof MatchAllDocsQuery) {
                     return new MatchAllQueryBuilder();
                 } else if (query instanceof MatchNoDocsQuery) {
@@ -242,7 +275,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     @Override
     protected final int doHashCode() {
-        return Objects.hash(fieldName, value, rewrite, caseInsensitive);
+        return Objects.hash(fieldName, value, rewrite, caseInsensitive, rewrite_override);
     }
 
     @Override
@@ -250,6 +283,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(value, other.value)
             && Objects.equals(rewrite, other.rewrite)
+            && Objects.equals(rewrite_override, other.rewrite_override)
             && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 }
