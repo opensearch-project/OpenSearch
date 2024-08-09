@@ -218,9 +218,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             throw new BindHttpException("Failed to bind to " + NetworkAddress.format(hostAddress, port), lastException.get());
         }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
-        }
+        logger.debug("Bound http to address {{}}", () -> NetworkAddress.format(boundSocket.get()));
         return new TransportAddress(boundSocket.get());
     }
 

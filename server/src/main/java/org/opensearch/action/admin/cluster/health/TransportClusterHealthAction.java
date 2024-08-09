@@ -486,9 +486,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         int numberOfInFlightFetch,
         TimeValue pendingTaskTimeInQueue
     ) {
-        if (logger.isTraceEnabled()) {
-            logger.trace("Calculating health based on state version [{}]", clusterState.version());
-        }
+        logger.trace("Calculating health based on state version [{}]", () -> clusterState.version());
 
         String[] concreteIndices;
         if (request.level().equals(ClusterHealthRequest.Level.AWARENESS_ATTRIBUTES)) {

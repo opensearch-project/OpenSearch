@@ -433,12 +433,10 @@ final class SystemCallFilter {
         if (linux_syscall(arch.seccomp, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, new NativeLong(pointer)) != 0) {
             method = 0;
             int errno1 = Native.getLastError();
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...",
-                    JNACLibrary.strerror(errno1)
-                );
-            }
+            logger.debug(
+                "seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...",
+                () -> JNACLibrary.strerror(errno1)
+            );
             if (linux_prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, pointer, 0, 0) != 0) {
                 int errno2 = Native.getLastError();
                 throw new UnsupportedOperationException(

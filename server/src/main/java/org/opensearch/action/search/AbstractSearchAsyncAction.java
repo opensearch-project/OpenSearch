@@ -402,48 +402,36 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 // successful retries can reset the failures to null
                 ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
                 if (shardSearchFailures.length > 0) {
-                    if (logger.isDebugEnabled()) {
-                        int numShardFailures = shardSearchFailures.length;
-                        shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
-                        Throwable cause = OpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                        logger.debug(
-                            () -> new ParameterizedMessage("{} shards failed for phase: [{}]", numShardFailures, getName()),
-                            cause
-                        );
-                    }
+                    logger.debug(
+                        () -> new ParameterizedMessage("{} shards failed for phase: [{}]", shardSearchFailures.length, getName()),
+                        OpenSearchException.guessRootCauses(ExceptionsHelper.groupBy(shardSearchFailures)[0].getCause())[0]
+                    );
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
                     return;
                 } else {
                     int discrepancy = getNumShards() - successfulOps.get();
                     assert discrepancy > 0 : "discrepancy: " + discrepancy;
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
-                            discrepancy,
-                            successfulOps.get(),
-                            skippedOps.get(),
-                            getNumShards(),
-                            currentPhase.getName()
-                        );
-                    }
+                    logger.debug(
+                        "Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
+                        () -> discrepancy,
+                        () -> successfulOps.get(),
+                        () -> skippedOps.get(),
+                        () -> getNumShards(),
+                        () -> currentPhase.getName()
+                    );
                     if (!request.indicesOptions().ignoreUnavailable()) {
                         onPhaseFailure(currentPhase, "Partial shards failure (" + discrepancy + " shards unavailable)", null);
                         return;
                     }
                 }
             }
-            if (logger.isTraceEnabled()) {
-                final String resultsFrom = results.getSuccessfulResults()
-                    .map(r -> r.getSearchShardTarget().toString())
-                    .collect(Collectors.joining(","));
-                logger.trace(
-                    "[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
-                    currentPhase.getName(),
-                    nextPhase.getName(),
-                    resultsFrom,
-                    clusterState.version()
-                );
-            }
+            logger.trace(
+                "[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
+                () -> currentPhase.getName(),
+                () -> nextPhase.getName(),
+                () -> results.getSuccessfulResults().map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(",")),
+                () -> clusterState.version()
+            );
             onPhaseEnd(searchRequestContext);
             executePhase(nextPhase);
         }
@@ -480,9 +468,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             onPhaseStart(phase);
             phase.recordAndRun();
         } catch (Exception e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
-            }
+            logger.debug(() -> new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
 
             if (currentPhaseHasLifecycle == false) {
                 phaseSpan.setError(e);
@@ -621,9 +607,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         hasShardResponse.set(true);
-        if (logger.isTraceEnabled()) {
-            logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
-        }
+        logger.trace("got first-phase result from {}", () -> result != null ? result.getSearchShardTarget() : null);
         this.setPhaseResourceUsages();
         results.consumeResult(result, () -> onShardResultConsumed(result, shardIt));
     }

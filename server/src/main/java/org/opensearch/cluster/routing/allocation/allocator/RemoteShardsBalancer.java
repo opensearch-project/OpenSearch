@@ -185,14 +185,12 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
             final Decision currentShardDecision = allocation.deciders().canAllocate(shard, targetNode, allocation);
 
             if (currentShardDecision.type() == Decision.Type.YES) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Moving shard: {} from node: [{}] to node: [{}]",
-                        shardShortSummary(shard),
-                        shard.currentNodeId(),
-                        targetNode.nodeId()
-                    );
-                }
+                logger.debug(
+                    "Moving shard: {} from node: [{}] to node: [{}]",
+                    () -> shardShortSummary(shard),
+                    () -> shard.currentNodeId(),
+                    () -> targetNode.nodeId()
+                );
                 routingNodes.relocateShard(
                     shard,
                     targetNode.nodeId(),
@@ -202,14 +200,12 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                 eligibleNodes.offer(targetNode);
                 return;
             } else {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "Cannot move shard: {} to node: [{}]. Decisions: [{}]",
-                        shardShortSummary(shard),
-                        targetNode.nodeId(),
-                        currentShardDecision.getDecisions()
-                    );
-                }
+                logger.trace(
+                    "Cannot move shard: {} to node: [{}]. Decisions: [{}]",
+                    () -> shardShortSummary(shard),
+                    () -> targetNode.nodeId(),
+                    () -> currentShardDecision.getDecisions()
+                );
 
                 final Decision nodeLevelDecision = allocation.deciders().canAllocateAnyShardToNode(targetNode, allocation);
                 if (nodeLevelDecision.type() == Decision.Type.YES) {
@@ -397,22 +393,18 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
             while (shardsToAllocate.isEmpty() == false && nodeQueue.isEmpty() == false) {
                 ShardRouting shard = shardsToAllocate.poll();
                 if (shard.assignedToNode()) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Shard: {} already assigned to node: [{}]", shardShortSummary(shard), shard.currentNodeId());
-                    }
+                    logger.debug("Shard: {} already assigned to node: [{}]", () -> shardShortSummary(shard), () -> shard.currentNodeId());
                     continue;
                 }
 
                 Decision shardLevelDecision = allocation.deciders().canAllocate(shard, allocation);
                 if (shardLevelDecision.type() == Decision.Type.NO) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "Ignoring shard: [{}] as is cannot be allocated to any node. Shard level decisions: [{}][{}].",
-                            shardShortSummary(shard),
-                            shardLevelDecision.getDecisions(),
-                            shardLevelDecision.getExplanation()
-                        );
-                    }
+                    logger.debug(
+                        "Ignoring shard: [{}] as is cannot be allocated to any node. Shard level decisions: [{}][{}].",
+                        () -> shardShortSummary(shard),
+                        () -> shardLevelDecision.getDecisions(),
+                        () -> shardLevelDecision.getExplanation()
+                    );
                     routingNodes.unassigned().ignoreShard(shard, UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
                     continue;
                 }
@@ -436,9 +428,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
             --numNodesToCheck;
             Decision allocateDecision = allocation.deciders().canAllocate(shard, node, allocation);
             if (allocateDecision.type() == Decision.Type.YES) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Assigned shard [{}] to [{}]", shardShortSummary(shard), node.nodeId());
-                }
+                logger.trace("Assigned shard [{}] to [{}]", () -> shardShortSummary(shard), () -> node.nodeId());
                 final long shardSize = DiskThresholdDecider.getExpectedShardSize(
                     shard,
                     ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
@@ -452,39 +442,33 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                 allocated = true;
                 break;
             } else {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "Cannot allocate shard: {} on node [{}]. Decisions: [{}]",
-                        shardShortSummary(shard),
-                        node.nodeId(),
-                        allocateDecision.getDecisions()
-                    );
-                }
+                logger.trace(
+                    "Cannot allocate shard: {} on node [{}]. Decisions: [{}]",
+                    () -> shardShortSummary(shard),
+                    () -> node.nodeId(),
+                    () -> allocateDecision.getDecisions()
+                );
                 throttled = throttled || allocateDecision.type() == Decision.Type.THROTTLE;
 
                 Decision nodeLevelDecision = allocation.deciders().canAllocateAnyShardToNode(node, allocation);
                 if (nodeLevelDecision.type() == Decision.Type.YES) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            "Node: [{}] can still accept shards, retaining it in queue - [{}]",
-                            node.nodeId(),
-                            nodeLevelDecision.getDecisions()
-                        );
-                    }
+                    logger.trace(
+                        "Node: [{}] can still accept shards, retaining it in queue - [{}]",
+                        () -> node.nodeId(),
+                        () -> nodeLevelDecision.getDecisions()
+                    );
                     nodeQueue.offer(node);
                 } else {
                     if (nodeLevelDecision.type() == Decision.Type.THROTTLE) {
                         anyNodesThrottled = true;
                     }
 
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            "Cannot allocate any shard to node: [{}]. Removing from queue. Node level decisions: [{}],[{}]",
-                            node.nodeId(),
-                            nodeLevelDecision.getDecisions(),
-                            nodeLevelDecision.getExplanation()
-                        );
-                    }
+                    logger.trace(
+                        "Cannot allocate any shard to node: [{}]. Removing from queue. Node level decisions: [{}],[{}]",
+                        () -> node.nodeId(),
+                        () -> nodeLevelDecision.getDecisions(),
+                        () -> nodeLevelDecision.getExplanation()
+                    );
                 }
 
                 // Break out if all nodes in the queue have been checked for this shard
@@ -553,14 +537,12 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
                         targetNodes.offer(targetNode);
                         nodesCheckedForRelocation.add(targetNode.nodeId());
                     } else {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace(
-                                "Cannot allocate any shard to node: [{}]. Removing from queue. Node level decisions: [{}],[{}]",
-                                targetNode.nodeId(),
-                                nodeDecision.getDecisions(),
-                                nodeDecision.toString()
-                            );
-                        }
+                        logger.trace(
+                            "Cannot allocate any shard to node: [{}]. Removing from queue. Node level decisions: [{}],[{}]",
+                            () -> targetNode.nodeId(),
+                            () -> nodeDecision.getDecisions(),
+                            () -> nodeDecision.toString()
+                        );
                     }
                 }
 

@@ -450,23 +450,24 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 matchingNode = computeMatchingNode(primaryNode, primaryStore, discoNode, storeFilesMetadata);
             }
             matchingNodes.put(discoNode, matchingNode);
-            if (logger.isTraceEnabled()) {
-                if (matchingNode.isNoopRecovery) {
-                    logger.trace("{}: node [{}] can perform a noop recovery", shard, discoNode.getName());
-                } else if (matchingNode.retainingSeqNo >= 0) {
+            if (matchingNode.isNoopRecovery) {
+                logger.trace("{}: node [{}] can perform a noop recovery", () -> shard, () -> discoNode.getName());
+            } else {
+                final MatchingNode finalMatchingNode = matchingNode;
+                if (matchingNode.retainingSeqNo >= 0) {
                     logger.trace(
                         "{}: node [{}] can perform operation-based recovery with retaining sequence number [{}]",
-                        shard,
-                        discoNode.getName(),
-                        matchingNode.retainingSeqNo
+                        () -> shard,
+                        () -> discoNode.getName(),
+                        () -> finalMatchingNode.retainingSeqNo
                     );
                 } else {
                     logger.trace(
                         "{}: node [{}] has [{}/{}] bytes of re-usable data",
-                        shard,
-                        discoNode.getName(),
-                        new ByteSizeValue(matchingNode.matchingBytes),
-                        matchingNode.matchingBytes
+                        () -> shard,
+                        () -> discoNode.getName(),
+                        () -> new ByteSizeValue(finalMatchingNode.matchingBytes),
+                        () -> finalMatchingNode.matchingBytes
                     );
                 }
             }

@@ -43,10 +43,10 @@ public class RestTokenExtractor {
             if (authHeaderValueStr.startsWith(BasicAuthToken.TOKEN_IDENTIFIER)) {
                 return new BasicAuthToken(authHeaderValueStr);
             } else {
-                if (logger.isDebugEnabled()) {
-                    String tokenTypeTruncated = Strings.substring(authHeaderValueStr, 0, 5);
-                    logger.debug("An authentication header was detected but the token type was not supported " + tokenTypeTruncated);
-                }
+                logger.debug(
+                    "An authentication header was detected but the token type was not supported {}",
+                    () -> Strings.substring(authHeaderValueStr, 0, 5)
+                );
             }
         }
 

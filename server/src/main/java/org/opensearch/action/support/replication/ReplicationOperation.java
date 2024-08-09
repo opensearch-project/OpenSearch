@@ -162,9 +162,12 @@ public class ReplicationOperation<
         this.primaryResult = primaryResult;
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
-            }
+            logger.trace(
+                "[{}] op [{}] completed on primary for request [{}]",
+                () -> primary.routingEntry().shardId(),
+                () -> opType,
+                () -> request
+            );
             // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
             // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
             // to the recovery target. If we used an old replication group, we may miss a recovery that has started since then.
@@ -253,9 +256,13 @@ public class ReplicationOperation<
         final ReplicaRequest replicaRequest = replicationProxyRequest.getReplicaRequest();
         final PendingReplicationActions pendingReplicationActions = replicationProxyRequest.getPendingReplicationActions();
 
-        if (logger.isTraceEnabled()) {
-            logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
-        }
+        logger.trace(
+            "[{}] sending op [{}] to replica {} for request [{}]",
+            () -> shard.shardId(),
+            () -> opType,
+            () -> shard,
+            () -> replicaRequest
+        );
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();
         final ActionListener<ReplicaResponse> replicationListener = new ActionListener<ReplicaResponse>() {

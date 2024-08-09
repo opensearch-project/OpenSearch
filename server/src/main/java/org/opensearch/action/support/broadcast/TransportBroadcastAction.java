@@ -256,33 +256,29 @@ public abstract class TransportBroadcastAction<
 
             if (nextShard != null) {
                 if (e != null) {
-                    if (logger.isTraceEnabled()) {
-                        if (!TransportActions.isShardNotAvailableException(e)) {
-                            logger.trace(
-                                new ParameterizedMessage(
-                                    "{}: failed to execute [{}]",
-                                    shard != null ? shard.shortSummary() : shardIt.shardId(),
-                                    request
-                                ),
-                                e
-                            );
-                        }
+                    if (!TransportActions.isShardNotAvailableException(e)) {
+                        logger.trace(
+                            () -> new ParameterizedMessage(
+                                "{}: failed to execute [{}]",
+                                shard != null ? shard.shortSummary() : shardIt.shardId(),
+                                request
+                            ),
+                            e
+                        );
                     }
                 }
                 performOperation(shardIt, nextShard, shardIndex);
             } else {
-                if (logger.isDebugEnabled()) {
-                    if (e != null) {
-                        if (!TransportActions.isShardNotAvailableException(e)) {
-                            logger.debug(
-                                new ParameterizedMessage(
-                                    "{}: failed to execute [{}]",
-                                    shard != null ? shard.shortSummary() : shardIt.shardId(),
-                                    request
-                                ),
-                                e
-                            );
-                        }
+                if (e != null) {
+                    if (!TransportActions.isShardNotAvailableException(e)) {
+                        logger.debug(
+                            () -> new ParameterizedMessage(
+                                "{}: failed to execute [{}]",
+                                shard != null ? shard.shortSummary() : shardIt.shardId(),
+                                request
+                            ),
+                            e
+                        );
                     }
                 }
                 if (expectedOps == counterOps.incrementAndGet()) {

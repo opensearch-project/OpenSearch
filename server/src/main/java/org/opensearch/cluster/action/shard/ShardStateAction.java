@@ -309,9 +309,11 @@ public class ShardStateAction {
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("new cluster state [{}] after waiting for cluster-manager election for shard entry [{}]", state, request);
-                }
+                logger.trace(
+                    "new cluster state [{}] after waiting for cluster-manager election for shard entry [{}]",
+                    () -> state,
+                    () -> request
+                );
                 sendShardAction(actionName, state, request, listener);
             }
 

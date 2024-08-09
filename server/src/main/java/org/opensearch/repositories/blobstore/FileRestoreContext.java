@@ -135,24 +135,26 @@ public abstract class FileRestoreContext {
             for (StoreFileMetadata md : diff.identical) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "[{}] [{}] not_recovering file [{}] from [{}], exists in local store and is same",
-                        shardId,
-                        snapshotId,
-                        fileInfo.physicalName(),
-                        fileInfo.name()
-                    );
-                }
+                logger.trace(
+                    "[{}] [{}] not_recovering file [{}] from [{}], exists in local store and is same",
+                    () -> shardId,
+                    () -> snapshotId,
+                    () -> fileInfo.physicalName(),
+                    () -> fileInfo.name()
+                );
             }
 
             for (StoreFileMetadata md : concat(diff)) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 filesToRecover.add(fileInfo);
                 recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), false);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] [{}] recovering [{}] from [{}]", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                }
+                logger.trace(
+                    "[{}] [{}] recovering [{}] from [{}]",
+                    () -> shardId,
+                    () -> snapshotId,
+                    () -> fileInfo.physicalName(),
+                    () -> fileInfo.name()
+                );
             }
 
             recoveryState.getIndex().setFileDetailsComplete();

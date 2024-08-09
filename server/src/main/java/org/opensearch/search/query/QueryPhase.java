@@ -143,9 +143,7 @@ public class QueryPhase {
             return;
         }
 
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
-        }
+        LOGGER.trace("{}", () -> new SearchContextSourcePrinter(searchContext));
 
         final AggregationProcessor aggregationProcessor = queryPhaseSearcher.aggregationProcessor(searchContext);
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F

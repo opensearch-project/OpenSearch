@@ -131,10 +131,7 @@ final class JNAKernel32Library {
 
         public boolean callback(long dwCtrlType) {
             int event = (int) dwCtrlType;
-            if (logger.isDebugEnabled()) {
-                logger.debug("console control handler receives event [{}@{}]", event, dwCtrlType);
-
-            }
+            logger.debug("console control handler receives event [{}@{}]", () -> event, () -> dwCtrlType);
             return handler.handle(event);
         }
     }

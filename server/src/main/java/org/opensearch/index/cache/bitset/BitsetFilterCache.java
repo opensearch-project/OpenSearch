@@ -294,15 +294,13 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                         try {
                             final long start = System.nanoTime();
                             getAndLoadIfNotPresent(filterToWarm, ctx);
-                            if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService()
-                                    .logger()
-                                    .trace(
-                                        "warmed bitset for [{}], took [{}]",
-                                        filterToWarm,
-                                        TimeValue.timeValueNanos(System.nanoTime() - start)
-                                    );
-                            }
+                            indexShard.warmerService()
+                                .logger()
+                                .trace(
+                                    "warmed bitset for [{}], took [{}]",
+                                    () -> filterToWarm,
+                                    () -> TimeValue.timeValueNanos(System.nanoTime() - start)
+                                );
                         } catch (Exception e) {
                             indexShard.warmerService()
                                 .logger()

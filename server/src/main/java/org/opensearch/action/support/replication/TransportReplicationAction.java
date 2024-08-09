@@ -837,14 +837,12 @@ public abstract class TransportReplicationAction<
                             replica.getLastSyncedGlobalCheckpoint()
                         );
                         releasable.close(); // release shard operation lock before responding to caller
-                        if (logger.isTraceEnabled()) {
-                            logger.trace(
-                                "action [{}] completed on shard [{}] for request [{}]",
-                                transportReplicaAction,
-                                replicaRequest.getRequest().shardId(),
-                                replicaRequest.getRequest()
-                            );
-                        }
+                        logger.trace(
+                            "action [{}] completed on shard [{}] for request [{}]",
+                            () -> transportReplicaAction,
+                            () -> replicaRequest.getRequest().shardId(),
+                            () -> replicaRequest.getRequest()
+                        );
                         setPhase(task, "finished");
                         onCompletionListener.onResponse(response);
                     }, e -> {
@@ -1064,16 +1062,14 @@ public abstract class TransportReplicationAction<
 
         private void performLocalAction(ClusterState state, ShardRouting primary, DiscoveryNode node, IndexMetadata indexMetadata) {
             setPhase(task, "waiting_on_primary");
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "send action [{}] to local primary [{}] for request [{}] with cluster state version [{}] to [{}] ",
-                    transportPrimaryAction,
-                    request.shardId(),
-                    request,
-                    state.version(),
-                    primary.currentNodeId()
-                );
-            }
+            logger.trace(
+                "send action [{}] to local primary [{}] for request [{}] with cluster state version [{}] to [{}] ",
+                () -> transportPrimaryAction,
+                () -> request.shardId(),
+                () -> request,
+                () -> state.version(),
+                () -> primary.currentNodeId()
+            );
             performAction(
                 node,
                 transportPrimaryAction,
@@ -1113,16 +1109,14 @@ public abstract class TransportReplicationAction<
                 // target is not aware that it is the active primary shard already.
                 request.routedBasedOnClusterVersion(state.version());
             }
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}]",
-                    actionName,
-                    request.shardId(),
-                    request,
-                    state.version(),
-                    primary.currentNodeId()
-                );
-            }
+            logger.trace(
+                "send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}]",
+                () -> actionName,
+                () -> request.shardId(),
+                () -> request,
+                () -> state.version(),
+                () -> primary.currentNodeId()
+            );
             setPhase(task, "rerouted");
             performAction(node, actionName, false, request);
         }
@@ -1236,9 +1230,7 @@ public abstract class TransportReplicationAction<
         void finishOnSuccess(Response response) {
             if (finished.compareAndSet(false, true)) {
                 setPhase(task, "finished");
-                if (logger.isTraceEnabled()) {
-                    logger.trace("operation succeeded. action [{}],request [{}]", actionName, request);
-                }
+                logger.trace("operation succeeded. action [{}],request [{}]", () -> actionName, () -> request);
                 listener.onResponse(response);
             } else {
                 assert false : "finishOnSuccess called but operation is already finished";

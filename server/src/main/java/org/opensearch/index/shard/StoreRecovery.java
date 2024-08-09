@@ -500,8 +500,11 @@ final class StoreRecovery {
                         timeValueMillis(recoveryState.getTimer().time()),
                         sb
                     );
-                } else if (logger.isDebugEnabled()) {
-                    logger.debug("recovery completed from [shard_store], took [{}]", timeValueMillis(recoveryState.getTimer().time()));
+                } else {
+                    logger.debug(
+                        "recovery completed from [shard_store], took [{}]",
+                        () -> timeValueMillis(recoveryState.getTimer().time())
+                    );
                 }
             }
             listener.onResponse(res);
@@ -698,9 +701,7 @@ final class StoreRecovery {
             listener.onFailure(new IndexShardRestoreFailedException(shardId, "empty restore source"));
             return;
         }
-        if (logger.isTraceEnabled()) {
-            logger.trace("[{}] restoring shard [{}]", restoreSource.snapshot(), shardId);
-        }
+        logger.trace("[{}] restoring shard [{}]", () -> restoreSource.snapshot(), () -> shardId);
         final ActionListener<Void> restoreListener = ActionListener.wrap(v -> {
             final Store store = indexShard.store();
             if (indexShard.indexSettings.isRemoteTranslogStoreEnabled() == false) {

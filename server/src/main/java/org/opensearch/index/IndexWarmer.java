@@ -82,9 +82,7 @@ public final class IndexWarmer {
         if (settings.isWarmerEnabled() == false) {
             return;
         }
-        if (logger.isTraceEnabled()) {
-            logger.trace("{} top warming [{}]", shard.shardId(), reader);
-        }
+        logger.trace("{} top warming [{}]", () -> shard.shardId(), () -> reader);
         shard.warmerService().onPreWarm();
         long time = System.nanoTime();
         final List<TerminationHandle> terminationHandles = new ArrayList<>();
@@ -104,9 +102,7 @@ public final class IndexWarmer {
         }
         long took = System.nanoTime() - time;
         shard.warmerService().onPostWarm(took);
-        if (shard.warmerService().logger().isTraceEnabled()) {
-            shard.warmerService().logger().trace("top warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
-        }
+        shard.warmerService().logger().trace("top warming took [{}]", () -> new TimeValue(took, TimeUnit.NANOSECONDS));
     }
 
     /**
@@ -178,15 +174,13 @@ public final class IndexWarmer {
                             global.load(reader.leaves().get(0));
                         }
 
-                        if (indexShard.warmerService().logger().isTraceEnabled()) {
-                            indexShard.warmerService()
-                                .logger()
-                                .trace(
-                                    "warmed global ordinals for [{}], took [{}]",
-                                    fieldType.name(),
-                                    TimeValue.timeValueNanos(System.nanoTime() - start)
-                                );
-                        }
+                        indexShard.warmerService()
+                            .logger()
+                            .trace(
+                                "warmed global ordinals for [{}], took [{}]",
+                                () -> fieldType.name(),
+                                () -> TimeValue.timeValueNanos(System.nanoTime() - start)
+                            );
                     } catch (Exception e) {
                         indexShard.warmerService()
                             .logger()

@@ -228,18 +228,16 @@ public class Netty4Transport extends TcpTransport {
 
     private void createServerBootstrap(ProfileSettings profileSettings, SharedGroupFactory.SharedGroup sharedGroup) {
         String name = profileSettings.profileName;
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                "using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], receive_predictor[{}->{}]",
-                name,
-                sharedGroupFactory.getTransportWorkerCount(),
-                profileSettings.portOrRange,
-                profileSettings.bindHosts,
-                profileSettings.publishHosts,
-                receivePredictorMin,
-                receivePredictorMax
-            );
-        }
+        logger.debug(
+            "using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], receive_predictor[{}->{}]",
+            () -> name,
+            () -> sharedGroupFactory.getTransportWorkerCount(),
+            () -> profileSettings.portOrRange,
+            () -> profileSettings.bindHosts,
+            () -> profileSettings.publishHosts,
+            () -> receivePredictorMin,
+            () -> receivePredictorMax
+        );
 
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 

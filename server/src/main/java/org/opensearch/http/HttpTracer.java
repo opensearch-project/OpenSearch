@@ -79,9 +79,9 @@ class HttpTracer {
      */
     @Nullable
     HttpTracer maybeTraceRequest(RestRequest restRequest, @Nullable Exception e) {
-        if (logger.isTraceEnabled() && TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
+        if (TransportService.shouldTraceAction(restRequest.uri(), tracerLogInclude, tracerLogExclude)) {
             logger.trace(
-                new ParameterizedMessage(
+                () -> new ParameterizedMessage(
                     "[{}][{}][{}][{}] received request from [{}]",
                     restRequest.getRequestId(),
                     restRequest.header(Task.X_OPAQUE_ID),

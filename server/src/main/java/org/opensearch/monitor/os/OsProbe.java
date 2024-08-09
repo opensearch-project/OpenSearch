@@ -202,9 +202,7 @@ public class OsProbe {
                 final String[] fields = procLoadAvg.split("\\s+");
                 return new double[] { Double.parseDouble(fields[0]), Double.parseDouble(fields[1]), Double.parseDouble(fields[2]) };
             } catch (final IOException e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("error reading /proc/loadavg", e);
-                }
+                logger.debug(() -> "error reading /proc/loadavg", e);
                 return null;
             }
         } else {
@@ -216,9 +214,7 @@ public class OsProbe {
                 final double oneMinuteLoadAverage = (double) getSystemLoadAverage.invoke(osMxBean);
                 return new double[] { oneMinuteLoadAverage >= 0 ? oneMinuteLoadAverage : -1, -1, -1 };
             } catch (IllegalAccessException | InvocationTargetException e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("error reading one minute load average from operating system", e);
-                }
+                logger.debug(() -> "error reading one minute load average from operating system", e);
                 return null;
             }
         }

@@ -84,14 +84,12 @@ public enum GlobalOrdinalsBuilder {
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
         breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(memorySizeInBytes);
 
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                "global-ordinals [{}][{}] took [{}]",
-                indexFieldData.getFieldName(),
-                ordinalMap.getValueCount(),
-                new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS)
-            );
-        }
+        logger.debug(
+            "global-ordinals [{}][{}] took [{}]",
+            () -> indexFieldData.getFieldName(),
+            () -> ordinalMap.getValueCount(),
+            () -> new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS)
+        );
         return new GlobalOrdinalsIndexFieldData(
             indexFieldData.getFieldName(),
             indexFieldData.getValuesSourceType(),

@@ -360,15 +360,15 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                 totalBytesUsed += shardBytesUsed;
             }
 
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
-                    new ByteSizeValue(totalBytesUsed),
-                    INDEX_BUFFER_SIZE_SETTING.getKey(),
-                    indexingBuffer,
-                    new ByteSizeValue(totalBytesWriting)
-                );
-            }
+            final long finalTotalBytesUsed = totalBytesUsed;
+            final long finalTotalBytesWriting = totalBytesWriting;
+            logger.trace(
+                "total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
+                () -> new ByteSizeValue(finalTotalBytesUsed),
+                () -> INDEX_BUFFER_SIZE_SETTING.getKey(),
+                () -> indexingBuffer,
+                () -> new ByteSizeValue(finalTotalBytesWriting)
+            );
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
             // throttle the top shards to send back-pressure to ongoing indexing:
@@ -395,17 +395,20 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     }
 
                     if (shardBytesUsed > 0) {
-                        if (logger.isTraceEnabled()) {
-                            if (shardWritingBytes != 0) {
-                                logger.trace(
-                                    "shard [{}] is using [{}] heap, writing [{}] heap",
-                                    shard.shardId(),
-                                    shardBytesUsed,
-                                    shardWritingBytes
-                                );
-                            } else {
-                                logger.trace("shard [{}] is using [{}] heap, not writing any bytes", shard.shardId(), shardBytesUsed);
-                            }
+                        final long finalShardBytesUsed = shardBytesUsed;
+                        if (shardWritingBytes != 0) {
+                            logger.trace(
+                                "shard [{}] is using [{}] heap, writing [{}] heap",
+                                () -> shard.shardId(),
+                                () -> finalShardBytesUsed,
+                                () -> shardWritingBytes
+                            );
+                        } else {
+                            logger.trace(
+                                "shard [{}] is using [{}] heap, not writing any bytes",
+                                () -> shard.shardId(),
+                                () -> finalShardBytesUsed
+                            );
                         }
                         queue.add(new ShardAndBytesUsed(shardBytesUsed, shard));
                     }

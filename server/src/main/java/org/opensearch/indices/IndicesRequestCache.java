@@ -524,13 +524,11 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
         void updateStalenessThreshold(double stalenessThreshold) {
             double oldStalenessThreshold = this.stalenessThreshold;
             this.stalenessThreshold = stalenessThreshold;
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "Staleness threshold for indices request cache changed to {} from {}",
-                    this.stalenessThreshold,
-                    oldStalenessThreshold
-                );
-            }
+            logger.debug(
+                "Staleness threshold for indices request cache changed to {} from {}",
+                () -> this.stalenessThreshold,
+                () -> oldStalenessThreshold
+            );
         }
 
         /**
@@ -713,9 +711,7 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
          * @param stalenessThreshold The staleness threshold as a double.
          */
         private synchronized void cleanCache(double stalenessThreshold) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Cleaning Indices Request Cache with threshold : " + stalenessThreshold);
-            }
+            logger.debug("Cleaning Indices Request Cache with threshold : {}", () -> stalenessThreshold);
             if (canSkipCacheCleanup(stalenessThreshold)) {
                 return;
             }
@@ -799,14 +795,11 @@ public final class IndicesRequestCache implements RemovalListener<ICacheKey<Indi
             }
             double staleKeysInCachePercentage = staleKeysInCachePercentage();
             if (staleKeysInCachePercentage < cleanThresholdPercent) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Skipping Indices Request cache cleanup since the percentage of stale keys : "
-                            + staleKeysInCachePercentage
-                            + " is less than the threshold : "
-                            + stalenessThreshold
-                    );
-                }
+                logger.debug(
+                    "Skipping Indices Request cache cleanup since the percentage of stale keys : {} is less than the threshold : {}",
+                    () -> staleKeysInCachePercentage,
+                    () -> stalenessThreshold
+                );
                 return true;
             }
             return false;

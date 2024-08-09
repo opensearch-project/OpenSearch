@@ -402,14 +402,12 @@ public abstract class RecoverySourceHandler {
                     phase1ExistingFileNames.add(md.name());
                     phase1ExistingFileSizes.add(md.length());
                     existingTotalSizeInBytes += md.length();
-                    if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            "recovery [phase1]: not recovering [{}], exist in local store and has checksum [{}]," + " size [{}]",
-                            md.name(),
-                            md.checksum(),
-                            md.length()
-                        );
-                    }
+                    logger.trace(
+                        "recovery [phase1]: not recovering [{}], exist in local store and has checksum [{}]," + " size [{}]",
+                        () -> md.name(),
+                        () -> md.checksum(),
+                        () -> md.length()
+                    );
                     totalSizeInBytes += md.length();
                 }
                 List<StoreFileMetadata> phase1Files = new ArrayList<>(diff.different.size() + diff.missing.size());

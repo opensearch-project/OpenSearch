@@ -232,9 +232,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             this.listener = listener;
 
             ClusterState clusterState = clusterService.state();
-            if (logger.isTraceEnabled()) {
-                logger.trace("executing [{}] based on cluster state version [{}]", request, clusterState.version());
-            }
+            logger.trace("executing [{}] based on cluster state version [{}]", () -> request, () -> clusterState.version());
             nodes = clusterState.nodes();
             ClusterBlockException blockException = checkGlobalBlock(clusterState);
             if (blockException != null) {
@@ -306,9 +304,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                 onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));
             } else {
                 request.shardId(shardRouting.shardId());
-                if (logger.isTraceEnabled()) {
-                    logger.trace("sending request [{}] on node [{}]", request, node);
-                }
+                logger.trace("sending request [{}] on node [{}]", () -> request, () -> node);
                 transportService.sendRequest(
                     node,
                     ACTION_SHARD_NAME,
@@ -354,9 +350,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
         @Override
         public void messageReceived(final FieldCapabilitiesIndexRequest request, final TransportChannel channel, Task task)
             throws Exception {
-            if (logger.isTraceEnabled()) {
-                logger.trace("executing [{}]", request);
-            }
+            logger.trace("executing [{}]", () -> request);
             ActionListener<FieldCapabilitiesIndexResponse> listener = new ChannelActionListener<>(channel, ACTION_SHARD_NAME, request);
             executor.execute(ActionRunnable.supply(listener, () -> shardOperation(request)));
         }
