@@ -185,6 +185,7 @@ import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
 import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
@@ -784,6 +785,7 @@ public class Node implements Closeable {
             final RemoteClusterStateService remoteClusterStateService;
             final RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
             final RemoteIndexPathUploader remoteIndexPathUploader;
+            final RemoteStorePinnedTimestampService remoteStorePinnedTimestampService;
             if (isRemoteStoreClusterStateEnabled(settings)) {
                 remoteIndexPathUploader = new RemoteIndexPathUploader(
                     threadPool,
@@ -801,11 +803,19 @@ public class Node implements Closeable {
                     List.of(remoteIndexPathUploader),
                     namedWriteableRegistry
                 );
+                remoteStorePinnedTimestampService = new RemoteStorePinnedTimestampService(
+                    repositoriesServiceReference::get,
+                    settings,
+                    threadPool,
+                    clusterService
+                );
+                resourcesToClose.add(remoteStorePinnedTimestampService);
                 remoteClusterStateCleanupManager = remoteClusterStateService.getCleanupManager();
             } else {
                 remoteClusterStateService = null;
                 remoteIndexPathUploader = null;
                 remoteClusterStateCleanupManager = null;
+                remoteStorePinnedTimestampService = null;
             }
 
             // collect engine factory providers from plugins
@@ -1170,7 +1180,8 @@ public class Node implements Closeable {
                 clusterModule.getIndexNameExpressionResolver(),
                 repositoryService,
                 transportService,
-                actionModule.getActionFilters()
+                actionModule.getActionFilters(),
+                remoteStorePinnedTimestampService
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,
@@ -1416,6 +1427,7 @@ public class Node implements Closeable {
                 b.bind(MetricsRegistry.class).toInstance(metricsRegistry);
                 b.bind(RemoteClusterStateService.class).toProvider(() -> remoteClusterStateService);
                 b.bind(RemoteIndexPathUploader.class).toProvider(() -> remoteIndexPathUploader);
+                b.bind(RemoteStorePinnedTimestampService.class).toProvider(() -> remoteStorePinnedTimestampService);
                 b.bind(RemoteClusterStateCleanupManager.class).toProvider(() -> remoteClusterStateCleanupManager);
                 b.bind(PersistedStateRegistry.class).toInstance(persistedStateRegistry);
                 b.bind(SegmentReplicationStatsTracker.class).toInstance(segmentReplicationStatsTracker);
@@ -1568,6 +1580,12 @@ public class Node implements Closeable {
         final RemoteIndexPathUploader remoteIndexPathUploader = injector.getInstance(RemoteIndexPathUploader.class);
         if (remoteIndexPathUploader != null) {
             remoteIndexPathUploader.start();
+        }
+        final RemoteStorePinnedTimestampService remoteStorePinnedTimestampService = injector.getInstance(
+            RemoteStorePinnedTimestampService.class
+        );
+        if (remoteStorePinnedTimestampService != null) {
+            remoteStorePinnedTimestampService.start();
         }
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
