@@ -27,7 +27,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
+import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableService;
 import org.opensearch.cluster.routing.remote.RemoteRoutingTableServiceFactory;
 import org.opensearch.cluster.service.ClusterService;
@@ -342,12 +342,12 @@ public class RemoteClusterStateService implements Closeable {
         }
 
         final List<IndexRoutingTable> indicesRoutingToUpload = new ArrayList<>();
-        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff =
+        final StringKeyDiffProvider<IndexRoutingTable> routingTableDiff =
             remoteRoutingTableService.getIndicesRoutingMapDiff(previousClusterState.getRoutingTable(), clusterState.getRoutingTable());
-
-        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiffs = routingTableIncrementalDiff.getDiffs();
-        routingTableIncrementalDiff.getDiffs().forEach((k, v) -> indicesRoutingToUpload.add(clusterState.getRoutingTable().index(k)));
-        routingTableIncrementalDiff.getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
+        if (routingTableDiff != null && routingTableDiff.provideDiff() != null) {
+            routingTableDiff.provideDiff().getDiffs().forEach((k, v) -> indicesRoutingToUpload.add(clusterState.getRoutingTable().index(k)));
+            routingTableDiff.provideDiff().getUpserts().forEach((k, v) -> indicesRoutingToUpload.add(v));
+        }
 
         UploadedMetadataResults uploadedMetadataResults;
         // For migration case from codec V0 or V1 to V2, we have added null check on metadata attribute files,
@@ -384,7 +384,7 @@ public class RemoteClusterStateService implements Closeable {
             clusterStateCustomsDiff.getUpserts(),
             updateHashesOfConsistentSettings,
             indicesRoutingToUpload,
-            indexRoutingTableDiffs
+            previousClusterState.routingTable()
         );
 
         // update the map if the metadata was uploaded
@@ -426,13 +426,13 @@ public class RemoteClusterStateService implements Closeable {
         uploadedMetadataResults.uploadedIndicesRoutingMetadata = remoteRoutingTableService.getAllUploadedIndicesRouting(
             previousManifest,
             uploadedMetadataResults.uploadedIndicesRoutingMetadata,
-            routingTableIncrementalDiff.getDeletes()
+            routingTableDiff.provideDiff().getDeletes()
         );
 
         ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
             clusterState,
             previousClusterState,
-            routingTableIncrementalDiff,
+            routingTableDiff,
             uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null
                 ? uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
                 : null
@@ -513,14 +513,14 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, ClusterState.Custom> clusterStateCustomToUpload,
         boolean uploadHashesOfConsistentSettings,
         List<IndexRoutingTable> indicesRoutingToUpload,
-        Map<String, Diff<IndexRoutingTable>> indexRoutingTableDiff
+        RoutingTable previousRoutingTable
     ) throws IOException {
         assert Objects.nonNull(indexMetadataUploadListeners) : "indexMetadataUploadListeners can not be null";
         int totalUploadTasks = indexToUpload.size() + indexMetadataUploadListeners.size() + customToUpload.size()
             + (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0)
             + (uploadDiscoveryNodes ? 1 : 0) + (uploadClusterBlock ? 1 : 0) + (uploadTransientSettingMetadata ? 1 : 0)
             + clusterStateCustomToUpload.size() + (uploadHashesOfConsistentSettings ? 1 : 0) + indicesRoutingToUpload.size()
-            + (indexRoutingTableDiff != null && !indexRoutingTableDiff.isEmpty() ? 1 : 0);
+            + (previousRoutingTable != null && !previousRoutingTable.indicesRouting().isEmpty() ? 1 : 0);
         CountDownLatch latch = new CountDownLatch(totalUploadTasks);
         List<String> uploadTasks = Collections.synchronizedList(new ArrayList<>(totalUploadTasks));
         Map<String, ClusterMetadataManifest.UploadedMetadata> results = new ConcurrentHashMap<>(totalUploadTasks);
@@ -690,13 +690,14 @@ public class RemoteClusterStateService implements Closeable {
                 listener
             );
         });
-        if (indexRoutingTableDiff != null && !indexRoutingTableDiff.isEmpty()) {
+        if (previousRoutingTable != null && !previousRoutingTable.indicesRouting().isEmpty()) {
             uploadTasks.add(RemoteRoutingTableDiff.ROUTING_TABLE_DIFF_FILE);
             remoteRoutingTableService.getAsyncIndexRoutingDiffWriteAction(
                 clusterState.metadata().clusterUUID(),
                 clusterState.term(),
                 clusterState.version(),
-                indexRoutingTableDiff,
+                previousRoutingTable,
+                clusterState.getRoutingTable(),
                 listener
             );
         }
@@ -1019,7 +1020,7 @@ public class RemoteClusterStateService implements Closeable {
         Map<String, UploadedMetadataAttribute> clusterStateCustomToRead,
         boolean readIndexRoutingTableDiff,
         boolean includeEphemeral
-    ) throws IOException {
+    ) {
         int totalReadTasks = indicesToRead.size() + customToRead.size() + (readCoordinationMetadata ? 1 : 0) + (readSettingsMetadata
             ? 1
             : 0) + (readTemplatesMetadata ? 1 : 0) + (readDiscoveryNodes ? 1 : 0) + (readClusterBlocks ? 1 : 0)
@@ -1028,7 +1029,7 @@ public class RemoteClusterStateService implements Closeable {
         CountDownLatch latch = new CountDownLatch(totalReadTasks);
         List<RemoteReadResult> readResults = Collections.synchronizedList(new ArrayList<>());
         List<IndexRoutingTable> readIndexRoutingTableResults = Collections.synchronizedList(new ArrayList<>());
-        AtomicReference<RoutingTableIncrementalDiff> readIndexRoutingTableDiffResults = new AtomicReference<>();
+        AtomicReference<Diff<RoutingTable>> readIndexRoutingTableDiffResults = new AtomicReference<>();
         List<Exception> exceptionList = Collections.synchronizedList(new ArrayList<>(totalReadTasks));
 
         LatchedActionListener<RemoteReadResult> listener = new LatchedActionListener<>(ActionListener.wrap(response -> {
@@ -1071,7 +1072,7 @@ public class RemoteClusterStateService implements Closeable {
             );
         }
 
-        LatchedActionListener<RoutingTableIncrementalDiff> routingTableDiffLatchedActionListener = new LatchedActionListener<>(
+        LatchedActionListener<Diff<RoutingTable>> routingTableDiffLatchedActionListener = new LatchedActionListener<>(
             ActionListener.wrap(response -> {
                 logger.debug("Successfully read routing table diff component from remote");
                 readIndexRoutingTableDiffResults.set(response);
@@ -1292,15 +1293,12 @@ public class RemoteClusterStateService implements Closeable {
         readIndexRoutingTableResults.forEach(
             indexRoutingTable -> indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable)
         );
-        RoutingTableIncrementalDiff routingTableDiff = readIndexRoutingTableDiffResults.get();
+        Diff<RoutingTable> routingTableDiff = readIndexRoutingTableDiffResults.get();
+        RoutingTable newRoutingTable = new RoutingTable(manifest.getRoutingTableVersion(), indicesRouting);
         if (routingTableDiff != null) {
-            routingTableDiff.getDiffs().forEach((key, diff) -> {
-                IndexRoutingTable previousIndexRoutingTable = indicesRouting.get(key);
-                IndexRoutingTable updatedTable = diff.apply(previousIndexRoutingTable);
-                indicesRouting.put(key, updatedTable);
-            });
+            newRoutingTable = routingTableDiff.apply(previousState.getRoutingTable());
         }
-        clusterStateBuilder.routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indicesRouting));
+        clusterStateBuilder.routingTable(newRoutingTable);
 
         return clusterStateBuilder.build();
     }
@@ -1359,8 +1357,7 @@ public class RemoteClusterStateService implements Closeable {
 
     }
 
-    public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId)
-        throws IOException {
+    public ClusterState getClusterStateUsingDiff(ClusterMetadataManifest manifest, ClusterState previousState, String localNodeId) {
         assert manifest.getDiffManifest() != null : "Diff manifest null which is required for downloading cluster state";
         ClusterStateDiffManifest diff = manifest.getDiffManifest();
         List<UploadedIndexMetadata> updatedIndices = diff.getIndicesUpdated().stream().map(idx -> {

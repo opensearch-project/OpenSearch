@@ -536,7 +536,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 anyMap(),
                 anyBoolean(),
                 anyList(),
-                anyMap()
+                any(RoutingTable.class)
             )
         ).thenReturn(new RemoteClusterStateUtils.UploadedMetadataResults());
         RemoteStateTransferException ex = expectThrows(
@@ -687,7 +687,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 eq(Collections.emptyMap()),
                 eq(false),
                 eq(Collections.emptyList()),
-                eq(Collections.emptyMap())
+                eq(clusterState.getRoutingTable())
             );
 
         assertThat(manifestInfo.getManifestFileName(), notNullValue());
@@ -768,7 +768,7 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 eq(Collections.emptyMap()),
                 eq(true),
                 anyList(),
-                eq(Collections.emptyMap())
+                eq(clusterState.getRoutingTable())
             );
 
         assertThat(manifestInfo.getManifestFileName(), notNullValue());

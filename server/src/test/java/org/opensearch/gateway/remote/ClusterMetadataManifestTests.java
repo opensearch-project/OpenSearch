@@ -15,6 +15,7 @@ import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -550,8 +551,8 @@ public class ClusterMetadataManifestTests extends OpenSearchTestCase {
     public void testClusterMetadataManifestXContentV3() throws IOException {
         UploadedIndexMetadata uploadedIndexMetadata = new UploadedIndexMetadata("test-index", "test-uuid", "/test/upload/path");
         UploadedMetadataAttribute uploadedMetadataAttribute = new UploadedMetadataAttribute("attribute_name", "testing_attribute");
-        final DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff = Mockito.mock(
-            DiffableUtils.MapDiff.class
+        final StringKeyDiffProvider<IndexRoutingTable> routingTableIncrementalDiff = Mockito.mock(
+            StringKeyDiffProvider.class
         );
         ClusterMetadataManifest originalManifest = ClusterMetadataManifest.builder()
             .clusterTerm(1L)

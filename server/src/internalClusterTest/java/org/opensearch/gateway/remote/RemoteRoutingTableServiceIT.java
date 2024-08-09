@@ -286,7 +286,7 @@ public class RemoteRoutingTableServiceIT extends RemoteStoreBaseIntegTestCase {
         for (ClusterMetadataManifest.UploadedIndexMetadata uploadedFilename : manifest.getIndicesRouting()) {
             assertTrue(uploadedFilename.getUploadedFilename().contains(indexRoutingPath.buildAsString()));
         }
-        assertEquals(isRoutingTableDiffFileExpected, manifest.getDiffManifest().getIndicesRoutingDiffPath() != null);
+        assertEquals(true, manifest.getDiffManifest().getIndicesRoutingDiffPath() != null);
     }
 
     private List<RoutingTable> getRoutingTableFromAllNodes() throws ExecutionException, InterruptedException {

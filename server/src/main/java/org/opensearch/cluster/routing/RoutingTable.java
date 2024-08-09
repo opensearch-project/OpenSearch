@@ -378,6 +378,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return new RoutingTableDiff(previousState, this);
     }
 
+    public Diff<RoutingTable> incrementalDiff(RoutingTable previousState) {
+        return new RoutingTableIncrementalDiff(previousState, this);
+    }
+
     public static Diff<RoutingTable> readDiffFrom(StreamInput in) throws IOException {
         return new RoutingTableDiff(in);
     }
@@ -403,7 +407,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
     }
 
-    private static class RoutingTableDiff implements Diff<RoutingTable> {
+    private static class RoutingTableDiff implements Diff<RoutingTable>, StringKeyDiffProvider<IndexRoutingTable> {
 
         private final long version;
 
@@ -431,6 +435,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(version);
             indicesRouting.writeTo(out);
+        }
+
+        @Override
+        public DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> provideDiff() {
+            return (DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>>) indicesRouting;
         }
     }
 

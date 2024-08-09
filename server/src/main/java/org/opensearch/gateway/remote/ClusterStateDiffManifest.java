@@ -13,6 +13,7 @@ import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.StringKeyDiffProvider;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -81,7 +82,7 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
     public ClusterStateDiffManifest(
         ClusterState state,
         ClusterState previousState,
-        DiffableUtils.MapDiff<String, IndexRoutingTable, Map<String, IndexRoutingTable>> routingTableIncrementalDiff,
+        StringKeyDiffProvider<IndexRoutingTable> routingTableDiff,
         String indicesRoutingDiffPath
     ) {
         fromStateUUID = previousState.stateUUID();
@@ -113,9 +114,9 @@ public class ClusterStateDiffManifest implements ToXContentFragment, Writeable {
         indicesRoutingUpdated = new ArrayList<>();
         indicesRoutingDeleted = new ArrayList<>();
         this.indicesRoutingDiffPath = indicesRoutingDiffPath;
-        if (routingTableIncrementalDiff != null) {
-            routingTableIncrementalDiff.getUpserts().forEach((k, v) -> indicesRoutingUpdated.add(k));
-            indicesRoutingDeleted.addAll(routingTableIncrementalDiff.getDeletes());
+        if (routingTableDiff != null && routingTableDiff.provideDiff() != null) {
+            routingTableDiff.provideDiff().getUpserts().forEach((k, v) -> indicesRoutingUpdated.add(k));
+            indicesRoutingDeleted.addAll(routingTableDiff.provideDiff().getDeletes());
         }
         hashesOfConsistentSettingsUpdated = !state.metadata()
             .hashesOfConsistentSettings()
