@@ -27,31 +27,18 @@ public class ValueAggregatorFactory {
      */
     public static ValueAggregator getValueAggregator(MetricStat aggregationType, StarTreeNumericType starTreeNumericType) {
         switch (aggregationType) {
-            // other metric types (count, min, max, avg) will be supported in the future
+            // avg aggregator will be covered in the part of query (using count and sum)
             case SUM:
                 return new SumValueAggregator(starTreeNumericType);
             case COUNT:
                 return new CountValueAggregator(starTreeNumericType);
+            case MIN:
+                return new MinValueAggregator(starTreeNumericType);
+            case MAX:
+                return new MaxValueAggregator(starTreeNumericType);
             default:
                 throw new IllegalStateException("Unsupported aggregation type: " + aggregationType);
         }
     }
 
-    /**
-     * Returns the data type of the aggregated value for the given aggregation type.
-     *
-     * @param aggregationType Aggregation type
-     * @return Data type of the aggregated value
-     */
-    public static StarTreeNumericType getAggregatedValueType(MetricStat aggregationType) {
-        switch (aggregationType) {
-            // other metric types (count, min, max, avg) will be supported in the future
-            case SUM:
-                return SumValueAggregator.VALUE_AGGREGATOR_TYPE;
-            case COUNT:
-                return CountValueAggregator.VALUE_AGGREGATOR_TYPE;
-            default:
-                throw new IllegalStateException("Unsupported aggregation type: " + aggregationType);
-        }
-    }
 }
