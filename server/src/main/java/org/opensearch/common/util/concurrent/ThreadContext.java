@@ -113,6 +113,10 @@ public final class ThreadContext implements Writeable {
      */
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
 
+    public static final String PLUGIN_EXECUTION_CONTEXT = "_plugin_execution_context";
+
+    private static final Set<String> FORBIDDEN_HEADRES = Set.of(PLUGIN_EXECUTION_CONTEXT);
+
     // thread context permissions
 
     private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("markAsSystemContext");
@@ -160,6 +164,7 @@ public final class ThreadContext implements Writeable {
          */
 
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putPersistent(context.persistentHeaders);
+        threadContextStruct.setSystemContext(propagators);
 
         if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
             threadContextStruct = threadContextStruct.putHeaders(
@@ -174,6 +179,44 @@ public final class ThreadContext implements Writeable {
             threadContextStruct = threadContextStruct.putTransient(transientHeaders);
         }
 
+        threadLocal.set(threadContextStruct);
+
+        return () -> {
+            // If the node and thus the threadLocal get closed while this task
+            // is still executing, we don't want this runnable to fail with an
+            // uncaught exception
+            threadLocal.set(context);
+        };
+    }
+
+    /**
+     * Removes the current context and resets a default context. Retains information about plugin stashing the context.
+     * The removed context can be restored by closing the returned {@link StoredContext}.
+     */
+    StoredContext stashContext(Class<?> pluginClass) {
+        final ThreadContextStruct context = threadLocal.get();
+        /*
+          X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
+          This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+          Otherwise when context is stash, it should be empty.
+         */
+
+        ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putPersistent(context.persistentHeaders);
+
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+            threadContextStruct = threadContextStruct.putHeaders(
+                MapBuilder.<String, String>newMapBuilder()
+                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
+                    .immutableMap()
+            );
+        }
+
+        final Map<String, Object> transientHeaders = propagateTransients(context.transientHeaders, context.isSystemContext);
+        if (!transientHeaders.isEmpty()) {
+            threadContextStruct = threadContextStruct.putTransient(transientHeaders);
+        }
+
+        threadContextStruct = threadContextStruct.putPluginExecutionContext(pluginClass);
         threadLocal.set(threadContextStruct);
 
         return () -> {
@@ -464,6 +507,9 @@ public final class ThreadContext implements Writeable {
      * Puts a header into the context
      */
     public void putHeader(String key, String value) {
+        if (FORBIDDEN_HEADRES.contains(key)) {
+            throw new IllegalArgumentException("Cannot set forbidden header: " + key);
+        }
         threadLocal.set(threadLocal.get().putRequest(key, value));
     }
 
@@ -713,6 +759,14 @@ public final class ThreadContext implements Writeable {
             this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), false);
         }
 
+        private ThreadContextStruct putPluginExecutionContext(Class<?> pluginClass) {
+            Map<String, String> newRequestHeaders = new HashMap<>(this.requestHeaders);
+            if (newRequestHeaders.putIfAbsent(PLUGIN_EXECUTION_CONTEXT, pluginClass.getCanonicalName()) != null) {
+                throw new IllegalArgumentException("value for key [" + PLUGIN_EXECUTION_CONTEXT + "] already present");
+            }
+            return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders, persistentHeaders, isSystemContext);
+        }
+
         private ThreadContextStruct putRequest(String key, String value) {
             Map<String, String> newRequestHeaders = new HashMap<>(this.requestHeaders);
             putSingleHeader(key, value, newRequestHeaders);
@@ -720,6 +774,9 @@ public final class ThreadContext implements Writeable {
         }
 
         private static <T> void putSingleHeader(String key, T value, Map<String, T> newHeaders) {
+            if (FORBIDDEN_HEADRES.contains(key)) {
+                throw new IllegalArgumentException("Cannot set forbidden header: " + key);
+            }
             if (newHeaders.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }

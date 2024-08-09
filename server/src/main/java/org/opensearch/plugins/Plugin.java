@@ -34,6 +34,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
+import org.opensearch.client.node.PluginNodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -93,6 +94,8 @@ import java.util.function.UnaryOperator;
 @PublicApi(since = "1.0.0")
 public abstract class Plugin implements Closeable {
 
+    protected PluginNodeClient pluginNodeClient;
+
     /**
      * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link Metadata.Custom}; see
      * also {@link ClusterState.FeatureAware}.
@@ -120,24 +123,36 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
+     * Setter for PluginNodeClient.
+     *
+     * @param pluginNodeClient A client for executing transport actions as the plugin
+     */
+    final void setPluginNodeClient(PluginNodeClient pluginNodeClient) {
+        if (this.pluginNodeClient != null) {
+            throw new IllegalStateException("pluginNodeClient can only be set once");
+        }
+        this.pluginNodeClient = pluginNodeClient;
+    }
+
+    /**
      * Returns components added by this plugin.
      * <p>
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
      * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
      * to themselves.
      *
-     * @param client A client to make requests to the system
-     * @param clusterService A service to allow watching and updating cluster state
-     * @param threadPool A service to allow retrieving an executor to run an async action
-     * @param resourceWatcherService A service to watch for changes to node local files
-     * @param scriptService A service to allow running scripts on the local node
-     * @param xContentRegistry the registry for extensible xContent parsing
-     * @param environment the environment for path and setting configurations
-     * @param nodeEnvironment the node environment used coordinate access to the data paths
-     * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
+     * @param client                      A client to make requests to the system
+     * @param clusterService              A service to allow watching and updating cluster state
+     * @param threadPool                  A service to allow retrieving an executor to run an async action
+     * @param resourceWatcherService      A service to watch for changes to node local files
+     * @param scriptService               A service to allow running scripts on the local node
+     * @param xContentRegistry            the registry for extensible xContent parsing
+     * @param environment                 the environment for path and setting configurations
+     * @param nodeEnvironment             the node environment used coordinate access to the data paths
+     * @param namedWriteableRegistry      the registry for {@link NamedWriteable} object parsing
      * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
-     *                                   is called, but will return the repositories service once the node is initialized.
+     *                                    is called, but will return the repositories service once the node is initialized.
      */
     public Collection<Object> createComponents(
         Client client,

@@ -1452,6 +1452,14 @@ public class Node implements Closeable {
                 transportService.getRemoteClusterService(),
                 namedWriteableRegistry
             );
+            pluginsService.initializePlugins(
+                settings,
+                threadPool,
+                dynamicActionRegistry,
+                () -> clusterService.localNode().getId(),
+                transportService.getRemoteClusterService(),
+                namedWriteableRegistry
+            );
             this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");
