@@ -88,31 +88,25 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
         }
     }
 
-    //  Hyphenation Decompounder tests mimic the behavior of lucene tests
-    //  lucene/analysis/common/src/test/org/apache/lucene/analysis/compound/TestHyphenationCompoundWordTokenFilterFactory.java
+    // Hyphenation Decompounder tests mimic the behavior of lucene tests
+    // lucene/analysis/common/src/test/org/apache/lucene/analysis/compound/TestHyphenationCompoundWordTokenFilterFactory.java
     public void testHyphenationDecompounder() throws Exception {
         Settings[] settingsArr = getSettingsArr();
         for (Settings settings : settingsArr) {
             List<String> terms = analyze(settings, "hyphenationAnalyzer", "min veninde som er lidt af en læsehest");
             MatcherAssert.assertThat(terms.size(), equalTo(10));
-            MatcherAssert.assertThat(
-                terms,
-                hasItems( "min", "veninde", "som", "er", "lidt", "af", "en", "læsehest", "læse", "hest")
-            );
+            MatcherAssert.assertThat(terms, hasItems("min", "veninde", "som", "er", "lidt", "af", "en", "læsehest", "læse", "hest"));
         }
     }
 
-    //  Hyphenation Decompounder tests mimic the behavior of lucene tests
-    //  lucene/analysis/common/src/test/org/apache/lucene/analysis/compound/TestHyphenationCompoundWordTokenFilterFactory.java
+    // Hyphenation Decompounder tests mimic the behavior of lucene tests
+    // lucene/analysis/common/src/test/org/apache/lucene/analysis/compound/TestHyphenationCompoundWordTokenFilterFactory.java
     public void testHyphenationDecompounderNoSubMatches() throws Exception {
         Settings[] settingsArr = getSettingsArr();
         for (Settings settings : settingsArr) {
             List<String> terms = analyze(settings, "hyphenationAnalyzerNoSubMatches", "basketballkurv");
             MatcherAssert.assertThat(terms.size(), equalTo(3));
-            MatcherAssert.assertThat(
-                terms,
-                hasItems("basketballkurv", "basketball", "kurv")
-            );
+            MatcherAssert.assertThat(terms, hasItems("basketballkurv", "basketball", "kurv"));
         }
     }
 
