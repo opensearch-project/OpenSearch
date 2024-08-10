@@ -14,8 +14,8 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
-import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -101,8 +101,12 @@ public final class FilterRewriteOptimizationContext {
      * @param incrementDocCount consume the doc_count results for certain ordinal
      * @param segmentMatchAll if your optimization can prepareFromSegment, you should pass in this flag to decide whether to prepareFromSegment
      */
-    public boolean tryOptimize(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount, LeafBucketCollector sub, boolean segmentMatchAll)
-        throws IOException {
+    public boolean tryOptimize(
+        final LeafReaderContext leafCtx,
+        final BiConsumer<Long, Long> incrementDocCount,
+        LeafBucketCollector sub,
+        boolean segmentMatchAll
+    ) throws IOException {
         segments.incrementAndGet();
         if (!canOptimize) {
             return false;

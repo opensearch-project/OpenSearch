@@ -167,7 +167,9 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             }
 
             @Override
-            protected void prepare() throws IOException { buildRanges(context); }
+            protected void prepare() throws IOException {
+                buildRanges(context);
+            }
 
             @Override
             protected Rounding getRounding(final long low, final long high) {
@@ -199,7 +201,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             }
 
             @Override
-            protected long getOrd(int rangeIdx){
+            protected long getOrd(int rangeIdx) {
                 long rangeStart = LongPoint.decodeDimension(filterRewriteOptimizationContext.getRanges().getLower(rangeIdx), 0);
                 rangeStart = this.getFieldType().convertNanosToMillis(rangeStart);
                 long ord = getBucketOrds().add(0, getRoundingPrepared().round(rangeStart));
@@ -243,7 +245,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, sub, segmentMatchAll(context, ctx));
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(
+            ctx,
+            this::incrementBucketDocCount,
+            sub,
+            segmentMatchAll(context, ctx)
+        );
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);

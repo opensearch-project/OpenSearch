@@ -67,7 +67,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -305,7 +304,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, sub,false);
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, sub, false);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);

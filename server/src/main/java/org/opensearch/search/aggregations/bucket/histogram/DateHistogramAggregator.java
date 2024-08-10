@@ -126,7 +126,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             }
 
             @Override
-            protected void prepare() throws IOException { buildRanges(context); }
+            protected void prepare() throws IOException {
+                buildRanges(context);
+            }
 
             @Override
             protected Rounding getRounding(long low, long high) {
@@ -144,7 +146,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             }
 
             @Override
-            protected long getOrd(int rangeIdx){
+            protected long getOrd(int rangeIdx) {
                 long rangeStart = LongPoint.decodeDimension(filterRewriteOptimizationContext.getRanges().getLower(rangeIdx), 0);
                 rangeStart = this.getFieldType().convertNanosToMillis(rangeStart);
                 long ord = bucketOrds.add(0, getRoundingPrepared().round(rangeStart));
@@ -173,7 +175,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, sub, segmentMatchAll(context, ctx));
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(
+            ctx,
+            this::incrementBucketDocCount,
+            sub,
+            segmentMatchAll(context, ctx)
+        );
         if (optimized) throw new CollectionTerminatedException();
 
         SortedNumericDocValues values = valuesSource.longValues(ctx);

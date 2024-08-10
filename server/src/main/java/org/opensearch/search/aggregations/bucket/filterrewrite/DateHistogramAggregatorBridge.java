@@ -11,7 +11,6 @@ package org.opensearch.search.aggregations.bucket.filterrewrite;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-
 import org.opensearch.common.Rounding;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;

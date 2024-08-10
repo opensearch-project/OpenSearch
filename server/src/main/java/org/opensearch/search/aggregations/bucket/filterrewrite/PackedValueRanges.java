@@ -42,11 +42,11 @@ public final class PackedValueRanges {
         return compareByteValue(value, upperBound) < 0;
     }
 
-    public byte[] getLower(int idx){
+    public byte[] getLower(int idx) {
         return lowers[idx];
     }
 
-    public byte[] getUpper(int idx){
+    public byte[] getUpper(int idx) {
         return uppers[idx];
     }
 

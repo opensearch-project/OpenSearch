@@ -190,7 +190,9 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            protected void prepare() throws IOException { buildRanges(context); }
+            protected void prepare() throws IOException {
+                buildRanges(context);
+            }
 
             protected Rounding getRounding(final long low, final long high) {
                 return valuesSource.getRounding();
@@ -216,7 +218,7 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            protected long getOrd(int rangeIdx){
+            protected long getOrd(int rangeIdx) {
                 long rangeStart = LongPoint.decodeDimension(filterRewriteOptimizationContext.getRanges().getLower(rangeIdx), 0);
                 rangeStart = this.getFieldType().convertNanosToMillis(rangeStart);
                 long ord = bucketOrds.add(0, getRoundingPrepared().round(rangeStart));
@@ -563,7 +565,12 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, sub, segmentMatchAll(context, ctx));
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(
+            ctx,
+            this::incrementBucketDocCount,
+            sub,
+            segmentMatchAll(context, ctx)
+        );
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();

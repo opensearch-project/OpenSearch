@@ -83,7 +83,7 @@ public abstract class AggregatorBridge {
     /**
      * Translate an index of the packed value range array to an agg bucket ordinal.
      */
-    protected long getOrd(int rangeIdx){
+    protected long getOrd(int rangeIdx) {
         return rangeIdx;
     }
 
@@ -95,8 +95,12 @@ public abstract class AggregatorBridge {
      * @param values              the point values (index structure for numeric values) for a segment
      * @param incrementDocCount   a consumer to increment the document count for a range bucket. The First parameter is document count, the second is the key of the bucket
      */
-    public final FilterRewriteOptimizationContext.DebugInfo tryOptimize(PointValues values, BiConsumer<Long, Long> incrementDocCount, PackedValueRanges ranges, final LeafBucketCollector sub)
-        throws IOException {
+    public final FilterRewriteOptimizationContext.DebugInfo tryOptimize(
+        PointValues values,
+        BiConsumer<Long, Long> incrementDocCount,
+        PackedValueRanges ranges,
+        final LeafBucketCollector sub
+    ) throws IOException {
         PointTreeTraversal.RangeAwareIntersectVisitor treeVisitor;
 
         if (sub != null) {
