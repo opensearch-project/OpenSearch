@@ -109,4 +109,3 @@ In the future, we will add the [compare](https://opensearch.org/docs/latest/benc
 
 By following these instructions, repository maintainers can ensure consistent and automated performance benchmarking for all code changes introduced via pull requests.
 
-
