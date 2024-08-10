@@ -129,6 +129,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: 21
+          distribution: 'temurin'
       - name: Build and Assemble OpenSearch from PR
         run: |
           ./gradlew :distribution:archives:linux-tar:assemble -Dbuild.snapshot=false
