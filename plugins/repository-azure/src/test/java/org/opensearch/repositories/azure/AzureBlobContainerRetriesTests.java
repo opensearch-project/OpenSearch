@@ -172,7 +172,7 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
                 return new RequestRetryOptions(
                     RetryPolicyType.EXPONENTIAL,
                     azureStorageSettings.getMaxRetries(),
-                    1,
+                    5,
                     10L,
                     100L,
                     secondaryHost
