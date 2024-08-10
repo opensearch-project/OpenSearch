@@ -14,6 +14,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.search.internal.SearchContext;
 
@@ -40,7 +41,7 @@ public final class FilterRewriteOptimizationContext {
     private final AggregatorBridge aggregatorBridge;
     private String shardId;
 
-    private Ranges ranges; // built at shard level
+    private PackedValueRanges ranges; // built at shard level
 
     // debug info related fields
     private final AtomicInteger leafNodeVisited = new AtomicInteger();
@@ -84,8 +85,12 @@ public final class FilterRewriteOptimizationContext {
         return canOptimize;
     }
 
-    void setRanges(Ranges ranges) {
+    public void setRanges(PackedValueRanges ranges) {
         this.ranges = ranges;
+    }
+
+    public PackedValueRanges getRanges() {
+        return this.ranges;
     }
 
     /**
@@ -96,7 +101,7 @@ public final class FilterRewriteOptimizationContext {
      * @param incrementDocCount consume the doc_count results for certain ordinal
      * @param segmentMatchAll if your optimization can prepareFromSegment, you should pass in this flag to decide whether to prepareFromSegment
      */
-    public boolean tryOptimize(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount, boolean segmentMatchAll)
+    public boolean tryOptimize(final LeafReaderContext leafCtx, final BiConsumer<Long, Long> incrementDocCount, LeafBucketCollector sub, boolean segmentMatchAll)
         throws IOException {
         segments.incrementAndGet();
         if (!canOptimize) {
@@ -120,10 +125,10 @@ public final class FilterRewriteOptimizationContext {
             return false;
         }
 
-        Ranges ranges = getRanges(leafCtx, segmentMatchAll);
+        PackedValueRanges ranges = getRanges(leafCtx, segmentMatchAll);
         if (ranges == null) return false;
 
-        consumeDebugInfo(aggregatorBridge.tryOptimize(values, incrementDocCount, ranges));
+        consumeDebugInfo(aggregatorBridge.tryOptimize(values, incrementDocCount, ranges, sub));
 
         optimizedSegments.incrementAndGet();
         logger.debug("Fast filter optimization applied to shard {} segment {}", shardId, leafCtx.ord);
@@ -132,7 +137,7 @@ public final class FilterRewriteOptimizationContext {
         return true;
     }
 
-    Ranges getRanges(LeafReaderContext leafCtx, boolean segmentMatchAll) {
+    public PackedValueRanges getRanges(LeafReaderContext leafCtx, boolean segmentMatchAll) {
         if (!preparedAtShardLevel) {
             try {
                 return getRangesFromSegment(leafCtx, segmentMatchAll);
@@ -148,7 +153,7 @@ public final class FilterRewriteOptimizationContext {
      * Even when ranges cannot be built at shard level, we can still build ranges
      * at segment level when it's functionally match-all at segment level
      */
-    private Ranges getRangesFromSegment(LeafReaderContext leafCtx, boolean segmentMatchAll) throws IOException {
+    private PackedValueRanges getRangesFromSegment(LeafReaderContext leafCtx, boolean segmentMatchAll) throws IOException {
         if (!segmentMatchAll) {
             return null;
         }
@@ -160,7 +165,7 @@ public final class FilterRewriteOptimizationContext {
     /**
      * Contains debug info of BKD traversal to show in profile
      */
-    static class DebugInfo {
+    public static class DebugInfo {
         private final AtomicInteger leafNodeVisited = new AtomicInteger(); // leaf node visited
         private final AtomicInteger innerNodeVisited = new AtomicInteger(); // inner node visited
 

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.opensearch.common.CheckedRunnable;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -23,201 +22,240 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * Utility class for traversing a {@link PointValues.PointTree} and collecting document counts for the ranges.
  *
- * <p>The main entry point is the {@link #multiRangesTraverse(PointValues.PointTree, Ranges,
- * BiConsumer, int)} method
+ * <p>The main entry point is the {@link #multiRangesTraverse(RangeAwareIntersectVisitor)} method
  *
- * <p>The class uses a {@link RangeCollectorForPointTree} to keep track of the active ranges and
- * determine which parts of the tree to visit. The {@link
- * PointValues.IntersectVisitor} implementation is responsible for the actual visitation and
- * document count collection.
+ * <p>The class uses a {@link RangeAwareIntersectVisitor} to keep track of the active ranges, traverse the tree, and
+ * consume documents.
  */
-final class PointTreeTraversal {
-    private PointTreeTraversal() {}
-
+public final class PointTreeTraversal {
     private static final Logger logger = LogManager.getLogger(Helper.loggerName);
 
     /**
-     * Traverses the given {@link PointValues.PointTree} and collects document counts for the intersecting ranges.
-     *
-     * @param tree                 the point tree to traverse
-     * @param ranges               the set of ranges to intersect with
-     * @param incrementDocCount    a callback to increment the document count for a range bucket
-     * @param maxNumNonZeroRanges  the maximum number of non-zero ranges to collect
-     * @return a {@link FilterRewriteOptimizationContext.DebugInfo} object containing debug information about the traversal
+     * Traverse the RangeAwareIntersectVisitor PointTree.
+     * Collects and returns DebugInfo from traversal
+     * @param visitor  the maximum number of non-zero ranges to collect
+     * @return a {@link  FilterRewriteOptimizationContext.DebugInfo} object containing debug information about the traversal
      */
-    static FilterRewriteOptimizationContext.DebugInfo multiRangesTraverse(
-        final PointValues.PointTree tree,
-        final Ranges ranges,
-        final BiConsumer<Integer, Integer> incrementDocCount,
-        final int maxNumNonZeroRanges
-    ) throws IOException {
+    public static FilterRewriteOptimizationContext.DebugInfo multiRangesTraverse(RangeAwareIntersectVisitor visitor) throws IOException {
         FilterRewriteOptimizationContext.DebugInfo debugInfo = new FilterRewriteOptimizationContext.DebugInfo();
-        int activeIndex = ranges.firstRangeIndex(tree.getMinPackedValue(), tree.getMaxPackedValue());
-        if (activeIndex < 0) {
+
+        if (visitor.getActiveIndex() < 0) {
             logger.debug("No ranges match the query, skip the fast filter optimization");
             return debugInfo;
         }
-        RangeCollectorForPointTree collector = new RangeCollectorForPointTree(incrementDocCount, maxNumNonZeroRanges, ranges, activeIndex);
-        PointValues.IntersectVisitor visitor = getIntersectVisitor(collector);
+
         try {
-            intersectWithRanges(visitor, tree, collector, debugInfo);
+            visitor.traverse(debugInfo);
         } catch (CollectionTerminatedException e) {
             logger.debug("Early terminate since no more range to collect");
         }
-        collector.finalizePreviousRange();
 
         return debugInfo;
     }
 
-    private static void intersectWithRanges(
-        PointValues.IntersectVisitor visitor,
-        PointValues.PointTree pointTree,
-        RangeCollectorForPointTree collector,
-        FilterRewriteOptimizationContext.DebugInfo debug
-    ) throws IOException {
-        PointValues.Relation r = visitor.compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
-
-        switch (r) {
-            case CELL_INSIDE_QUERY:
-                collector.countNode((int) pointTree.size());
-                debug.visitInner();
-                break;
-            case CELL_CROSSES_QUERY:
-                if (pointTree.moveToChild()) {
-                    do {
-                        intersectWithRanges(visitor, pointTree, collector, debug);
-                    } while (pointTree.moveToSibling());
-                    pointTree.moveToParent();
-                } else {
-                    pointTree.visitDocValues(visitor);
-                    debug.visitLeaf();
-                }
-                break;
-            case CELL_OUTSIDE_QUERY:
-        }
-    }
-
-    private static PointValues.IntersectVisitor getIntersectVisitor(RangeCollectorForPointTree collector) {
-        return new PointValues.IntersectVisitor() {
-            @Override
-            public void visit(int docID) {
-                // this branch should be unreachable
-                throw new UnsupportedOperationException(
-                    "This IntersectVisitor does not perform any actions on a " + "docID=" + docID + " node being visited"
-                );
-            }
-
-            @Override
-            public void visit(int docID, byte[] packedValue) throws IOException {
-                visitPoints(packedValue, collector::count);
-            }
-
-            @Override
-            public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
-                visitPoints(packedValue, () -> {
-                    for (int doc = iterator.nextDoc(); doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                        collector.count();
-                    }
-                });
-            }
-
-            private void visitPoints(byte[] packedValue, CheckedRunnable<IOException> collect) throws IOException {
-                if (!collector.withinUpperBound(packedValue)) {
-                    collector.finalizePreviousRange();
-                    if (collector.iterateRangeEnd(packedValue)) {
-                        throw new CollectionTerminatedException();
-                    }
-                }
-
-                if (collector.withinRange(packedValue)) {
-                    collect.run();
-                }
-            }
-
-            @Override
-            public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                // try to find the first range that may collect values from this cell
-                if (!collector.withinUpperBound(minPackedValue)) {
-                    collector.finalizePreviousRange();
-                    if (collector.iterateRangeEnd(minPackedValue)) {
-                        throw new CollectionTerminatedException();
-                    }
-                }
-                // after the loop, min < upper
-                // cell could be outside [min max] lower
-                if (!collector.withinLowerBound(maxPackedValue)) {
-                    return PointValues.Relation.CELL_OUTSIDE_QUERY;
-                }
-                if (collector.withinRange(minPackedValue) && collector.withinRange(maxPackedValue)) {
-                    return PointValues.Relation.CELL_INSIDE_QUERY;
-                }
-                return PointValues.Relation.CELL_CROSSES_QUERY;
-            }
-        };
-    }
-
-    private static class RangeCollectorForPointTree {
-        private final BiConsumer<Integer, Integer> incrementRangeDocCount;
-        private int counter = 0;
-
-        private final Ranges ranges;
-        private int activeIndex;
-
-        private int visitedRange = 0;
+    /**
+     * This IntersectVisitor contains a packed value representation of Ranges
+     * as well as the current activeIndex being considered for collection.
+     */
+    public static abstract class RangeAwareIntersectVisitor implements PointValues.IntersectVisitor {
+        private final PointValues.PointTree pointTree;
+        private final PackedValueRanges packedValueRanges;
         private final int maxNumNonZeroRange;
+        protected int visitedRange = 0;
+        protected int activeIndex;
 
-        public RangeCollectorForPointTree(
-            BiConsumer<Integer, Integer> incrementRangeDocCount,
-            int maxNumNonZeroRange,
-            Ranges ranges,
-            int activeIndex
-        ) {
-            this.incrementRangeDocCount = incrementRangeDocCount;
+        public RangeAwareIntersectVisitor(PointValues.PointTree pointTree, PackedValueRanges packedValueRanges, int maxNumNonZeroRange) {
+            this.packedValueRanges = packedValueRanges;
+            this.pointTree = pointTree;
             this.maxNumNonZeroRange = maxNumNonZeroRange;
-            this.ranges = ranges;
-            this.activeIndex = activeIndex;
+            this.activeIndex = packedValueRanges.firstRangeIndex(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
         }
 
-        private void count() {
-            counter++;
+        public long getActiveIndex() {
+            return activeIndex;
         }
 
-        private void countNode(int count) {
-            counter += count;
-        }
+        public abstract void visit(int docID);
 
-        private void finalizePreviousRange() {
-            if (counter > 0) {
-                incrementRangeDocCount.accept(activeIndex, counter);
-                counter = 0;
+        public abstract void visit(int docID, byte[] packedValue);
+
+        public abstract void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException;
+
+        protected abstract void consumeContainedNode(PointValues.PointTree pointTree) throws IOException;
+
+        protected abstract void consumeCrossedNode(PointValues.PointTree pointTree) throws IOException;
+
+        public void traverse(FilterRewriteOptimizationContext.DebugInfo debug) throws IOException {
+            PointValues.Relation r = compare(pointTree.getMinPackedValue(), pointTree.getMaxPackedValue());
+            switch (r) {
+                case CELL_INSIDE_QUERY:
+                    consumeContainedNode(pointTree);
+                    debug.visitInner();
+                    break;
+                case CELL_CROSSES_QUERY:
+                    if (pointTree.moveToChild()) {
+                        do {
+                            traverse(debug);
+                        } while (pointTree.moveToSibling());
+                        pointTree.moveToParent();
+                    } else {
+                        consumeCrossedNode(pointTree);
+                        debug.visitLeaf();
+                    }
+                    break;
+                case CELL_OUTSIDE_QUERY:
             }
         }
 
         /**
-         * @return true when iterator exhausted or collect enough non-zero ranges
+         * increment activeIndex until we run out of ranges or find a valid range that contains maxPackedValue
+         * else throw CollectionTerminatedException if we run out of ranges to check
+         * @param minPackedValue lower bound of PointValues.PointTree node
+         * @param maxPackedValue upper bound of PointValues.PointTree node
+         * @return the min/max values of the PointValues.PointTree node can be one of:
+         * 1.) Completely outside the activeIndex range
+         * 2.) Completely inside the activeIndex range
+         * 3.) Overlapping with the activeIndex range
          */
-        private boolean iterateRangeEnd(byte[] value) {
+        @Override
+        public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+            // try to find the first range that may collect values from this cell
+            if (!packedValueRanges.withinUpperBound(minPackedValue, activeIndex) && iterateRangeEnd(minPackedValue)) {
+                throw new CollectionTerminatedException();
+            }
+
+            // after the loop, min < upper
+            // cell could be outside [min max] lower
+            if (!packedValueRanges.withinLowerBound(maxPackedValue, activeIndex) && iterateRangeEnd(maxPackedValue)) {
+                return PointValues.Relation.CELL_OUTSIDE_QUERY;
+            }
+
+            if (packedValueRanges.withinRange(minPackedValue, activeIndex) && packedValueRanges.withinRange(maxPackedValue, activeIndex)) {
+                return PointValues.Relation.CELL_INSIDE_QUERY;
+            }
+            return PointValues.Relation.CELL_CROSSES_QUERY;
+        }
+
+        /**
+         * throws CollectionTerminatedException if we have reached our last range, and it does not contain packedValue
+         * @param packedValue determine if packedValue falls within the range at activeIndex
+         * @return true when packedValue falls within the activeIndex range
+         */
+        protected boolean canCollect(byte[] packedValue) {
+            if (!packedValueRanges.withinUpperBound(packedValue, activeIndex) && iterateRangeEnd(packedValue)) {
+                throw new CollectionTerminatedException();
+            }
+            return packedValueRanges.withinRange(packedValue, activeIndex);
+        }
+
+        /**
+         * @param packedValue increment active index until we reach a range containing value
+         * @return true when we've exhausted all available ranges or visited maxNumNonZeroRange and can stop early
+         */
+        protected boolean iterateRangeEnd(byte[] packedValue) {
             // the new value may not be contiguous to the previous one
             // so try to find the first next range that cross the new value
-            while (!withinUpperBound(value)) {
-                if (++activeIndex >= ranges.size) {
+            while (!packedValueRanges.withinUpperBound(packedValue, activeIndex)) {
+                if (++activeIndex >= packedValueRanges.size) {
                     return true;
                 }
             }
             visitedRange++;
             return visitedRange > maxNumNonZeroRange;
         }
+    }
 
-        private boolean withinLowerBound(byte[] value) {
-            return Ranges.withinLowerBound(value, ranges.lowers[activeIndex]);
+    /**
+     * Traverse PointTree with countDocs callback where countDock inputs are
+     * 1.) activeIndex for range in which document(s) reside
+     * 2.) total documents counted
+     */
+    public static class DocCountRangeAwareIntersectVisitor extends RangeAwareIntersectVisitor {
+        BiConsumer<Integer, Integer> countDocs;
+
+        public DocCountRangeAwareIntersectVisitor(
+            PointValues.PointTree pointTree,
+            PackedValueRanges packedValueRanges,
+            int maxNumNonZeroRange,
+            BiConsumer<Integer, Integer> countDocs
+        ) {
+            super(pointTree, packedValueRanges, maxNumNonZeroRange);
+            this.countDocs = countDocs;
         }
 
-        private boolean withinUpperBound(byte[] value) {
-            return Ranges.withinUpperBound(value, ranges.uppers[activeIndex]);
+        @Override
+        public void visit(int docID) {
+            countDocs.accept(activeIndex, 1);
         }
 
-        private boolean withinRange(byte[] value) {
-            return withinLowerBound(value) && withinUpperBound(value);
+        @Override
+        public void visit(int docID, byte[] packedValue) {
+            if (canCollect(packedValue)) {
+                countDocs.accept(activeIndex, 1);
+            }
+        }
+
+        public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
+            if (canCollect(packedValue)) {
+                for (int doc = iterator.nextDoc(); doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                    countDocs.accept(activeIndex, 1);
+                }
+            }
+        }
+
+        protected void consumeContainedNode(PointValues.PointTree pointTree) throws IOException {
+            countDocs.accept(activeIndex, (int) pointTree.size());
+        }
+
+        protected void consumeCrossedNode(PointValues.PointTree pointTree) throws IOException {
+            pointTree.visitDocValues(this);
+        }
+    }
+
+    /**
+     * Traverse PointTree with collectDocs callback where collectDocs inputs are
+     * 1.) activeIndex for range in which document(s) reside
+     * 2.) document id to collect
+     */
+    public static class DocCollectRangeAwareIntersectVisitor extends RangeAwareIntersectVisitor {
+        BiConsumer<Integer, Integer> collectDocs;
+
+        public DocCollectRangeAwareIntersectVisitor(
+            PointValues.PointTree pointTree,
+            PackedValueRanges packedValueRanges,
+            int maxNumNonZeroRange,
+            BiConsumer<Integer, Integer> collectDocs
+        ) {
+            super(pointTree, packedValueRanges, maxNumNonZeroRange);
+            this.collectDocs = collectDocs;
+        }
+
+        @Override
+        public void visit(int docID) {
+            collectDocs.accept(activeIndex, docID);
+        }
+
+        @Override
+        public void visit(int docID, byte[] packedValue) {
+            if (canCollect(packedValue)) {
+                collectDocs.accept(activeIndex, docID);
+            }
+        }
+
+        public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
+            if (canCollect(packedValue)) {
+                for (int doc = iterator.nextDoc(); doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                    collectDocs.accept(activeIndex, iterator.docID());
+                }
+            }
+        }
+
+        protected void consumeContainedNode(PointValues.PointTree pointTree) throws IOException {
+            pointTree.visitDocIDs(this);
+        }
+
+        protected void consumeCrossedNode(PointValues.PointTree pointTree) throws IOException {
+            pointTree.visitDocValues(this);
         }
     }
 }

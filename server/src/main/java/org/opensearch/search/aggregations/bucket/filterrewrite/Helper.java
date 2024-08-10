@@ -155,7 +155,7 @@ final class Helper {
      * Creates the date ranges from date histo aggregations using its interval,
      * and min/max boundaries
      */
-    static Ranges createRangesFromAgg(
+    static PackedValueRanges createRangesFromAgg(
         final DateFieldMapper.DateFieldType fieldType,
         final long interval,
         final Rounding.Prepared preparedRounding,
@@ -208,6 +208,6 @@ final class Helper {
             uppers[i] = max;
         }
 
-        return new Ranges(lowers, uppers);
+        return new PackedValueRanges(lowers, uppers);
     }
 }

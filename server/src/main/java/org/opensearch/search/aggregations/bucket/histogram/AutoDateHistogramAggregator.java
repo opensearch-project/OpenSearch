@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -166,9 +167,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             }
 
             @Override
-            protected void prepare() throws IOException {
-                buildRanges(context);
-            }
+            protected void prepare() throws IOException { buildRanges(context); }
 
             @Override
             protected Rounding getRounding(final long low, final long high) {
@@ -200,8 +199,16 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             }
 
             @Override
-            protected Function<Long, Long> bucketOrdProducer() {
-                return (key) -> getBucketOrds().add(0, preparedRounding.round((long) key));
+            protected long getOrd(int rangeIdx){
+                long rangeStart = LongPoint.decodeDimension(filterRewriteOptimizationContext.getRanges().getLower(rangeIdx), 0);
+                rangeStart = this.getFieldType().convertNanosToMillis(rangeStart);
+                long ord = getBucketOrds().add(0, getRoundingPrepared().round(rangeStart));
+
+                if (ord < 0) { // already seen
+                    ord = -1 - ord;
+                }
+
+                return ord;
             }
         };
         filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
@@ -236,7 +243,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, sub, segmentMatchAll(context, ctx));
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDocValues values = valuesSource.longValues(ctx);

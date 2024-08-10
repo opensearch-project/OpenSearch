@@ -291,11 +291,6 @@ public class RangeAggregator extends BucketsAggregator {
             protected void prepare() {
                 buildRanges(ranges);
             }
-
-            @Override
-            protected Function<Object, Long> bucketOrdProducer() {
-                return (activeIndex) -> subBucketOrdinal(0, (int) activeIndex);
-            }
         };
         filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
     }
@@ -310,7 +305,7 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, false);
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, sub,false);
         if (optimized) throw new CollectionTerminatedException();
 
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);

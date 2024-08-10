@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -89,7 +90,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 
@@ -190,9 +190,7 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            protected void prepare() throws IOException {
-                buildRanges(context);
-            }
+            protected void prepare() throws IOException { buildRanges(context); }
 
             protected Rounding getRounding(final long low, final long high) {
                 return valuesSource.getRounding();
@@ -213,13 +211,21 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            protected int getSize() {
+            protected int rangeMax() {
                 return size;
             }
 
             @Override
-            protected Function<Long, Long> bucketOrdProducer() {
-                return (key) -> bucketOrds.add(0, getRoundingPrepared().round((long) key));
+            protected long getOrd(int rangeIdx){
+                long rangeStart = LongPoint.decodeDimension(filterRewriteOptimizationContext.getRanges().getLower(rangeIdx), 0);
+                rangeStart = this.getFieldType().convertNanosToMillis(rangeStart);
+                long ord = bucketOrds.add(0, getRoundingPrepared().round(rangeStart));
+
+                if (ord < 0) { // already seen
+                    ord = -1 - ord;
+                }
+
+                return ord;
             }
         };
         filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
@@ -557,7 +563,7 @@ public final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, segmentMatchAll(context, ctx));
+        boolean optimized = filterRewriteOptimizationContext.tryOptimize(ctx, this::incrementBucketDocCount, sub, segmentMatchAll(context, ctx));
         if (optimized) throw new CollectionTerminatedException();
 
         finishLeaf();

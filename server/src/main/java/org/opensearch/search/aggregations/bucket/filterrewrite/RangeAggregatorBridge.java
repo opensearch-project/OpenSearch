@@ -9,18 +9,11 @@
 package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumericPointEncoder;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
-
-import java.io.IOException;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-
-import static org.opensearch.search.aggregations.bucket.filterrewrite.PointTreeTraversal.multiRangesTraverse;
 
 /**
  * For range aggregation
@@ -65,32 +58,11 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             uppers[i] = upper;
         }
 
-        setRanges.accept(new Ranges(lowers, uppers));
+        setRanges.accept(new PackedValueRanges(lowers, uppers));
     }
 
     @Override
-    final Ranges tryBuildRangesFromSegment(LeafReaderContext leaf) {
+    final PackedValueRanges tryBuildRangesFromSegment(LeafReaderContext leaf) {
         throw new UnsupportedOperationException("Range aggregation should not build ranges at segment level");
     }
-
-    @Override
-    final FilterRewriteOptimizationContext.DebugInfo tryOptimize(
-        PointValues values,
-        BiConsumer<Long, Long> incrementDocCount,
-        Ranges ranges
-    ) throws IOException {
-        int size = Integer.MAX_VALUE;
-
-        BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
-            long bucketOrd = bucketOrdProducer().apply(activeIndex);
-            incrementDocCount.accept(bucketOrd, (long) docCount);
-        };
-
-        return multiRangesTraverse(values.getPointTree(), ranges, incrementFunc, size);
-    }
-
-    /**
-     * Provides a function to produce bucket ordinals from index of the corresponding range in the range array
-     */
-    protected abstract Function<Object, Long> bucketOrdProducer();
 }
