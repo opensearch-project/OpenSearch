@@ -67,15 +67,17 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class CompoundAnalysisTests extends OpenSearchTestCase {
     public void testDefaultsCompoundAnalysis() throws Exception {
-        Settings settings = getJsonSettings();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        AnalysisModule analysisModule = createAnalysisModule(settings);
-        TokenFilterFactory filterFactory = analysisModule.getAnalysisRegistry().buildTokenFilterFactories(idxSettings).get("dict_dec");
-        MatcherAssert.assertThat(filterFactory, instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
+        Settings[] settingsArr = getSettingsArr();
+        for (Settings settings : settingsArr) {
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
+            AnalysisModule analysisModule = createAnalysisModule(settings);
+            TokenFilterFactory filterFactory = analysisModule.getAnalysisRegistry().buildTokenFilterFactories(idxSettings).get("dict_dec");
+            MatcherAssert.assertThat(filterFactory, instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
+        }
     }
 
     public void testDictionaryDecompounder() throws Exception {
-        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
+        Settings[] settingsArr = getSettingsArr();
         for (Settings settings : settingsArr) {
             List<String> terms = analyze(settings, "decompoundingAnalyzer", "donaudampfschiff spargelcremesuppe");
             MatcherAssert.assertThat(terms.size(), equalTo(8));
@@ -89,7 +91,7 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
     //  Hyphenation Decompounder tests mimic the behavior of lucene tests
     //  lucene/analysis/common/src/test/org/apache/lucene/analysis/compound/TestHyphenationCompoundWordTokenFilterFactory.java
     public void testHyphenationDecompounder() throws Exception {
-        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
+        Settings[] settingsArr = getSettingsArr();
         for (Settings settings : settingsArr) {
             List<String> terms = analyze(settings, "hyphenationAnalyzer", "min veninde som er lidt af en læsehest");
             MatcherAssert.assertThat(terms.size(), equalTo(10));
@@ -103,7 +105,7 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
     //  Hyphenation Decompounder tests mimic the behavior of lucene tests
     //  lucene/analysis/common/src/test/org/apache/lucene/analysis/compound/TestHyphenationCompoundWordTokenFilterFactory.java
     public void testHyphenationDecompounderNoSubMatches() throws Exception {
-        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
+        Settings[] settingsArr = getSettingsArr();
         for (Settings settings : settingsArr) {
             List<String> terms = analyze(settings, "hyphenationAnalyzerNoSubMatches", "basketballkurv");
             MatcherAssert.assertThat(terms.size(), equalTo(3));
@@ -142,13 +144,18 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
         }));
     }
 
-    private Settings getJsonSettings() throws IOException {
+    private Path createAndGetHomeDirectory() throws IOException {
+        return createTempDir();
+    }
+
+    private void copyHyphenationPatternsFile(Path home) throws IOException {
         InputStream hyphenation_patterns_path = getClass().getResourceAsStream("da_UTF8.xml");
-        Path home = createTempDir();
         Path config = home.resolve("config");
         Files.createDirectory(config);
         Files.copy(hyphenation_patterns_path, config.resolve("da_UTF8.xml"));
+    }
 
+    private Settings getJsonSettings(Path home) throws IOException {
         String json = "/org/opensearch/analysis/common/test1.json";
         return Settings.builder()
             .loadFromStream(json, getClass().getResourceAsStream(json), false)
@@ -157,19 +164,18 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
             .build();
     }
 
-    private Settings getYamlSettings() throws IOException {
-
-        InputStream hyphenation_patterns_path = getClass().getResourceAsStream("da_UTF8.xml");
-        Path home = createTempDir();
-        Path config = home.resolve("config");
-        Files.createDirectory(config);
-        Files.copy(hyphenation_patterns_path, config.resolve("da_UTF8.xml"));
-
+    private Settings getYamlSettings(Path home) throws IOException {
         String yaml = "/org/opensearch/analysis/common/test1.yml";
         return Settings.builder()
             .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
             .build();
+    }
+
+    private Settings[] getSettingsArr() throws IOException {
+        Path home = createAndGetHomeDirectory();
+        copyHyphenationPatternsFile(home);
+        return new Settings[] { getJsonSettings(home), getYamlSettings(home) };
     }
 }
