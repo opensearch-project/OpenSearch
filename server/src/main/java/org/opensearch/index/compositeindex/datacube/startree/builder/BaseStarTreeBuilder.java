@@ -20,7 +20,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.writer.StarTreeWriter;
+import org.opensearch.index.codec.composite.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -278,7 +278,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         StarTreeWriter.writeStarTreeMetadata(
             metaOut,
             starTreeField,
-            writeState,
             metricAggregatorInfos,
             numSegmentStarTreeDocument,
             dataFilePointer,
@@ -725,7 +724,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     child.dimensionValue = ALL;
                     child.nodeType = StarTreeNodeType.NULL.getValue();
                 } else {
-                    child.dimensionValue = nodeDimensionValue != null ? nodeDimensionValue : ALL;
+                    child.dimensionValue = nodeDimensionValue;
                 }
                 child.startDocId = nodeStartDocId;
                 child.endDocId = i;

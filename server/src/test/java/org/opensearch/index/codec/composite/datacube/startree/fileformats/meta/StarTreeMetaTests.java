@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex.datacube.startree.meta;
+package org.opensearch.index.codec.composite.datacube.startree.fileformats.meta;
 
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.index.DocValuesType;
@@ -23,9 +23,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.meta.MetricEntry;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.meta.StarTreeMetadata;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.writer.StarTreeWriter;
+import org.opensearch.index.codec.composite.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -151,13 +149,14 @@ public class StarTreeMetaTests extends OpenSearchTestCase {
         StarTreeWriter.writeStarTreeMetadata(
             metaOut,
             starTreeField,
-            writeState,
             metricAggregatorInfos,
             segmentDocumentCount,
             dataFilePointer,
             dataFileLength
         );
         metaOut.close();
+
+        // reading and asserting the metadata
         metaIn = directory.openInput("star-tree-metadata", IOContext.READONCE);
         assertEquals(COMPOSITE_FIELD_MARKER, metaIn.readLong());
         assertEquals(VERSION, metaIn.readVInt());

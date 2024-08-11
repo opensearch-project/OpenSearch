@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.opensearch.index.codec.composite.datacube.startree.fileformats.data.StarTreeDataWriter;
 import org.opensearch.index.codec.composite.datacube.startree.fileformats.meta.StarTreeMetadata;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.writer.StarTreeDataWriter;
 
 import java.io.IOException;
 

@@ -5,10 +5,11 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.writer;
+package org.opensearch.index.codec.composite.datacube.startree.fileformats;
 
-import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.index.codec.composite.datacube.startree.fileformats.data.StarTreeDataWriter;
+import org.opensearch.index.codec.composite.datacube.startree.fileformats.meta.StarTreeMetaWriter;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
@@ -44,7 +45,6 @@ public class StarTreeWriter {
      *
      * @param metaOut                meta index output
      * @param starTreeField          star tree field
-     * @param writeState             segment write state
      * @param metricAggregatorInfos  metric aggregator infos
      * @param segmentAggregatedCount segment aggregated count
      * @param dataFilePointer        data file pointer
@@ -54,7 +54,6 @@ public class StarTreeWriter {
     public static void writeStarTreeMetadata(
         IndexOutput metaOut,
         StarTreeField starTreeField,
-        SegmentWriteState writeState,
         List<MetricAggregatorInfo> metricAggregatorInfos,
         Integer segmentAggregatedCount,
         long dataFilePointer,
@@ -63,7 +62,6 @@ public class StarTreeWriter {
         StarTreeMetaWriter.writeStarTreeMetadata(
             metaOut,
             starTreeField,
-            writeState,
             metricAggregatorInfos,
             segmentAggregatedCount,
             dataFilePointer,

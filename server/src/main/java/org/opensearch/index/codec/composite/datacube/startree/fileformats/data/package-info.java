@@ -11,4 +11,4 @@
  *
  * @opensearch.experimental
  */
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.writer;
+package org.opensearch.index.codec.composite.datacube.startree.fileformats.data;

@@ -6,11 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.writer;
+package org.opensearch.index.codec.composite.datacube.startree.fileformats.meta;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
@@ -39,7 +38,6 @@ public class StarTreeMetaWriter {
      *
      * @param metaOut                the IndexOutput to write the metadata
      * @param starTreeField          the star-tree field
-     * @param writeState             the segment write state
      * @param metricAggregatorInfos  the list of metric aggregator information
      * @param segmentAggregatedCount the aggregated document count for the segment
      * @param dataFilePointer        the file pointer to the start of the star tree data
@@ -49,7 +47,6 @@ public class StarTreeMetaWriter {
     public static void writeStarTreeMetadata(
         IndexOutput metaOut,
         StarTreeField starTreeField,
-        SegmentWriteState writeState,
         List<MetricAggregatorInfo> metricAggregatorInfos,
         Integer segmentAggregatedCount,
         long dataFilePointer,
@@ -59,7 +56,7 @@ public class StarTreeMetaWriter {
         long initialMetaFilePointer = metaOut.getFilePointer();
 
         writeMetaHeader(metaOut, CompositeMappedFieldType.CompositeFieldType.STAR_TREE, starTreeField.getName());
-        writeMeta(metaOut, writeState, metricAggregatorInfos, starTreeField, segmentAggregatedCount, dataFilePointer, dataFileLength);
+        writeMeta(metaOut, metricAggregatorInfos, starTreeField, segmentAggregatedCount, dataFilePointer, dataFileLength);
 
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -100,7 +97,6 @@ public class StarTreeMetaWriter {
      * Writes the star-tree metadata.
      *
      * @param metaOut                   the IndexOutput to write the metadata
-     * @param writeState                the segment write state
      * @param metricAggregatorInfos     the list of metric aggregator information
      * @param starTreeField             the star tree field
      * @param segmentAggregatedDocCount the aggregated document count for the segment
@@ -110,7 +106,6 @@ public class StarTreeMetaWriter {
      */
     private static void writeMeta(
         IndexOutput metaOut,
-        SegmentWriteState writeState,
         List<MetricAggregatorInfo> metricAggregatorInfos,
         StarTreeField starTreeField,
         Integer segmentAggregatedDocCount,

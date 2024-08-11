@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Holds the associated metadata for the building of star-tree
+ * Holds the associated metadata for the building of star-tree.
  *
  * @opensearch.experimental
  */
@@ -41,10 +41,18 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
     private final long dataStartFilePointer;
     private final long dataLength;
 
-    public StarTreeMetadata(IndexInput meta, String compositeFieldName, CompositeMappedFieldType.CompositeFieldType compositeFieldType)
+    /**
+     * A star tree metadata constructor to initialize star tree metadata from the segment file (.cim) using index input.
+     *
+     * @param metaIn an index input to read star-tree meta
+     * @param compositeFieldName name of the composite field. Here, name of the star-tree field.
+     * @param compositeFieldType type of the composite field. Here, STAR_TREE field.
+     * @throws IOException if unable to read star-tree metadata from the file
+     */
+    public StarTreeMetadata(IndexInput metaIn, String compositeFieldName, CompositeMappedFieldType.CompositeFieldType compositeFieldType)
         throws IOException {
         super(compositeFieldName, compositeFieldType);
-        this.meta = meta;
+        this.meta = metaIn;
         try {
             this.starTreeFieldName = this.getCompositeFieldName();
             this.starTreeFieldType = this.getCompositeFieldType().getName();
@@ -58,8 +66,51 @@ public class StarTreeMetadata extends CompositeIndexMetadata {
             this.dataLength = readDataLength();
         } catch (Exception e) {
             logger.error("Unable to read star-tree metadata from the file");
-            throw new CorruptIndexException("Unable to read star-tree metadata from the file", meta);
+            throw new CorruptIndexException("Unable to read star-tree metadata from the file", metaIn);
         }
+    }
+
+    /**
+     * A star tree metadata constructor to initialize star tree metadata.
+     * Used for testing.
+     *
+     * @param meta an index input to read star-tree meta
+     * @param compositeFieldName name of the composite field. Here, name of the star-tree field.
+     * @param compositeFieldType type of the composite field. Here, STAR_TREE field.
+     * @param dimensionFields list of dimension fields
+     * @param metricEntries list of metric entries
+     * @param segmentAggregatedDocCount segment aggregated doc count
+     * @param maxLeafDocs max leaf docs
+     * @param skipStarNodeCreationInDims set of dimensions to skip star node creation
+     * @param starTreeBuildMode star tree build mode
+     * @param dataStartFilePointer data start file pointer
+     * @param dataLength data length
+     */
+    public StarTreeMetadata(
+        String compositeFieldName,
+        CompositeMappedFieldType.CompositeFieldType compositeFieldType,
+        IndexInput meta,
+        List<String> dimensionFields,
+        List<MetricEntry> metricEntries,
+        Integer segmentAggregatedDocCount,
+        Integer maxLeafDocs,
+        Set<String> skipStarNodeCreationInDims,
+        StarTreeFieldConfiguration.StarTreeBuildMode starTreeBuildMode,
+        long dataStartFilePointer,
+        long dataLength
+    ) {
+        super(compositeFieldName, compositeFieldType);
+        this.meta = meta;
+        this.starTreeFieldName = compositeFieldName;
+        this.starTreeFieldType = compositeFieldType.getName();
+        this.dimensionFields = dimensionFields;
+        this.metricEntries = metricEntries;
+        this.segmentAggregatedDocCount = segmentAggregatedDocCount;
+        this.maxLeafDocs = maxLeafDocs;
+        this.skipStarNodeCreationInDims = skipStarNodeCreationInDims;
+        this.starTreeBuildMode = starTreeBuildMode;
+        this.dataStartFilePointer = dataStartFilePointer;
+        this.dataLength = dataLength;
     }
 
     private int readDimensionsCount() throws IOException {

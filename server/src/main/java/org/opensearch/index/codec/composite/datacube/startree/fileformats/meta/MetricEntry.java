@@ -10,6 +10,8 @@ package org.opensearch.index.codec.composite.datacube.startree.fileformats.meta;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 
+import java.util.Objects;
+
 /**
  * Holds the pair of metric name and it's associated stat
  *
@@ -32,4 +34,22 @@ public class MetricEntry {
     public MetricStat getMetricStat() {
         return metricStat;
     }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(metricFieldName + metricStat.getTypeName());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj instanceof MetricEntry) {
+            MetricEntry anotherPair = (MetricEntry) obj;
+            return metricStat.equals(anotherPair.metricStat) && metricFieldName.equals(anotherPair.metricFieldName);
+        }
+        return false;
+    }
+
 }

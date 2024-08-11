@@ -6,14 +6,17 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.compositeindex.datacube.startree.node;
+package org.opensearch.index.codec.composite.datacube.startree.fileformats.data;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.index.codec.composite.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.codec.composite.datacube.startree.fileformats.meta.StarTreeMetadata;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.writer.StarTreeWriter;
+import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTree;
+import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -28,7 +31,7 @@ import java.util.Queue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FixedLengthStarTreeNodeTests extends OpenSearchTestCase {
+public class StarTreeFileFormatsTests extends OpenSearchTestCase {
 
     private IndexOutput dataOut;
     private IndexInput dataIn;
