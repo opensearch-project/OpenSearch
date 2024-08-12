@@ -63,7 +63,7 @@ setup:
   - match: { aggregations.histo.buckets.12.doc_count: 1 }
 
 ---
-"Date histogram aggregation with filter query test":
+"Date histogram aggregation w/ filter query test":
   - do:
       bulk:
         refresh: true
@@ -100,5 +100,48 @@ setup:
           _source: false
 
   - match: { hits.total.value: 3 }
-  - match: { aggregations.weekHisto.buckets.0.doc_count: 2 }
+  - match: { aggregations.weekHisto.buckets.0.doc_count: 1 }
   - match: { aggregations.weekHisto.buckets.1.doc_count: 1 }
+
+---
+"Date histogram aggregation w/ shared field range test":
+  - do:
+      bulk:
+        refresh: true
+        index: dhisto-agg-w-query
+        body:
+          - '{"index": {}}'
+          - '{"date": "2024-10-31"}'
+          - '{"index": {}}'
+          - '{"date": "2024-11-11"}'
+          - '{"index": {}}'
+          - '{"date": "2024-11-28"}'
+          - '{"index": {}}'
+          - '{"date": "2024-12-25"}'
+          - '{"index": {}}'
+          - '{"date": "2025-01-01"}'
+          - '{"index": {}}'
+          - '{"date": "2025-02-14"}'
+
+  - do:
+      search:
+        index: dhisto-agg-w-query
+        body:
+          profile: true
+          query:
+            range:
+              date:
+                gte: "2024-01-01"
+                lt: "2025-01-01"
+          aggregations:
+            monthHisto:
+              date_histogram:
+                field: date
+                calendar_interval: month
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.monthHisto.buckets.0.doc_count: 1 }
+  - match: { aggregations.monthHisto.buckets.1.doc_count: 2 }
+  - match: { aggregations.monthHisto.buckets.2.doc_count: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.optimized_segments: 1 }
