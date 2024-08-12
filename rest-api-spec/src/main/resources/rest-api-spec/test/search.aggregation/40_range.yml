@@ -673,3 +673,49 @@ setup:
   - match: { aggregations.my_range.buckets.3.from: 1.5 }
   - is_false:  aggregations.my_range.buckets.3.to
   - match: { aggregations.my_range.buckets.3.doc_count: 2 }
+
+---
+"Range query and aggregation test":
+  - do:
+      bulk:
+        refresh: true
+        index: range-agg-w-query
+        body:
+          - '{"index": {}}'
+          - '{"routing": "route1", "v": -10}'
+          - '{"index": {}}'
+          - '{"routing": "route1", "v": -5}'
+          - '{"index": {}}'
+          - '{"routing": "route1", "v": 10}'
+          - '{"index": {}}'
+          - '{"routing": "route2", "v": 15}'
+          - '{"index": {}}'
+          - '{"routing": "route2", "v": 20}'
+
+  - do:
+      search:
+        index: range-agg-w-query
+        body:
+          query:
+            bool:
+              must:
+                match_all: {}
+              filter:
+                - terms:
+                    routing:
+                      - "route1"
+          aggregations:
+            aggregationName:
+              range:
+                field: v
+                keyed: true
+                ranges:
+                  - to: 0
+                    key: "0"
+                  - from: 0
+                    key: "1"
+          _source: false
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.aggregationName.buckets.0.doc_count: 2 }
+  - match: { aggregations.aggregationName.buckets.1.doc_count: 1 }
