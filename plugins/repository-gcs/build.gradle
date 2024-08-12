@@ -68,7 +68,7 @@ dependencies {
 
   api 'com.google.cloud:google-cloud-core:2.30.0'
   api 'com.google.cloud:google-cloud-core-http:2.23.0'
-  api 'com.google.cloud:google-cloud-storage:1.113.1'
+  api 'com.google.cloud:google-cloud-storage:2.41.0'
 
   api 'com.google.code.gson:gson:2.10.1'
 
