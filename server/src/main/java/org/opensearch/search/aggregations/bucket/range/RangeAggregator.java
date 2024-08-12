@@ -289,7 +289,7 @@ public class RangeAggregator extends BucketsAggregator {
 
             @Override
             protected void prepare() {
-                buildRanges(ranges);
+                buildRanges(ranges, context);
             }
 
             @Override

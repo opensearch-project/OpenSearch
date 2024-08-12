@@ -10,11 +10,14 @@ package org.opensearch.search.aggregations.bucket.filterrewrite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumericPointEncoder;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -51,8 +54,14 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
         return false;
     }
 
-    protected void buildRanges(RangeAggregator.Range[] ranges) {
+    protected void buildRanges(RangeAggregator.Range[] ranges, SearchContext context) {
         assert fieldType instanceof NumericPointEncoder;
+        Query unwrap = Helper.unwrapIntoConcreteQuery(context.query());
+        if (!(unwrap instanceof MatchAllDocsQuery)) {
+            setRanges.accept(null);
+            return;
+        }
+
         NumericPointEncoder numericPointEncoder = (NumericPointEncoder) fieldType;
         byte[][] lowers = new byte[ranges.length][];
         byte[][] uppers = new byte[ranges.length][];
