@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.avro:avro` from 1.11.3 to 1.12.0 in /plugins/repository-hdfs ([#15119](https://github.com/opensearch-project/OpenSearch/pull/15119))
 - Bump `org.bouncycastle:bcpg-fips` from 1.0.7.1 to 2.0.8 and `org.bouncycastle:bc-fips` from 1.0.2.5 to 2.0.0 in /distribution/tools/plugin-cli ([#15103](https://github.com/opensearch-project/OpenSearch/pull/15103))
 - Bump `com.azure:azure-core` from 1.49.1 to 1.51.0 ([#15111](https://github.com/opensearch-project/OpenSearch/pull/15111))
+- Bump `org.xerial.snappy:snappy-java` from 1.1.10.5 to 1.1.10.6 ([#15207](https://github.com/opensearch-project/OpenSearch/pull/15207))
 
 ### Changed
 - Add lower limit for primary and replica batch allocators timeout ([#14979](https://github.com/opensearch-project/OpenSearch/pull/14979))
