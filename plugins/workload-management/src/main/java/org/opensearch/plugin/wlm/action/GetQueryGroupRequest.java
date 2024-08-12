@@ -10,6 +10,7 @@ package org.opensearch.plugin.wlm.action;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeReadRequest;
+import org.opensearch.cluster.metadata.QueryGroup;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -42,6 +43,9 @@ public class GetQueryGroupRequest extends ClusterManagerNodeReadRequest<GetQuery
 
     @Override
     public ActionRequestValidationException validate() {
+        if (name != null) {
+            QueryGroup.validateName(name);
+        }
         return null;
     }
 

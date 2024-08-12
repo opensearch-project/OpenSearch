@@ -36,4 +36,9 @@ public class GetQueryGroupRequestTests extends OpenSearchTestCase {
         GetQueryGroupRequest otherRequest = new GetQueryGroupRequest(streamInput);
         assertEquals(request.getName(), otherRequest.getName());
     }
+
+    public void testValidation() {
+        GetQueryGroupRequest request = new GetQueryGroupRequest("a".repeat(51));
+        assertThrows(IllegalArgumentException.class, request::validate);
+    }
 }

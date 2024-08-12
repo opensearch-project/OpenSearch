@@ -46,7 +46,6 @@ public class TransportGetQueryGroupAction extends TransportClusterManagerNodeRea
      * @param actionFilters - a {@link ActionFilters} object
      * @param threadPool - a {@link ThreadPool} object
      * @param indexNameExpressionResolver - a {@link IndexNameExpressionResolver} object
-     * @param queryGroupPersistenceService - a {@link QueryGroupPersistenceService} object
      */
     @Inject
     public TransportGetQueryGroupAction(
@@ -54,8 +53,7 @@ public class TransportGetQueryGroupAction extends TransportClusterManagerNodeRea
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        QueryGroupPersistenceService queryGroupPersistenceService
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             GetQueryGroupAction.NAME,
@@ -92,9 +90,7 @@ public class TransportGetQueryGroupAction extends TransportClusterManagerNodeRea
 
         if (resultGroups.isEmpty() && name != null && !name.isEmpty()) {
             logger.warn("No QueryGroup exists with the provided name: {}", name);
-            Exception e = new IllegalArgumentException("No QueryGroup exists with the provided name: " + name);
-            listener.onFailure(e);
-            return;
+            throw new IllegalArgumentException("No QueryGroup exists with the provided name: " + name);
         }
         listener.onResponse(new GetQueryGroupResponse(resultGroups, RestStatus.OK));
     }
