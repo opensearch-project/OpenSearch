@@ -30,15 +30,26 @@ jobs:
           if [[ ${{ steps.verify-changelog-3x.outcome }} == 'success' && ${{ steps.verify-changelog.outcome }} == 'success' ]]; then
             exit 0
           fi
-          
+
           if [[ ${{ steps.verify-changelog-3x.outcome }} == 'failure' && ${{ steps.verify-changelog.outcome }} == 'failure' ]]; then
             echo "error: Please ensure a changelog entry exists in CHANGELOG.md or CHANGELOG-3.0.md"
             exit 1
           fi
-          
+
           # Concatenates the labels and checks if the string contains "backport"
           has_backport_label=${{ contains(join(github.event.pull_request.labels.*.name, ', '), 'backport')}}
           if [[ ${{ steps.verify-changelog.outcome }} == 'success' && $has_backport_label == false ]]; then
             echo "error: Please make sure that the PR has a backport label associated with it when making an entry to the CHANGELOG.md file"
+            exit 1
+          fi
+
+          if [[ ${{ steps.verify-changelog-3x.outcome }} == 'success' && $has_backport_label == false ]]; then
+            echo "error: Please make sure that the PR does not have a backport label associated with it when making an entry to the CHANGELOG-3.0.md file"
+            exit 1
+          fi
+
+          has_breaking_label=${{ contains(join(github.event.pull_request.labels.*.name, ', '), '>breaking')}}
+          if [[ $has_breaking_label == true && $has_backport_label == true ]]; then
+            echo "error: Please make sure that the PR does not have a backport label associated with it when making breaking changes"
             exit 1
           fi
