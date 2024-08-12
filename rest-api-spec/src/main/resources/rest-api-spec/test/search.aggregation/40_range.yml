@@ -675,22 +675,22 @@ setup:
   - match: { aggregations.my_range.buckets.3.doc_count: 2 }
 
 ---
-"Range query and aggregation test":
+"Filter query w/ aggregation test":
   - do:
       bulk:
         refresh: true
         index: range-agg-w-query
         body:
           - '{"index": {}}'
-          - '{"routing": "route1", "v": -10}'
+          - '{"routing": "route1", "v": -10, "date": "2024-10-29"}'
           - '{"index": {}}'
-          - '{"routing": "route1", "v": -5}'
+          - '{"routing": "route1", "v": -5, "date": "2024-10-30"}'
           - '{"index": {}}'
-          - '{"routing": "route1", "v": 10}'
+          - '{"routing": "route1", "v": 10, "date": "2024-10-31"}'
           - '{"index": {}}'
-          - '{"routing": "route2", "v": 15}'
+          - '{"routing": "route2", "v": 15, "date": "2024-11-01"}'
           - '{"index": {}}'
-          - '{"routing": "route2", "v": 20}'
+          - '{"routing": "route2", "v": 20, "date": "2024-11-02"}'
 
   - do:
       search:
@@ -705,7 +705,7 @@ setup:
                     routing:
                       - "route1"
           aggregations:
-            aggregationName:
+            NegPosAgg:
               range:
                 field: v
                 keyed: true
@@ -717,5 +717,34 @@ setup:
           _source: false
 
   - match: { hits.total.value: 3 }
-  - match: { aggregations.aggregationName.buckets.0.doc_count: 2 }
-  - match: { aggregations.aggregationName.buckets.1.doc_count: 1 }
+  - match: { aggregations.NegPosAgg.buckets.0.doc_count: 2 }
+  - match: { aggregations.NegPosAgg.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        index: range-agg-w-query
+        body:
+          query:
+            bool:
+              must:
+                match_all: {}
+              filter:
+                - terms:
+                    routing:
+                      - "route1"
+          aggregations:
+            HalloweenAgg:
+              date_range:
+                field: date
+                format: "yyyy-MM-dd"
+                keyed: true
+                ranges:
+                  - to: "2024-11-01"
+                    key: "to-october"
+                  - from: "2024-11-01"
+                    key: "from-september"
+          _source: false
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.HalloweenAgg.buckets.to-october.doc_count: 3 }
+  - match: { aggregations.HalloweenAgg.buckets.from-september.doc_count: 0 }
