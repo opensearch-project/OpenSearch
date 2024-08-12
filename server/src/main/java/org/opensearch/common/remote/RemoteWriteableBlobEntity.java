@@ -15,7 +15,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.PATH_DELIMIT
 
 /**
  * The abstract class which represents a {@link RemoteWriteableEntity} that can be written to a store
- * @param <T>
+ * @param <T> the entity to be written
  */
 public abstract class RemoteWriteableBlobEntity<T> implements RemoteWriteableEntity<T> {
 
