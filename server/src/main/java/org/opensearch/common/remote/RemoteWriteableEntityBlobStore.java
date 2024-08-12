@@ -6,24 +6,20 @@
  * compatible open source license.
  */
 
-package org.opensearch.gateway.remote.model;
+package org.opensearch.common.remote;
 
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
-import org.opensearch.common.remote.RemoteWritableEntityStore;
-import org.opensearch.common.remote.RemoteWriteableEntity;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.concurrent.ExecutorService;
-
-import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN;
 
 /**
  * Abstract class for a blob type storage
@@ -31,24 +27,27 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.CLUSTER_STAT
  * @param <T> The entity which can be uploaded to / downloaded from blob store
  * @param <U> The concrete class implementing {@link RemoteWriteableEntity} which is used as a wrapper for T entity.
  */
-public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlobEntity<T>> implements RemoteWritableEntityStore<T, U> {
+public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEntity<T>> implements RemoteWritableEntityStore<T, U> {
 
     private final BlobStoreTransferService transferService;
     private final BlobStoreRepository blobStoreRepository;
     private final String clusterName;
     private final ExecutorService executorService;
+    private final String pathToken;
 
-    public RemoteClusterStateBlobStore(
+    public RemoteWriteableEntityBlobStore(
         final BlobStoreTransferService blobStoreTransferService,
         final BlobStoreRepository blobStoreRepository,
         final String clusterName,
         final ThreadPool threadPool,
-        final String executor
+        final String executor,
+        final String pathToken
     ) {
         this.transferService = blobStoreTransferService;
         this.blobStoreRepository = blobStoreRepository;
         this.clusterName = clusterName;
         this.executorService = threadPool.executor(executor);
+        this.pathToken = pathToken;
     }
 
     @Override
@@ -95,13 +94,10 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
     }
 
     public BlobPath getBlobPathPrefix(String clusterUUID) {
-        return blobStoreRepository.basePath()
-            .add(RemoteClusterStateUtils.encodeString(getClusterName()))
-            .add(CLUSTER_STATE_PATH_TOKEN)
-            .add(clusterUUID);
+        return blobStoreRepository.basePath().add(encodeString(getClusterName())).add(pathToken).add(clusterUUID);
     }
 
-    public BlobPath getBlobPathForUpload(final AbstractRemoteWritableBlobEntity<T> obj) {
+    public BlobPath getBlobPathForUpload(final RemoteWriteableBlobEntity<T> obj) {
         BlobPath blobPath = getBlobPathPrefix(obj.clusterUUID());
         for (String token : obj.getBlobPathParameters().getPathTokens()) {
             blobPath = blobPath.add(token);
@@ -109,7 +105,7 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
         return blobPath;
     }
 
-    public BlobPath getBlobPathForDownload(final AbstractRemoteWritableBlobEntity<T> obj) {
+    public BlobPath getBlobPathForDownload(final RemoteWriteableBlobEntity<T> obj) {
         String[] pathTokens = obj.getBlobPathTokens();
         BlobPath blobPath = new BlobPath();
         if (pathTokens == null || pathTokens.length < 1) {
@@ -120,6 +116,10 @@ public class RemoteClusterStateBlobStore<T, U extends AbstractRemoteWritableBlob
             blobPath = blobPath.add(pathTokens[i]);
         }
         return blobPath;
+    }
+
+    private static String encodeString(String content) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(content.getBytes(StandardCharsets.UTF_8));
     }
 
 }
