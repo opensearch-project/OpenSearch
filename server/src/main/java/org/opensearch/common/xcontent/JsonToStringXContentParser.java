@@ -8,8 +8,8 @@
 
 package org.opensearch.common.xcontent;
 
-import org.apache.logging.log4j.util.Strings;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.AbstractXContentParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -110,7 +110,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
             String parsedValue = parseValue();
             if (parsedValue != null) {
                 this.valueList.add(parsedValue);
-                this.valueAndPathList.add(Strings.join(path, '.') + EQUAL_SYMBOL + parsedValue);
+                this.valueAndPathList.add(Strings.collectionToDelimitedString(path, ".") + EQUAL_SYMBOL + parsedValue);
             }
             this.parser.nextToken();
         }
