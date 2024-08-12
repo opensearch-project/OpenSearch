@@ -116,6 +116,8 @@ public final class ThreadContext implements Writeable {
     // thread context permissions
 
     private static final Permission ACCESS_SYSTEM_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("markAsSystemContext");
+    private static final Permission STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashAndMergeHeaders");
+    private static final Permission STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION = new ThreadContextPermission("stashWithOrigin");
 
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
@@ -211,8 +213,19 @@ public final class ThreadContext implements Writeable {
      * For example, a user might not have permission to GET from the tasks index
      * but the tasks API will perform a get on their behalf using this method
      * if it can't find the task in memory.
+     *
+     * Usage of stashWithOrigin is guarded by a ThreadContextPermission. In order to use
+     * stashWithOrigin, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
      */
     public StoredContext stashWithOrigin(String origin) {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(STASH_WITH_ORIGIN_THREAD_CONTEXT_PERMISSION);
+        }
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
         return storedContext;
@@ -222,8 +235,19 @@ public final class ThreadContext implements Writeable {
      * Removes the current context and resets a new context that contains a merge of the current headers and the given headers.
      * The removed context can be restored when closing the returned {@link StoredContext}. The merge strategy is that headers
      * that are already existing are preserved unless they are defaults.
+     *
+     * Usage of stashAndMergeHeaders is guarded by a ThreadContextPermission. In order to use
+     * stashAndMergeHeaders, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "stashAndMergeHeaders";
      */
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(STASH_AND_MERGE_THREAD_CONTEXT_PERMISSION);
+        }
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);

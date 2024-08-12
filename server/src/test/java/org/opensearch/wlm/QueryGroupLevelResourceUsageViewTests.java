@@ -8,14 +8,15 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.action.search.SearchAction;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.ResourceType;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import static org.opensearch.wlm.QueryGroupTestHelpers.getRandomTask;
 
 public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
     Map<ResourceType, Long> resourceUsage;
@@ -29,7 +30,6 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
 
     public void testGetResourceUsageData() {
         QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
-            "1234",
             resourceUsage,
             activeTasks
         );
@@ -37,15 +37,8 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
         assertTrue(assertResourceUsageData(resourceUsageData));
     }
 
-    public void testGetResourceUsageDataDefault() {
-        QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView("1234");
-        Map<ResourceType, Long> resourceUsageData = queryGroupLevelResourceUsageView.getResourceUsageData();
-        assertTrue(resourceUsageData.isEmpty());
-    }
-
     public void testGetActiveTasks() {
         QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView(
-            "1234",
             resourceUsage,
             activeTasks
         );
@@ -54,13 +47,18 @@ public class QueryGroupLevelResourceUsageViewTests extends OpenSearchTestCase {
         assertEquals(4321, activeTasks.get(0).getId());
     }
 
-    public void testGetActiveTasksDefault() {
-        QueryGroupLevelResourceUsageView queryGroupLevelResourceUsageView = new QueryGroupLevelResourceUsageView("1234");
-        List<Task> activeTasks = queryGroupLevelResourceUsageView.getActiveTasks();
-        assertTrue(activeTasks.isEmpty());
-    }
-
     private boolean assertResourceUsageData(Map<ResourceType, Long> resourceUsageData) {
         return resourceUsageData.get(ResourceType.fromName("memory")) == 34L && resourceUsageData.get(ResourceType.fromName("cpu")) == 12L;
+    }
+
+    private Task getRandomTask(long id) {
+        return new Task(
+            id,
+            "transport",
+            SearchAction.NAME,
+            "test description",
+            new TaskId(randomLong() + ":" + randomLong()),
+            Collections.emptyMap()
+        );
     }
 }
