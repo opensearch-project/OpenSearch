@@ -32,6 +32,9 @@
 
 package org.opensearch.ingest.common;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
+import org.opensearch.action.DocWriteRequest;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.ingest.IngestDocument.Metadata;
 import org.opensearch.ingest.Processor;
@@ -153,6 +156,14 @@ public class SetProcessorTests extends OpenSearchTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
+    }
+
+    public void testSetMetadataOpType() throws Exception {
+        DocWriteRequest.OpType opType = RandomPicks.randomFrom(random(), DocWriteRequest.OpType.values());
+        Processor processor = createSetProcessor(Metadata.OP_TYPE.getFieldName(), opType.getLowercase(), true, false);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(Metadata.OP_TYPE.getFieldName(), String.class), Matchers.equalTo(opType.getLowercase()));
     }
 
     private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled, boolean ignoreEmptyValue) {

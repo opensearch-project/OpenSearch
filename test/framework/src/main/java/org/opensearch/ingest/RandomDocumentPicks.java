@@ -36,6 +36,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.opensearch.action.DocWriteRequest;
 import org.opensearch.index.VersionType;
 
 import java.util.ArrayList;
@@ -164,6 +165,7 @@ public final class RandomDocumentPicks {
         String id = randomString(random);
         String routing = null;
         Long version = randomNonNegtiveLong(random);
+        DocWriteRequest.OpType opType = null;
         VersionType versionType = RandomPicks.randomFrom(
             random,
             new VersionType[] { VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE }
@@ -171,7 +173,10 @@ public final class RandomDocumentPicks {
         if (random.nextBoolean()) {
             routing = randomString(random);
         }
-        return new IngestDocument(index, id, routing, version, versionType, source);
+        if (random.nextBoolean()) {
+            opType = RandomPicks.randomFrom(random, DocWriteRequest.OpType.values());
+        }
+        return new IngestDocument(index, id, routing, version, versionType, opType, source);
     }
 
     public static Map<String, Object> randomSource(Random random) {
