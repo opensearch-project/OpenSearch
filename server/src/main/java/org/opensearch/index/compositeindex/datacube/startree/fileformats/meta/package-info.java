@@ -7,6 +7,8 @@
  */
 
 /**
- *  Responsible for handling all composite index codecs and operations
+ * Meta package for star tree
+ *
+ * @opensearch.experimental
  */
-package org.opensearch.index.codec.composite;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;

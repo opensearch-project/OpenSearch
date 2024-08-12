@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite;
+package org.opensearch.index.codec.composite.composite99;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,36 +24,27 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.meta.MetricEntry;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.meta.StarTreeMetadata;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
-import org.opensearch.index.compositeindex.datacube.Dimension;
-import org.opensearch.index.compositeindex.datacube.Metric;
-import org.opensearch.index.compositeindex.datacube.ReadDimension;
-import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
-import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
-import org.opensearch.index.compositeindex.datacube.startree.node.StarTree;
-import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
-import org.opensearch.index.compositeindex.datacube.startree.node.Tree;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.MetricEntry;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
+import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.COMPOSITE_FIELD_MARKER;
-import static org.opensearch.index.compositeindex.CompositeIndexConstants.SEGMENT_DOCS_COUNT;
-import static org.opensearch.index.compositeindex.CompositeIndexConstants.VERSION;
+import static org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter.VERSION_CURRENT;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeDimensionsDocValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.getFieldInfoList;
@@ -136,7 +127,7 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
                     }
 
                     int version = metaIn.readVInt();
-                    if (VERSION != version) {
+                    if (VERSION_CURRENT != version) {
                         logger.error("Invalid composite field version");
                         throw new IOException("Invalid composite field version");
                     }
@@ -275,84 +266,11 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
 
         switch (compositeIndexFieldInfo.getType()) {
             case STAR_TREE:
-                // building star tree values
-                StarTreeMetadata starTreeMetadata = (StarTreeMetadata) compositeIndexMetadataMap.get(compositeIndexFieldInfo.getField());
 
-                // build skip star node dimensions
-                Set<String> skipStarNodeCreationInDims = starTreeMetadata.getSkipStarNodeCreationInDims();
-
-                // build dimensions
-                List<Dimension> readDimensions = new ArrayList<>();
-                for (String dimension : starTreeMetadata.getDimensionFields()) {
-                    readDimensions.add(new ReadDimension(dimension));
-                }
-
-                // build metrics
-                Map<String, Metric> starTreeMetricMap = new LinkedHashMap<>();
-                for (MetricEntry metricEntry : starTreeMetadata.getMetricEntries()) {
-                    String metricName = metricEntry.getMetricFieldName();
-                    Metric metric = starTreeMetricMap.computeIfAbsent(metricName, field -> new Metric(field, new ArrayList<>()));
-                    metric.getMetrics().add(metricEntry.getMetricStat());
-                }
-                List<Metric> starTreeMetrics = new ArrayList<>(starTreeMetricMap.values());
-
-                // star-tree field
-                StarTreeField starTreeField = new StarTreeField(
-                    starTreeMetadata.getCompositeFieldName(),
-                    readDimensions,
-                    starTreeMetrics,
-                    new StarTreeFieldConfiguration(
-                        starTreeMetadata.getMaxLeafDocs(),
-                        skipStarNodeCreationInDims,
-                        starTreeMetadata.getStarTreeBuildMode()
-                    )
-                );
-
-                // star-tree root node
-                IndexInput compositeIndexIn = compositeIndexInputMap.get(starTreeMetadata.getCompositeFieldName());
-                Tree starTree = new StarTree(compositeIndexIn, starTreeMetadata);
-                StarTreeNode rootNode = starTree.getRoot();
-
-                // get doc id set iterators for metrics and dimensions
-                Map<String, DocIdSetIterator> dimensionsDocIdSetIteratorMap = new LinkedHashMap<>();
-                Map<String, DocIdSetIterator> metricsDocIdSetIteratorMap = new LinkedHashMap<>();
-
-                // get doc id set iterators for dimensions
-                for (String dimension : starTreeMetadata.getDimensionFields()) {
-                    dimensionsDocIdSetIteratorMap.put(
-                        dimension,
-                        getSortedNumericDocValues(
-                            compositeDocValuesProducer.getSortedNumeric(
-                                fullyQualifiedFieldNameForStarTreeDimensionsDocValues(starTreeField.getName(), dimension)
-                            )
-                        )
-                    );
-                }
-
-                // get doc id set iterators for metrics
-                for (MetricEntry metricEntry : starTreeMetadata.getMetricEntries()) {
-                    String metricFullName = fullyQualifiedFieldNameForStarTreeMetricsDocValues(
-                        starTreeField.getName(),
-                        metricEntry.getMetricFieldName(),
-                        metricEntry.getMetricStat().getTypeName()
-                    );
-                    metricsDocIdSetIteratorMap.put(
-                        metricFullName,
-                        getSortedNumericDocValues(compositeDocValuesProducer.getSortedNumeric(metricFullName))
-                    );
-                }
-
-                // create star-tree attributes map
-                Map<String, String> starTreeAttributes = new HashMap<>();
-                starTreeAttributes.put(SEGMENT_DOCS_COUNT, String.valueOf(starTreeMetadata.getSegmentAggregatedDocCount()));
-
-                // return star-tree values
                 return new StarTreeValues(
-                    starTreeField,
-                    rootNode,
-                    dimensionsDocIdSetIteratorMap,
-                    metricsDocIdSetIteratorMap,
-                    starTreeAttributes
+                    compositeIndexMetadataMap.get(compositeIndexFieldInfo.getField()),
+                    compositeIndexInputMap.get(compositeIndexFieldInfo.getField()),
+                    compositeDocValuesProducer
                 );
 
             default:
@@ -370,7 +288,12 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
      * @param sortedNumeric the sorted numeric doc values for a field
      * @return empty sorted numeric values if the field is not present, else sortedNumeric
      */
-    private SortedNumericDocValues getSortedNumericDocValues(SortedNumericDocValues sortedNumeric) {
+    public static SortedNumericDocValues getSortedNumericDocValues(SortedNumericDocValues sortedNumeric) {
         return sortedNumeric == null ? DocValues.emptySortedNumeric() : sortedNumeric;
     }
+
+    public Lucene90DocValuesProducerWrapper getCompositeDocValuesProducer() {
+        return compositeDocValuesProducer;
+    }
+
 }

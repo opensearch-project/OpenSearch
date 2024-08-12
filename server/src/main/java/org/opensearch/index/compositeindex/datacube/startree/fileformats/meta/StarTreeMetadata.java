@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.meta;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

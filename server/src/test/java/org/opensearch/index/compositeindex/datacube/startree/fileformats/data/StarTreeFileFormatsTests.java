@@ -6,14 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.data;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.data;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.StarTreeWriter;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.meta.StarTreeMetadata;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.InMemoryTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTree;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;

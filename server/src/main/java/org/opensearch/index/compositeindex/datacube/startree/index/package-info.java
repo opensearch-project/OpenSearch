@@ -7,6 +7,6 @@
  */
 
 /**
- *  Classes responsible for handling all star tree structures and operations as part of codec
+ *  Classes responsible for handling all star tree values from the segment
  */
-package org.opensearch.index.codec.composite.datacube.startree;
+package org.opensearch.index.compositeindex.datacube.startree.index;

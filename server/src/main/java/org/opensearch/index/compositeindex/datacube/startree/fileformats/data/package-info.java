@@ -7,8 +7,8 @@
  */
 
 /**
- * Meta package for star tree
+ * Writer package for star tree
  *
  * @opensearch.experimental
  */
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.meta;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.data;

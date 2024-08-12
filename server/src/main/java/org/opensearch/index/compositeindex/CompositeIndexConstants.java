@@ -19,11 +19,6 @@ public class CompositeIndexConstants {
     public static final long COMPOSITE_FIELD_MARKER = 0xC0950513F1E1DL; // Composite Field
 
     /**
-     * The version of the Composite Index implementation.
-     */
-    public static final int VERSION = 0;
-
-    /**
      * Represents the key to fetch number of documents in a segment.
      */
     public static final String SEGMENT_DOCS_COUNT = "segmentDocsCount";

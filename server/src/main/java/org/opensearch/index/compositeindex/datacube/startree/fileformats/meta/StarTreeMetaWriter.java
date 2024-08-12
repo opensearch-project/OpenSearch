@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.meta;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.COMPOSITE_FIELD_MARKER;
-import static org.opensearch.index.compositeindex.CompositeIndexConstants.VERSION;
+import static org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter.VERSION_CURRENT;
 
 /**
  * The utility class for serializing the metadata of a star-tree data structure.
@@ -84,7 +84,7 @@ public class StarTreeMetaWriter {
         metaOut.writeLong(COMPOSITE_FIELD_MARKER);
 
         // version
-        metaOut.writeVInt(VERSION);
+        metaOut.writeVInt(VERSION_CURRENT);
 
         // star tree field name
         metaOut.writeString(starTreeFieldName);

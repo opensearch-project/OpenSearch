@@ -12,10 +12,10 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.mapper.MapperService;
 
@@ -125,7 +125,7 @@ public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
      * Returns an array of all the starTreeDocuments from all the segments
      * We only take the non-star documents from all the segments.
      *
-     * @param starTreeValuesSubs StarTreeValues from multiple segments
+     * @param starTreeValuesSubs StarTreeValues from multiple segmentsx
      * @return array of star tree documents
      */
     StarTreeDocument[] getSegmentsStarTreeDocuments(List<StarTreeValues> starTreeValuesSubs) throws IOException {

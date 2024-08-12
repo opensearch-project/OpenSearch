@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.meta;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;
 
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.index.DocValuesType;
@@ -23,7 +23,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.Version;
-import org.opensearch.index.codec.composite.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
@@ -31,6 +30,7 @@ import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.MetricAggregatorInfo;
+import org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.COMPOSITE_FIELD_MARKER;
-import static org.opensearch.index.compositeindex.CompositeIndexConstants.VERSION;
+import static org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter.VERSION_CURRENT;
 import static org.opensearch.index.mapper.CompositeMappedFieldType.CompositeFieldType.STAR_TREE;
 
 public class StarTreeMetaTests extends OpenSearchTestCase {
@@ -159,7 +159,7 @@ public class StarTreeMetaTests extends OpenSearchTestCase {
         // reading and asserting the metadata
         metaIn = directory.openInput("star-tree-metadata", IOContext.READONCE);
         assertEquals(COMPOSITE_FIELD_MARKER, metaIn.readLong());
-        assertEquals(VERSION, metaIn.readVInt());
+        assertEquals(VERSION_CURRENT, metaIn.readVInt());
 
         String compositeFieldName = metaIn.readString();
         CompositeMappedFieldType.CompositeFieldType compositeFieldType = CompositeMappedFieldType.CompositeFieldType.fromName(

@@ -11,7 +11,7 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 
 import java.io.Closeable;
 import java.io.IOException;

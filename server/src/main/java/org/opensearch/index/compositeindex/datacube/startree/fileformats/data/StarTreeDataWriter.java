@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.data;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.data;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Queue;
 
 import static org.opensearch.index.compositeindex.CompositeIndexConstants.COMPOSITE_FIELD_MARKER;
-import static org.opensearch.index.compositeindex.CompositeIndexConstants.VERSION;
+import static org.opensearch.index.compositeindex.datacube.startree.fileformats.StarTreeWriter.VERSION_CURRENT;
 import static org.opensearch.index.compositeindex.datacube.startree.node.FixedLengthStarTreeNode.SERIALIZABLE_DATA_SIZE_IN_BYTES;
 import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils.ALL;
 
@@ -81,7 +81,7 @@ public class StarTreeDataWriter {
      */
     private static void writeStarTreeHeader(IndexOutput output, int numNodes) throws IOException {
         output.writeLong(COMPOSITE_FIELD_MARKER);
-        output.writeInt(VERSION);
+        output.writeInt(VERSION_CURRENT);
         output.writeInt(numNodes);
     }
 

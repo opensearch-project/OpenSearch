@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.meta;
+package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;
 
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 

@@ -7,8 +7,6 @@
  */
 
 /**
- * Writer package for star tree
- *
- * @opensearch.experimental
+ *  Responsible for handling all composite index codecs and operations associated with Composite99 codec
  */
-package org.opensearch.index.codec.composite.datacube.startree.fileformats.data;
+package org.opensearch.index.codec.composite.composite99;

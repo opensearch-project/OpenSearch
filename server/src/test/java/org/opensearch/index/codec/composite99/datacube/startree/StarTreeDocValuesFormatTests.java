@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.composite.datacube.startree;
+package org.opensearch.index.codec.composite99.datacube.startree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -16,23 +16,32 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Rounding;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.MapperTestUtils;
-import org.opensearch.index.codec.composite.Composite99Codec;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.codec.composite.CompositeIndexReader;
+import org.opensearch.index.codec.composite.composite99.Composite99Codec;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -40,6 +49,8 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.NumericDimension;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.SequentialDocValuesIterator;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.StarTreeMapper;
 import org.opensearch.indices.IndicesModule;
@@ -51,7 +62,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 
@@ -151,8 +164,88 @@ public class StarTreeDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         iw.forceMerge(1);
         iw.close();
 
-        // TODO : validate star tree structures that got created
+        DirectoryReader ir = maybeWrapWithMergingReader(DirectoryReader.open(directory));
+        TestUtil.checkReader(ir);
+        assertEquals(1, ir.leaves().size());
+        Map<String, List<Long>> expectedDimensionDocValues = getExpectedDimToValueMap();
+        Map<String, List<Long>> expectedMetricsDocValues = getExpectedMetricsToValueMap();
+        for (LeafReaderContext context : ir.leaves()) {
+            SegmentReader reader = Lucene.segmentReader(context.reader());
+            CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) reader.getDocValuesReader();
+            List<CompositeIndexFieldInfo> compositeIndexFields = starTreeDocValuesReader.getCompositeIndexFields();
+
+            for (CompositeIndexFieldInfo compositeIndexFieldInfo : compositeIndexFields) {
+                StarTreeValues starTreeValues = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(compositeIndexFieldInfo);
+
+                for (Map.Entry<String, DocIdSetIterator> entry : starTreeValues.getDimensionDocValuesIteratorMap().entrySet()) {
+                    List<Long> expectedDimDocValues = expectedDimensionDocValues.get(entry.getKey());
+                    SequentialDocValuesIterator sequentialDocValuesIterator = new SequentialDocValuesIterator(entry.getValue());
+                    assertNotNull(expectedDimDocValues);
+                    for (int i = 0; i < expectedDimDocValues.size(); i++) {
+                        int docId = sequentialDocValuesIterator.nextDoc(i);
+                        if (docId < i) {
+                            assertNull(expectedDimDocValues.get(i));
+                        } else if (docId == i) {
+                            assertEquals(sequentialDocValuesIterator.value(docId), expectedDimDocValues.get(i));
+                        }
+                    }
+                }
+
+                for (Map.Entry<String, DocIdSetIterator> entry : starTreeValues.getMetricDocValuesIteratorMap().entrySet()) {
+                    List<Long> expectedMetricDocValues = expectedMetricsDocValues.get(entry.getKey());
+                    SequentialDocValuesIterator sequentialDocValuesIterator = new SequentialDocValuesIterator(entry.getValue());
+                    assertNotNull(expectedMetricDocValues);
+                    for (int i = 0; i < expectedMetricDocValues.size(); i++) {
+                        int docId = sequentialDocValuesIterator.nextDoc(i);
+                        if (docId < i) {
+                            assertNull(expectedMetricDocValues.get(i));
+                        } else if (docId == i) {
+                            assertEquals(sequentialDocValuesIterator.value(docId), expectedMetricDocValues.get(i), 0);
+                        }
+                    }
+                }
+            }
+        }
+        ir.close();
         directory.close();
+    }
+
+    private static Map<String, List<Long>> getExpectedDimToValueMap() {
+        Map<String, List<Long>> expectedDimToValueMap = new HashMap<>();
+        List<Long> dimDocValues = new ArrayList<>();
+
+        dimDocValues.add(1L);
+        dimDocValues.add(1L);
+        dimDocValues.add(2L);
+        dimDocValues.add(2L);
+        expectedDimToValueMap.put("sndv", dimDocValues);
+
+        dimDocValues = new ArrayList<>();
+
+        dimDocValues.add(1L);
+        dimDocValues.add(1L);
+        dimDocValues.add(2L);
+        dimDocValues.add(2L);
+        expectedDimToValueMap.put("dv", dimDocValues);
+
+        return expectedDimToValueMap;
+    }
+
+    private static Map<String, List<Long>> getExpectedMetricsToValueMap() {
+        Map<String, List<Long>> expectedDimToValueMap = new HashMap<>();
+        List<Long> dimDocValues = new ArrayList<>();
+
+        dimDocValues.add(NumericUtils.doubleToSortableLong(2D));
+        dimDocValues.add(NumericUtils.doubleToSortableLong(2D));
+        expectedDimToValueMap.put("startree_field_count_metric", dimDocValues);
+
+        dimDocValues = new ArrayList<>();
+
+        dimDocValues.add(NumericUtils.doubleToSortableLong(2D));
+        dimDocValues.add(NumericUtils.doubleToSortableLong(4D));
+        expectedDimToValueMap.put("startree_field_sum_metric", dimDocValues);
+
+        return expectedDimToValueMap;
     }
 
     private XContentBuilder getExpandedMapping() throws IOException {

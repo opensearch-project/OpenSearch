@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.codec.composite.composite99.Composite99Codec;
 import org.opensearch.index.mapper.MapperService;
 
 import java.util.HashMap;
