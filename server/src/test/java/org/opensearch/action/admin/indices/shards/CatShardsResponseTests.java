@@ -1,11 +1,11 @@
 package org.opensearch.action.admin.indices.shards;
 
-import org.junit.Before;
-import org.junit.Test;
 import org.opensearch.action.admin.cluster.shards.CatShardsResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.ClusterName;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;

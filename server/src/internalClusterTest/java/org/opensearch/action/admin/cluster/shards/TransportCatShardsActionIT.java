@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 
 @OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
@@ -115,12 +116,7 @@ public class TransportCatShardsActionIT extends OpenSearchIntegTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                boolean timeoutException = (e.getClass() == TaskCancelledException.class);
-                if (e.getCause() != null) {
-                    timeoutException = timeoutException
-                        || (e.getCause().getMessage().contains("The parent task was cancelled, shouldn't start any child tasks"));
-                }
-                assertTrue(timeoutException);
+                assertSame(e.getClass(), TaskCancelledException.class);
                 latch.countDown();
             }
         });

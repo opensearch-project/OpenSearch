@@ -16,7 +16,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.CancellableTask;
@@ -33,32 +32,32 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
     private final NodeClient client;
 
     @Inject
-    public TransportCatShardsAction(
-        NodeClient client,
-        TransportService transportService,
-        ActionFilters actionFilters
-    ) {
+    public TransportCatShardsAction(NodeClient client, TransportService transportService, ActionFilters actionFilters) {
         super(CatShardsAction.NAME, transportService, actionFilters, CatShardsRequest::new);
         this.client = client;
     }
 
     @Override
-    public void doExecute(Task parenTask, CatShardsRequest shardsRequest, ActionListener<CatShardsResponse> listener) {
+    public void doExecute(Task parentTask, CatShardsRequest shardsRequest, ActionListener<CatShardsResponse> listener) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.setIsCancellationTaskRequired(true);
         clusterStateRequest.local(shardsRequest.getLocal());
         clusterStateRequest.clusterManagerNodeTimeout(shardsRequest.getClusterManagerNodeTimeout());
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(shardsRequest.getIndices());
 
-        clusterStateRequest.setParentTask(client.getLocalNodeId(), parenTask.getId());
-        listener = TimeoutTaskCancellationUtility.wrapAndHandleWithCancellationListener(
+        clusterStateRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
+        listener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
             client,
-            (CancellableTask) parenTask,
-            ((CancellableTask) parenTask).getCancellationTimeout(),
+            (CancellableTask) parentTask,
+            ((CancellableTask) parentTask).getCancellationTimeout(),
+            true,
             listener
         );
         CatShardsResponse catShardsResponse = new CatShardsResponse();
-        ActionListener<CatShardsResponse> cancellableListener = listener;
+        ActionListener<CatShardsResponse> cancellableListener = TimeoutTaskCancellationUtility.wrapWithCancellationCheck(
+            (CancellableTask) parentTask,
+            listener
+        );
         try {
             client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
                 @Override
@@ -68,32 +67,32 @@ public class TransportCatShardsAction extends HandledTransportAction<CatShardsRe
                     indicesStatsRequest.setIsCancellationTaskRequired(true);
                     indicesStatsRequest.all();
                     indicesStatsRequest.indices(shardsRequest.getIndices());
-                    indicesStatsRequest.setParentTask(client.getLocalNodeId(), parenTask.getId());
+                    indicesStatsRequest.setParentTask(client.getLocalNodeId(), parentTask.getId());
                     try {
                         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 catShardsResponse.setIndicesStatsResponse(indicesStatsResponse);
-                                if (!((CancellableTask) parenTask).isCancelled()) cancellableListener.onResponse(catShardsResponse);
+                                cancellableListener.onResponse(catShardsResponse);
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                if (!((CancellableTask) parenTask).isCancelled()) cancellableListener.onFailure(e);
+                                cancellableListener.onFailure(e);
                             }
                         });
                     } catch (Exception e) {
-                        if (!((CancellableTask) parenTask).isCancelled()) cancellableListener.onFailure(e);
+                        cancellableListener.onFailure(e);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (!((CancellableTask) parenTask).isCancelled()) cancellableListener.onFailure(e);
+                    cancellableListener.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            if (!((CancellableTask) parenTask).isCancelled()) cancellableListener.onFailure(e);
+            cancellableListener.onFailure(e);
         }
 
     }

@@ -15,7 +15,6 @@ import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -29,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
 /**
  * Utility to cancel a timeout task
@@ -45,76 +43,16 @@ public class TimeoutTaskCancellationUtility {
      * generic thread pool
      * @param client - {@link NodeClient}
      * @param taskToCancel - task to schedule cancellation for
-     * @param clusterSettings - {@link ClusterSettings}
+     * @param timeout - {@link TimeValue}
+     * @param failWhenTaskCancelled - boolean to indicate if exception should be thrown when task is cancelled
      * @param listener - original listener associated with the task
      * @return wrapped listener
      */
     public static <Response> ActionListener<Response> wrapWithCancellationListener(
         NodeClient client,
         CancellableTask taskToCancel,
-        ClusterSettings clusterSettings,
-        ActionListener<Response> listener
-    ) {
-        final TimeValue globalTimeout = clusterSettings.get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
-        final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null)
-            ? globalTimeout
-            : taskToCancel.getCancellationTimeout();
-        // Note: -1 (or no timeout) will help to turn off cancellation. The combinations will be request level set at -1 or request level
-        // set to null and cluster level set to -1.
-        ActionListener<Response> listenerToReturn = listener;
-        if (timeoutInterval.equals(SearchService.NO_TIMEOUT)) {
-            return listenerToReturn;
-        }
-
-        try {
-            final TimeoutRunnableListener<Response> wrappedListener = new TimeoutRunnableListener<>(timeoutInterval, listener, () -> {
-                final CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-                cancelTasksRequest.setTaskId(new TaskId(client.getLocalNodeId(), taskToCancel.getId()));
-                cancelTasksRequest.setReason("Cancellation timeout of " + timeoutInterval + " is expired");
-                // force the origin to execute the cancellation as a system user
-                new OriginSettingClient(client, TASKS_ORIGIN).admin()
-                    .cluster()
-                    .cancelTasks(
-                        cancelTasksRequest,
-                        ActionListener.wrap(
-                            r -> logger.debug(
-                                "Scheduled cancel task with timeout: {} for original task: {} is successfully completed",
-                                timeoutInterval,
-                                cancelTasksRequest.getTaskId()
-                            ),
-                            e -> logger.error(
-                                new ParameterizedMessage(
-                                    "Scheduled cancel task with timeout: {} for original task: {} is failed",
-                                    timeoutInterval,
-                                    cancelTasksRequest.getTaskId()
-                                ),
-                                e
-                            )
-                        )
-                    );
-            });
-            wrappedListener.cancellable = client.threadPool().schedule(wrappedListener, timeoutInterval, ThreadPool.Names.GENERIC);
-            listenerToReturn = wrappedListener;
-        } catch (Exception ex) {
-            // if there is any exception in scheduling the cancellation task then continue without it
-            logger.warn("Failed to schedule the cancellation task for original task: {}, will continue without it", taskToCancel.getId());
-        }
-        return listenerToReturn;
-    }
-
-    /**
-     * Wraps and handle a listener with a timeout listener {@link TimeoutRunnableListener} to schedule the task cancellation for provided tasks on
-     * generic thread pool
-     * @param client - {@link NodeClient}
-     * @param taskToCancel - task to schedule cancellation for
-     * @param timeout - {@link TimeValue}
-     * @param listener - original listener associated with the task
-     * @return wrapped listener
-     */
-    public static <Response> ActionListener<Response> wrapAndHandleWithCancellationListener(
-        NodeClient client,
-        CancellableTask taskToCancel,
         TimeValue timeout,
+        boolean failWhenTaskCancelled,
         ActionListener<Response> listener
     ) {
         final TimeValue timeoutInterval = (taskToCancel.getCancellationTimeout() == null) ? timeout : taskToCancel.getCancellationTimeout();
@@ -141,7 +79,9 @@ public class TimeoutTaskCancellationUtility {
                                 timeoutInterval,
                                 cancelTasksRequest.getTaskId()
                             );
-                            listener.onFailure(new TaskCancelledException(cancelTasksRequest.getReason()));
+                            if (failWhenTaskCancelled) {
+                                listener.onFailure(new TaskCancelledException(cancelTasksRequest.getReason()));
+                            }
                         }
 
                         @Override
@@ -164,6 +104,31 @@ public class TimeoutTaskCancellationUtility {
             logger.warn("Failed to schedule the cancellation task for original task: {}, will continue without it", taskToCancel.getId());
         }
         return listenerToReturn;
+    }
+
+    /**
+    * Wraps a listener with a timeout listener {@link TimeoutRunnableListener} to schedule the task cancellation for provided tasks on
+    * generic thread pool
+    * @param task - {@link CancellableTask}
+    * @param listener - original listener associated with the task
+    * @return wrapped listener
+    */
+    public static <T> ActionListener<T> wrapWithCancellationCheck(CancellableTask task, ActionListener<T> listener) {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(T response) {
+                if (!task.isCancelled()) {
+                    listener.onResponse(response);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (!task.isCancelled()) {
+                    listener.onFailure(e);
+                }
+            }
+        };
     }
 
     /**

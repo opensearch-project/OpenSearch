@@ -222,13 +222,11 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
         this.isCancellationTaskRequired = isCancellationTaskRequired;
     }
 
-
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         if (this.isCancellationTaskRequired) {
             return new ClusterAdminTask(id, type, action, parentTaskId, headers);
-        }
-        else {
+        } else {
             return super.createTask(id, type, action, parentTaskId, headers);
         }
     }
