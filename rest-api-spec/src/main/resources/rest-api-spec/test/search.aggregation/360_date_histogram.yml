@@ -61,3 +61,44 @@ setup:
   - match: { aggregations.histo.buckets.8.doc_count: 1 }
   - match: { aggregations.histo.buckets.12.key_as_string: "2016-06-01T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.12.doc_count: 1 }
+
+---
+"Date histogram aggregation with filter query test":
+  - do:
+      bulk:
+        refresh: true
+        index: dhisto-agg-w-query
+        body:
+          - '{"index": {}}'
+          - '{"routing": "route1", "date": "2024-08-12"}'
+          - '{"index": {}}'
+          - '{"routing": "route1", "date": "2024-08-14"}'
+          - '{"index": {}}'
+          - '{"routing": "route1", "date": "2024-08-19"}'
+          - '{"index": {}}'
+          - '{"routing": "route2", "date": "2024-08-13"}'
+          - '{"index": {}}'
+          - '{"routing": "route2", "date": "2024-08-15"}'
+
+  - do:
+      search:
+        index: dhisto-agg-w-query
+        body:
+          query:
+            bool:
+              must:
+                match_all: {}
+              filter:
+                - terms:
+                    routing:
+                      - "route1"
+          aggregations:
+            weekHisto:
+              date_histogram:
+                field: date
+                calendar_interval: week
+          _source: false
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.weekHisto.buckets.0.doc_count: 2 }
+  - match: { aggregations.weekHisto.buckets.1.doc_count: 1 }
