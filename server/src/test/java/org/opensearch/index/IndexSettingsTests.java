@@ -805,6 +805,16 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         settings = new IndexSettings(metadata, Settings.EMPTY);
         assertTrue(settings.getUnmapFieldsBeyondTotalFieldsLimit());
+
+        Settings.Builder newSettings = Settings.builder()
+            .put(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), false)
+                    .build()
+            );
+        settings.updateIndexMetadata(newIndexMeta("index", newSettings.build()));
+        assertFalse(settings.getUnmapFieldsBeyondTotalFieldsLimit());
     }
 
     public void testRemoteTranslogStoreDefaultSetting() {

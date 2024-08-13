@@ -1201,85 +1201,166 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDynamicValueWithUnmapFieldsBeyondTotalLimit() throws Exception {
-        Settings settings = Settings.builder()
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
-            .build();
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.field("dynamic", "true");
-            b.startObject("properties");
-            {
-                b.startObject("foo");
-                b.field("type", "keyword");
-                b.endObject();
-                b.startObject("bar");
-                b.field("type", "keyword");
-                b.endObject();
-                b.startObject("zoo");
-                b.field("type", "keyword");
+        {
+            Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+                .build();
+            DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+                b.field("dynamic", "true");
+                b.startObject("properties");
+                {
+                    b.startObject("foo");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("bar");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("zoo");
+                    b.field("type", "keyword");
+                    b.endObject();
+                }
                 b.endObject();
             }
-            b.endObject();
+
+            ), settings);
+
+            ParsedDocument doc = mapper.parse(source(b -> b.field("test1", "baz")));
+            assertEquals(0, doc.rootDoc().getFields("test1").length);
         }
 
-        ), settings);
+        {
+            Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+                .build();
+            DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+                b.field("dynamic", "true");
+                b.startObject("properties");
+                {
+                    b.startObject("foo");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("bar");
+                    b.field("type", "keyword");
+                    b.endObject();
+                }
+                b.endObject();
+            }
 
-        ParsedDocument doc = mapper.parse(source(b -> b.field("test1", "baz")));
-        assertEquals(0, doc.rootDoc().getFields("test1").length);
+            ), settings);
+
+            // Add a string type field will add two fields into the mapping(text+keyword), so the field `test`
+            // will not be added to the mapping because of the total fields limit
+            ParsedDocument doc = mapper.parse(source(b -> b.field("test", "baz")));
+            assertEquals(0, doc.rootDoc().getFields("test").length);
+        }
     }
 
     public void testDynamicLongArrayWithUnmapFieldsBeyondTotalLimit() throws Exception {
-        Settings settings = Settings.builder()
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
-            .build();
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.field("dynamic", "true");
-            b.startObject("properties");
-            {
-                b.startObject("foo");
-                b.field("type", "keyword");
+        {
+            Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+                .build();
+            DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+                b.field("dynamic", "true");
+                b.startObject("properties");
+                {
+                    b.startObject("foo");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("bar");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("zoo");
+                    b.field("type", "keyword");
+                    b.endObject();
+                }
                 b.endObject();
-                b.startObject("bar");
-                b.field("type", "keyword");
-                b.endObject();
-                b.startObject("zoo");
-                b.field("type", "keyword");
-                b.endObject();
-            }
-            b.endObject();
-        }), settings);
+            }), settings);
 
-        ParsedDocument doc = mapper.parse(source(b -> b.startArray("test").value(0).value(1).endArray()));
-        assertEquals(0, doc.rootDoc().getFields("test").length);
+            ParsedDocument doc = mapper.parse(source(b -> b.startArray("test").value(0).value(1).endArray()));
+            assertEquals(0, doc.rootDoc().getFields("test").length);
+        }
+
+        {
+            Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+                .build();
+            DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+                b.field("dynamic", "true");
+                b.startObject("properties");
+                {
+                    b.startObject("foo");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("bar");
+                    b.field("type", "keyword");
+                    b.endObject();
+                }
+                b.endObject();
+            }), settings);
+
+            ParsedDocument doc = mapper.parse(source(b -> b.startArray("test").value(0).value(1).endArray()));
+            assertEquals(2, doc.rootDoc().getFields("test").length);
+        }
     }
 
     public void testDynamicObjectWithUnmapFieldsBeyondTotalLimit() throws Exception {
-        Settings settings = Settings.builder()
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
-            .build();
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.field("dynamic", "true");
-            b.startObject("properties");
-            {
-                b.startObject("foo");
-                b.field("type", "keyword");
-                b.endObject();
-                b.startObject("bar");
-                b.field("type", "keyword");
-                b.endObject();
-                b.startObject("zoo");
-                b.field("type", "keyword");
+        {
+            Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+                .build();
+            DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+                b.field("dynamic", "true");
+                b.startObject("properties");
+                {
+                    b.startObject("foo");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("bar");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("zoo");
+                    b.field("type", "keyword");
+                    b.endObject();
+                }
                 b.endObject();
             }
-            b.endObject();
+
+            ), settings);
+
+            ParsedDocument doc = mapper.parse(source(b -> b.startObject("test").field("test1", "baz").endObject()));
+            assertEquals(0, doc.rootDoc().getFields("test.test1").length);
         }
 
-        ), settings);
+        {
+            Settings settings = Settings.builder()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
+                .build();
+            DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+                b.field("dynamic", "true");
+                b.startObject("properties");
+                {
+                    b.startObject("foo");
+                    b.field("type", "keyword");
+                    b.endObject();
+                    b.startObject("bar");
+                    b.field("type", "keyword");
+                    b.endObject();
+                }
+                b.endObject();
+            }
 
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject("test").field("test1", "baz").endObject()));
-        assertEquals(0, doc.rootDoc().getFields("test.test1").length);
+            ), settings);
+
+            ParsedDocument doc = mapper.parse(source(b -> b.startObject("test").field("test1", "baz").endObject()));
+            assertEquals(0, doc.rootDoc().getFields("test.test1").length);
+        }
     }
 
     public void testDynamicStrictAllowTemplatesValueWithUnmapFieldsBeyondTotalLimit() throws Exception {
@@ -1406,33 +1487,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("test").field("test1", "baz").endObject()));
         assertEquals(0, doc.rootDoc().getFields("test.test1").length);
-    }
-
-    public void testCannotAddNewFieldWithUnmapFieldsBeyondTotalLimit() throws Exception {
-        Settings settings = Settings.builder()
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 3)
-            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_UNMAP_FIELDS_BEYONGD_LIMIT_SETTING.getKey(), true)
-            .build();
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
-            b.field("dynamic", "true");
-            b.startObject("properties");
-            {
-                b.startObject("foo");
-                b.field("type", "keyword");
-                b.endObject();
-                b.startObject("bar");
-                b.field("type", "keyword");
-                b.endObject();
-            }
-            b.endObject();
-        }
-
-        ), settings);
-
-        // Add a string type field will add two fields into the mapping(text+keyword), so the field `test`
-        // will not be added to the mapping because of the total fields limit
-        ParsedDocument doc = mapper.parse(source(b -> b.field("test", "baz")));
-        assertEquals(0, doc.rootDoc().getFields("test").length);
     }
 
     public void testDynamicStrictAllowTemplatesNull() throws Exception {
