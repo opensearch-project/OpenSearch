@@ -676,6 +676,8 @@ setup:
 
 ---
 "Filter query w/ aggregation test":
+  - skip:
+    version: " - 2.16.99"
   - do:
       bulk:
         refresh: true

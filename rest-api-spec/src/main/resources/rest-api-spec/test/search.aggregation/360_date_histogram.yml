@@ -64,6 +64,9 @@ setup:
 
 ---
 "Date histogram aggregation w/ filter query test":
+  - skip:
+    version: " - 2.16.99"
+
   - do:
       bulk:
         refresh: true
@@ -105,6 +108,9 @@ setup:
 
 ---
 "Date histogram aggregation w/ shared field range test":
+  - skip:
+    version: " - 2.16.99"
+
   - do:
       bulk:
         refresh: true
@@ -145,3 +151,6 @@ setup:
   - match: { aggregations.monthHisto.buckets.1.doc_count: 2 }
   - match: { aggregations.monthHisto.buckets.2.doc_count: 1 }
   - match: { profile.shards.0.aggregations.0.debug.optimized_segments: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }
