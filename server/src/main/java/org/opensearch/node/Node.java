@@ -570,6 +570,7 @@ public class Node implements Closeable {
 
             runnableTaskListener = new AtomicReference<>();
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, executorBuilders.toArray(new ExecutorBuilder[0]));
+            pluginsService.initializePlugins(threadPool);
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);
@@ -1447,14 +1448,6 @@ public class Node implements Closeable {
             dynamicActionRegistry.registerUnmodifiableActionMap(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
             }));
             client.initialize(
-                dynamicActionRegistry,
-                () -> clusterService.localNode().getId(),
-                transportService.getRemoteClusterService(),
-                namedWriteableRegistry
-            );
-            pluginsService.initializePlugins(
-                settings,
-                threadPool,
                 dynamicActionRegistry,
                 () -> clusterService.localNode().getId(),
                 transportService.getRemoteClusterService(),

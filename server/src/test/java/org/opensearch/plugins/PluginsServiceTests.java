@@ -38,13 +38,10 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
-import org.opensearch.action.ActionModule;
 import org.opensearch.bootstrap.JarHell;
-import org.opensearch.client.node.PluginNodeClient;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
@@ -70,7 +67,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -934,32 +930,25 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         assertThat(exception, hasToString(containsString("Unable to load plugin class [DummyClass]")));
     }
 
-    public void testSetPluginNodeClient() {
+    public void testSetPluginSubject() {
         TestPlugin testPlugin = new TestPlugin();
-        PluginNodeClient pluginNodeClient = new PluginNodeClient(Settings.EMPTY, null, testPlugin);
-        testPlugin.setPluginNodeClient(pluginNodeClient); // should succeed
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginNodeClient(pluginNodeClient));
-        assertThat(e.getMessage(), containsString("pluginNodeClient can only be set once"));
+        PluginSubject testPluginSubject = new PluginSubject(testPlugin.getClass(), mock(ThreadPool.class));
+        testPlugin.setPluginSubject(testPluginSubject); // should succeed
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginSubject(testPluginSubject));
+        assertThat(e.getMessage(), containsString("pluginSubject can only be set once"));
     }
 
     public void testInitializePlugins() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         PluginsService service = newPluginsService(settings, TestPlugin.class);
 
-        service.initializePlugins(
-            Settings.EMPTY,
-            mock(ThreadPool.class),
-            mock(ActionModule.DynamicActionRegistry.class),
-            mock(Supplier.class),
-            null,
-            mock(NamedWriteableRegistry.class)
-        );
+        service.initializePlugins(mock(ThreadPool.class));
 
         Plugin testPlugin = service.filterPlugins(Plugin.class).get(0);
-        PluginNodeClient pluginNodeClient = new PluginNodeClient(Settings.EMPTY, null, testPlugin);
-        // pluginNodeClient should have previously been set in service.initializePlugins
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginNodeClient(pluginNodeClient));
-        assertThat(e.getMessage(), containsString("pluginNodeClient can only be set once"));
+        PluginSubject testPluginSubject = new PluginSubject(testPlugin.getClass(), mock(ThreadPool.class));
+        // pluginSubject should have previously been set in service.initializePlugins
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> testPlugin.setPluginSubject(testPluginSubject));
+        assertThat(e.getMessage(), containsString("pluginSubject can only be set once"));
     }
 
     public void testExtensiblePlugin() {

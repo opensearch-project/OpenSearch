@@ -88,4 +88,9 @@ public class ShiroSubject implements Subject {
             .orElseThrow(() -> new UnsupportedAuthenticationToken());
         shiroSubject.login(authToken);
     }
+
+    @Override
+    public Session runAs() {
+        return null;
+    }
 }

@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
+    private Client client;
     private ThreadPool threadPool;
 
     @Override
@@ -52,15 +53,16 @@ public class TestExecutionContextPlugin extends Plugin implements ActionPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        this.client = client;
         this.threadPool = threadPool;
-        return Collections.emptyList();
+        return Collections.singletonList(pluginSubject);
     }
 
     @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        return List.of(new TestGetExecutionContextRestAction(pluginNodeClient, threadPool));
+        return List.of(new TestGetExecutionContextRestAction(client));
     }
 
     @Override

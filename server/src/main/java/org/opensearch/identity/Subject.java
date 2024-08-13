@@ -5,6 +5,7 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.identity.tokens.AuthToken;
 
 import java.security.Principal;
@@ -29,4 +30,24 @@ public interface Subject {
      * throws SubjectDisabled
      */
     void authenticate(final AuthToken token);
+
+    /**
+     * runAs allows the caller to create a session as this subject
+     *
+     * @return A session to run transport actions in the context of this subject
+     */
+    Session runAs();
+
+    /**
+     * This construct represents a session for this subject. A session is a short-lived block
+     * where transport actions are executed as this subject
+     *
+     * @opensearch.api
+     */
+    @FunctionalInterface
+    @PublicApi(since = "2.17.0")
+    interface Session extends AutoCloseable {
+        @Override
+        void close();
+    }
 }

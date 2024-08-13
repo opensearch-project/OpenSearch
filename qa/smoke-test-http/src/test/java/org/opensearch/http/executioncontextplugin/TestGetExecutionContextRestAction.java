@@ -8,8 +8,9 @@
 
 package org.opensearch.http.executioncontextplugin;
 
+import org.opensearch.client.Client;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.client.node.PluginNodeClient;
+import org.opensearch.plugins.PluginSubject;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -22,12 +23,10 @@ import static org.opensearch.rest.RestRequest.Method.GET;
 
 public class TestGetExecutionContextRestAction extends BaseRestHandler {
 
-    private final PluginNodeClient pluginNodeClient;
-    private final ThreadPool threadPool;
+    private final Client client;
 
-    public TestGetExecutionContextRestAction(PluginNodeClient pluginNodeClient, ThreadPool threadPool) {
-        this.pluginNodeClient = pluginNodeClient;
-        this.threadPool = threadPool;
+    public TestGetExecutionContextRestAction(Client client) {
+        this.client = client;
     }
 
     @Override
@@ -43,6 +42,6 @@ public class TestGetExecutionContextRestAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final TestGetExecutionContextRequest getExecutionContextRequest = new TestGetExecutionContextRequest();
-        return channel -> pluginNodeClient.executeLocally(TestGetExecutionContextAction.INSTANCE, getExecutionContextRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TestGetExecutionContextAction.INSTANCE, getExecutionContextRequest, new RestToXContentListener<>(channel));
     }
 }

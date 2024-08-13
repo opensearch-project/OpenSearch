@@ -13,6 +13,8 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.identity.Subject;
+import org.opensearch.plugins.PluginSubject;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
@@ -23,16 +25,21 @@ import org.opensearch.transport.TransportService;
  */
 public class TestGetExecutionContextTransportAction extends HandledTransportAction<TestGetExecutionContextRequest, TestGetExecutionContextResponse> {
     private final TransportService transportService;
+    private final PluginSubject pluginSubject;
 
     @Inject
-    public TestGetExecutionContextTransportAction(TransportService transportService, ActionFilters actionFilters) {
+    public TestGetExecutionContextTransportAction(TransportService transportService, ActionFilters actionFilters, PluginSubject pluginSubject) {
         super(TestGetExecutionContextAction.NAME, transportService, actionFilters, TestGetExecutionContextRequest::new);
         this.transportService = transportService;
+        this.pluginSubject = pluginSubject;
     }
 
     @Override
     protected void doExecute(Task task, TestGetExecutionContextRequest request, ActionListener<TestGetExecutionContextResponse> listener) {
-        String pluginClassName = transportService.getThreadPool().getThreadContext().getHeader(ThreadContext.PLUGIN_EXECUTION_CONTEXT);
+        String pluginClassName;
+        try (Subject.Session session = pluginSubject.runAs()) {
+            pluginClassName = transportService.getThreadPool().getThreadContext().getHeader(PluginSubject.PLUGIN_EXECUTION_CONTEXT);
+        }
         listener.onResponse(new TestGetExecutionContextResponse(pluginClassName));
     }
 }

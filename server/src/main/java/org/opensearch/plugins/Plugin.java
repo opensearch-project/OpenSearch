@@ -34,7 +34,6 @@ package org.opensearch.plugins;
 
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
-import org.opensearch.client.node.PluginNodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -94,7 +93,7 @@ import java.util.function.UnaryOperator;
 @PublicApi(since = "1.0.0")
 public abstract class Plugin implements Closeable {
 
-    protected PluginNodeClient pluginNodeClient;
+    protected PluginSubject pluginSubject;
 
     /**
      * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link Metadata.Custom}; see
@@ -123,15 +122,15 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Setter for PluginNodeClient.
+     * Setter for PluginSubject.
      *
-     * @param pluginNodeClient A client for executing transport actions as the plugin
+     * @param pluginSubject A subject for executing transport actions as the plugin
      */
-    final void setPluginNodeClient(PluginNodeClient pluginNodeClient) {
-        if (this.pluginNodeClient != null) {
-            throw new IllegalStateException("pluginNodeClient can only be set once");
+    final void setPluginSubject(PluginSubject pluginSubject) {
+        if (this.pluginSubject != null) {
+            throw new IllegalStateException("pluginSubject can only be set once");
         }
-        this.pluginNodeClient = pluginNodeClient;
+        this.pluginSubject = pluginSubject;
     }
 
     /**
