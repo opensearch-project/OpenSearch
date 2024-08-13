@@ -36,17 +36,17 @@ import java.util.LinkedList;
  */
 public class JsonToStringXContentParser extends AbstractXContentParser {
     private final String fieldTypeName;
-    private XContentParser parser;
+    private final XContentParser parser;
 
-    private ArrayList<String> valueList = new ArrayList<>();
-    private ArrayList<String> valueAndPathList = new ArrayList<>();
-    private ArrayList<String> keyList = new ArrayList<>();
+    private final ArrayList<String> valueList = new ArrayList<>();
+    private final ArrayList<String> valueAndPathList = new ArrayList<>();
+    private final ArrayList<String> keyList = new ArrayList<>();
 
-    private XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent);
+    private final XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent);
 
-    private NamedXContentRegistry xContentRegistry;
+    private final NamedXContentRegistry xContentRegistry;
 
-    private DeprecationHandler deprecationHandler;
+    private final DeprecationHandler deprecationHandler;
 
     private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
     private static final String VALUE_SUFFIX = "._value";
@@ -66,9 +66,14 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     }
 
     public XContentParser parseObject() throws IOException {
+        assert currentToken() == Token.START_OBJECT;
+        parser.nextToken(); // Skip the outer START_OBJECT. Need to return on END_OBJECT.
+
         builder.startObject();
-        StringBuilder path = new StringBuilder(fieldTypeName);
-        parseToken(new LinkedList<>(Collections.singleton(fieldTypeName)));
+        LinkedList<String> path = new LinkedList<>(Collections.singleton(fieldTypeName));
+        while (currentToken() != Token.END_OBJECT) {
+            parseToken(path);
+        }
         builder.field(this.fieldTypeName, keyList);
         builder.field(this.fieldTypeName + VALUE_SUFFIX, valueList);
         builder.field(this.fieldTypeName + VALUE_AND_PATH_SUFFIX, valueAndPathList);
@@ -93,7 +98,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
             parseToken(path); // parse the value for fieldName (which will be an array, an object, or a primitive value)
             path.removeLast(); // Here is where we pop fieldName from the stack (since we're done with the value of fieldName)
             // Note that whichever other branch we just passed through has already ended with nextToken(), so we
-            // don't need ot call it.
+            // don't need to call it.
         } else if (this.parser.currentToken() == Token.START_ARRAY) {
             parser.nextToken();
             while (this.parser.currentToken() != Token.END_ARRAY) {

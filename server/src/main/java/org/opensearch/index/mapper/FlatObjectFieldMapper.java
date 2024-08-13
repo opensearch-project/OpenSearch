@@ -569,7 +569,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             String value = context.externalValue().toString();
             parseValueAddFields(context, value, fieldType().name());
         } else {
-            JsonToStringXContentParser JsonToStringParser = new JsonToStringXContentParser(
+            JsonToStringXContentParser jsonToStringParser = new JsonToStringXContentParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.IGNORE_DEPRECATIONS,
                 context.parser(),
@@ -579,7 +579,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
               JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
               It reads the JSON object and parsed to a list of string
              */
-            XContentParser parser = JsonToStringParser.parseObject();
+            XContentParser parser = jsonToStringParser.parseObject();
 
             XContentParser.Token currentToken;
             while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

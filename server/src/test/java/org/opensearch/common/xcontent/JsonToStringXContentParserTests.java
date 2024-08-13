@@ -19,7 +19,6 @@ import java.io.IOException;
 public class JsonToStringXContentParserTests extends OpenSearchTestCase {
 
     private String flattenJsonString(String fieldName, String in) throws IOException {
-        String transformed;
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 xContentRegistry(),
@@ -33,10 +32,11 @@ public class JsonToStringXContentParserTests extends OpenSearchTestCase {
                 parser,
                 fieldName
             );
-            // Skip the START_OBJECT token:
+            // Point to the first token (should be START_OBJECT)
             jsonToStringXContentParser.nextToken();
 
             XContentParser transformedParser = jsonToStringXContentParser.parseObject();
+            assertSame(XContentParser.Token.END_OBJECT, jsonToStringXContentParser.currentToken());
             try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
                 jsonBuilder.copyCurrentStructure(transformedParser);
                 return jsonBuilder.toString();
