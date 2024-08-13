@@ -65,8 +65,8 @@ setup:
 ---
 "Date histogram aggregation w/ filter query test":
   - skip:
-      version: " - 2.16.99"
-      reason: Fixed in 2.17 - backport to 2.16
+      version: " - 2.99.99"
+      reason: Backport fix to 2.16
 
   - do:
       bulk:
