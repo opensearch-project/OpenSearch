@@ -60,7 +60,7 @@ final class Helper {
      * Recursively unwraps query into the concrete form
      * for applying the optimization
      */
-    public static Query unwrapIntoConcreteQuery(Query query) {
+    static Query unwrapIntoConcreteQuery(Query query) {
         while (queryWrappers.containsKey(query.getClass())) {
             query = queryWrappers.get(query.getClass()).apply(query);
         }
