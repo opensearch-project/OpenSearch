@@ -4,7 +4,7 @@
       reason: "QueryGroup WorkloadManagement feature was added in 2.17"
 
   - do:
-      create_query_group_context:
+      query_group_context:
         body:
           {
             "name": "analytics",
@@ -22,7 +22,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      create_query_group_context:
+      query_group_context:
         body:
           {
             "name": "analytics",
@@ -35,7 +35,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      create_query_group_context:
+      query_group_context:
         body:
           {
             "name": "analytics2",
@@ -48,7 +48,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      create_query_group_context:
+      query_group_context:
         body:
           {
             "name": "analytics2",
@@ -61,7 +61,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      create_query_group_context:
+      query_group_context:
         body:
           {
             "name": "",
@@ -73,7 +73,7 @@
           }
 
   - do:
-      create_query_group_context:
+      query_group_context:
         body:
           {
             "name": "analytics2",

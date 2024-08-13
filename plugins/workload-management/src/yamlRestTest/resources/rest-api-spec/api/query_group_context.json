@@ -1,0 +1,30 @@
+{
+  "query_group_context": {
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_wlm/query_group",
+          "methods": ["PUT", "POST", "GET"],
+          "parts": {}
+        },
+        {
+          "path": "/_wlm/query_group/{name}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "QueryGroup name"
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The QueryGroup schema"
+    }
+  }
+}
