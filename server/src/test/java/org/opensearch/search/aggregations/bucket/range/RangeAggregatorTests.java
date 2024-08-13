@@ -36,14 +36,19 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -52,11 +57,11 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.DateFieldMapper;
+import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
-import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
@@ -123,6 +128,36 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             assertEquals(2, ranges.size());
             assertEquals(2, ranges.get(0).getDocCount());
             assertEquals(0, ranges.get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(range));
+        });
+    }
+
+    public void testTopLevelTermQuery() throws IOException {
+        final String KEYWORD_FIELD_NAME = "route";
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.setMinimumNumberShouldMatch(0);
+        builder.add(new TermQuery(new Term(KEYWORD_FIELD_NAME, "route1")), BooleanClause.Occur.MUST);
+        Query boolQuery = builder.build();
+
+        Document doc1 = new Document();
+        Document doc2 = new Document();
+        Document doc3 = new Document();
+        doc1.add(new NumericDocValuesField(NUMBER_FIELD_NAME, 3));
+        doc2.add(new NumericDocValuesField(NUMBER_FIELD_NAME, 11));
+        doc3.add(new NumericDocValuesField(NUMBER_FIELD_NAME, 12));
+        doc1.add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        doc2.add(new KeywordField(KEYWORD_FIELD_NAME, "route1", Field.Store.NO));
+        doc3.add(new KeywordField(KEYWORD_FIELD_NAME, "route2", Field.Store.NO));
+
+        testCase(boolQuery, iw -> {
+            iw.addDocument(doc1);
+            iw.addDocument(doc2);
+            iw.addDocument(doc3);
+        }, range -> {
+            List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+            assertEquals(2, ranges.size());
+            assertEquals(1, ranges.get(0).getDocCount());
+            assertEquals(1, ranges.get(1).getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(range));
         });
     }
@@ -483,7 +518,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testTopLevelTermQuery() throws IOException {
+    public void testTopLevelRangeQuery() throws IOException {
         NumberFieldType fieldType = new NumberFieldType(NumberType.INTEGER.typeName(), NumberType.INTEGER);
         String fieldName = fieldType.numberType().typeName();
         Query query = IntPoint.newRangeQuery(fieldName, 5, 20);
