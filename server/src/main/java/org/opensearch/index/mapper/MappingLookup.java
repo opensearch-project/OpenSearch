@@ -155,7 +155,6 @@ public final class MappingLookup implements Iterable<Mapper> {
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
         this.objectMappers = Collections.unmodifiableMap(objects);
         this.nonMetadataFieldCount = fieldMappers.size() + objectMappers.size() - metadataFieldCount;
-        this.dynamicFieldCount = this.nonMetadataFieldCount;
     }
 
     /**
