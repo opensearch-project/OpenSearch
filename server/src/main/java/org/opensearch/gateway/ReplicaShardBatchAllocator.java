@@ -173,7 +173,7 @@ public abstract class ReplicaShardBatchAllocator extends ReplicaShardAllocator {
         RoutingAllocation allocation,
         Supplier<Map<DiscoveryNode, StoreFilesMetadata>> nodeStoreFileMetaDataMapSupplier
     ) {
-        if (!isResponsibleFor(shardRouting)) {
+        if (!isResponsibleFor(shardRouting, false)) {
             return AllocateUnassignedDecision.NOT_TAKEN;
         }
         Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(shardRouting, allocation);

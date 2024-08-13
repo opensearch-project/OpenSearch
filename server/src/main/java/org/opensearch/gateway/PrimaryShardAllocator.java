@@ -79,16 +79,6 @@ import java.util.stream.Stream;
  * @opensearch.internal
  */
 public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
-    /**
-     * Is the allocator responsible for allocating the given {@link ShardRouting}?
-     */
-    protected static boolean isResponsibleFor(final ShardRouting shard) {
-        return shard.primary() // must be primary
-            && shard.unassigned() // must be unassigned
-            // only handle either an existing store or a snapshot recovery
-            && (shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE
-                || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT);
-    }
 
     /**
      * Skip doing fetchData call for a shard if recovery mode is snapshot. Also do not take decision if allocator is
@@ -99,7 +89,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * @return allocation decision taken for this shard
      */
     protected AllocateUnassignedDecision getInEligibleShardDecision(ShardRouting unassignedShard, RoutingAllocation allocation) {
-        if (isResponsibleFor(unassignedShard) == false) {
+        if (isResponsibleFor(unassignedShard, true) == false) {
             // this allocator is not responsible for allocating this shard
             return AllocateUnassignedDecision.NOT_TAKEN;
         }
