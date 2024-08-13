@@ -11,6 +11,7 @@ package org.apache.lucene.codecs.lucene90;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.opensearch.index.codec.composite.DocValuesProvider;
 
 import java.io.IOException;
 
@@ -21,7 +22,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-public class Lucene90DocValuesProducerWrapper {
+public class Lucene90DocValuesProducerWrapper implements DocValuesProvider {
 
     private final Lucene90DocValuesProducer lucene90DocValuesProducer;
     private final SegmentReadState state;
@@ -37,12 +38,15 @@ public class Lucene90DocValuesProducerWrapper {
         this.state = state;
     }
 
-    // returns the doc id set iterator based on field name
+    // returns the field doc id set iterator based on field name
+    @Override
     public SortedNumericDocValues getSortedNumeric(String fieldName) throws IOException {
         return this.lucene90DocValuesProducer.getSortedNumeric(state.fieldInfos.fieldInfo(fieldName));
     }
 
-    public Lucene90DocValuesProducer getLucene90DocValuesProducer() {
+    @Override
+    public DocValuesProducer getDocValuesProducer() {
         return lucene90DocValuesProducer;
     }
+
 }

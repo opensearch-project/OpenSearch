@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 
 public class SumValueAggregatorTests extends AbstractValueAggregatorTests {

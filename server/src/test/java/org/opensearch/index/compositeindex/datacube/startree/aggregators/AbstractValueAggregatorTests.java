@@ -10,6 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.aggregators;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeTestUtils;
 import org.opensearch.index.compositeindex.datacube.startree.aggregators.numerictype.StarTreeNumericType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;

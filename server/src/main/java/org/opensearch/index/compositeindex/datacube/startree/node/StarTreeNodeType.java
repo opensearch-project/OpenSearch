@@ -10,14 +10,27 @@ package org.opensearch.index.compositeindex.datacube.startree.node;
 
 /**
  * Represents the different types of nodes in a StarTree data structure.
+ *
  * <p>
  * In order to handle different node types, we use a byte value to represent the node type.
  * This enum provides a convenient way to map byte values to their corresponding node types.
+ *
  * <p>
  * Star and Null Nodes are represented as special cases. Default is the general case.
- * Star and Null nodes are represented with negative ordinals so that first node is Star, second node is Null Node
- * and the rest of the default nodes are sorted based on dimension values.
+ * Star and null nodes are represented with negative ordinal values to ensure that they are
+ * sorted before the default nodes, which are sorted based on their dimension values.
+ *
  * <p>
+ * The node type can be one of the following:
+ * <ul>
+ *     <li>Star Node: Represented by the value -2. A star node is a special node that represents
+ *     all possible values for a dimension.</li>
+ *     <li>Null Node: Represented by the value -1. A null node indicates the absence of any value
+ *     for a dimension.</li>
+ *     <li>Default Node: Represented by the value 0. A default node represents a node with an
+ *     actual dimension value.</li>
+ * </ul>
+ *
  * By default, we want to consider nodes as default node.
  *
  * @opensearch.experimental

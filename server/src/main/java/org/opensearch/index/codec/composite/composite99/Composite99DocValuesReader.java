@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene90.Lucene90DocValuesProducerWrapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocValues;
@@ -30,6 +29,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
+import org.opensearch.index.codec.composite.DocValuesProvider;
+import org.opensearch.index.codec.composite.LuceneDocValuesProducerFactory;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.MetricEntry;
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
@@ -64,7 +65,7 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
     private final Map<String, IndexInput> compositeIndexInputMap = new LinkedHashMap<>();
     private final Map<String, CompositeIndexMetadata> compositeIndexMetadataMap = new LinkedHashMap<>();
     private final List<String> fields;
-    private Lucene90DocValuesProducerWrapper compositeDocValuesProducer;
+    private DocValuesProvider compositeDocValuesProducer;
     private final List<CompositeIndexFieldInfo> compositeFieldInfos = new ArrayList<>();
     private final SegmentReadState readState;
 
@@ -185,13 +186,16 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
                 );
 
                 // initialize star-tree doc values producer
-                compositeDocValuesProducer = new Lucene90DocValuesProducerWrapper(
+
+                compositeDocValuesProducer = LuceneDocValuesProducerFactory.getDocValuesProducerForCompositeCodec(
+                    Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
                     segmentReadState,
                     Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
                     Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
                     Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
                     Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
                 );
+
             } catch (Throwable t) {
                 priorE = t;
             } finally {
@@ -242,7 +246,7 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
         boolean success = false;
         try {
             IOUtils.close(metaIn, dataIn);
-            IOUtils.close(compositeDocValuesProducer.getLucene90DocValuesProducer());
+            IOUtils.close(compositeDocValuesProducer.getDocValuesProducer());
             success = true;
         } finally {
             if (!success) {
@@ -290,10 +294,6 @@ public class Composite99DocValuesReader extends DocValuesProducer implements Com
      */
     public static SortedNumericDocValues getSortedNumericDocValues(SortedNumericDocValues sortedNumeric) {
         return sortedNumeric == null ? DocValues.emptySortedNumeric() : sortedNumeric;
-    }
-
-    public Lucene90DocValuesProducerWrapper getCompositeDocValuesProducer() {
-        return compositeDocValuesProducer;
     }
 
 }

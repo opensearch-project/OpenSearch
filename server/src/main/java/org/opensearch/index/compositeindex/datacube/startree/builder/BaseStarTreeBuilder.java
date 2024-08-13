@@ -171,16 +171,16 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             for (MetricStat metricStat : metric.getMetrics()) {
                 SequentialDocValuesIterator metricReader;
                 FieldInfo metricFieldInfo = state.fieldInfos.fieldInfo(metric.getField());
-                if (metricStat != MetricStat.COUNT) {
-                    if (metricFieldInfo == null) {
-                        metricFieldInfo = StarTreeUtils.getFieldInfo(metric.getField(), 1);
-                    }
-                    metricReader = new SequentialDocValuesIterator(
-                        fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
-                    );
-                } else {
-                    metricReader = new SequentialDocValuesIterator();
+                // if (metricStat != MetricStat.COUNT) {
+                if (metricFieldInfo == null) {
+                    metricFieldInfo = StarTreeUtils.getFieldInfo(metric.getField(), 1);
                 }
+                metricReader = new SequentialDocValuesIterator(
+                    fieldProducerMap.get(metricFieldInfo.name).getSortedNumeric(metricFieldInfo)
+                );
+                // } else {
+                // metricReader = new SequentialDocValuesIterator();
+                // }
 
                 metricReaders.add(metricReader);
             }
@@ -238,9 +238,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     ) throws IOException {
         int numSegmentStarTreeDocument = totalSegmentDocs;
 
-        while (starTreeDocumentIterator.hasNext()) {
-            appendToStarTree(starTreeDocumentIterator.next());
-        }
+        appendDocumentsToStarTree(starTreeDocumentIterator);
         int numStarTreeDocument = numStarTreeDocs;
         logger.debug("Generated star tree docs : [{}] from segment docs : [{}]", numStarTreeDocument, numSegmentStarTreeDocument);
 
@@ -267,6 +265,12 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         // serialize star-tree
         serializeStarTree(numStarTreeDocument);
+    }
+
+    void appendDocumentsToStarTree(Iterator<StarTreeDocument> starTreeDocumentIterator) throws IOException {
+        while (starTreeDocumentIterator.hasNext()) {
+            appendToStarTree(starTreeDocumentIterator.next());
+        }
     }
 
     private void serializeStarTree(int numSegmentStarTreeDocument) throws IOException {
@@ -759,9 +763,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         starNode.nodeType = StarTreeNodeType.STAR.getValue();
         starNode.startDocId = numStarTreeDocs;
         Iterator<StarTreeDocument> starTreeDocumentIterator = generateStarTreeDocumentsForStarNode(startDocId, endDocId, dimensionId);
-        while (starTreeDocumentIterator.hasNext()) {
-            appendToStarTree(starTreeDocumentIterator.next());
-        }
+        appendDocumentsToStarTree(starTreeDocumentIterator);
         starNode.endDocId = numStarTreeDocs;
         return starNode;
     }

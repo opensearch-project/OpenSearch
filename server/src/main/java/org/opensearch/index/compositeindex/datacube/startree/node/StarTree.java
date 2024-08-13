@@ -24,7 +24,7 @@ import static org.opensearch.index.compositeindex.datacube.startree.fileformats.
  *
  * @opensearch.experimental
  */
-public class StarTree implements Tree {
+public class StarTree {
     private static final Logger logger = LogManager.getLogger(StarTree.class);
     private final FixedLengthStarTreeNode root;
     private final Integer numNodes;
@@ -49,7 +49,6 @@ public class StarTree implements Tree {
         root = new FixedLengthStarTreeNode(in, 0);
     }
 
-    @Override
     public StarTreeNode getRoot() {
         return root;
     }

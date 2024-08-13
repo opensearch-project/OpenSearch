@@ -85,9 +85,17 @@ public interface StarTreeNode {
     boolean isLeaf();
 
     /**
-     * Checks if the current node is a star node, null node or a node with actual dimension value.
+     * Determines the type of the current node in the Star Tree index structure.
      *
-     * @return the node type value based on the star-tree node type
+     * <p>The node type can be one of the following:
+     * <ul>
+     *     <li>Star Node: Represented by the value -2.
+     *     <li>Null Node: Represented by the value -1.
+     *     <li>Default Node: Represented by the value 0.
+     * </ul>
+     * @see StarTreeNodeType
+     *
+     * @return The type of the current node, represented by the corresponding integer value (-2, -1, or 0).
      * @throws IOException if an I/O error occurs while reading the node type
      */
     byte getStarTreeNodeType() throws IOException;

@@ -8,10 +8,10 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.index;
 
-import org.apache.lucene.codecs.lucene90.Lucene90DocValuesProducerWrapper;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.codec.composite.DocValuesProvider;
 import org.opensearch.index.compositeindex.CompositeIndexMetadata;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -22,7 +22,6 @@ import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.Me
 import org.opensearch.index.compositeindex.datacube.startree.fileformats.meta.StarTreeMetadata;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTree;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
-import org.opensearch.index.compositeindex.datacube.startree.node.Tree;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +66,7 @@ public class StarTreeValues implements CompositeIndexValues {
     public StarTreeValues(
         CompositeIndexMetadata compositeIndexMetadata,
         IndexInput compositeIndexIn,
-        Lucene90DocValuesProducerWrapper compositeDocValuesProducer
+        DocValuesProvider compositeDocValuesProducer
     ) throws IOException {
 
         StarTreeMetadata starTreeMetadata = (StarTreeMetadata) compositeIndexMetadata;
@@ -102,7 +101,7 @@ public class StarTreeValues implements CompositeIndexValues {
             )
         );
 
-        Tree starTree = new StarTree(compositeIndexIn, starTreeMetadata);
+        StarTree starTree = new StarTree(compositeIndexIn, starTreeMetadata);
         this.root = starTree.getRoot();
 
         // get doc id set iterators for metrics and dimensions

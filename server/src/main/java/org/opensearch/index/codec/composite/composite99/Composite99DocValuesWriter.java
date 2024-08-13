@@ -11,7 +11,6 @@ package org.opensearch.index.codec.composite.composite99;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene90.Lucene90DocValuesConsumerWrapper;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
@@ -25,6 +24,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
+import org.opensearch.index.codec.composite.LuceneDocValuesConsumerFactory;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.builder.StarTreesBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
@@ -86,13 +86,14 @@ public class Composite99DocValuesWriter extends DocValuesConsumer {
 
         boolean success = false;
         try {
-            this.composite99DocValuesConsumer = new Lucene90DocValuesConsumerWrapper(
+            this.composite99DocValuesConsumer = LuceneDocValuesConsumerFactory.getDocValuesConsumerForCompositeCodec(
+                Composite99Codec.COMPOSITE_INDEX_CODEC_NAME,
                 segmentWriteState,
                 Composite99DocValuesFormat.DATA_DOC_VALUES_CODEC,
                 Composite99DocValuesFormat.DATA_DOC_VALUES_EXTENSION,
                 Composite99DocValuesFormat.META_DOC_VALUES_CODEC,
                 Composite99DocValuesFormat.META_DOC_VALUES_EXTENSION
-            ).getLucene90DocValuesConsumer();
+            );
 
             String dataFileName = IndexFileNames.segmentFileName(
                 segmentWriteState.segmentInfo.name,

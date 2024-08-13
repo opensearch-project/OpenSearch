@@ -58,13 +58,11 @@ public class StarTreeMetaWriter {
         writeMetaHeader(metaOut, CompositeMappedFieldType.CompositeFieldType.STAR_TREE, starTreeField.getName());
         writeMeta(metaOut, metricAggregatorInfos, starTreeField, segmentAggregatedCount, dataFilePointer, dataFileLength);
 
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                "Star tree meta size in bytes : {} for star-tree field {}",
-                metaOut.getFilePointer() - initialMetaFilePointer,
-                starTreeField.getName()
-            );
-        }
+        logger.debug(
+            "Star tree meta size in bytes : {} for star-tree field {}",
+            metaOut.getFilePointer() - initialMetaFilePointer,
+            starTreeField.getName()
+        );
     }
 
     /**

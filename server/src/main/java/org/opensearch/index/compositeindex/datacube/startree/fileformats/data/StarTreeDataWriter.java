@@ -49,9 +49,7 @@ public class StarTreeDataWriter {
         totalSizeInBytes += computeStarTreeDataHeaderByteSize();
         totalSizeInBytes += (long) numNodes * SERIALIZABLE_DATA_SIZE_IN_BYTES;
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("Star tree data size in bytes : {} for star-tree field {}", totalSizeInBytes, name);
-        }
+        logger.debug("Star tree data size in bytes : {} for star-tree field {}", totalSizeInBytes, name);
 
         writeStarTreeHeader(indexOutput, numNodes);
         writeStarTreeNodes(indexOutput, rootNode);
