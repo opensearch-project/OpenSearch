@@ -72,7 +72,9 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
 
     @Before
     public void initialize() throws IOException {
-        this.settingsArr = getSettingsArr();
+        final Path home = createTempDir();
+        copyHyphenationPatternsFile(home);
+        this.settingsArr = new Settings[] { getJsonSettings(home), getYamlSettings(home) };
     }
 
     public void testDefaultsCompoundAnalysis() throws Exception {
@@ -143,10 +145,6 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
         }));
     }
 
-    private Path createAndGetHomeDirectory() throws IOException {
-        return createTempDir();
-    }
-
     private void copyHyphenationPatternsFile(Path home) throws IOException {
         InputStream hyphenation_patterns_path = getClass().getResourceAsStream("da_UTF8.xml");
         Path config = home.resolve("config");
@@ -170,11 +168,5 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
             .build();
-    }
-
-    private Settings[] getSettingsArr() throws IOException {
-        Path home = createAndGetHomeDirectory();
-        copyHyphenationPatternsFile(home);
-        return new Settings[] { getJsonSettings(home), getYamlSettings(home) };
     }
 }
