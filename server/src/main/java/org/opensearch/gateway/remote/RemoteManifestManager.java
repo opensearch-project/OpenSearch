@@ -97,6 +97,7 @@ public class RemoteManifestManager {
         RemoteClusterStateUtils.UploadedMetadataResults uploadedMetadataResult,
         String previousClusterUUID,
         ClusterStateDiffManifest clusterDiffManifest,
+        ClusterStateChecksum clusterStateChecksum,
         boolean committed
     ) {
         synchronized (this) {
@@ -124,8 +125,10 @@ public class RemoteManifestManager {
                 .metadataVersion(clusterState.metadata().version())
                 .transientSettingsMetadata(uploadedMetadataResult.uploadedTransientSettingsMetadata)
                 .clusterStateCustomMetadataMap(uploadedMetadataResult.uploadedClusterStateCustomMetadataMap)
-                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings);
+                .hashesOfConsistentSettings(uploadedMetadataResult.uploadedHashesOfConsistentSettings)
+                .checksum(clusterStateChecksum);
             final ClusterMetadataManifest manifest = manifestBuilder.build();
+            logger.trace("uploading manifest [{}]", manifest);
             String manifestFileName = writeMetadataManifest(clusterState.metadata().clusterUUID(), manifest);
             return new RemoteClusterStateManifestInfo(manifest, manifestFileName);
         }

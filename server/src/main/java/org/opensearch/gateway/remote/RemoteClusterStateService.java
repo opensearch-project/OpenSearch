@@ -137,6 +137,13 @@ public class RemoteClusterStateService implements Closeable {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.remote_store.state.checksum_validation.enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private TimeValue remoteStateReadTimeout;
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
@@ -148,6 +155,7 @@ public class RemoteClusterStateService implements Closeable {
     private BlobStoreTransferService blobStoreTransferService;
     private RemoteRoutingTableService remoteRoutingTableService;
     private volatile TimeValue slowWriteLoggingThreshold;
+    private boolean checksumValidationEnabled;
 
     private final RemotePersistenceStats remoteStateStats;
     private RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
@@ -194,6 +202,9 @@ public class RemoteClusterStateService implements Closeable {
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
         this.remoteStateReadTimeout = clusterSettings.get(REMOTE_STATE_READ_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_STATE_READ_TIMEOUT_SETTING, this::setRemoteStateReadTimeout);
+        this.checksumValidationEnabled = clusterSettings.get(REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CHECKSUM_VALIDATION_ENABLED_SETTING, this::setChecksumValidationEnabled);
+
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
@@ -252,6 +263,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousClusterUUID,
             clusterStateDiffManifest,
+            checksumValidationEnabled ? new ClusterStateChecksum(clusterState) : null,
             false
         );
 
@@ -443,6 +455,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             clusterStateDiffManifest,
+            checksumValidationEnabled ? new ClusterStateChecksum(clusterState) : null,
             false
         );
 
@@ -878,6 +891,7 @@ public class RemoteClusterStateService implements Closeable {
             uploadedMetadataResults,
             previousManifest.getPreviousClusterUUID(),
             previousManifest.getDiffManifest(),
+            checksumValidationEnabled ? previousManifest.getClusterStateChecksum(): null,
             true
         );
         if (!previousManifest.isClusterUUIDCommitted() && committedManifestDetails.getClusterMetadataManifest().isClusterUUIDCommitted()) {
@@ -960,6 +974,10 @@ public class RemoteClusterStateService implements Closeable {
 
     private void setSlowWriteLoggingThreshold(TimeValue slowWriteLoggingThreshold) {
         this.slowWriteLoggingThreshold = slowWriteLoggingThreshold;
+    }
+
+    private void setChecksumValidationEnabled(Boolean checksumValidationEnabled) {
+        this.checksumValidationEnabled = checksumValidationEnabled;
     }
 
     // Package private for unit test
@@ -1312,7 +1330,7 @@ public class RemoteClusterStateService implements Closeable {
         boolean includeEphemeral
     ) throws IOException {
         if (manifest.onOrAfterCodecVersion(CODEC_V2)) {
-            return readClusterStateInParallel(
+            ClusterState clusterState =  readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),
                 manifest,
                 manifest.getClusterUUID(),
@@ -1331,6 +1349,11 @@ public class RemoteClusterStateService implements Closeable {
                 false,
                 includeEphemeral
             );
+
+            if (checksumValidationEnabled && manifest.getClusterStateChecksum()!=null) {
+                validateClusterStateFromChecksum(manifest.getClusterStateChecksum(), clusterState);
+            }
+            return clusterState;
         } else {
             ClusterState clusterState = readClusterStateInParallel(
                 ClusterState.builder(new ClusterName(clusterName)).build(),
@@ -1437,11 +1460,28 @@ public class RemoteClusterStateService implements Closeable {
             indexRoutingTables.remove(indexName);
         }
 
-        return clusterStateBuilder.stateUUID(manifest.getStateUUID())
+        ClusterState clusterState = clusterStateBuilder.stateUUID(manifest.getStateUUID())
             .version(manifest.getStateVersion())
             .metadata(metadataBuilder)
             .routingTable(new RoutingTable(manifest.getRoutingTableVersion(), indexRoutingTables))
             .build();
+
+        if (checksumValidationEnabled && manifest.getClusterStateChecksum()!=null) {
+            validateClusterStateFromChecksum(manifest.getClusterStateChecksum(), clusterState);
+        }
+        return clusterState;
+    }
+
+    private void validateClusterStateFromChecksum(ClusterStateChecksum clusterStateChecksum, ClusterState clusterState) {
+        ClusterStateChecksum newClusterStateChecksum = new ClusterStateChecksum(clusterState);
+        if (!newClusterStateChecksum.equals(clusterStateChecksum)) {
+            logger.error(
+                "Cluster state checksums do not match. Checksum from manifest {}, checksum from created cluster state {}",
+                clusterStateChecksum,
+                newClusterStateChecksum
+            );
+            throw new IllegalStateException("Cluster state checksums do not match.");
+        }
     }
 
     /**
