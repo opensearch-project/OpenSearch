@@ -52,7 +52,6 @@ public class TransportDeleteQueryGroupAction extends HandledTransportAction<Dele
     @Override
     protected void doExecute(Task task, DeleteQueryGroupRequest request, ActionListener<DeleteQueryGroupResponse> listener) {
         String name = request.getName();
-        threadPool.executor(ThreadPool.Names.GENERIC)
-            .execute(() -> queryGroupPersistenceService.deleteInClusterStateMetadata(name, listener));
+        threadPool.executor(ThreadPool.Names.SAME).execute(() -> queryGroupPersistenceService.deleteInClusterStateMetadata(name, listener));
     }
 }

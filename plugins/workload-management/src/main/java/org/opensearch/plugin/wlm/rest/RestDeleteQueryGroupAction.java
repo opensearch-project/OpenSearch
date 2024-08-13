@@ -48,7 +48,7 @@ public class RestDeleteQueryGroupAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "_wlm/query_group/{name}"), new Route(DELETE, "_wlm/query_group/"));
+        return List.of(new Route(DELETE, "_wlm/query_group/{name}"));
     }
 
     @Override

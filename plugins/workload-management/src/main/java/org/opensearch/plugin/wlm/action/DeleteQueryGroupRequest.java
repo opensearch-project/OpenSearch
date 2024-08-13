@@ -42,6 +42,11 @@ public class DeleteQueryGroupRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
+        if (name == null) {
+            ActionRequestValidationException actionRequestValidationException = new ActionRequestValidationException();
+            actionRequestValidationException.addValidationError("QueryGroup name is missing");
+            return actionRequestValidationException;
+        }
         return null;
     }
 
