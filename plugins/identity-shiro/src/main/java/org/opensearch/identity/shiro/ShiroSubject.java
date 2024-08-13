@@ -91,6 +91,6 @@ public class ShiroSubject implements Subject {
 
     @Override
     public Session runAs() {
-        return null;
+        return () -> {};
     }
 }

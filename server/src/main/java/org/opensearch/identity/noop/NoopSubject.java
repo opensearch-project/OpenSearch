@@ -57,6 +57,6 @@ public class NoopSubject implements Subject {
 
     @Override
     public Session runAs() {
-        return null;
+        return () -> {};
     }
 }
