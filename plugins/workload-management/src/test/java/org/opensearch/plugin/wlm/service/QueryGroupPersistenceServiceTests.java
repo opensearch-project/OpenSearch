@@ -28,9 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
-import org.opensearch.plugin.wlm.action.GetQueryGroupResponse;
 import org.opensearch.search.ResourceType;
-import org.opensearch.plugin.wlm.QueryGroupTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
