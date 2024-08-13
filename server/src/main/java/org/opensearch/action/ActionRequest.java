@@ -38,6 +38,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Base action request implemented by plugins.
@@ -56,6 +58,14 @@ public abstract class ActionRequest extends TransportRequest {
 
     public ActionRequest(StreamInput in) throws IOException {
         super(in);
+    }
+
+    /**
+     * Should be overwritten by implementing plugins with the resources each actionRequest requires.
+     * Bypasses resource evaluation by default.
+     */
+    public List<String> getResources() {
+        return Collections.emptyList();
     }
 
     public abstract ActionRequestValidationException validate();

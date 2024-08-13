@@ -1106,7 +1106,8 @@ public class TransportService extends AbstractLifecycleComponent
                 "cluster:monitor",
                 "cluster:internal",
                 "internal:",
-                "views:"
+                "views:",
+                "resource:"
             )
         )
     );
