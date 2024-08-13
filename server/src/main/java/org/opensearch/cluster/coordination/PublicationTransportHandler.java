@@ -68,6 +68,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_APPLY_FULL_STATE;
+
 /**
  * Transport handler for publication
  *
@@ -243,7 +245,12 @@ public class PublicationTransportHandler {
         }
         boolean applyFullState = false;
         final ClusterState lastSeen = lastSeenClusterState.get();
-        if (lastSeen == null) {
+        if (remoteClusterStateService.getRemotePublicationApplyFullState()) {
+            logger.debug(
+                () -> "Using full state for publication as " + REMOTE_PUBLICATION_APPLY_FULL_STATE.getKey() + " setting is enabled"
+            );
+            applyFullState = true;
+        } else if (lastSeen == null) {
             logger.debug(() -> "Diff cannot be applied as there is no last cluster state");
             applyFullState = true;
         } else if (manifest.getDiffManifest() == null) {

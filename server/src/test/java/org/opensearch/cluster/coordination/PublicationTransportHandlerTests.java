@@ -64,6 +64,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class PublicationTransportHandlerTests extends OpenSearchTestCase {
@@ -286,6 +288,37 @@ public class PublicationTransportHandlerTests extends OpenSearchTestCase {
         PublishWithJoinResponse publishWithJoinResponse = handler.handleIncomingRemotePublishRequest(remotePublishRequest);
         assertThat(publishWithJoinResponse, is(expectedPublishResponse));
         Mockito.verify(remoteClusterStateService, times(1)).getClusterMetadataManifestByFileName(Mockito.any(), Mockito.any());
+    }
+
+    public void testHandleIncomingRemotePublicationRequest_WhenApplyFullStateSettingEnabled() throws IOException {
+        RemoteClusterStateService remoteClusterStateService = mock(RemoteClusterStateService.class);
+
+        PublishWithJoinResponse expectedPublishResponse = new PublishWithJoinResponse(new PublishResponse(TERM, VERSION), Optional.empty());
+        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest = p -> expectedPublishResponse;
+        final PublicationTransportHandler handler = getPublicationTransportHandler(handlePublishRequest, remoteClusterStateService);
+        RemotePublishRequest remotePublishRequest = new RemotePublishRequest(
+            secondNode,
+            TERM,
+            VERSION,
+            CLUSTER_NAME,
+            CLUSTER_UUID,
+            MANIFEST_FILE
+        );
+        ClusterMetadataManifest manifest = ClusterMetadataManifest.builder().clusterTerm(TERM).stateVersion(VERSION).build();
+        when(remoteClusterStateService.getRemotePublicationApplyFullState()).thenReturn(true);
+        when(remoteClusterStateService.getClusterMetadataManifestByFileName(CLUSTER_UUID, MANIFEST_FILE)).thenReturn(manifest);
+        when(remoteClusterStateService.getClusterStateForManifest(CLUSTER_NAME, manifest, LOCAL_NODE_ID, true)).thenReturn(
+            buildClusterState(TERM, VERSION)
+        );
+        ClusterState clusterState = buildClusterState(TERM, VERSION);
+        PublishRequest publishRequest = new PublishRequest(clusterState);
+        handler.setCurrentPublishRequestToSelf(publishRequest);
+        PublishWithJoinResponse publishWithJoinResponse = handler.handleIncomingRemotePublishRequest(remotePublishRequest);
+        assertThat(publishWithJoinResponse, is(expectedPublishResponse));
+        verify(remoteClusterStateService, times(1)).getClusterMetadataManifestByFileName(Mockito.any(), Mockito.any());
+        verify(remoteClusterStateService, times(1)).getClusterStateForManifest(CLUSTER_NAME, manifest, LOCAL_NODE_ID, true);
+        verify(remoteClusterStateService, times(1)).getRemotePublicationApplyFullState();
+        verifyNoMoreInteractions(remoteClusterStateService);
     }
 
     private PublicationTransportHandler getPublicationTransportHandler(

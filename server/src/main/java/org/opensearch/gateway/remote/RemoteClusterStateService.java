@@ -137,6 +137,18 @@ public class RemoteClusterStateService implements Closeable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * If enabled, the remote publication flow will always apply full state and not use the diff.
+     * This is to be used as an andon cord in case we want to rebuild the full cluster state on nodes from remote.
+     * If disabled, we will use the diff manifest shared by cluster manager to build the cluster state on nodes.
+     */
+    public static final Setting<Boolean> REMOTE_PUBLICATION_APPLY_FULL_STATE = Setting.boolSetting(
+        "cluster.remote_publication.apply_full_state",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private TimeValue remoteStateReadTimeout;
     private final String nodeId;
     private final Supplier<RepositoriesService> repositoriesService;
@@ -148,6 +160,7 @@ public class RemoteClusterStateService implements Closeable {
     private BlobStoreTransferService blobStoreTransferService;
     private RemoteRoutingTableService remoteRoutingTableService;
     private volatile TimeValue slowWriteLoggingThreshold;
+    private boolean remotePublicationApplyFullState;
 
     private final RemotePersistenceStats remoteStateStats;
     private RemoteClusterStateCleanupManager remoteClusterStateCleanupManager;
@@ -194,6 +207,8 @@ public class RemoteClusterStateService implements Closeable {
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
         this.remoteStateReadTimeout = clusterSettings.get(REMOTE_STATE_READ_TIMEOUT_SETTING);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_STATE_READ_TIMEOUT_SETTING, this::setRemoteStateReadTimeout);
+        this.remotePublicationApplyFullState = clusterSettings.get(REMOTE_PUBLICATION_APPLY_FULL_STATE);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_PUBLICATION_APPLY_FULL_STATE, this::setRemotePublicationApplyFullState);
         this.remoteStateStats = new RemotePersistenceStats();
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.indexMetadataUploadListeners = indexMetadataUploadListeners;
@@ -241,17 +256,11 @@ public class RemoteClusterStateService implements Closeable {
             null
         );
 
-        ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
-            clusterState,
-            ClusterState.EMPTY_STATE,
-            null,
-            null
-        );
         final RemoteClusterStateManifestInfo manifestDetails = remoteManifestManager.uploadManifest(
             clusterState,
             uploadedMetadataResults,
             previousClusterUUID,
-            clusterStateDiffManifest,
+            null,
             false
         );
 
@@ -429,14 +438,18 @@ public class RemoteClusterStateService implements Closeable {
             routingTableIncrementalDiff.getDeletes()
         );
 
-        ClusterStateDiffManifest clusterStateDiffManifest = new ClusterStateDiffManifest(
-            clusterState,
-            previousClusterState,
-            routingTableIncrementalDiff,
-            uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null
-                ? uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
-                : null
-        );
+        ClusterStateDiffManifest clusterStateDiffManifest = null;
+        if (remotePublicationApplyFullState == false) {
+            logger.debug("skipping cluster state diff calculation as apply full state is enabled");
+            clusterStateDiffManifest = new ClusterStateDiffManifest(
+                clusterState,
+                previousClusterState,
+                routingTableIncrementalDiff,
+                uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata != null
+                    ? uploadedMetadataResults.uploadedIndicesRoutingDiffMetadata.getUploadedFilename()
+                    : null
+            );
+        }
 
         final RemoteClusterStateManifestInfo manifestDetails = remoteManifestManager.uploadManifest(
             clusterState,
@@ -1642,5 +1655,14 @@ public class RemoteClusterStateService implements Closeable {
 
     public RemotePersistenceStats getStats() {
         return remoteStateStats;
+    }
+
+    public void setRemotePublicationApplyFullState(boolean applyFullState) {
+        logger.info("Updating {} to: {}", REMOTE_PUBLICATION_APPLY_FULL_STATE.getKey(), applyFullState);
+        this.remotePublicationApplyFullState = applyFullState;
+    }
+
+    public boolean getRemotePublicationApplyFullState() {
+        return this.remotePublicationApplyFullState;
     }
 }

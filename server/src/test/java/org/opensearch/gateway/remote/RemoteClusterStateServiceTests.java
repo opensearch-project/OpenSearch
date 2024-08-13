@@ -111,6 +111,7 @@ import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V1;
 import static org.opensearch.gateway.remote.ClusterMetadataManifest.CODEC_V2;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_BLOCKS;
 import static org.opensearch.gateway.remote.RemoteClusterStateAttributesManager.CLUSTER_STATE_ATTRIBUTE;
+import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_PUBLICATION_APPLY_FULL_STATE;
 import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata1;
 import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata2;
 import static org.opensearch.gateway.remote.RemoteClusterStateTestUtils.CustomMetadata3;
@@ -170,6 +171,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
@@ -789,6 +791,45 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getCoordinationMetadata(), notNullValue());
         assertThat(manifest.getCustomMetadataMap().size(), is(2));
         assertThat(manifest.getIndicesRouting().size(), is(1));
+        assertNotNull(manifest.getDiffManifest());
+    }
+
+    public void testWriteIncrementalMetadataNotSendDiffIfApplyFullStateEnabled() throws IOException {
+        Settings nodeSettings = Settings.builder().put(REMOTE_PUBLICATION_EXPERIMENTAL, true).build();
+        FeatureFlags.initializeFeatureFlags(nodeSettings);
+        Settings applyFullStateSetting = Settings.builder().put(REMOTE_PUBLICATION_APPLY_FULL_STATE.getKey(), true).build();
+        clusterSettings.applySettings(applyFullStateSetting);
+        remoteClusterStateService = new RemoteClusterStateService(
+            "test-node-id",
+            repositoriesServiceSupplier,
+            settings,
+            clusterService,
+            () -> 0L,
+            threadPool,
+            List.of(new RemoteIndexPathUploader(threadPool, settings, repositoriesServiceSupplier, clusterSettings)),
+            writableRegistry()
+        );
+        final ClusterState clusterState = generateClusterStateWithOneIndex().nodes(nodesWithLocalNodeClusterManager()).build();
+        mockBlobStoreObjects();
+        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder().term(1L).build();
+        final ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().coordinationMetadata(coordinationMetadata))
+            .build();
+
+        final ClusterMetadataManifest previousManifest = ClusterMetadataManifest.builder().indices(Collections.emptyList()).build();
+
+        remoteClusterStateService.start();
+        ClusterStateDiffManifest mockCSDM = mock(ClusterStateDiffManifest.class);
+        final RemoteClusterStateService rcssSpy = Mockito.spy(remoteClusterStateService);
+        final RemoteClusterStateManifestInfo manifestInfo = rcssSpy.writeIncrementalMetadata(
+            previousClusterState,
+            clusterState,
+            previousManifest
+        );
+        final ClusterMetadataManifest manifest = manifestInfo.getClusterMetadataManifest();
+
+        assertNull(manifest.getDiffManifest());
+        verifyNoInteractions(mockCSDM);
     }
 
     public void testTimeoutWhileWritingMetadata() throws IOException {
@@ -2858,6 +2899,14 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
         assertThat(manifest.getIndicesRouting().get(0).getIndexUUID(), is(uploadedIndiceRoutingMetadata.getIndexUUID()));
         assertThat(manifest.getIndicesRouting().get(0).getUploadedFilename(), notNullValue());
         assertThat(manifest.getDiffManifest().getIndicesRoutingDiffPath(), nullValue());
+    }
+
+    public void testRemotePublicationApplyFullState() {
+        assertFalse(remoteClusterStateService.getRemotePublicationApplyFullState());
+        Settings newSetting = Settings.builder().put(REMOTE_PUBLICATION_APPLY_FULL_STATE.getKey(), true).build();
+        clusterSettings.applySettings(newSetting);
+
+        assertTrue(remoteClusterStateService.getRemotePublicationApplyFullState());
     }
 
     private void initializeRoutingTable() {
