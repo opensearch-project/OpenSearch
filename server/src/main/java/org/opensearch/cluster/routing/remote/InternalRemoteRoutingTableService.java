@@ -20,14 +20,15 @@ import org.opensearch.cluster.routing.RoutingTableIncrementalDiff;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.remote.RemoteWritableEntityStore;
+import org.opensearch.common.remote.RemoteWriteableEntityBlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.RemoteClusterStateUtils;
 import org.opensearch.gateway.remote.RemoteStateTransferException;
-import org.opensearch.gateway.remote.model.RemoteClusterStateBlobStore;
 import org.opensearch.gateway.remote.model.RemoteRoutingTableBlobStore;
 import org.opensearch.gateway.remote.routingtable.RemoteIndexRoutingTable;
 import org.opensearch.gateway.remote.routingtable.RemoteRoutingTableDiff;
@@ -261,12 +262,13 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             clusterSettings
         );
 
-        this.remoteRoutingTableDiffStore = new RemoteClusterStateBlobStore<>(
+        this.remoteRoutingTableDiffStore = new RemoteWriteableEntityBlobStore<>(
             new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
             blobStoreRepository,
             clusterName,
             threadPool,
-            ThreadPool.Names.REMOTE_STATE_READ
+            ThreadPool.Names.REMOTE_STATE_READ,
+            RemoteClusterStateUtils.CLUSTER_STATE_PATH_TOKEN
         );
     }
 
