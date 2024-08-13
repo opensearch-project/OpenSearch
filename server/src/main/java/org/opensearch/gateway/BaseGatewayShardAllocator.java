@@ -38,7 +38,6 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.AllocationDecision;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -91,7 +90,7 @@ public abstract class BaseGatewayShardAllocator {
             ShardRouting unassignedShard = iterator.next();
             AllocateUnassignedDecision allocationDecision;
             if (unassignedShard.primary() == primary && shardIds.contains(unassignedShard.shardId())) {
-                if (isResponsibleFor(unassignedShard, primary) == false) {
+                if (isResponsibleFor(unassignedShard) == false) {
                     continue;
                 }
                 allocationDecision = AllocateUnassignedDecision.throttle(null);
@@ -103,20 +102,7 @@ public abstract class BaseGatewayShardAllocator {
     /**
      * Is the allocator responsible for allocating the given {@link ShardRouting}?
      */
-    protected static boolean isResponsibleFor(final ShardRouting shard, boolean primary) {
-        if (primary) {
-            return shard.primary() // must be primary
-                && shard.unassigned() // must be unassigned
-                // only handle either an existing store or a snapshot recovery
-                && (shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE
-                    || shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT);
-        } else {
-            return shard.primary() == false // must be a replica
-                && shard.unassigned() // must be unassigned
-                // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                && shard.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED;
-        }
-    }
+    protected abstract boolean isResponsibleFor(ShardRouting shardRouting);
 
     protected void executeDecision(
         ShardRouting shardRouting,
