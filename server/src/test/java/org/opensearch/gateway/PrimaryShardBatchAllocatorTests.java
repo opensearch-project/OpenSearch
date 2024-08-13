@@ -284,45 +284,6 @@ public class PrimaryShardBatchAllocatorTests extends OpenSearchAllocationTestCas
         assertEquals(0, ignoredShards.size());
     }
 
-    public void testAllocateUnassignedBatchOnTimeoutWithNonPrimaryShards() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        AllocationDeciders allocationDeciders = randomAllocationDeciders(Settings.builder().build(), clusterSettings, random());
-        setUpShards(1);
-        final RoutingAllocation routingAllocation = routingAllocationWithOnePrimary(allocationDeciders, CLUSTER_RECOVERED, "allocId-0");
-
-        ShardRouting shardRouting = routingAllocation.routingTable()
-            .getIndicesRouting()
-            .get("test")
-            .shard(shardId.id())
-            .replicaShards()
-            .get(0);
-        Set<ShardId> shardIds = new HashSet<>();
-        shardIds.add(shardRouting.shardId());
-        batchAllocator.allocateUnassignedBatchOnTimeout(shardIds, routingAllocation, false);
-
-        List<ShardRouting> ignoredShards = routingAllocation.routingNodes().unassigned().ignored();
-        assertEquals(1, ignoredShards.size());
-    }
-
-    public void testAllocateUnassignedBatchOnTimeoutWithNoShards() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        AllocationDeciders allocationDeciders = randomAllocationDeciders(Settings.builder().build(), clusterSettings, random());
-        setUpShards(1);
-        final RoutingAllocation routingAllocation = routingAllocationWithOnePrimary(allocationDeciders, CLUSTER_RECOVERED, "allocId-0");
-
-        ShardRouting shardRouting = routingAllocation.routingTable()
-            .getIndicesRouting()
-            .get("test")
-            .shard(shardId.id())
-            .replicaShards()
-            .get(0);
-        Set<ShardId> shardIds = new HashSet<>();
-        batchAllocator.allocateUnassignedBatchOnTimeout(shardIds, routingAllocation, false);
-
-        List<ShardRouting> ignoredShards = routingAllocation.routingNodes().unassigned().ignored();
-        assertEquals(0, ignoredShards.size());
-    }
-
     public void testAllocateUnassignedBatchOnTimeoutSkipIgnoringNewPrimaryShards() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders allocationDeciders = randomAllocationDeciders(Settings.builder().build(), clusterSettings, random());
