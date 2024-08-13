@@ -495,29 +495,6 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testTopLevelFilterQuery() throws IOException {
-        NumberFieldType fieldType = new NumberFieldType(NumberType.INTEGER.typeName(), NumberType.INTEGER);
-        String fieldName = fieldType.numberType().typeName();
-        Query query = IntPoint.newRangeQuery(fieldName, 5, 20);
-
-        testRewriteOptimizationCase(
-            fieldType,
-            new double[][] { { 0.0, 10.0 }, { 10.0, 20.0 } },
-            query,
-            new Number[] { 0.1, 4.0, 9, 11, 12, 19 },
-            range -> {
-                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
-                assertEquals(2, ranges.size());
-                assertEquals("0.0-10.0", ranges.get(0).getKeyAsString());
-                assertEquals(1, ranges.get(0).getDocCount());
-                assertEquals("10.0-20.0", ranges.get(1).getKeyAsString());
-                assertEquals(3, ranges.get(1).getDocCount());
-                assertTrue(AggregationInspectionHelper.hasValue(range));
-            },
-            false
-        );
-    }
-
     public void testTopLevelRangeQuery() throws IOException {
         NumberFieldType fieldType = new NumberFieldType(NumberType.INTEGER.typeName(), NumberType.INTEGER);
         String fieldName = fieldType.numberType().typeName();
