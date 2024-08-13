@@ -701,7 +701,11 @@ public class GatewayMetaState implements Closeable {
         public void setLastAcceptedState(ClusterState clusterState) {
             try {
                 final RemoteClusterStateManifestInfo manifestDetails;
-                if (shouldWriteFullClusterState(clusterState)) {
+                // Decide the codec version
+                int codecVersion = ClusterMetadataManifest.getCodecForVersion(clusterState.nodes().getMinNodeVersion());
+                assert codecVersion >= 0 : codecVersion;
+
+                if (shouldWriteFullClusterState(clusterState, codecVersion)) {
                     final Optional<ClusterMetadataManifest> latestManifest = remoteClusterStateService.getLatestClusterMetadataManifest(
                         clusterState.getClusterName().value(),
                         clusterState.metadata().clusterUUID()
@@ -718,7 +722,7 @@ public class GatewayMetaState implements Closeable {
                             clusterState.metadata().clusterUUID()
                         );
                     }
-                    manifestDetails = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID);
+                    manifestDetails = remoteClusterStateService.writeFullMetadata(clusterState, previousClusterUUID, codecVersion);
                 } else {
                     assert verifyManifestAndClusterState(lastAcceptedManifest, lastAcceptedState) == true
                         : "Previous manifest and previous ClusterState are not in sync";
@@ -758,11 +762,11 @@ public class GatewayMetaState implements Closeable {
             return true;
         }
 
-        private boolean shouldWriteFullClusterState(ClusterState clusterState) {
+        private boolean shouldWriteFullClusterState(ClusterState clusterState, int codecVersion) {
             if (lastAcceptedState == null
                 || lastAcceptedManifest == null
                 || lastAcceptedState.term() != clusterState.term()
-                || lastAcceptedManifest.getOpensearchVersion() != Version.CURRENT) {
+                || lastAcceptedManifest.getCodecVersion() != codecVersion) {
                 return true;
             }
             return false;

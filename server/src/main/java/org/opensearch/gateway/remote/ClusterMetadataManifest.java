@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote;
 
+import java.util.Map.Entry;
 import org.opensearch.Version;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
@@ -45,6 +46,16 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
     // also we introduce index routing-metadata, diff and other attributes as part of manifest
     // required for state publication
     public static final int CODEC_V3 = 3; // In Codec V3, we have introduced new diff field in diff-manifest's routing_table_diff
+
+    private static final Map<Version, Integer> CODEC_TO_VERSION_MAPPING = Map.of(Version.V_2_16_0,
+        ClusterMetadataManifest.CODEC_V3,
+        Version.V_2_15_0,
+        ClusterMetadataManifest.CODEC_V2,
+        Version.V_2_12_0,
+        ClusterMetadataManifest.CODEC_V1,
+        Version.V_2_10_0,
+        ClusterMetadataManifest.CODEC_V0
+    );
 
     private static final ParseField CLUSTER_TERM_FIELD = new ParseField("cluster_term");
     private static final ParseField STATE_VERSION_FIELD = new ParseField("state_version");
@@ -243,6 +254,20 @@ public class ClusterMetadataManifest implements Writeable, ToXContentFragment {
         declareParser(PARSER_V1, CODEC_V1);
         declareParser(PARSER_V2, CODEC_V2);
         declareParser(PARSER_V3, CODEC_V3);
+    }
+
+    public static Integer getCodecForVersion(Version version) {
+        Integer codecVersion = -1;
+        Version maxVersion = Version.V_EMPTY;
+        for (Entry<Version, Integer> entry : CODEC_TO_VERSION_MAPPING.entrySet()) {
+            Version key = entry.getKey();
+            Integer value = entry.getValue();
+            if (version.onOrAfter(key) && key.onOrAfter(maxVersion)) {
+                maxVersion = key;
+                codecVersion = value;
+            }
+        }
+        return codecVersion;
     }
 
     private static void declareParser(ConstructingObjectParser<ClusterMetadataManifest, Void> parser, long codec_version) {
