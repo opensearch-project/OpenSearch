@@ -120,10 +120,7 @@ public class MinHashFilterFactoryTests extends OpenSearchTokenStreamTestCase {
     }
 
     private static OpenSearchTestCase.TestAnalysis getTestAnalysisFromSettings(Settings settingsWithBucketCount) throws IOException {
-        return AnalysisTestsHelper.createTestAnalysisFromSettings(
-            settingsWithBucketCount,
-            new CommonAnalysisModulePlugin()
-        );
+        return AnalysisTestsHelper.createTestAnalysisFromSettings(settingsWithBucketCount, new CommonAnalysisModulePlugin());
     }
 
     private static Tokenizer getTokenizer(String sourceWithBucketCount) {
