@@ -35,7 +35,6 @@ package org.opensearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -51,6 +50,7 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
