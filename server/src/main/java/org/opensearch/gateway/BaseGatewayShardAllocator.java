@@ -90,11 +90,19 @@ public abstract class BaseGatewayShardAllocator {
             ShardRouting unassignedShard = iterator.next();
             AllocateUnassignedDecision allocationDecision;
             if (unassignedShard.primary() == primary && shardIds.contains(unassignedShard.shardId())) {
+                if (isResponsibleFor(unassignedShard) == false) {
+                    continue;
+                }
                 allocationDecision = AllocateUnassignedDecision.throttle(null);
                 executeDecision(unassignedShard, allocationDecision, allocation, iterator);
             }
         }
     }
+
+    /**
+     * Is the allocator responsible for allocating the given {@link ShardRouting}?
+     */
+    protected abstract boolean isResponsibleFor(ShardRouting shardRouting);
 
     protected void executeDecision(
         ShardRouting shardRouting,
