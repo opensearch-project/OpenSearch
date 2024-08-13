@@ -160,7 +160,6 @@ public final class ThreadContext implements Writeable {
          */
 
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putPersistent(context.persistentHeaders);
-        threadContextStruct.setSystemContext(propagators);
 
         if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
             threadContextStruct = threadContextStruct.putHeaders(

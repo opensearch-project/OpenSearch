@@ -136,7 +136,7 @@ public class NodeClient extends AbstractClient {
      * Get the {@link TransportAction} for an {@link ActionType}, throwing exceptions if the action isn't available.
      */
     @SuppressWarnings("unchecked")
-    protected <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
+    private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
         ActionType<Response> action
     ) {
         if (actionRegistry == null) {
