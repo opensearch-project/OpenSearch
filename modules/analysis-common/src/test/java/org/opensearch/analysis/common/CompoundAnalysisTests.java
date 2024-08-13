@@ -35,6 +35,7 @@ package org.opensearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -66,9 +67,16 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CompoundAnalysisTests extends OpenSearchTestCase {
+
+    Settings[] settingsArr;
+
+    @Before
+    public void initialize() throws IOException {
+        this.settingsArr = getSettingsArr();
+    }
+
     public void testDefaultsCompoundAnalysis() throws Exception {
-        Settings[] settingsArr = getSettingsArr();
-        for (Settings settings : settingsArr) {
+        for (Settings settings : this.settingsArr) {
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
             AnalysisModule analysisModule = createAnalysisModule(settings);
             TokenFilterFactory filterFactory = analysisModule.getAnalysisRegistry().buildTokenFilterFactories(idxSettings).get("dict_dec");
@@ -77,8 +85,7 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
     }
 
     public void testDictionaryDecompounder() throws Exception {
-        Settings[] settingsArr = getSettingsArr();
-        for (Settings settings : settingsArr) {
+        for (Settings settings : this.settingsArr) {
             List<String> terms = analyze(settings, "decompoundingAnalyzer", "donaudampfschiff spargelcremesuppe");
             MatcherAssert.assertThat(terms.size(), equalTo(8));
             MatcherAssert.assertThat(
@@ -91,8 +98,7 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
     // Hyphenation Decompounder tests mimic the behavior of lucene tests
     // lucene/analysis/common/src/test/org/apache/lucene/analysis/compound/TestHyphenationCompoundWordTokenFilterFactory.java
     public void testHyphenationDecompounder() throws Exception {
-        Settings[] settingsArr = getSettingsArr();
-        for (Settings settings : settingsArr) {
+        for (Settings settings : this.settingsArr) {
             List<String> terms = analyze(settings, "hyphenationAnalyzer", "min veninde som er lidt af en læsehest");
             MatcherAssert.assertThat(terms.size(), equalTo(10));
             MatcherAssert.assertThat(terms, hasItems("min", "veninde", "som", "er", "lidt", "af", "en", "læsehest", "læse", "hest"));
@@ -102,8 +108,7 @@ public class CompoundAnalysisTests extends OpenSearchTestCase {
     // Hyphenation Decompounder tests mimic the behavior of lucene tests
     // lucene/analysis/common/src/test/org/apache/lucene/analysis/compound/TestHyphenationCompoundWordTokenFilterFactory.java
     public void testHyphenationDecompounderNoSubMatches() throws Exception {
-        Settings[] settingsArr = getSettingsArr();
-        for (Settings settings : settingsArr) {
+        for (Settings settings : this.settingsArr) {
             List<String> terms = analyze(settings, "hyphenationAnalyzerNoSubMatches", "basketballkurv");
             MatcherAssert.assertThat(terms.size(), equalTo(3));
             MatcherAssert.assertThat(terms, hasItems("basketballkurv", "basketball", "kurv"));
