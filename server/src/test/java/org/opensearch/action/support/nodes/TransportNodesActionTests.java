@@ -32,7 +32,6 @@
 
 package org.opensearch.action.support.nodes;
 
-import org.mockito.ArgumentCaptor;
 import org.opensearch.Version;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
@@ -78,10 +77,12 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.mockito.Mockito.verify;
+import org.mockito.ArgumentCaptor;
+
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class TransportNodesActionTests extends OpenSearchTestCase {
 
@@ -205,14 +206,20 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
 
     public void testCreateTransportNodesActionWithListenableHandler() {
         TransportNodesAction action = getListenableHandlerTestTransportNodesAction();
-        assertTrue(transport.getRequestHandlers().getHandler(action.actionName + "[n]").getHandler() instanceof TransportNodesAction.ListenableNodeTransportHandler);
+        assertTrue(
+            transport.getRequestHandlers()
+                .getHandler(action.actionName + "[n]")
+                .getHandler() instanceof TransportNodesAction.ListenableNodeTransportHandler
+        );
     }
 
     public void testMessageReceivedInListenableNodeTransportHandler() throws Exception {
         TransportNodesAction action = getListenableHandlerTestTransportNodesAction();
         TransportChannel transportChannel = mock(TransportChannel.class);
-        transport.getRequestHandlers().getHandler(action.actionName + "[n]").getHandler().messageReceived(new TestNodeRequest(), transportChannel, mock(
-            Task.class));
+        transport.getRequestHandlers()
+            .getHandler(action.actionName + "[n]")
+            .getHandler()
+            .messageReceived(new TestNodeRequest(), transportChannel, mock(Task.class));
         ArgumentCaptor<TestNodeResponse> argCaptor = ArgumentCaptor.forClass(TestNodeResponse.class);
         verify(transportChannel).sendResponse(argCaptor.capture());
         TestNodeResponse response = argCaptor.getValue();
