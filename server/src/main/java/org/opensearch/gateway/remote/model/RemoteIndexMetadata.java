@@ -10,7 +10,7 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -29,7 +29,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAM
 /**
  * Wrapper class for uploading/downloading {@link IndexMetadata} to/from remote blob store
  */
-public class RemoteIndexMetadata extends AbstractRemoteWritableBlobEntity<IndexMetadata> {
+public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEntity<IndexMetadata> {
 
     public static final int INDEX_METADATA_CURRENT_CODEC_VERSION = 2;
 

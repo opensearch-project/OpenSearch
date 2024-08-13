@@ -10,7 +10,7 @@ package org.opensearch.gateway.remote.model;
 
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.remote.AbstractRemoteWritableBlobEntity;
+import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
 import org.opensearch.common.remote.BlobPathParameters;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -31,7 +31,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.METADATA_NAM
 /**
  * Wrapper class for uploading/downloading {@link CoordinationMetadata} to/from remote blob store
  */
-public class RemoteCoordinationMetadata extends AbstractRemoteWritableBlobEntity<CoordinationMetadata> {
+public class RemoteCoordinationMetadata extends AbstractClusterMetadataWriteableBlobEntity<CoordinationMetadata> {
 
     public static final String COORDINATION_METADATA = "coordination";
     public static final ChecksumBlobStoreFormat<CoordinationMetadata> COORDINATION_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
