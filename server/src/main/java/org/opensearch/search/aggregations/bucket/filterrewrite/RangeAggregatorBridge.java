@@ -54,14 +54,8 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
         return false;
     }
 
-    protected void buildRanges(RangeAggregator.Range[] ranges, SearchContext context) {
+    protected void buildRanges(RangeAggregator.Range[] ranges) {
         assert fieldType instanceof NumericPointEncoder;
-        Query unwrap = Helper.unwrapIntoConcreteQuery(context.query());
-        if (!(unwrap instanceof MatchAllDocsQuery)) {
-            setRanges.accept(null);
-            return;
-        }
-
         NumericPointEncoder numericPointEncoder = (NumericPointEncoder) fieldType;
         byte[][] lowers = new byte[ranges.length][];
         byte[][] uppers = new byte[ranges.length][];
@@ -89,7 +83,6 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
         Ranges ranges
     ) throws IOException {
         int size = Integer.MAX_VALUE;
-
         BiConsumer<Integer, Integer> incrementFunc = (activeIndex, docCount) -> {
             long bucketOrd = bucketOrdProducer().apply(activeIndex);
             incrementDocCount.accept(bucketOrd, (long) docCount);
