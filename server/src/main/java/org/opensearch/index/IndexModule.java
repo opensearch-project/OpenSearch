@@ -98,6 +98,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -107,8 +108,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static org.apache.logging.log4j.util.Strings.toRootUpperCase;
 
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
@@ -650,7 +649,7 @@ public final class IndexModule {
 
         public static DataLocalityType getValueOf(final String localityType) {
             Objects.requireNonNull(localityType, "No locality type given.");
-            final String localityTypeName = toRootUpperCase(localityType.trim());
+            final String localityTypeName = localityType.trim().toUpperCase(Locale.ROOT);
             final DataLocalityType type = LOCALITY_TYPES.get(localityTypeName);
             if (type != null) {
                 return type;
