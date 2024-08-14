@@ -59,10 +59,6 @@ import java.util.Set;
 @PublicApi(since = "1.0.0")
 public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
-    public abstract boolean getUnmapFieldsBeyondLimit();
-
-    public abstract long getTotalFieldsLimit();
-
     /**
      * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
      *
@@ -352,8 +348,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         }
 
         @Override
-        public boolean getUnmapFieldsBeyondLimit() {
-            return in.getUnmapFieldsBeyondLimit();
+        public boolean getUnmapFieldsBeyondTotalFieldsLimit() {
+            return in.getUnmapFieldsBeyondTotalFieldsLimit();
         }
 
         @Override
@@ -406,7 +402,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private boolean docsReversed = false;
 
         private final Set<String> ignoredFields = new HashSet<>();
-        private final boolean unmapFieldsBeyondLimit;
+        private final boolean unmapFieldsBeyondTotalFieldsLimit;
         private final long totalFieldsLimit;
 
         public InternalParseContext(
@@ -433,7 +429,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
             this.currentArrayDepth = 0L;
             this.maxAllowedFieldDepth = indexSettings.getMappingDepthLimit();
             this.maxAllowedArrayDepth = indexSettings.getMappingDepthLimit();
-            this.unmapFieldsBeyondLimit = indexSettings.getUnmapFieldsBeyondTotalFieldsLimit();
+            this.unmapFieldsBeyondTotalFieldsLimit = indexSettings.getUnmapFieldsBeyondTotalFieldsLimit();
             this.totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
         }
 
@@ -642,8 +638,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         }
 
         @Override
-        public boolean getUnmapFieldsBeyondLimit() {
-            return this.unmapFieldsBeyondLimit;
+        public boolean getUnmapFieldsBeyondTotalFieldsLimit() {
+            return this.unmapFieldsBeyondTotalFieldsLimit;
         }
 
         @Override
@@ -827,5 +823,9 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
     public abstract void decrementFieldArrayDepth();
 
     public abstract void checkFieldArrayDepthLimit();
+
+    public abstract boolean getUnmapFieldsBeyondTotalFieldsLimit();
+
+    public abstract long getTotalFieldsLimit();
 
 }

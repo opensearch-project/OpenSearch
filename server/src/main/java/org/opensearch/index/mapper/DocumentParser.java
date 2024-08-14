@@ -597,7 +597,8 @@ final class DocumentParser {
      * @return true if `index.mapping.total_fields.unmap_fields_beyond_limit` is true and the current total fields count exceed the limit
      */
     private static boolean checkIfUnmapFieldsBeyondTotalFieldsLimit(ParseContext context) {
-        return context.getUnmapFieldsBeyondLimit() && context.docMapper().mappers().exceedTotalFieldsLimit(context.getTotalFieldsLimit());
+        return context.getUnmapFieldsBeyondTotalFieldsLimit()
+            && context.docMapper().mappers().exceedTotalFieldsLimit(context.getTotalFieldsLimit());
     }
 
     /**
@@ -605,7 +606,7 @@ final class DocumentParser {
      * @param context the parse context
      */
     private static void increaseDynamicFieldCountIfNeed(ParseContext context) {
-        if (context.getUnmapFieldsBeyondLimit()) {
+        if (context.getUnmapFieldsBeyondTotalFieldsLimit()) {
             context.docMapper().mappers().increaseDynamicFieldCount();
         }
     }
@@ -617,7 +618,7 @@ final class DocumentParser {
      * @param fieldCount the field count
      */
     private static void increaseDynamicFieldCountIfNeed(ParseContext context, long fieldCount) {
-        if (context.getUnmapFieldsBeyondLimit()) {
+        if (context.getUnmapFieldsBeyondTotalFieldsLimit()) {
             context.docMapper().mappers().increaseDynamicFieldCount(fieldCount);
         }
     }
@@ -917,7 +918,7 @@ final class DocumentParser {
         // edge case, adding a new field may increase the dynamic field count by 2 or more,
         // so we check if adding a new field will cause the total field count to exceed the total fields limit, if so we don't add it
         long fieldCount = 0;
-        if (context.getUnmapFieldsBeyondLimit()) {
+        if (context.getUnmapFieldsBeyondTotalFieldsLimit()) {
             fieldCount = context.docMapper().mappers().countFields(mapper);
             if (context.docMapper().mappers().exceedTotalFieldsLimitIfAddNewField(context.getTotalFieldsLimit(), fieldCount)) {
                 return;
