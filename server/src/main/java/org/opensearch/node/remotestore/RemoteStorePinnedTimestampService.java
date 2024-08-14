@@ -184,7 +184,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
                             oldFilesToBeDeleted
                         );
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        logger.error("Exception while deleting stale pinned timestamps", e);
                     }
                 }
             }
