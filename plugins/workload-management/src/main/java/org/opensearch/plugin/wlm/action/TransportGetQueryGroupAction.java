@@ -10,6 +10,7 @@ package org.opensearch.plugin.wlm.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
@@ -28,7 +29,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 
 /**
  * Transport action to get QueryGroup
@@ -85,12 +86,12 @@ public class TransportGetQueryGroupAction extends TransportClusterManagerNodeRea
     @Override
     protected void clusterManagerOperation(GetQueryGroupRequest request, ClusterState state, ActionListener<GetQueryGroupResponse> listener)
         throws Exception {
-        String name = request.getName();
-        List<QueryGroup> resultGroups = QueryGroupPersistenceService.getFromClusterStateMetadata(name, state);
+        final String name = request.getName();
+        final Collection<QueryGroup> resultGroups = QueryGroupPersistenceService.getFromClusterStateMetadata(name, state);
 
         if (resultGroups.isEmpty() && name != null && !name.isEmpty()) {
             logger.warn("No QueryGroup exists with the provided name: {}", name);
-            throw new IllegalArgumentException("No QueryGroup exists with the provided name: " + name);
+            throw new ResourceNotFoundException("No QueryGroup exists with the provided name: " + name);
         }
         listener.onResponse(new GetQueryGroupResponse(resultGroups, RestStatus.OK));
     }

@@ -5,14 +5,12 @@
       "paths": [
         {
           "path": "/_wlm/query_group",
-          "methods": ["PUT", "POST", "GET"],
+          "methods": ["GET"],
           "parts": {}
         },
         {
           "path": "/_wlm/query_group/{name}",
-          "methods": [
-            "GET"
-          ],
+          "methods": ["GET"],
           "parts": {
             "name": {
               "type": "string",

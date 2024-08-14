@@ -109,8 +109,8 @@ public class QueryGroup extends AbstractDiffable<QueryGroup> implements ToXConte
     }
 
     public static void validateName(String name) {
-        if (name.length() > MAX_CHARS_ALLOWED_IN_NAME || name.isEmpty()) {
-            throw new IllegalArgumentException("QueryGroup.name shouldn't be empty or more than 50 chars long");
+        if (name == null || name.isEmpty() || name.length() > MAX_CHARS_ALLOWED_IN_NAME) {
+            throw new IllegalArgumentException("QueryGroup.name shouldn't be null, empty or more than 50 chars long");
         }
     }
 

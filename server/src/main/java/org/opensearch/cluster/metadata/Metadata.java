@@ -1831,8 +1831,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
                     String prefix = DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-";
                     Set<String> conflicts = indicesLookup.subMap(prefix, DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the
-                        // char after
-                        // '-'
+                                                                                                                               // char after
+                                                                                                                               // '-'
                         .keySet()
                         .stream()
                         .filter(s -> NUMBER_PATTERN.matcher(s.substring(prefix.length())).matches())

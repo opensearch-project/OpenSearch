@@ -26,11 +26,11 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.plugin.wlm.action.CreateQueryGroupResponse;
 import org.opensearch.search.ResourceType;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * This class defines the functions for QueryGroup persistence
@@ -199,14 +199,17 @@ public class QueryGroupPersistenceService {
      * @param name - the QueryGroup name we are getting
      * @param currentState - current cluster state
      */
-    public static List<QueryGroup> getFromClusterStateMetadata(String name, ClusterState currentState) {
-        Map<String, QueryGroup> currentGroups = currentState.getMetadata().queryGroups();
+    public static Collection<QueryGroup> getFromClusterStateMetadata(String name, ClusterState currentState) {
+        final Map<String, QueryGroup> currentGroups = currentState.getMetadata().queryGroups();
         if (name == null || name.isEmpty()) {
-            return new ArrayList<>(currentGroups.values());
+            return currentGroups.values();
         }
-        List<QueryGroup> resultGroups = new ArrayList<>();
-        currentGroups.values().stream().filter(group -> group.getName().equals(name)).findFirst().ifPresent(resultGroups::add);
-        return resultGroups;
+        return currentGroups.values()
+            .stream()
+            .filter(group -> group.getName().equals(name))
+            .findAny()
+            .stream()
+            .collect(Collectors.toList());
     }
 
     /**

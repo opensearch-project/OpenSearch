@@ -53,7 +53,7 @@ public class RestGetQueryGroupAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetQueryGroupRequest getQueryGroupRequest = new GetQueryGroupRequest(request.param("name"));
+        final GetQueryGroupRequest getQueryGroupRequest = new GetQueryGroupRequest(request.param("name"));
         return channel -> client.execute(GetQueryGroupAction.INSTANCE, getQueryGroupRequest, getQueryGroupResponse(channel));
     }
 

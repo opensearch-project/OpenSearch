@@ -17,6 +17,9 @@ import java.io.IOException;
 
 public class GetQueryGroupRequestTests extends OpenSearchTestCase {
 
+    /**
+     * Test case to verify the serialization and deserialization of GetQueryGroupRequest.
+     */
     public void testSerialization() throws IOException {
         GetQueryGroupRequest request = new GetQueryGroupRequest(QueryGroupTestUtils.NAME_ONE);
         assertEquals(QueryGroupTestUtils.NAME_ONE, request.getName());
@@ -27,6 +30,9 @@ public class GetQueryGroupRequestTests extends OpenSearchTestCase {
         assertEquals(request.getName(), otherRequest.getName());
     }
 
+    /**
+     * Test case to verify the serialization and deserialization of GetQueryGroupRequest when name is null.
+     */
     public void testSerializationWithNull() throws IOException {
         GetQueryGroupRequest request = new GetQueryGroupRequest((String) null);
         assertNull(request.getName());
@@ -37,6 +43,9 @@ public class GetQueryGroupRequestTests extends OpenSearchTestCase {
         assertEquals(request.getName(), otherRequest.getName());
     }
 
+    /**
+     * Test case the validation function of GetQueryGroupRequest
+     */
     public void testValidation() {
         GetQueryGroupRequest request = new GetQueryGroupRequest("a".repeat(51));
         assertThrows(IllegalArgumentException.class, request::validate);

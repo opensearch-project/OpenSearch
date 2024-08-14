@@ -18,7 +18,7 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 
 /**
  * Response for the get API for QueryGroup
@@ -26,7 +26,7 @@ import java.util.List;
  * @opensearch.experimental
  */
 public class GetQueryGroupResponse extends ActionResponse implements ToXContent, ToXContentObject {
-    private final List<QueryGroup> queryGroups;
+    private final Collection<QueryGroup> queryGroups;
     private final RestStatus restStatus;
 
     /**
@@ -34,7 +34,7 @@ public class GetQueryGroupResponse extends ActionResponse implements ToXContent,
      * @param queryGroups - The QueryGroup list to be fetched
      * @param restStatus - The rest status of the request
      */
-    public GetQueryGroupResponse(final List<QueryGroup> queryGroups, RestStatus restStatus) {
+    public GetQueryGroupResponse(final Collection<QueryGroup> queryGroups, RestStatus restStatus) {
         this.queryGroups = queryGroups;
         this.restStatus = restStatus;
     }
@@ -50,7 +50,7 @@ public class GetQueryGroupResponse extends ActionResponse implements ToXContent,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(queryGroups);
+        out.writeCollection(queryGroups);
         RestStatus.writeTo(out, restStatus);
     }
 
@@ -69,7 +69,7 @@ public class GetQueryGroupResponse extends ActionResponse implements ToXContent,
     /**
      * queryGroups getter
      */
-    public List<QueryGroup> getQueryGroups() {
+    public Collection<QueryGroup> getQueryGroups() {
         return queryGroups;
     }
 

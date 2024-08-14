@@ -26,6 +26,9 @@ import static org.mockito.Mockito.mock;
 
 public class GetQueryGroupResponseTests extends OpenSearchTestCase {
 
+    /**
+     * Test case to verify the serialization and deserialization of GetQueryGroupResponse.
+     */
     public void testSerializationSingleQueryGroup() throws IOException {
         List<QueryGroup> list = new ArrayList<>();
         list.add(QueryGroupTestUtils.queryGroupOne);
@@ -41,6 +44,9 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
         QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
     }
 
+    /**
+     * Test case to verify the serialization and deserialization of GetQueryGroupResponse when the result contains multiple QueryGroups.
+     */
     public void testSerializationMultipleQueryGroup() throws IOException {
         GetQueryGroupResponse response = new GetQueryGroupResponse(QueryGroupTestUtils.queryGroupList(), RestStatus.OK);
         assertEquals(response.getQueryGroups(), QueryGroupTestUtils.queryGroupList());
@@ -55,6 +61,9 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
         QueryGroupTestUtils.assertEqualQueryGroups(response.getQueryGroups(), otherResponse.getQueryGroups());
     }
 
+    /**
+     * Test case to verify the serialization and deserialization of GetQueryGroupResponse when the result is empty.
+     */
     public void testSerializationNull() throws IOException {
         List<QueryGroup> list = new ArrayList<>();
         GetQueryGroupResponse response = new GetQueryGroupResponse(list, RestStatus.OK);
@@ -69,6 +78,9 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
         assertEquals(0, otherResponse.getQueryGroups().size());
     }
 
+    /**
+     * Test case to verify the toXContent of GetQueryGroupResponse.
+     */
     public void testToXContentGetSingleQueryGroup() throws IOException {
         List<QueryGroup> queryGroupList = new ArrayList<>();
         queryGroupList.add(QueryGroupTestUtils.queryGroupOne);
@@ -91,6 +103,9 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
         assertEquals(expected, actual);
     }
 
+    /**
+     * Test case to verify the toXContent of GetQueryGroupResponse when the result contains multiple QueryGroups.
+     */
     public void testToXContentGetMultipleQueryGroup() throws IOException {
         List<QueryGroup> queryGroupList = new ArrayList<>();
         queryGroupList.add(QueryGroupTestUtils.queryGroupOne);
@@ -123,6 +138,9 @@ public class GetQueryGroupResponseTests extends OpenSearchTestCase {
         assertEquals(expected, actual);
     }
 
+    /**
+     * Test case to verify toXContent of GetQueryGroupResponse when the result contains zero QueryGroup.
+     */
     public void testToXContentGetZeroQueryGroup() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         GetQueryGroupResponse otherResponse = new GetQueryGroupResponse(new ArrayList<>(), RestStatus.OK);

@@ -8,6 +8,7 @@
 
 package org.opensearch.plugin.wlm.action;
 
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -23,6 +24,9 @@ import static org.mockito.Mockito.mock;
 
 public class TransportGetQueryGroupActionTests extends OpenSearchTestCase {
 
+    /**
+     * Test case for ClusterManagerOperation function
+     */
     @SuppressWarnings("unchecked")
     public void testClusterManagerOperation() throws Exception {
         GetQueryGroupRequest getQueryGroupRequest1 = new GetQueryGroupRequest(NAME_NONE_EXISTED);
@@ -35,7 +39,7 @@ public class TransportGetQueryGroupActionTests extends OpenSearchTestCase {
             mock(IndexNameExpressionResolver.class)
         );
         assertThrows(
-            IllegalArgumentException.class,
+            ResourceNotFoundException.class,
             () -> transportGetQueryGroupAction.clusterManagerOperation(getQueryGroupRequest1, clusterState(), mock(ActionListener.class))
         );
         transportGetQueryGroupAction.clusterManagerOperation(getQueryGroupRequest2, clusterState(), mock(ActionListener.class));

@@ -1,10 +1,10 @@
-"test create QueryGroup API":
+"test CRUD Operations for QueryGroup API ":
   - skip:
       version: " - 2.16.99"
       reason: "QueryGroup WorkloadManagement feature was added in 2.17"
 
   - do:
-      query_group_context:
+      create_query_group_context:
         body:
           {
             "name": "analytics",
@@ -21,8 +21,17 @@
   - match: { resource_limits.memory: 0.2 }
 
   - do:
+      get_query_group_context:
+        name: "analytics"
+
+  - match: { query_groups.0.name: "analytics" }
+  - match: { query_groups.0.resiliency_mode: "monitor" }
+  - match: { query_groups.0.resource_limits.cpu: 0.4 }
+  - match: { query_groups.0.resource_limits.memory: 0.2 }
+
+  - do:
       catch: /illegal_argument_exception/
-      query_group_context:
+      create_query_group_context:
         body:
           {
             "name": "analytics",
@@ -35,7 +44,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      query_group_context:
+      create_query_group_context:
         body:
           {
             "name": "analytics2",
@@ -48,7 +57,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      query_group_context:
+      create_query_group_context:
         body:
           {
             "name": "analytics2",
@@ -61,7 +70,7 @@
 
   - do:
       catch: /illegal_argument_exception/
-      query_group_context:
+      create_query_group_context:
         body:
           {
             "name": "",
@@ -73,7 +82,7 @@
           }
 
   - do:
-      query_group_context:
+      create_query_group_context:
         body:
           {
             "name": "analytics2",
@@ -88,3 +97,12 @@
   - match: { resiliency_mode: "monitor" }
   - match: { resource_limits.cpu: 0.35 }
   - match: { resource_limits.memory: 0.25 }
+
+  - do:
+      get_query_group_context:
+        name: "analytics2"
+
+  - match: { query_groups.0.name: "analytics2" }
+  - match: { query_groups.0.resiliency_mode: "monitor" }
+  - match: { query_groups.0.resource_limits.cpu: 0.35 }
+  - match: { query_groups.0.resource_limits.memory: 0.25 }
