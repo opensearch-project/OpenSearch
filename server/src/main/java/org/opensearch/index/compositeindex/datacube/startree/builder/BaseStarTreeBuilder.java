@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.opensearch.index.codec.composite.datacube.startree.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.index.compositeindex.datacube.startree.utils.TreeNode.ALL;
 
@@ -69,7 +71,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     protected int totalSegmentDocs;
     protected int numStarTreeNodes;
     protected final int maxLeafDocuments;
-
+    List<Dimension> dimensionsSplitOrder = new ArrayList<>();
     protected final TreeNode rootNode = getNewNode();
 
     protected final StarTreeField starTreeField;
@@ -88,9 +90,12 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         this.starTreeField = starTreeField;
         StarTreeFieldConfiguration starTreeFieldSpec = starTreeField.getStarTreeConfig();
-
-        List<Dimension> dimensionsSplitOrder = starTreeField.getDimensionsOrder();
-        this.numDimensions = dimensionsSplitOrder.size();
+        int numDims = 0;
+        for (Dimension dim : starTreeField.getDimensionsOrder()) {
+            numDims += dim.getNumSubDimensions();
+            dimensionsSplitOrder.add(dim);
+        }
+        this.numDimensions = numDims;
 
         this.skipStarNodeCreationForDimensions = new HashSet<>();
         this.totalSegmentDocs = state.segmentInfo.maxDoc();
@@ -98,9 +103,12 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 
         Set<String> skipStarNodeCreationForDimensions = starTreeFieldSpec.getSkipStarNodeCreationInDims();
 
-        for (int i = 0; i < numDimensions; i++) {
+        for (int i = 0; i < dimensionsSplitOrder.size(); i++) {
             if (skipStarNodeCreationForDimensions.contains(dimensionsSplitOrder.get(i).getField())) {
-                this.skipStarNodeCreationForDimensions.add(i);
+                // add the dimension indices
+                for (int dimIndex = 0; dimIndex < dimensionsSplitOrder.get(i).getNumSubDimensions(); dimIndex++) {
+                    this.skipStarNodeCreationForDimensions.add(i + dimIndex);
+                }
             }
         }
 
@@ -168,6 +176,30 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             i++;
         }
         return new StarTreeDocument(dims, metrics);
+    }
+
+    /**
+     * Sets dimensions / metric readers nnd numSegmentDocs
+     */
+    protected void setReadersAndNumSegmentDocs(
+        SequentialDocValuesIterator[] dimensionReaders,
+        List<SequentialDocValuesIterator> metricReaders,
+        AtomicInteger numSegmentDocs,
+        StarTreeValues starTreeValues
+    ) {
+
+        List<String> dimensionNames = starTreeValues.getStarTreeField().getDimensionNames();
+        for (int i = 0; i < numDimensions; i++) {
+            dimensionReaders[i] = new SequentialDocValuesIterator(
+                starTreeValues.getDimensionDocValuesIteratorMap().get(dimensionNames.get(i))
+            );
+        }
+        for (String metric : starTreeValues.getStarTreeField().getMetricNames()) {
+            metricReaders.add(new SequentialDocValuesIterator(starTreeValues.getMetricDocValuesIteratorMap().get(metric)));
+        }
+        numSegmentDocs.set(
+            Integer.parseInt(starTreeValues.getAttributes().getOrDefault(NUM_SEGMENT_DOCS, String.valueOf(DocIdSetIterator.NO_MORE_DOCS)))
+        );
     }
 
     /**
@@ -248,7 +280,8 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      */
     Long[] getStarTreeDimensionsFromSegment(int currentDocId, SequentialDocValuesIterator[] dimensionReaders) throws IOException {
         Long[] dimensions = new Long[numDimensions];
-        for (int i = 0; i < numDimensions; i++) {
+        int dimIndex = 0;
+        for (int i = 0; i < dimensionReaders.length; i++) {
             if (dimensionReaders[i] != null) {
                 try {
                     dimensionReaders[i].nextDoc(currentDocId);
@@ -259,7 +292,7 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                     logger.error("unable to read the dimension values from the segment", e);
                     throw new IllegalStateException("unable to read the dimension values from the segment", e);
                 }
-                dimensions[i] = dimensionReaders[i].value(currentDocId);
+                dimIndex = dimensionsSplitOrder.get(i).setDimensionValues(dimensionReaders[i].value(currentDocId), dimensions, dimIndex);
             } else {
                 throw new IllegalStateException("dimension readers are empty");
             }
@@ -422,8 +455,9 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         List<SequentialDocValuesIterator> metricReaders = getMetricReaders(state, fieldProducerMap);
         List<Dimension> dimensionsSplitOrder = starTreeField.getDimensionsOrder();
         SequentialDocValuesIterator[] dimensionReaders = new SequentialDocValuesIterator[dimensionsSplitOrder.size()];
-        for (int i = 0; i < numDimensions; i++) {
+        for (int i = 0; i < dimensionReaders.length; i++) {
             String dimension = dimensionsSplitOrder.get(i).getField();
+
             FieldInfo dimensionFieldInfo = state.fieldInfos.fieldInfo(dimension);
             if (dimensionFieldInfo == null) {
                 dimensionFieldInfo = getFieldInfo(dimension);

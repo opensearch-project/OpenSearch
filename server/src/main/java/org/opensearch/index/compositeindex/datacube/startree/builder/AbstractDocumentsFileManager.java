@@ -40,17 +40,20 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
     protected final TrackingDirectoryWrapper tmpDirectory;
     protected final SegmentWriteState state;
     protected int docSizeInBytes = -1;
+    protected final int numDimensions;
 
     public AbstractDocumentsFileManager(
         SegmentWriteState state,
         StarTreeField starTreeField,
-        List<MetricAggregatorInfo> metricAggregatorInfos
+        List<MetricAggregatorInfo> metricAggregatorInfos,
+        int numDimensions
     ) {
         this.starTreeField = starTreeField;
         this.tmpDirectory = new TrackingDirectoryWrapper(state.directory);
         this.metricAggregatorInfos = metricAggregatorInfos;
         this.state = state;
         numMetrics = metricAggregatorInfos.size();
+        this.numDimensions = numDimensions;
     }
 
     private void setDocSizeInBytes(int numBytes) {
@@ -123,8 +126,7 @@ public abstract class AbstractDocumentsFileManager implements Closeable {
      * @throws IOException IOException in case of I/O errors
      */
     protected StarTreeDocument readStarTreeDocument(RandomAccessInput input, long offset, boolean isAggregatedDoc) throws IOException {
-        int dimSize = starTreeField.getDimensionsOrder().size();
-        Long[] dimensions = new Long[dimSize];
+        Long[] dimensions = new Long[numDimensions];
         long initialOffset = offset;
         offset = readDimensions(dimensions, input, offset);
 

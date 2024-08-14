@@ -94,6 +94,11 @@ public class DimensionFactory {
             calendarIntervals = new ArrayList<>(calendarIntervals);
         }
         dimensionMap.remove(CALENDAR_INTERVALS);
-        return new DateDimension(name, calendarIntervals);
+        DateFieldMapper.Resolution resolution = null;
+        if (c != null && c.mapperService() != null && c.mapperService().fieldType(name) != null) {
+            resolution = ((DateFieldMapper.DateFieldType) c.mapperService().fieldType(name)).resolution();
+        }
+
+        return new DateDimension(name, calendarIntervals, resolution);
     }
 }

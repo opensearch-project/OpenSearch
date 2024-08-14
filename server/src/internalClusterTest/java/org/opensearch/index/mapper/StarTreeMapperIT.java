@@ -47,10 +47,10 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject("startree-1")
                 .field("type", "star_tree")
                 .startObject("config")
-                .startArray("ordered_dimensions")
-                .startObject()
+                .startObject("date_dimension")
                 .field("name", "timestamp")
                 .endObject()
+                .startArray("ordered_dimensions")
                 .startObject()
                 .field("name", getDim(invalidDim, keywordDim))
                 .endObject()
@@ -97,14 +97,14 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject("startree-1")
                 .field("type", "star_tree")
                 .startObject("config")
-                .startArray("ordered_dimensions")
-                .startObject()
+                .startObject("date_dimension")
                 .field("name", "timestamp")
                 .startArray("calendar_intervals")
                 .value("day")
                 .value("month")
                 .endArray()
                 .endObject()
+                .startArray("ordered_dimensions")
                 .startObject()
                 .field("name", "dim2")
                 .endObject()
@@ -139,7 +139,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
         }
     }
 
-    private static XContentBuilder createTestMappingWithoutStarTree(boolean invalidDim, boolean invalidMetric, boolean keywordDim) {
+    private static XContentBuilder createTestMappingWithoutStarTree() {
         try {
             return jsonBuilder().startObject()
                 .startObject("properties")
@@ -176,10 +176,10 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
                 .startObject(sameStarTree ? "startree-1" : "startree-2")
                 .field("type", "star_tree")
                 .startObject("config")
-                .startArray("ordered_dimensions")
-                .startObject()
+                .startObject("date_dimension")
                 .field("name", "timestamp")
                 .endObject()
+                .startArray("ordered_dimensions")
                 .startObject()
                 .field("name", changeDim ? "numeric_new" : getDim(false, false))
                 .endObject()
@@ -295,7 +295,7 @@ public class StarTreeMapperIT extends OpenSearchIntegTestCase {
     }
 
     public void testUpdateIndexWithNewerStarTree() {
-        prepareCreate(TEST_INDEX).setMapping(createTestMappingWithoutStarTree(false, false, false)).get();
+        prepareCreate(TEST_INDEX).setMapping(createTestMappingWithoutStarTree()).get();
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,

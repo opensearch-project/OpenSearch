@@ -13,6 +13,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -31,6 +32,23 @@ public class NumericDimension implements Dimension {
 
     public String getField() {
         return field;
+    }
+
+    @Override
+    public int getNumSubDimensions() {
+        return 1;
+    }
+
+    @Override
+    public int setDimensionValues(final Long val, final Long[] dims, int index) {
+        dims[index++] = val;
+        return index;
+    }
+
+    @Override
+    public List<String> getDimensionFieldsNames() {
+        // TODO : revisit this post file format changes
+        return List.of(field);
     }
 
     @Override
