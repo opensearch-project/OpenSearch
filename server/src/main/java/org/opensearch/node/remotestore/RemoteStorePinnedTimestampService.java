@@ -33,6 +33,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -49,6 +50,7 @@ public class RemoteStorePinnedTimestampService implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteStorePinnedTimestampService.class);
     private static Tuple<Long, Set<Long>> pinnedTimestampsSet = new Tuple<>(-1L, Set.of());
     public static final int PINNED_TIMESTAMP_FILES_TO_KEEP = 5;
+    public static final int TIMESTAMP_PINNING_PAST_BUFFER_IN_MILLIS = 10000;
 
     private final Supplier<RepositoriesService> repositoriesService;
     private final Settings settings;
@@ -131,8 +133,10 @@ public class RemoteStorePinnedTimestampService implements Closeable {
      * @throws IOException If an I/O error occurs during the pinning process
      * @throws IllegalArgumentException If the timestamp is less than the current time minus one second
      */
-    public void pinTimestamp(long timestamp, String pinningEntity, ActionListener<Void> listener) throws IOException {
-        if (timestamp < System.currentTimeMillis() - 1000) {
+    public void pinTimestamp(long timestamp, String pinningEntity, ActionListener<Void> listener) {
+        // If a caller uses current system time to pin the timestamp, following check will almost always fail.
+        // So, we allow pinning timestamp in the past upto some buffer
+        if (timestamp < TimeUnit.NANOSECONDS.toMillis(System.nanoTime()) - TIMESTAMP_PINNING_PAST_BUFFER_IN_MILLIS) {
             throw new IllegalArgumentException("Timestamp to be pinned is less than current timestamp");
         }
         updatePinning(pinnedTimestamps -> pinnedTimestamps.pin(timestamp, pinningEntity), listener);
