@@ -38,6 +38,10 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 public class RemotePinnedTimestamps extends RemoteWriteableBlobEntity<RemotePinnedTimestamps.PinnedTimestamps> {
     private static final Logger logger = LogManager.getLogger(RemotePinnedTimestamps.class);
 
+    /**
+     * Represents a collection of pinned timestamps and their associated pinning entities.
+     * This class is thread-safe and implements the Writeable interface for serialization.
+     */
     public static class PinnedTimestamps implements Writeable {
         private final Map<Long, List<String>> pinnedTimestampPinningEntityMap;
 
@@ -54,11 +58,23 @@ public class RemotePinnedTimestamps extends RemoteWriteableBlobEntity<RemotePinn
             return new PinnedTimestamps(in.readMap(StreamInput::readLong, StreamInput::readStringList));
         }
 
+        /**
+         * Pins a timestamp against a pinning entity.
+         *
+         * @param timestamp The timestamp to pin.
+         * @param pinningEntity The entity pinning the timestamp.
+         */
         public void pin(Long timestamp, String pinningEntity) {
             logger.debug("Pinning timestamp = {} against entity = {}", timestamp, pinningEntity);
             pinnedTimestampPinningEntityMap.computeIfAbsent(timestamp, k -> new ArrayList<>()).add(pinningEntity);
         }
 
+        /**
+         * Unpins a timestamp for a specific pinning entity.
+         *
+         * @param timestamp The timestamp to unpin.
+         * @param pinningEntity The entity unpinning the timestamp.
+         */
         public void unpin(Long timestamp, String pinningEntity) {
             logger.debug("Unpinning timestamp = {} against entity = {}", timestamp, pinningEntity);
             pinnedTimestampPinningEntityMap.computeIfPresent(timestamp, (k, v) -> {
